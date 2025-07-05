@@ -7,3 +7,8 @@ dist
 *.swp
 # Archivos grandes de SWC (Next.js)
 node_modules/@next/swc-*
+.husky/
+turbo.json
+.vscode/
+.vscode-test/
+package-lock.json
