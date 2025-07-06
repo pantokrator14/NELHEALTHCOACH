@@ -11,5 +11,4 @@ node_modules/@next/swc-*
 turbo.json
 .vscode/
 .vscode-test/
-package-lock.json
 eslint.config.mjs
