@@ -1,0 +1,25 @@
+{
+  "name": "nelhealthcoach",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev:*\"",
+    "dev:landing": "cd apps/landing && npm run dev",
+    "dev:form": "cd apps/form && npm run dev",
+    "dev:dashboard": "cd apps/dashboard && npm run dev",
+    "dev:api": "cd apps/api && npm run dev",
+    "build": "turbo run build",
+    "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.1",
+    "turbo": "^1.13.2"
+  },
+  "keywords": [],
+  "author": "pantokrator14",
+  "license": "ISC",
+  "description": ""
+}
