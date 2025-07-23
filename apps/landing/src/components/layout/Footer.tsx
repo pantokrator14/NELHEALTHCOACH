@@ -65,7 +65,7 @@ const Footer: React.FC = () => {
             © {new Date().getFullYear()} Nel Health Coach. Todos los derechos reservados.
           </p>
           <div className="flex space-x-4">
-            {['facebook', 'instagram', 'youtube', 'linkedin'].map((social) => (
+            {['instagram', 'youtube', 'TikTok'].map((social) => (
               <a 
                 key={social}
                 href={`https://${social}.com/nelhealthcoach`}
