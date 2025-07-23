@@ -11,10 +11,10 @@ const AboutSection: React.FC = () => {
           <div className="lg:w-1/2">
             <div className="relative h-96 w-full rounded-xl overflow-hidden shadow-lg">
               <Image
-                src="/nelhealthcoach.jpg" // Reemplaza con la foto de tu tío
+                src="/images/nelhealthcoach.jpg"
                 alt="Nel Health Coach"
-                layout="fill"
-                objectFit="cover"
+                fill
+                className="object-cover"
                 quality={90}
               />
             </div>

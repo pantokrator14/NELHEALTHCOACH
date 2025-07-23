@@ -21,8 +21,8 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({
           <Image
             src={image}
             alt={name}
-            layout="fill"
-            objectFit="cover"
+            fill
+            className="object-cover"
           />
         </div>
         <div>

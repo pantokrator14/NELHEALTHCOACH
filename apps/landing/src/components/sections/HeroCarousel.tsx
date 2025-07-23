@@ -6,17 +6,17 @@ const HeroCarousel: React.FC = () => {
     {
       id: 1,
       title: "El momento de cambiar tu vida ha llegado",
-      image: "/hero1.jpg" // Reemplaza con tus imágenes
+      image: "/images/hero1.jpg" // Reemplaza con tus imágenes
     },
     {
       id: 2,
       title: "Sabiduría ancestral para solucionar problemas actuales",
-      image: "/hero2.jpg"
+      image: "/images/hero2.jpg"
     },
     {
       id: 3,
       title: "Prepárate para tener de nuevo el control de tu vida",
-      image: "/hero3.jpg"
+      image: "/images/hero3.jpg"
     }
   ];
 
@@ -39,15 +39,15 @@ const HeroCarousel: React.FC = () => {
             index === currentSlide ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <div className="absolute inset-0">
+          <div className="relative w-full h-full">
             <Image
               src={slide.image}
               alt={`Slide ${slide.id}`}
-              layout="fill"
-              objectFit="cover"
+              fill
+              className="object-cover"
               quality={100}
             />
-          </div>
+          </div>  
           
           <div className="absolute inset-0 bg-blue-900 bg-opacity-72 flex items-center justify-center">
             <div className="text-center px-4 max-w-4xl">
