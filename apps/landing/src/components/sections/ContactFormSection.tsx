@@ -22,23 +22,10 @@ const ContactFormSection: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // Aquí integrarías con Calendly API
-      console.log('Datos del formulario:', formData);
-      
-      // Simulamos una petición a la API
+      // Simulación de envío
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
       setSubmitSuccess(true);
-      setFormData({
-        name: '',
-        email: '',
-        date: '',
-        time: '',
-        platform: 'zoom'
-      });
-      
-      // Aquí redirigiríamos a Calendly o enviaríamos los datos
-      // window.location.href = `https://calendly.com/tu-tio?name=${formData.name}&email=${formData.email}&date=${formData.date}&time=${formData.time}`;
+      setFormData({ name: '', email: '', date: '', time: '', platform: 'zoom' });
     } catch (error) {
       console.error('Error al enviar el formulario:', error);
     } finally {
@@ -48,47 +35,46 @@ const ContactFormSection: React.FC = () => {
 
   return (
     <section id="contacto" className="section-padding bg-blue-50">
-      <div className="container mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-5xl">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="md:flex">
-            <div className="md:w-1/2 bg-blue-600 text-white p-10">
-              <h2 className="text-3xl font-bold mb-4">¿Hablamos?</h2>
-              <p className="mb-6">
+            <div className="md:w-1/2 bg-blue-600 text-white p-8 md:p-10">
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">¿Hablamos?</h2>
+              <p className="mb-6 text-lg">
                 Solicita tu sesión gratuita ahora y comienza tu transformación
               </p>
-              <ul className="space-y-3">
-                <li className="flex items-start">
-                  <svg className="w-6 h-6 mr-2 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                  <span>Sesión personalizada de 30 minutos</span>
-                </li>
-                <li className="flex items-start">
-                  <svg className="w-6 h-6 mr-2 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                  <span>Análisis inicial de tus objetivos</span>
-                </li>
-                <li className="flex items-start">
-                  <svg className="w-6 h-6 mr-2 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                  <span>Plan de acción personalizado</span>
-                </li>
+              <ul className="space-y-4">
+                {[
+                  "Sesión personalizada de 30 minutos",
+                  "Análisis inicial de tus objetivos",
+                  "Plan de acción personalizado"
+                ].map((item, index) => (
+                  <li key={index} className="flex items-start">
+                    <svg 
+                      className="w-6 h-6 mr-3 mt-0.5 flex-shrink-0" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span className="text-lg">{item}</span>
+                  </li>
+                ))}
               </ul>
             </div>
             
-            <div className="md:w-1/2 p-10">
-              <h3 className="text-2xl font-bold mb-6">Solicita tu sesión gratuita</h3>
+            <div className="md:w-1/2 p-8 md:p-10">
+              <h3 className="text-2xl font-bold mb-6 text-gray-800">Solicita tu sesión gratuita</h3>
               
               {submitSuccess ? (
                 <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6">
                   ¡Gracias! Hemos recibido tu solicitud. Pronto te enviaremos un correo con los detalles de tu sesión.
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="name" className="block mb-1 font-medium">Nombre completo</label>
+                    <label htmlFor="name" className="block mb-2 font-medium text-gray-700">Nombre completo</label>
                     <input
                       type="text"
                       id="name"
@@ -96,12 +82,13 @@ const ContactFormSection: React.FC = () => {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Tu nombre completo"
                     />
                   </div>
                   
                   <div>
-                    <label htmlFor="email" className="block mb-1 font-medium">Correo electrónico</label>
+                    <label htmlFor="email" className="block mb-2 font-medium text-gray-700">Correo electrónico</label>
                     <input
                       type="email"
                       id="email"
@@ -109,13 +96,14 @@ const ContactFormSection: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="tu@email.com"
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <label htmlFor="date" className="block mb-1 font-medium">Fecha deseada</label>
+                      <label htmlFor="date" className="block mb-2 font-medium text-gray-700">Fecha deseada</label>
                       <input
                         type="date"
                         id="date"
@@ -123,12 +111,12 @@ const ContactFormSection: React.FC = () => {
                         value={formData.date}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                     
                     <div>
-                      <label htmlFor="time" className="block mb-1 font-medium">Hora deseada</label>
+                      <label htmlFor="time" className="block mb-2 font-medium text-gray-700">Hora deseada</label>
                       <input
                         type="time"
                         id="time"
@@ -136,19 +124,19 @@ const ContactFormSection: React.FC = () => {
                         value={formData.time}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                   </div>
                   
                   <div>
-                    <label htmlFor="platform" className="block mb-1 font-medium">Plataforma preferida</label>
+                    <label htmlFor="platform" className="block mb-2 font-medium text-gray-700">Plataforma preferida</label>
                     <select
                       id="platform"
                       name="platform"
                       value={formData.platform}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="zoom">Zoom</option>
                       <option value="meet">Google Meet</option>
@@ -159,7 +147,7 @@ const ContactFormSection: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className={`w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors ${
+                    className={`w-full bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 transition-colors ${
                       isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
                     }`}
                   >
