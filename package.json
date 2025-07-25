@@ -15,8 +15,10 @@
     "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +"
   },
   "devDependencies": {
-    "concurrently": "^8.2.1",
-    "turbo": "^1.13.2"
+    "@types/node": "^24.0.15",
+    "concurrently": "^8.2.2",
+    "turbo": "^1.13.4",
+    "typescript": "^5.8.3"
   },
   "keywords": [],
   "author": "pantokrator14",

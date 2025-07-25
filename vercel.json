@@ -1,0 +1,23 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "dist",
+  "projects": {
+    "landing": {
+      "path": "apps/landing",
+      "domain": "nelhealthcoach.com"
+    },
+    "form": {
+      "path": "apps/form",
+      "domain": "form.nelhealthcoach.com"
+    },
+    "dashboard": {
+      "path": "apps/dashboard",
+      "domain": "app.nelhealthcoach.com"
+    },
+    "api": {
+      "path": "apps/api",
+      "domain": "api.nelhealthcoach.com"
+    }
+  }
+}
