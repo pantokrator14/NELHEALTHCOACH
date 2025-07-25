@@ -1,48 +1,13 @@
 import React from 'react';
-import TestimonialCard from '../ui/TestimonialCard';
 
 const TestimonialsSection: React.FC = () => {
-  const testimonials = [
-    {
-      id: 1,
-      name: "María González",
-      role: "Transformación en 6 meses",
-      content: "Gracias al método de Nel, perdí 25 kg y recuperé mi salud. Su enfoque personalizado hizo toda la diferencia.",
-      image: "/images/testimonial1.jpg"
-    },
-    {
-      id: 2,
-      name: "Carlos Mendoza",
-      role: "Cliente desde 2021",
-      content: "No solo bajé de peso, sino que cambié mi relación con la comida. La guía de Nel fue fundamental en mi proceso.",
-      image: "/images/testimonial2.jpg"
-    },
-    {
-      id: 3,
-      name: "Ana Rodríguez",
-      role: "Resultados en 3 meses",
-      content: "La combinación de dieta, ejercicio y mentalidad fue clave. Ahora tengo energía todo el día y me siento mejor que nunca.",
-      image: "/images/testimonial3.jpg"
-    }
-  ];
-
   return (
-    <section id="testimonios" className="section-padding bg-gray-50">
-      <div className="container mx-auto max-w-6xl">
-        <h2 className="section-title">Transformaciones Reales</h2>
-        <p className="section-subtitle">Historias de personas que recuperaron el control de su salud</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {testimonials.map((testimonial) => (
-            <TestimonialCard
-              key={testimonial.id}
-              name={testimonial.name}
-              role={testimonial.role}
-              content={testimonial.content}
-              image={testimonial.image}
-            />
-          ))}
-        </div>
+    <section className="bg-gray-100 py-20">
+      <div className="container mx-auto">
+        <h2 className="text-3xl font-bold mb-6">Testimonials</h2>
+        <p className="text-lg text-gray-700">
+          Hear what our clients have to say about us.
+        </p>
       </div>
     </section>
   );
