@@ -1,34 +1,27 @@
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 
-/**
- * Carrusel hero con:
- * - 3 slides con mensajes inspiradores
- * - Transiciones automáticas cada 5 segundos
- * - Indicadores de posición
- * - Botón de llamado a la acción
- */
 const HeroCarousel: React.FC = () => {
   const slides = [
     {
       id: 1,
       title: "El momento de cambiar tu vida ha llegado",
-      bgClass: "bg-blue-500"
+      image: "/images/hero/hero1.jpg"
     },
     {
       id: 2,
       title: "Sabiduría ancestral para solucionar problemas actuales",
-      bgClass: "bg-green-500"
+      image: "/images/hero/hero2.jpg"
     },
     {
       id: 3,
       title: "Prepárate para tener de nuevo el control de tu vida",
-      bgClass: "bg-purple-500"
+      image: "/images/hero/hero3.jpg"
     }
   ];
 
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Cambio automático de slides
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
@@ -38,14 +31,27 @@ const HeroCarousel: React.FC = () => {
   }, [slides.length]);
 
   return (
-    <section id="inicio" className="relative h-screen w-full">
+    <section 
+      id="inicio" 
+      className="relative h-screen w-full flex items-center justify-center"
+    >
       {slides.map((slide, index) => (
         <div 
           key={slide.id}
-          className={`absolute inset-0 transition-opacity duration-5000 ${
+          className={`absolute inset-0 transition-opacity duration-1000 ${
             index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
-          } ${slide.bgClass} flex items-center justify-center`}
+          }`}
         >
+          <div className="absolute inset-0">
+            <Image
+              src={slide.image}
+              alt={`Slide ${slide.id}`}
+              fill
+              className="object-cover w-full h-full"
+              quality={100}
+            />
+          </div>
+          
           <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
             <div className="text-center px-4 max-w-3xl">
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-8">

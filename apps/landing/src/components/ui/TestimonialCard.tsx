@@ -1,28 +1,33 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface TestimonialCardProps {
   name: string;
   role: string;
   content: string;
+  image: string; // Prop para la imagen
 }
 
-/**
- * Componente de tarjeta de testimonio con:
- * - Foto, nombre y rol del cliente
- * - Contenido del testimonio
- * - Calificación con 5 estrellas
- */
 const TestimonialCard: React.FC<TestimonialCardProps> = ({ 
   name, 
   role, 
-  content 
+  content,
+  image // Recibimos la imagen
 }) => {
   return (
     <div className="bg-white p-6 rounded-xl shadow-md h-full">
       <div className="flex items-center mb-4">
-        <div className="bg-gray-200 border-2 border-dashed rounded-full w-16 h-16" />
-        <div className="ml-4">
-          <h3 className="font-bold text-lg">{name}</h3>
+        {/* Aquí usamos la imagen */}
+        <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4">
+          <Image
+            src={image}
+            alt={name}
+            fill
+            className="object-cover"
+          />
+        </div>
+        <div>
+          <h3 className="font-bold text-lg text-blue-500">{name}</h3>
           <p className="text-gray-600 text-sm">{role}</p>
         </div>
       </div>

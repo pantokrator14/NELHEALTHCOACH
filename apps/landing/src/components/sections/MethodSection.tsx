@@ -35,9 +35,9 @@ const MethodSection: React.FC = () => {
   ];
 
   return (
-    <section id="metodo" className="py-16 px-4 bg-gray-50">
-      <div className="container mx-auto max-w-6xl">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">¿Cómo lo haremos?</h2>
+    <section id="metodo" className="min-h-screen py-16 px-4 bg-gray-50 flex items-center">
+      <div className="container mx-auto max-w-6xl w-full">
+        <h2 className="text-3xl md:text-4xl font-bold text-blue-500 text-center mb-4">¿Cómo lo haremos?</h2>
         <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
           Un enfoque integral para tu transformación personal:
         </p>
@@ -49,7 +49,7 @@ const MethodSection: React.FC = () => {
               className="bg-white p-6 rounded-xl shadow-md text-center transition-transform hover:scale-105"
             >
               <div className="text-4xl mb-4">{method.icon}</div>
-              <h3 className="text-xl font-bold mb-3">{method.title}</h3>
+              <h3 className="text-xl text-blue-500 font-bold mb-3">{method.title}</h3>
               <p className="text-gray-600">{method.description}</p>
             </div>
           ))}

@@ -40,7 +40,7 @@ const ContactFormSection: React.FC = () => {
   };
 
   return (
-    <section id="contacto" className="py-16 px-4 bg-blue-50">
+    <section id="contacto" className="py-16 px-4 bg-blue-200">
       <div className="container mx-auto max-w-5xl">
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="md:flex">
@@ -54,7 +54,7 @@ const ContactFormSection: React.FC = () => {
                   <svg className="w-6 h-6 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span>Sesión personalizada de 30 minutos</span>
+                  <span>Sesión personalizada de 60 minutos</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-6 h-6 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,7 +72,7 @@ const ContactFormSection: React.FC = () => {
             </div>
             
             <div className="md:w-1/2 p-8">
-              <h3 className="text-2xl font-bold mb-6">Solicita tu sesión gratuita</h3>
+              <h3 className="text-2xl font-blue-500 font-bold mb-6">Solicita tu sesión gratuita</h3>
               
               {submitSuccess ? (
                 <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6">
@@ -81,7 +81,7 @@ const ContactFormSection: React.FC = () => {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label htmlFor="name" className="block mb-1 font-medium">Nombre completo</label>
+                    <label htmlFor="name" className="block mb-1 font-gray-100 font-medium">Nombre completo</label>
                     <input
                       type="text"
                       id="name"
@@ -95,7 +95,7 @@ const ContactFormSection: React.FC = () => {
                   </div>
                   
                   <div>
-                    <label htmlFor="email" className="block mb-1 font-medium">Correo electrónico</label>
+                    <label htmlFor="email" className="block mb-1 font-gray-100 font-medium">Correo electrónico</label>
                     <input
                       type="email"
                       id="email"
@@ -110,7 +110,7 @@ const ContactFormSection: React.FC = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="date" className="block mb-1 font-medium">Fecha deseada</label>
+                      <label htmlFor="date" className="block mb-1 font-gray-500 font-medium">Fecha deseada</label>
                       <input
                         type="date"
                         id="date"

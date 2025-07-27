@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import Image from 'next/image';
 
 /**
  * Barra de navegación responsive con:
@@ -30,24 +30,52 @@ const Navbar: React.FC = () => {
     { id: 'testimonios', label: 'Testimonios' },
     { id: 'contacto', label: 'Contacto' },
   ];
+  // Función para scroll suave con animación
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      // Calcular posición con offset para el navbar
+      const offset = 80;
+      const bodyRect = document.body.getBoundingClientRect().top;
+      const elementRect = element.getBoundingClientRect().top;
+      const elementPosition = elementRect - bodyRect;
+      const offsetPosition = elementPosition - offset;
+
+      // Animación de scroll
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+    setMobileMenuOpen(false);
+  };
 
   return (
     <header className={`fixed w-full z-50 transition-all duration-300 ${
       isScrolled ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
     }`}>
       <div className="container mx-auto px-4 flex justify-between items-center">
-        <Link href="#inicio" className="text-xl font-bold text-blue-600">NEL HEALTH COACH</Link>
+        <div 
+          onClick={() => scrollToSection('inicio')}
+          className="cursor-pointer relative h-50 w-100"
+        >
+          <Image
+            src="/images/logo.png"
+            alt="Nel Health Coach"
+            fill
+            className="object-contain"
+          />
+        </div>
         
-        {/* Navegación para escritorio */}
-        <nav className="hidden md:flex space-x-6">
+        <nav className="hidden md:flex space-x-8">
           {navItems.map((item) => (
-            <Link 
+            <a 
               key={item.id} 
-              href={`#${item.id}`}
-              className="font-medium text-gray-700 hover:text-blue-600 transition-colors"
+              onClick={() => scrollToSection(item.id)}
+              className="font-medium text-gray-700 hover:text-blue-600 transition-colors cursor-pointer"
             >
               {item.label}
-            </Link>
+            </a>
           ))}
         </nav>
         
@@ -55,7 +83,7 @@ const Navbar: React.FC = () => {
         <button 
           className="md:hidden text-2xl"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
+        >40
           {mobileMenuOpen ? '✕' : '☰'}
         </button>
       </div>
@@ -65,14 +93,13 @@ const Navbar: React.FC = () => {
         <div className="md:hidden bg-white py-4 px-4">
           <div className="flex flex-col space-y-3">
             {navItems.map((item) => (
-              <Link 
+              <a 
                 key={item.id} 
-                href={`#${item.id}`}
-                className="font-medium text-gray-700 hover:text-blue-600 transition-colors py-2"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => scrollToSection(item.id)}
+                className="font-medium text-gray-700 hover:text-blue-600 transition-colors py-2 cursor-pointer"
               >
                 {item.label}
-              </Link>
+              </a>
             ))}
           </div>
         </div>
