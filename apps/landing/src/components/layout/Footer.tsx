@@ -15,26 +15,10 @@ const Footer: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
-            <h3 className="text-xl font-bold mb-4">NEL HEALTH COACH</h3>
+            <h3 className="text-xl font-bold mb-4">NELHEALTHCOACH</h3>
             <p className="text-gray-400">
               Transformando vidas a través de la salud integral y la nutrición consciente.
             </p>
-          </div>
-          
-          <div>
-            <h4 className="text-lg font-semibold mb-4">Enlaces rápidos</h4>
-            <ul className="space-y-2">
-              {['Inicio', 'Método', 'Sobre Mí', 'Testimonios', 'Contacto'].map((item) => (
-                <li key={item}>
-                  <Link 
-                    href={`#${item.toLowerCase().replace(' ', '-')}`}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
-            </ul>
           </div>
           
           <div>
@@ -63,14 +47,14 @@ const Footer: React.FC = () => {
             <address className="not-italic text-gray-400">
               <p className="mb-2">contacto@nelhealthcoach.com</p>
               <p className="mb-2">+34 123 456 789</p>
-              <p>Barcelona, España</p>
+              <p>Palm Beach, CA.</p>
             </address>
           </div>
         </div>
         
         <div className="border-t border-gray-800 pt-6 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-400 mb-4 md:mb-0">
-            © {new Date().getFullYear()} Nel Health Coach. Todos los derechos reservados.
+            © {new Date().getFullYear()} NELHEALTHCOACH. Todos los derechos reservados.
           </p>
           <div className="flex space-x-4">
             {['facebook', 'instagram', 'youtube', 'linkedin'].map((social) => (

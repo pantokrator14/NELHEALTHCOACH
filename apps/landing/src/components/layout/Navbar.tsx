@@ -51,20 +51,20 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <header className={`fixed w-full z-50 transition-all duration-300 ${
-      isScrolled ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
-    }`}>
+    <header className={`fixed w-full h-auto z-50 transition-all duration-300 bg-white shadow-md py-2`}>
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div 
           onClick={() => scrollToSection('inicio')}
-          className="cursor-pointer relative h-50 w-100"
+          className="cursor-pointer relative"
         >
-          <Image
-            src="/images/logo.png"
-            alt="Nel Health Coach"
-            fill
-            className="object-contain"
-          />
+          <div className="relative h-17 w-60 pt-5">
+            <Image
+              src="/images/logo.png"
+              alt="NELHEALTHCOACH"
+              fill
+              className="object-contain"
+            />
+          </div>
         </div>
         
         <nav className="hidden md:flex space-x-8">
@@ -72,7 +72,7 @@ const Navbar: React.FC = () => {
             <a 
               key={item.id} 
               onClick={() => scrollToSection(item.id)}
-              className="font-medium text-gray-700 hover:text-blue-600 transition-colors cursor-pointer"
+              className={`font-medium text-gray-700 hover:text-blue-600 transition-colors cursor-pointer`}
             >
               {item.label}
             </a>
