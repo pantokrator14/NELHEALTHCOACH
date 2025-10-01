@@ -27,12 +27,12 @@ const AboutSection: React.FC = () => {
           </div>
           
           <div className="lg:w-1/2 w-full">
-            <h3 className="text-2xl font-bold mb-4">Mi nombre es Manuel Martinez.</h3>
+            <h3 className="text-2xl font-bold mb-4">Mi nombre es Manuel Martínez.</h3>
             <p className="mb-4">
               Soy un hombre cuya vida dio un giro radical tras comprender la manipulación en la alimentación y la medicina moderna.
             </p>
             <p className="mb-4">
-              En mi recorrido, por este camino, que es la vida y el gusto por ella, además de mi aprendizaje diario, he comprendido que en todo nos han manipulado, he aprendido y he tenido experiencias familiares que me han llevado hacia un cambio. 
+              En mi recorrido por este camino que es la vida, así como el gusto por ella, además de mi aprendizaje diario, he comprendido que en todo nos han manipulado, he aprendido y he tenido experiencias familiares que me han llevado hacia un cambio. 
             </p>
             <p className="mb-6">
               Esta experiencia me impulsó a obtener una CERTIFICACIÓN EN NUTRICIÓN MODERNA para fortalecer a las mujeres, a quienes considero el pilar de la sociedad. Mi misión es ayudar a las familias a liberarse de la dependencia de productos procesados y de la desinformación, promoviendo la alimentación como medicina y la importancia de escuchar al propio cuerpo para prevenir y revertir enfermedades.
