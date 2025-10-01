@@ -1,4 +1,3 @@
-
 import React from 'react';
 import Image from 'next/image';
 
@@ -6,19 +5,20 @@ interface TestimonialCardProps {
   name: string;
   role: string;
   content: string;
-  image: string;
+  image: string; // Prop para la imagen
 }
 
 const TestimonialCard: React.FC<TestimonialCardProps> = ({ 
   name, 
   role, 
-  content, 
-  image 
+  content,
+  image // Recibimos la imagen
 }) => {
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg h-full flex flex-col">
+    <div className="bg-white p-6 rounded-xl shadow-md h-full">
       <div className="flex items-center mb-4">
-        <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4 flex-shrink-0">
+        {/* Aquí usamos la imagen */}
+        <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4">
           <Image
             src={image}
             alt={name}
@@ -27,12 +27,12 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({
           />
         </div>
         <div>
-          <h3 className="font-bold text-lg text-gray-900">{name}</h3>
+          <h3 className="font-bold text-lg text-blue-500">{name}</h3>
           <p className="text-gray-600 text-sm">{role}</p>
         </div>
       </div>
-      <p className="text-gray-700 italic mb-4 flex-grow">&quot;{content}&quot;</p>
-      <div className="flex justify-center">
+      <p className="text-gray-700 italic mb-4">&quot;{content}&quot;</p>
+      <div className="flex">
         {[...Array(5)].map((_, i) => (
           <svg 
             key={i} 
