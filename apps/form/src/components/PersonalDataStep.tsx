@@ -1,5 +1,6 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
+import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema } from '@/lib/validation';
 
@@ -17,8 +18,23 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        
+      </div>
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
         <div className="p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <div className="relative w-48 h-16">
+              <Image
+                src="/logo.png"
+                alt="NELHEALTHCOACH"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+          </div>
           <h2 className="text-3xl font-bold text-center text-blue-800 mb-8">
             Datos Personales
           </h2>
@@ -32,7 +48,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="text"
                   {...register('name')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu nombre completo"
                 />
                 {errors.name && (
@@ -47,7 +63,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="text"
                   {...register('address')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu dirección completa"
                 />
                 {errors.address && (
@@ -62,7 +78,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="tel"
                   {...register('phone')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu número de teléfono"
                 />
                 {errors.phone && (
@@ -77,7 +93,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="email"
                   {...register('email')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="tu@email.com"
                 />
                 {errors.email && (
@@ -92,7 +108,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="date"
                   {...register('birthDate')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
                 {errors.birthDate && (
                   <p className="text-red-500 text-sm mt-1">{errors.birthDate.message}</p>
@@ -105,12 +121,11 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <select
                   {...register('gender')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu género</option>
                   <option value="masculino">Masculino</option>
                   <option value="femenino">Femenino</option>
-                  <option value="otro">Otro</option>
                   <option value="prefiero-no-decir">Prefiero no decir</option>
                 </select>
                 {errors.gender && (
@@ -125,7 +140,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="number"
                   {...register('age')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu edad"
                 />
                 {errors.age && (
@@ -141,7 +156,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   type="number"
                   step="0.1"
                   {...register('weight')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu peso en kilogramos"
                 />
                 {errors.weight && (
@@ -156,7 +171,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="number"
                   {...register('height')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu altura en centímetros"
                 />
                 {errors.height && (
@@ -170,7 +185,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <select
                   {...register('maritalStatus')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu estado civil</option>
                   <option value="soltero">Soltero/a</option>
@@ -190,7 +205,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <select
                   {...register('education')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu nivel educativo</option>
                   <option value="primaria">Primaria</option>
@@ -212,7 +227,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 <input
                   type="text"
                   {...register('occupation')}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu ocupación actual"
                 />
                 {errors.occupation && (

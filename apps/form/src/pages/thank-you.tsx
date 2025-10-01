@@ -1,4 +1,6 @@
+import Image from 'next/image';
 import { useRouter } from 'next/router';
+import React from 'react';
 import { useEffect } from 'react';
 
 const ThankYouPage = () => {
@@ -14,7 +16,20 @@ const ThankYouPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center px-4">
+      
       <div className="max-w-md mx-auto bg-white rounded-xl shadow-2xl p-8 text-center">
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <div className="relative w-48 h-16">
+            <Image
+              src="/logo.png"
+              alt="NELHEALTHCOACH"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+        </div>
         <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
