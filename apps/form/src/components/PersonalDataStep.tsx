@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { personalDataSchema } from '../lib/validation';
+import { personalDataSchema } from '@/lib/validation';
 
 interface PersonalDataStepProps {
   data: any;

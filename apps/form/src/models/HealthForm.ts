@@ -49,7 +49,7 @@ const HealthFormSchema = new mongoose.Schema({
 // Pre-save hook para encriptar datos sensibles
 HealthFormSchema.pre('save', async function(next) {
   if (this.isModified('personalData') || this.isNew) {
-    const { encrypt } = await import('../src/lib/encryption');
+    const { encrypt } = await import('../lib/encryption');
     
     // Encriptar campos sensibles de personalData
     const personalData = this.personalData as any;
@@ -65,7 +65,7 @@ HealthFormSchema.pre('save', async function(next) {
   }
 
   if (this.isModified('medicalData') || this.isNew) {
-    const { encrypt } = await import('../src/lib/encryption');
+    const { encrypt } = await import('../lib/encryption');
     
     // Encriptar campos sensibles de medicalData
     const medicalData = this.medicalData as any;
