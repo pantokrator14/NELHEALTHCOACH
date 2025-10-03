@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const HealthFormSchema = new mongoose.Schema({
-  // Datos personales
+  // Todos los datos personales encriptados
   personalData: {
     name: { type: String, required: true },
     address: { type: String, required: true },
@@ -9,15 +9,15 @@ const HealthFormSchema = new mongoose.Schema({
     email: { type: String, required: true },
     birthDate: { type: String, required: true },
     gender: { type: String, required: true },
-    age: { type: Number, required: true },
-    weight: { type: Number, required: true },
-    height: { type: Number, required: true },
+    age: { type: String, required: true }, // Cambiado a String para encriptar
+    weight: { type: String, required: true }, // Cambiado a String para encriptar
+    height: { type: String, required: true }, // Cambiado a String para encriptar
     maritalStatus: { type: String, required: true },
     education: { type: String, required: true },
     occupation: { type: String, required: true }
   },
 
-  // Datos médicos
+  // Todos los datos médicos encriptados
   medicalData: {
     mainComplaint: { type: String, required: true },
     medications: { type: String, default: '' },
@@ -30,58 +30,158 @@ const HealthFormSchema = new mongoose.Schema({
     surgeries: { type: String, default: '' },
     housingHistory: { type: String, default: '' },
 
-    // Secciones de evaluación
-    carbohydrateAddiction: [{ type: Boolean }],
-    leptinResistance: [{ type: Boolean }],
-    circadianRhythms: [{ type: Boolean }],
-    sleepHygiene: [{ type: Boolean }],
-    electrosmogExposure: [{ type: Boolean }],
-    generalToxicity: [{ type: Boolean }],
-    microbiotaHealth: [{ type: Boolean }]
+    // Secciones de evaluación - ahora encriptadas como JSON strings
+    carbohydrateAddiction: { type: String, default: '[]' },
+    leptinResistance: { type: String, default: '[]' },
+    circadianRhythms: { type: String, default: '[]' },
+    sleepHygiene: { type: String, default: '[]' },
+    electrosmogExposure: { type: String, default: '[]' },
+    generalToxicity: { type: String, default: '[]' },
+    microbiotaHealth: { type: String, default: '[]' }
   },
 
-  // Metadatos
-  contractAccepted: { type: Boolean, required: true },
-  submissionDate: { type: Date, default: Date.now },
-  ipAddress: String
+  // Metadatos también encriptados
+  contractAccepted: { type: String, required: true }, // Cambiado a String
+  ipAddress: { type: String, required: true },
+  submissionDate: { type: Date, default: Date.now }
 });
 
-// Pre-save hook para encriptar datos sensibles
+// Pre-save hook para encriptar TODOS los datos sensibles
 HealthFormSchema.pre('save', async function(next) {
-  if (this.isModified('personalData') || this.isNew) {
+  try {
     const { encrypt } = await import('../lib/encryption');
     
-    // Encriptar campos sensibles de personalData
-    const personalData = this.personalData as any;
-    personalData.name = encrypt(personalData.name);
-    personalData.address = encrypt(personalData.address);
-    personalData.phone = encrypt(personalData.phone);
-    personalData.email = encrypt(personalData.email);
-    personalData.birthDate = encrypt(personalData.birthDate);
-    personalData.gender = encrypt(personalData.gender);
-    personalData.maritalStatus = encrypt(personalData.maritalStatus);
-    personalData.education = encrypt(personalData.education);
-    personalData.occupation = encrypt(personalData.occupation);
-  }
+    // Encriptar todos los campos de personalData
+    if (this.personalData) {
+      const personalData = this.personalData as any;
+      const personalFields = [
+        'name', 'address', 'phone', 'email', 'birthDate', 'gender', 
+        'age', 'weight', 'height', 'maritalStatus', 'education', 'occupation'
+      ];
+      
+      personalFields.forEach(field => {
+        if (personalData[field] !== undefined && personalData[field] !== null) {
+          // Convertir números a string antes de encriptar
+          const value = typeof personalData[field] === 'number' 
+            ? personalData[field].toString() 
+            : personalData[field];
+          personalData[field] = encrypt(value);
+        }
+      });
+    }
 
-  if (this.isModified('medicalData') || this.isNew) {
-    const { encrypt } = await import('../lib/encryption');
+    // Encriptar todos los campos de medicalData
+    if (this.medicalData) {
+      const medicalData = this.medicalData as any;
+      const medicalTextFields = [
+        'mainComplaint', 'medications', 'supplements', 'currentPastConditions',
+        'additionalMedicalHistory', 'employmentHistory', 'hobbies', 'allergies',
+        'surgeries', 'housingHistory'
+      ];
+      
+      // Encriptar campos de texto
+      medicalTextFields.forEach(field => {
+        if (medicalData[field] !== undefined && medicalData[field] !== null) {
+          medicalData[field] = encrypt(medicalData[field]);
+        }
+      });
+
+      // Encriptar arrays de booleanos (convertir a JSON string y luego encriptar)
+      const booleanArrays = [
+        'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
+        'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'
+      ];
+      
+      booleanArrays.forEach(field => {
+        if (medicalData[field] && Array.isArray(medicalData[field])) {
+          const jsonString = JSON.stringify(medicalData[field]);
+          medicalData[field] = encrypt(jsonString);
+        }
+      });
+    }
+
+    // Encriptar metadatos
+    if (this.contractAccepted !== undefined && this.contractAccepted !== null) {
+      this.contractAccepted = encrypt(this.contractAccepted.toString());
+    }
     
-    // Encriptar campos sensibles de medicalData
-    const medicalData = this.medicalData as any;
-    medicalData.mainComplaint = encrypt(medicalData.mainComplaint);
-    medicalData.medications = encrypt(medicalData.medications);
-    medicalData.supplements = encrypt(medicalData.supplements);
-    medicalData.currentPastConditions = encrypt(medicalData.currentPastConditions);
-    medicalData.additionalMedicalHistory = encrypt(medicalData.additionalMedicalHistory);
-    medicalData.employmentHistory = encrypt(medicalData.employmentHistory);
-    medicalData.hobbies = encrypt(medicalData.hobbies);
-    medicalData.allergies = encrypt(medicalData.allergies);
-    medicalData.surgeries = encrypt(medicalData.surgeries);
-    medicalData.housingHistory = encrypt(medicalData.housingHistory);
-  }
+    if (this.ipAddress) {
+      this.ipAddress = encrypt(this.ipAddress);
+    }
 
-  next();
+    next();
+  } catch (error) {
+    console.error('Error encriptando datos:', error);
+    next(error as mongoose.CallbackError);
+  }
 });
+
+// Método estático para desencriptar un formulario completo
+HealthFormSchema.statics.decryptForm = async function(formId: string) {
+  const { decrypt } = await import('../lib/encryption');
+  const form = await this.findById(formId);
+  
+  if (!form) return null;
+
+  const decryptedForm = form.toObject();
+  
+  // Desencriptar personalData
+  if (decryptedForm.personalData) {
+    const personalFields = [
+      'name', 'address', 'phone', 'email', 'birthDate', 'gender', 
+      'age', 'weight', 'height', 'maritalStatus', 'education', 'occupation'
+    ];
+    
+    personalFields.forEach(field => {
+      if (decryptedForm.personalData[field]) {
+        decryptedForm.personalData[field] = decrypt(decryptedForm.personalData[field]);
+        
+        // Convertir de vuelta a número si es necesario
+        if (['age', 'weight', 'height'].includes(field)) {
+          decryptedForm.personalData[field] = parseFloat(decryptedForm.personalData[field]);
+        }
+      }
+    });
+  }
+
+  // Desencriptar medicalData
+  if (decryptedForm.medicalData) {
+    const medicalTextFields = [
+      'mainComplaint', 'medications', 'supplements', 'currentPastConditions',
+      'additionalMedicalHistory', 'employmentHistory', 'hobbies', 'allergies',
+      'surgeries', 'housingHistory'
+    ];
+    
+    medicalTextFields.forEach(field => {
+      if (decryptedForm.medicalData[field]) {
+        decryptedForm.medicalData[field] = decrypt(decryptedForm.medicalData[field]);
+      }
+    });
+
+    // Desencriptar arrays de booleanos
+    const booleanArrays = [
+      'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
+      'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'
+    ];
+    
+    booleanArrays.forEach(field => {
+      if (decryptedForm.medicalData[field]) {
+        const decryptedJson = decrypt(decryptedForm.medicalData[field]);
+        decryptedForm.medicalData[field] = JSON.parse(decryptedJson);
+      }
+    });
+  }
+
+  // Desencriptar metadatos
+  if (decryptedForm.contractAccepted) {
+    decryptedForm.contractAccepted = decrypt(decryptedForm.contractAccepted) === 'true';
+  }
+  
+  if (decryptedForm.ipAddress) {
+    decryptedForm.ipAddress = decrypt(decryptedForm.ipAddress);
+  }
+
+  return decryptedForm;
+};
 
 export default mongoose.models.HealthForm || mongoose.model('HealthForm', HealthFormSchema);

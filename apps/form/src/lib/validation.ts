@@ -7,9 +7,9 @@ export const personalDataSchema = yup.object().shape({
   email: yup.string().email('Email inválido').required('El email es obligatorio'),
   birthDate: yup.date().required('La fecha de nacimiento es obligatoria'),
   gender: yup.string().required('El género es obligatorio'),
-  age: yup.number().required('La edad es obligatoria').positive().integer(),
-  weight: yup.number().required('El peso es obligatorio').positive(),
-  height: yup.number().required('La talla es obligatoria').positive(),
+  age: yup.number().required('La edad es obligatoria').positive().integer().min(1).max(120),
+  weight: yup.number().required('El peso es obligatorio').positive().min(1).max(500),
+  height: yup.number().required('La talla es obligatoria').positive().min(50).max(250),
   maritalStatus: yup.string().required('El estado civil es obligatorio'),
   education: yup.string().required('La educación es obligatoria'),
   occupation: yup.string().required('La ocupación es obligatoria'),
@@ -27,12 +27,12 @@ export const medicalDataSchema = yup.object().shape({
   surgeries: yup.string(),
   housingHistory: yup.string(),
   
-  // Secciones de preguntas SÍ/NO
-  carbohydrateAddiction: yup.array().of(yup.boolean()),
-  leptinResistance: yup.array().of(yup.boolean()),
-  circadianRhythms: yup.array().of(yup.boolean()),
-  sleepHygiene: yup.array().of(yup.boolean()),
-  electrosmogExposure: yup.array().of(yup.boolean()),
-  generalToxicity: yup.array().of(yup.boolean()),
-  microbiotaHealth: yup.array().of(yup.boolean()),
+  // Secciones de preguntas SÍ/NO - ahora son arrays de strings/booleanos
+  carbohydrateAddiction: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  leptinResistance: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  circadianRhythms: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  sleepHygiene: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  electrosmogExposure: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  generalToxicity: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  microbiotaHealth: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
 });

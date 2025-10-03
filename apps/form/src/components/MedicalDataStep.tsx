@@ -304,7 +304,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                               {...register(`${section.section}.${questionIndex}`)}
                               className="mr-2 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm font-medium">SÍ</span>
+                            <span className="text-sm text-blue-600 font-medium">SÍ</span>
                           </label>
                           <label className="flex items-center">
                             <input
@@ -313,7 +313,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                               {...register(`${section.section}.${questionIndex}`)}
                               className="mr-2 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm font-medium">NO</span>
+                            <span className="text-sm text-blue-600 font-medium">NO</span>
                           </label>
                         </div>
                       </div>
