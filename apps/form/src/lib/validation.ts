@@ -27,12 +27,12 @@ export const medicalDataSchema = yup.object().shape({
   surgeries: yup.string(),
   housingHistory: yup.string(),
   
-  // Secciones de preguntas SÍ/NO - ahora son arrays de strings/booleanos
-  carbohydrateAddiction: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  leptinResistance: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  circadianRhythms: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  sleepHygiene: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  electrosmogExposure: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  generalToxicity: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
-  microbiotaHealth: yup.array().of(yup.mixed().oneOf(['true', 'false', true, false])),
+  // Secciones de preguntas SÍ/NO - arrays de strings ('true'/'false')
+  carbohydrateAddiction: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  leptinResistance: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  circadianRhythms: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  sleepHygiene: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  electrosmogExposure: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  generalToxicity: yup.array().of(yup.string().oneOf(['true', 'false'])),
+  microbiotaHealth: yup.array().of(yup.string().oneOf(['true', 'false'])),
 });

@@ -42,16 +42,9 @@ const ThankYouPage = () => {
         
         <p className="text-gray-600 mb-6">
           {status === 'rejected' 
-            ? 'Lamentamos que no haya podido continuar. Si cambia de opinión, estaremos aquí para ayudarle.'
-            : 'Hemos recibido su información de forma segura. Nos pondremos en contacto con usted pronto para programar su sesión.'}
+            ? 'Lamentamos que haya decidido no continuar. Si cambia de opinión, estaremos aquí para ayudarle.'
+            : 'Hemos recibido su información de forma segura. Puede cerrar esta pestaña y nos pondremos en contacto con usted pronto para programar su sesión.'}
         </p>
-
-        <button
-          onClick={() => window.location.href = '/'}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-        >
-          Volver al Inicio
-        </button>
       </div>
     </div>
   );

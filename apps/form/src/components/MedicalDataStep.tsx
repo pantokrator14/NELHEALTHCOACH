@@ -11,7 +11,7 @@ interface MedicalDataStepProps {
 }
 
 const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
@@ -130,6 +130,11 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
     }
   ];
 
+  // Función para manejar el envío del formulario
+  const handleFormSubmit = (formData: any) => {
+    onSubmit(formData);;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4">
       <div className="max-w-6xl mx-auto">
@@ -153,7 +158,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
               Información Médica y de Vida
             </h2>
             
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8">
               {/* Campos de texto */}
               <div className="space-y-6">
                 <div>
@@ -304,7 +309,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                               {...register(`${section.section}.${questionIndex}`)}
                               className="mr-2 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm text-blue-600 font-medium">SÍ</span>
+                            <span className="text-sm font-semibold text-blue-800">SÍ</span>
                           </label>
                           <label className="flex items-center">
                             <input
@@ -313,7 +318,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                               {...register(`${section.section}.${questionIndex}`)}
                               className="mr-2 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm text-blue-600 font-medium">NO</span>
+                            <span className="text-sm font-semibold text-blue-800">NO</span>
                           </label>
                         </div>
                       </div>
