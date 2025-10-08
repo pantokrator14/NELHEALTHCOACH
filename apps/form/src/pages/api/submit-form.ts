@@ -27,10 +27,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('Processing medical data arrays...');
 
-    // Crear una COPIA de medicalData para procesar los arrays
+    // Crear una COPIA de medicalData para procesar
     const processedMedicalData = { ...data.medicalData };
 
-    // Definir las longitudes esperadas para cada sección
+    // Procesar arrays existentes (código existente)
     const expectedLengths: { [key: string]: number } = {
       carbohydrateAddiction: 11,
       leptinResistance: 8,
@@ -41,30 +41,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       microbiotaHealth: 10
     };
 
-    // Procesar CADA array individualmente - convertirlos a JSON strings
     const arrayFields = [
       'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
       'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'
     ];
 
     arrayFields.forEach(field => {
-      let arrayData = processedMedicalData[field];
+      const arrayData = processedMedicalData[field];
       
-      // Si no existe el campo o no es array, crear uno vacío
       if (!arrayData || !Array.isArray(arrayData)) {
         processedMedicalData[field] = JSON.stringify([]);
         return;
       }
 
-      // Limpiar el array - convertir strings a booleanos
       const cleanedArray = arrayData.map((value: any) => {
         if (value === 'true') return true;
         if (value === 'false') return false;
         if (value === true || value === false) return value;
-        return false; // Valor por defecto
+        return false;
       });
 
-      // Asegurar la longitud esperada
       const expectedLength = expectedLengths[field];
       if (expectedLength && cleanedArray.length < expectedLength) {
         while (cleanedArray.length < expectedLength) {
@@ -72,21 +68,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      // Si hay más elementos de los esperados, recortar
       if (expectedLength && cleanedArray.length > expectedLength) {
         cleanedArray.length = expectedLength;
       }
 
-      // Convertir el array procesado a JSON string
       processedMedicalData[field] = JSON.stringify(cleanedArray);
     });
 
-    console.log('Arrays processed, creating form document...');
+    // Los nuevos campos de salud mental ya vienen como strings individuales
+    // No necesitan procesamiento adicional - el modelo los encriptará automáticamente
 
-    // Crear el documento con los datos procesados
+    console.log('All data processed, creating form document...');
+
     const healthForm = new HealthForm({
       personalData: data.personalData,
-      medicalData: processedMedicalData, // Usar la versión procesada
+      medicalData: processedMedicalData,
       contractAccepted: data.contractAccepted || false,
       ipAddress: clientIP || 'Unknown',
     });
@@ -104,9 +100,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     if (error instanceof Error) {
       if (error.name === 'ValidationError') {
-        const validationError = error as any;
-        console.error('Validation errors:', validationError.errors);
-        
         return res.status(400).json({ 
           success: false,
           message: 'Datos de formulario inválidos'

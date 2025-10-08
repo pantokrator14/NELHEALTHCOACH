@@ -31,6 +31,25 @@ const HealthFormSchema = new mongoose.Schema({
     surgeries: { type: String, default: '' },
     housingHistory: { type: String, default: '' },
 
+    // preguntas de salud mental - opción múltiple (a, b, c)
+    mentalHealthEmotionIdentification: { type: String, default: '' },
+    mentalHealthEmotionIntensity: { type: String, default: '' },
+    mentalHealthUncomfortableEmotion: { type: String, default: '' },
+    mentalHealthInternalDialogue: { type: String, default: '' },
+    mentalHealthStressStrategies: { type: String, default: '' },
+    mentalHealthSayingNo: { type: String, default: '' },
+    mentalHealthRelationships: { type: String, default: '' },
+    mentalHealthExpressThoughts: { type: String, default: '' },
+    mentalHealthEmotionalDependence: { type: String, default: '' },
+    mentalHealthPurpose: { type: String, default: '' },
+    mentalHealthFailureReaction: { type: String, default: '' },
+    mentalHealthSelfConnection: { type: String, default: '' },
+
+    // preguntas de salud mental - texto abierto
+    mentalHealthSelfRelationship: { type: String, default: '' },
+    mentalHealthLimitingBeliefs: { type: String, default: '' },
+    mentalHealthIdealBalance: { type: String, default: '' },
+
     // Secciones de evaluación - strings JSON
     carbohydrateAddiction: { type: String, default: '[]' },
     leptinResistance: { type: String, default: '[]' },
@@ -62,24 +81,56 @@ HealthFormSchema.pre('save', async function(next) {
       });
     }
 
-    // Encriptar medicalData - solo campos de texto, los arrays ya son JSON strings
+    // Encriptar medicalData
     if (this.medicalData) {
       const medicalData = this.medicalData as any;
       
-      // Solo encriptar campos de texto (no los arrays que ya son JSON strings)
-      const textFields = [
+      // Campos de texto existentes
+      const existingTextFields = [
         'mainComplaint', 'medications', 'supplements', 'currentPastConditions',
         'additionalMedicalHistory', 'employmentHistory', 'hobbies', 'allergies',
         'surgeries', 'housingHistory'
       ];
       
-      textFields.forEach(field => {
+      existingTextFields.forEach(field => {
         if (medicalData[field] !== undefined && medicalData[field] !== null) {
           medicalData[field] = encrypt(String(medicalData[field]));
         }
       });
 
-      // Los arrays YA son JSON strings del API route, solo encriptarlos
+      // Nuevos campos de salud mental - opción múltiple
+      const mentalHealthMultipleChoice = [
+        'mentalHealthEmotionIdentification', 'mentalHealthEmotionIntensity',
+        'mentalHealthUncomfortableEmotion', 'mentalHealthInternalDialogue',
+        'mentalHealthStressStrategies', 'mentalHealthSayingNo',
+        'mentalHealthRelationships', 'mentalHealthExpressThoughts',
+        'mentalHealthEmotionalDependence', 'mentalHealthPurpose',
+        'mentalHealthFailureReaction', 'mentalHealthSelfConnection'
+      ];
+      
+      mentalHealthMultipleChoice.forEach(field => {
+        if (medicalData[field] !== undefined && medicalData[field] !== null) {
+          medicalData[field] = encrypt(String(medicalData[field]));
+        } else {
+          medicalData[field] = encrypt('');
+        }
+      });
+
+      // Nuevos campos de salud mental - texto abierto
+      const mentalHealthOpenEnded = [
+        'mentalHealthSelfRelationship', 'mentalHealthLimitingBeliefs',
+        'mentalHealthIdealBalance'
+      ];
+      
+      mentalHealthOpenEnded.forEach(field => {
+        if (medicalData[field] !== undefined && medicalData[field] !== null) {
+          medicalData[field] = encrypt(String(medicalData[field]));
+        } else {
+          medicalData[field] = encrypt('');
+        }
+      });
+
+      // Arrays existentes (ya procesados como JSON strings en el API route)
       const arrayFields = [
         'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
         'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'

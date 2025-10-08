@@ -26,6 +26,22 @@ export const medicalDataSchema = yup.object().shape({
   allergies: yup.string(),
   surgeries: yup.string(),
   housingHistory: yup.string(),
+
+  mentalHealthEmotionIdentification: yup.string(),
+  mentalHealthEmotionIntensity: yup.string(),
+  mentalHealthUncomfortableEmotion: yup.string(),
+  mentalHealthInternalDialogue: yup.string(),
+  mentalHealthStressStrategies: yup.string(),
+  mentalHealthSayingNo: yup.string(),
+  mentalHealthRelationships: yup.string(),
+  mentalHealthExpressThoughts: yup.string(),
+  mentalHealthEmotionalDependence: yup.string(),
+  mentalHealthPurpose: yup.string(),
+  mentalHealthFailureReaction: yup.string(),
+  mentalHealthSelfConnection: yup.string(),
+  mentalHealthSelfRelationship: yup.string(),
+  mentalHealthLimitingBeliefs: yup.string(),
+  mentalHealthIdealBalance: yup.string(),
   
   // Secciones de preguntas SÍ/NO - arrays de strings ('true'/'false')
   carbohydrateAddiction: yup.array().of(yup.string().oneOf(['true', 'false'])),
