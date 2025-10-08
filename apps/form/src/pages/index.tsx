@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import ContractStep from '../components/ContractStep';
-import PersonalDataStep from '../components/PersonalDataStep';
-import MedicalDataStep from '../components/MedicalDataStep';
-import SuccessStep from '../components/SuccessStep';
+import ContractStep from '@/components/ContractStep';
+import PersonalDataStep from '@/components/PersonalDataStep';
+import MedicalDataStep from '@/components/MedicalDataStep';
+import SuccessStep from '@/components/SuccessStep';
+import { FormState, HealthFormData, PersonalData, MedicalData } from '@/types/healthForm';
 
 const FormPage: React.FC = () => {
   const [step, setStep] = useState(0);
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState<Partial<HealthFormData>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const nextStep = () => setStep(step + 1);
   const prevStep = () => setStep(step - 1);
@@ -24,13 +27,19 @@ const FormPage: React.FC = () => {
     window.location.href = '/thank-you?status=rejected';
   };
 
-  const handlePersonalDataSubmit = (data: any) => {
+  const handlePersonalDataSubmit = (data: PersonalData) => {
     updateFormData({ personalData: data });
     nextStep();
   };
 
-  const handleMedicalDataSubmit = async (data: any) => {
-    const completeData = { ...formData, medicalData: data };
+  const handleMedicalDataSubmit = async (data: MedicalData) => {
+    setLoading(true);
+    setError(null);
+    
+    const completeData: HealthFormData = { 
+      ...formData as HealthFormData, 
+      medicalData: data 
+    };
     
     try {
       const response = await fetch('/api/submit-form', {
@@ -41,30 +50,37 @@ const FormPage: React.FC = () => {
         body: JSON.stringify(completeData),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (result.success) {
         nextStep();
       } else {
-        alert('Error al enviar el formulario. Por favor, intenta nuevamente.');
+        setError(result.message || 'Error al enviar el formulario');
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error de conexión. Por favor, intenta nuevamente.');
+      setError('Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
+
   const steps = [
-    <ContractStep onAccept={handleContractAccept} onReject={handleContractReject} />,
+    <ContractStep key="contract" onAccept={handleContractAccept} onReject={handleContractReject} />,
     <PersonalDataStep 
+      key="personal"
       data={formData.personalData || {}} 
       onSubmit={handlePersonalDataSubmit} 
       onBack={prevStep} 
     />,
     <MedicalDataStep 
+      key="medical"
       data={formData.medicalData || {}} 
       onSubmit={handleMedicalDataSubmit} 
       onBack={prevStep} 
     />,
-    <SuccessStep />,
+    <SuccessStep key="success" />,
   ];
 
   return (

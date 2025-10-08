@@ -296,8 +296,8 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                     className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-gray-700"
                     placeholder="Describe detalladamente tus síntomas..."
                   />
-                  {errors.mainComplaint && (
-                    <p className="text-red-500 text-sm mt-1">{errors.mainComplaint.message}</p>
+                  {errors.mainComplaint?.message && (
+                    <p className="text-red-500 text-sm mt-1">{String(errors.mainComplaint.message)}</p>
                   )}
                 </div>
 
