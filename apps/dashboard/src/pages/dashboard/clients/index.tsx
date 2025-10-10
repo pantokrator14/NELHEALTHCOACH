@@ -1,8 +1,8 @@
 // apps/dashboard/src/pages/dashboard/clients/index.tsx
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../../components/dashboard/Layout'
-import HealthFormCard from '../../../components/dashboard/HealthFormCard'
+import Layout from '@/components/dashboard/Layout'
+import HealthFormCard from '@/components/dashboard/HealthFormCard'
 
 interface FormData {
   _id: string
