@@ -7,9 +7,10 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm:dev:*\"",
-    "dev:landing": "cd apps/landing && npm run dev",
     "dev:form": "cd apps/form && npm run dev",
     "dev:dashboard": "cd apps/dashboard && npm run dev",
+    "dev:landing": "cd apps/landing && npm run dev",
+    "dev:all": "concurrently \"npm run dev:landing\" \"npm run dev:form\" \"npm run dev:dashboard\"",
     "dev:api": "cd apps/api && npm run dev",
     "build": "turbo run build",
     "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +"

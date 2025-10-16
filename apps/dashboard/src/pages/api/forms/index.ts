@@ -1,9 +1,8 @@
-// apps/dashboard/src/pages/api/forms/index.ts
 import { NextApiRequest, NextApiResponse } from 'next'
-import { connectToDatabase } from '../../../lib/database'
-import { decryptData } from '../../../lib/encryption'
-import { verifyToken } from '../../../lib/auth'
-import { HealthForm, DecryptedHealthForm } from '../../../lib/types'
+import { connectToDatabase } from '../../../../lib/database'
+import { decrypt } from '../../../../lib/encryption'
+import { verifyToken } from '../../../../lib/auth'
+import HealthForm from '../../../../models/HealthForm'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -23,34 +22,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     await connectToDatabase()
-    // Nota: Necesitarás importar o definir tu modelo de Mongoose aquí
-    const forms = await getFormsFromDatabase() // Esta función necesita ser implementada
+    const forms = await HealthForm.find({}).sort({ submissionDate: -1 })
 
-    const decryptedForms: DecryptedHealthForm[] = forms.map((form: HealthForm) => ({
-      _id: form._id.toString(),
-      personalData: decryptData(form.personalData),
-      medicalData: decryptData(form.medicalData),
-      contractAccepted: form.contractAccepted,
-      ipAddress: form.ipAddress,
-      submissionDate: form.submissionDate
-    })).filter(form => form.personalData !== null)
+    // Desencriptar datos para el dashboard
+    const decryptedForms = forms.map(form => {
+      const decrypted: any = { ...form.toObject() }
+      
+      // Desencriptar personalData
+      if (form.personalData) {
+        decrypted.personalData = {}
+        Object.keys(form.personalData).forEach(key => {
+          decrypted.personalData[key] = decrypt(form.personalData[key])
+        })
+      }
+      
+      // Desencriptar medicalData  
+      if (form.medicalData) {
+        decrypted.medicalData = {}
+        Object.keys(form.medicalData).forEach(key => {
+          decrypted.medicalData[key] = decrypt(form.medicalData[key])
+        })
+      }
+      
+      // Desencriptar metadata
+      decrypted.contractAccepted = decrypt(form.contractAccepted)
+      decrypted.ipAddress = decrypt(form.ipAddress)
+      
+      return decrypted
+    })
 
     // Ordenar por nombre
     decryptedForms.sort((a, b) => {
-      const nameA = `${a.personalData.firstName} ${a.personalData.lastName}`.toLowerCase()
-      const nameB = `${b.personalData.firstName} ${b.personalData.lastName}`.toLowerCase()
+      const nameA = a.personalData?.name?.toLowerCase() || ''
+      const nameB = b.personalData?.name?.toLowerCase() || ''
       return nameA.localeCompare(nameB)
     })
 
-    return res.status(200).json({ forms: decryptedForms })
+    res.json({ 
+      success: true, 
+      forms: decryptedForms,
+      count: decryptedForms.length 
+    })
   } catch (error) {
     console.error('Error fetching forms:', error)
-    return res.status(500).json({ error: 'Error interno del servidor' })
+    res.status(500).json({ 
+      success: false, 
+      error: 'Error interno del servidor' 
+    })
   }
-}
-
-// Función temporal - necesitarás implementar según tu modelo
-async function getFormsFromDatabase() {
-  // Esto debe ser reemplazado con tu implementación real de MongoDB
-  return []
 }
