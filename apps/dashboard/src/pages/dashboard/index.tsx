@@ -3,19 +3,46 @@ import { useRouter } from 'next/router'
 import Layout from '../components/dashboard/Layout'
 import Head from 'next/head'
 
+interface Stats {
+  clientCount: number
+  recipeCount: number
+  nearGoalPercentage: number
+}
+
 export default function Dashboard() {
   const [coachName, setCoachName] = useState('Manuel')
+  const [stats, setStats] = useState<Stats>({ clientCount: 0, recipeCount: 0, nearGoalPercentage: 0 })
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    // Verificar autenticación
     const token = localStorage.getItem('token')
     if (!token) {
       router.push('/login')
+      return
     }
 
-    // Aquí podrías obtener el nombre real del coach desde una API
-    // Por ahora usamos el valor por defecto "Manuel"
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setStats(data)
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
   }, [router])
 
   return (
@@ -36,16 +63,22 @@ export default function Dashboard() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white/20 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold">273</div>
+                  <div className="text-2xl font-bold">
+                    {loading ? '...' : stats.clientCount}
+                  </div>
                   <div className="text-blue-100">Clientes Registrados</div>
                 </div>
                 <div className="bg-white/20 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold">15</div>
+                  <div className="text-2xl font-bold">
+                    {loading ? '...' : stats.recipeCount}
+                  </div>
                   <div className="text-blue-100">Recetas Creadas</div>
                 </div>
                 <div className="bg-white/20 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold">89%</div>
-                  <div className="text-blue-100">Satisfacción</div>
+                  <div className="text-2xl font-bold">
+                    {loading ? '...' : `${stats.nearGoalPercentage}%`}
+                  </div>
+                  <div className="text-blue-100">Cerca del Objetivo</div>
                 </div>
               </div>
             </div>
