@@ -126,7 +126,7 @@ const HealthFormSchema = new mongoose.Schema<HealthFormDocument>({
 // Pre-save hook con tipos específicos
 HealthFormSchema.pre('save', async function(next) {
   try {
-    const { encrypt } = await import('../../lib/encryption');
+    const { encrypt } = await import('../lib/encryption');
     const doc = this as HealthFormDocument;
     
     // Encriptar personalData con tipos específicos
