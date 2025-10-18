@@ -13,10 +13,6 @@ export default async function handler(
   try {
     const db = await connectToDatabase()
     
-    if (!db.connection || !db.connection.db) {
-      return res.status(500).json({ message: 'Database connection error' })
-    }
-
     const clients = await db.connection.db.collection('healthforms')
       .find({})
       .sort({ submissionDate: -1 })
