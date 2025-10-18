@@ -368,8 +368,8 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
               onClick={() => setActiveTab('medical')}
               className={`py-4 px-6 font-medium border-b-2 transition-colors flex items-center whitespace-nowrap ${
                 activeTab === 'medical'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-blue-600'
+                  ? 'border-yellow-500 text-yellow-600'
+                  : 'border-transparent text-gray-500 hover:text-yellow-600'
               }`}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -381,8 +381,8 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
               onClick={() => setActiveTab('evaluations')}
               className={`py-4 px-6 font-medium border-b-2 transition-colors flex items-center whitespace-nowrap ${
                 activeTab === 'evaluations'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-blue-600'
+                  ? 'border-pink-500 text-pink-600'
+                  : 'border-transparent text-gray-500 hover:text-pink-600'
               }`}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,8 +394,8 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
               onClick={() => setActiveTab('mental')}
               className={`py-4 px-6 font-medium border-b-2 transition-colors flex items-center whitespace-nowrap ${
                 activeTab === 'mental'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-blue-600'
+                  ? 'border-purple-500 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-purple-600'
               }`}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -415,7 +415,46 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                   <label className="block text-sm font-medium text-blue-700 mb-2">
                     {formatLabel(key)}
                   </label>
-                  {key === 'gender' ? (
+                  
+                  {key === 'birthDate' ? (
+                    // Date picker para fecha de nacimiento
+                    <input
+                      type="date"
+                      value={value as string}
+                      onChange={(e) => handleInputChange('personalData', key, e.target.value)}
+                      className="w-full px-3 py-2 text-gray-700 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  ) : key === 'maritalStatus' ? (
+                    // Select para estado civil
+                    <select
+                      value={value as string}
+                      onChange={(e) => handleInputChange('personalData', key, e.target.value)}
+                      className="w-full px-3 py-2 text-gray-700 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Seleccionar estado civil</option>
+                      <option value="Soltero">Soltero</option>
+                      <option value="Casado">Casado</option>
+                      <option value="Divorciado">Divorciado</option>
+                      <option value="Viudo">Viudo</option>
+                      <option value="Unión libre">Unión libre</option>
+                    </select>
+                  ) : key === 'education' ? (
+                    // Select para educación
+                    <select
+                      value={value as string}
+                      onChange={(e) => handleInputChange('personalData', key, e.target.value)}
+                      className="w-full px-3 py-2 text-gray-700 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Seleccionar nivel educativo</option>
+                      <option value="Primaria">Primaria</option>
+                      <option value="Secundaria">Secundaria</option>
+                      <option value="Bachillerato">Bachillerato</option>
+                      <option value="Técnico">Técnico</option>
+                      <option value="Universitario">Universitario</option>
+                      <option value="Posgrado">Posgrado</option>
+                    </select>
+                  ) : key === 'gender' ? (
+                    // Select para género (mejorado)
                     <select
                       value={value as string}
                       onChange={(e) => handleInputChange('personalData', key, e.target.value)}
@@ -423,9 +462,21 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                     >
                       <option value="Masculino">Masculino</option>
                       <option value="Femenino">Femenino</option>
-                      <option value="Prefiero no decirlo">Prefiero no decirlo</option>
+                      <option value="Otro">Otro</option>
+                      <option value="Prefiero no decir">Prefiero no decir</option>
                     </select>
+                  ) : key === 'age' || key === 'weight' || key === 'height' ? (
+                    // Input number para campos numéricos
+                    <input
+                      type="number"
+                      value={value as string}
+                      onChange={(e) => handleInputChange('personalData', key, e.target.value)}
+                      className="w-full px-3 py-2 text-gray-700 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      min={key === 'age' ? 0 : key === 'weight' ? 0 : key === 'height' ? 0 : undefined}
+                      step={key === 'weight' ? "0.1" : "1"}
+                    />
                   ) : (
+                    // Input text para los demás campos
                     <input
                       type="text"
                       value={value as string}
@@ -459,15 +510,15 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                   key !== 'microbiotaHealth'
                 )
                 .map(([key, value]) => (
-                  <div key={key} className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm">
-                    <label className="block text-sm font-medium text-blue-700 mb-2">
+                  <div key={key} className="bg-white p-4 rounded-lg border border-yellow-100 shadow-sm">
+                    <label className="block text-sm font-medium text-yellow-700 mb-2">
                       {formatLabel(key)}
                     </label>
                     <textarea
                       rows={3}
                       value={value as string}
                       onChange={(e) => handleInputChange('medicalData', key, e.target.value)}
-                      className="w-full px-3 py-2 text-gray-700 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-gray-700 border border-yellow-200 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                       placeholder={`Describe ${formatLabel(key).toLowerCase()}...`}
                     />
                   </div>
@@ -478,13 +529,13 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
           {activeTab === 'evaluations' && (
             <div className="space-y-6">
               {Object.entries(evaluationQuestions).map(([section, questions]) => (
-                <div key={section} className="bg-white rounded-lg border border-blue-200 p-6">
-                  <h3 className="text-lg font-semibold text-blue-700 mb-4">
+                <div key={section} className="bg-white rounded-lg border border-pink-200 p-6">
+                  <h3 className="text-lg font-semibold text-pink-700 mb-4">
                     {formatLabel(section)}
                   </h3>
                   <div className="space-y-4">
                     {questions.map((question, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-4 bg-pink-50 rounded-lg">
                         <span className="flex-1 text-sm text-gray-700 pr-4">{question}</span>
                         <div className="flex space-x-4">
                           <label className="flex items-center">
@@ -492,18 +543,18 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                               type="radio"
                               checked={getEvaluationValue(section, index) === true}
                               onChange={() => handleEvaluationChange(section, index, true)}
-                              className="mr-2 text-blue-700 focus:ring-blue-500"
+                              className="mr-2 text-pink-700 focus:ring-pink-500"
                             />
-                            <span className="text-sm font-semibold text-blue-700">SÍ</span>
+                            <span className="text-sm font-semibold text-pink-700">SÍ</span>
                           </label>
                           <label className="flex items-center">
                             <input
                               type="radio"
                               checked={getEvaluationValue(section, index) === false}
                               onChange={() => handleEvaluationChange(section, index, false)}
-                              className="mr-2 text-blue-700 focus:ring-blue-500"
+                              className="mr-2 text-pink-700 focus:ring-pink-500"
                             />
-                            <span className="text-sm font-semibold text-blue-700">NO</span>
+                            <span className="text-sm font-semibold text-pink-700">NO</span>
                           </label>
                         </div>
                       </div>

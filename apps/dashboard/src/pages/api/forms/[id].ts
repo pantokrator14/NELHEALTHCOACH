@@ -1,84 +1,106 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { connectToDatabase } from '../../../lib/database'
 import { ObjectId } from 'mongodb'
-import { decrypt } from '../../../lib/encryption'
+import { decrypt, encrypt } from '../../../lib/encryption'
+
+// Función helper para desencriptar datos de forma segura
+const safeDecrypt = (encryptedText: string): string => {
+  try {
+    if (!encryptedText) return ''
+    const decrypted = decrypt(encryptedText)
+    if (!decrypted && encryptedText) {
+      return encryptedText
+    }
+    return decrypted
+  } catch (error) {
+    console.warn('Error desencriptando, devolviendo texto original:', error)
+    return encryptedText
+  }
+}
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method === 'GET') {
-    const { id } = req.query
+  const { id } = req.query
 
+  // Validar que el ID existe y es válido
+  if (!id || typeof id !== 'string') {
+    return res.status(400).json({ message: 'ID de cliente inválido' })
+  }
+
+  // Validar que el ID tiene el formato correcto para ObjectId (24 caracteres hexadecimales)
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'ID de cliente inválido' })
+  }
+
+  const objectId = new ObjectId(id)
+
+  if (req.method === 'GET') {
     try {
       const db = await connectToDatabase()
       
-      let client
-      try {
-        client = await db.connection.db.collection('healthforms').findOne({ 
-          _id: new ObjectId(id as string) 
-        })
-      } catch (error) {
-        return res.status(400).json({ message: 'ID de cliente inválido' })
-      }
+      const client = await db.connection.db.collection('healthforms').findOne({ 
+        _id: objectId 
+      })
 
       if (!client) {
         return res.status(404).json({ message: 'Cliente no encontrado' })
       }
 
-      // Desencriptar los datos
+      // Desencriptar los datos de forma segura
       const decryptedClient = {
         ...client,
         personalData: {
-          name: decrypt(client.personalData.name),
-          address: decrypt(client.personalData.address),
-          phone: decrypt(client.personalData.phone),
-          email: decrypt(client.personalData.email),
-          birthDate: decrypt(client.personalData.birthDate),
-          gender: decrypt(client.personalData.gender),
-          age: decrypt(client.personalData.age),
-          weight: decrypt(client.personalData.weight),
-          height: decrypt(client.personalData.height),
-          maritalStatus: decrypt(client.personalData.maritalStatus),
-          education: decrypt(client.personalData.education),
-          occupation: decrypt(client.personalData.occupation)
+          name: safeDecrypt(client.personalData.name),
+          address: safeDecrypt(client.personalData.address),
+          phone: safeDecrypt(client.personalData.phone),
+          email: safeDecrypt(client.personalData.email),
+          birthDate: safeDecrypt(client.personalData.birthDate),
+          gender: safeDecrypt(client.personalData.gender),
+          age: safeDecrypt(client.personalData.age),
+          weight: safeDecrypt(client.personalData.weight),
+          height: safeDecrypt(client.personalData.height),
+          maritalStatus: safeDecrypt(client.personalData.maritalStatus),
+          education: safeDecrypt(client.personalData.education),
+          occupation: safeDecrypt(client.personalData.occupation)
         },
         medicalData: {
-          mainComplaint: decrypt(client.medicalData.mainComplaint),
-          medications: decrypt(client.medicalData.medications),
-          supplements: decrypt(client.medicalData.supplements),
-          currentPastConditions: decrypt(client.medicalData.currentPastConditions),
-          additionalMedicalHistory: decrypt(client.medicalData.additionalMedicalHistory),
-          employmentHistory: decrypt(client.medicalData.employmentHistory),
-          hobbies: decrypt(client.medicalData.hobbies),
-          allergies: decrypt(client.medicalData.allergies),
-          surgeries: decrypt(client.medicalData.surgeries),
-          housingHistory: decrypt(client.medicalData.housingHistory),
-          carbohydrateAddiction: decrypt(client.medicalData.carbohydrateAddiction),
-          leptinResistance: decrypt(client.medicalData.leptinResistance),
-          circadianRhythms: decrypt(client.medicalData.circadianRhythms),
-          sleepHygiene: decrypt(client.medicalData.sleepHygiene),
-          electrosmogExposure: decrypt(client.medicalData.electrosmogExposure),
-          generalToxicity: decrypt(client.medicalData.generalToxicity),
-          microbiotaHealth: decrypt(client.medicalData.microbiotaHealth),
-          mentalHealthEmotionIdentification: decrypt(client.medicalData.mentalHealthEmotionIdentification),
-          mentalHealthEmotionIntensity: decrypt(client.medicalData.mentalHealthEmotionIntensity),
-          mentalHealthUncomfortableEmotion: decrypt(client.medicalData.mentalHealthUncomfortableEmotion),
-          mentalHealthInternalDialogue: decrypt(client.medicalData.mentalHealthInternalDialogue),
-          mentalHealthStressStrategies: decrypt(client.medicalData.mentalHealthStressStrategies),
-          mentalHealthSayingNo: decrypt(client.medicalData.mentalHealthSayingNo),
-          mentalHealthRelationships: decrypt(client.medicalData.mentalHealthRelationships),
-          mentalHealthExpressThoughts: decrypt(client.medicalData.mentalHealthExpressThoughts),
-          mentalHealthEmotionalDependence: decrypt(client.medicalData.mentalHealthEmotionalDependence),
-          mentalHealthPurpose: decrypt(client.medicalData.mentalHealthPurpose),
-          mentalHealthFailureReaction: decrypt(client.medicalData.mentalHealthFailureReaction),
-          mentalHealthSelfConnection: decrypt(client.medicalData.mentalHealthSelfConnection),
-          mentalHealthSelfRelationship: decrypt(client.medicalData.mentalHealthSelfRelationship),
-          mentalHealthLimitingBeliefs: decrypt(client.medicalData.mentalHealthLimitingBeliefs),
-          mentalHealthIdealBalance: decrypt(client.medicalData.mentalHealthIdealBalance)
+          mainComplaint: safeDecrypt(client.medicalData.mainComplaint),
+          medications: safeDecrypt(client.medicalData.medications),
+          supplements: safeDecrypt(client.medicalData.supplements),
+          currentPastConditions: safeDecrypt(client.medicalData.currentPastConditions),
+          additionalMedicalHistory: safeDecrypt(client.medicalData.additionalMedicalHistory),
+          employmentHistory: safeDecrypt(client.medicalData.employmentHistory),
+          hobbies: safeDecrypt(client.medicalData.hobbies),
+          allergies: safeDecrypt(client.medicalData.allergies),
+          surgeries: safeDecrypt(client.medicalData.surgeries),
+          housingHistory: safeDecrypt(client.medicalData.housingHistory),
+          carbohydrateAddiction: safeDecrypt(client.medicalData.carbohydrateAddiction),
+          leptinResistance: safeDecrypt(client.medicalData.leptinResistance),
+          circadianRhythms: safeDecrypt(client.medicalData.circadianRhythms),
+          sleepHygiene: safeDecrypt(client.medicalData.sleepHygiene),
+          electrosmogExposure: safeDecrypt(client.medicalData.electrosmogExposure),
+          generalToxicity: safeDecrypt(client.medicalData.generalToxicity),
+          microbiotaHealth: safeDecrypt(client.medicalData.microbiotaHealth),
+          mentalHealthEmotionIdentification: safeDecrypt(client.medicalData.mentalHealthEmotionIdentification),
+          mentalHealthEmotionIntensity: safeDecrypt(client.medicalData.mentalHealthEmotionIntensity),
+          mentalHealthUncomfortableEmotion: safeDecrypt(client.medicalData.mentalHealthUncomfortableEmotion),
+          mentalHealthInternalDialogue: safeDecrypt(client.medicalData.mentalHealthInternalDialogue),
+          mentalHealthStressStrategies: safeDecrypt(client.medicalData.mentalHealthStressStrategies),
+          mentalHealthSayingNo: safeDecrypt(client.medicalData.mentalHealthSayingNo),
+          mentalHealthRelationships: safeDecrypt(client.medicalData.mentalHealthRelationships),
+          mentalHealthExpressThoughts: safeDecrypt(client.medicalData.mentalHealthExpressThoughts),
+          mentalHealthEmotionalDependence: safeDecrypt(client.medicalData.mentalHealthEmotionalDependence),
+          mentalHealthPurpose: safeDecrypt(client.medicalData.mentalHealthPurpose),
+          mentalHealthFailureReaction: safeDecrypt(client.medicalData.mentalHealthFailureReaction),
+          mentalHealthSelfConnection: safeDecrypt(client.medicalData.mentalHealthSelfConnection),
+          mentalHealthSelfRelationship: safeDecrypt(client.medicalData.mentalHealthSelfRelationship),
+          mentalHealthLimitingBeliefs: safeDecrypt(client.medicalData.mentalHealthLimitingBeliefs),
+          mentalHealthIdealBalance: safeDecrypt(client.medicalData.mentalHealthIdealBalance)
         },
-        contractAccepted: decrypt(client.contractAccepted),
-        ipAddress: decrypt(client.ipAddress),
+        contractAccepted: safeDecrypt(client.contractAccepted),
+        ipAddress: safeDecrypt(client.ipAddress),
         submissionDate: client.submissionDate
       }
 
@@ -89,19 +111,38 @@ export default async function handler(
     }
   } else if (req.method === 'PUT') {
     try {
-      const { id } = req.query
       const db = await connectToDatabase()
       const updateData = req.body
 
-      let result
-      try {
-        result = await db.connection.db.collection('healthforms').updateOne(
-          { _id: new ObjectId(id as string) },
-          { $set: updateData }
-        )
-      } catch (error) {
-        return res.status(400).json({ message: 'ID de cliente inválido' })
+      // Remover _id del objeto de actualización ya que es inmutable
+      const { _id, ...dataToUpdate } = updateData
+
+      // Función helper para encriptar datos
+      const encryptData = (data: any) => {
+        const encrypted: any = {}
+        for (const key in data) {
+          if (typeof data[key] === 'string' && data[key].trim() !== '') {
+            encrypted[key] = encrypt(data[key])
+          } else {
+            encrypted[key] = data[key]
+          }
+        }
+        return encrypted
       }
+
+      // Encriptar los datos antes de guardar
+      if (dataToUpdate.personalData) {
+        dataToUpdate.personalData = encryptData(dataToUpdate.personalData)
+      }
+
+      if (dataToUpdate.medicalData) {
+        dataToUpdate.medicalData = encryptData(dataToUpdate.medicalData)
+      }
+
+      const result = await db.connection.db.collection('healthforms').updateOne(
+        { _id: objectId },
+        { $set: dataToUpdate }
+      )
 
       if (result.matchedCount === 0) {
         return res.status(404).json({ message: 'Cliente no encontrado' })
@@ -116,26 +157,20 @@ export default async function handler(
     try {
       const db = await connectToDatabase()
       
-      let result
-      try {
-        result = await db.connection.db.collection('healthforms').deleteOne({ 
-          _id: new ObjectId(id as string) 
-        })
-      } catch (error) {
-        return res.status(400).json({ message: 'ID de cliente inválido' })
-      }
+      const result = await db.connection.db.collection('healthforms').deleteOne({ 
+        _id: objectId 
+      })
 
       if (result.deletedCount === 0) {
         return res.status(404).json({ message: 'Cliente no encontrado' })
       }
 
-      res.status(200).json({ message: 'Cliente eliminado correctamente' })
+      return res.status(200).json({ message: 'Cliente eliminado correctamente' })
     } catch (error) {
       console.error('Error eliminando cliente:', error)
-      res.status(500).json({ message: 'Error interno del servidor' })
+      return res.status(500).json({ message: 'Error interno del servidor' })
     }
-  }
-  else {
+  } else {
     res.status(405).json({ message: 'Método no permitido' })
   }
 }

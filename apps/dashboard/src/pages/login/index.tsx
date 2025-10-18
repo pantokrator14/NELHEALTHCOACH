@@ -45,7 +45,7 @@ export default function Login() {
         <title>Iniciar Sesión - NELHEALTHCOACH</title>
       </Head>
       
-      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-blue-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-4">
         
         {/* Tarjeta con diseño moderno */}
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20">

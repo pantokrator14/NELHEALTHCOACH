@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { connectToDatabase } from '../../../../lib/database'
-import HealthForm from '../../../../models/HealthForm'
+import { connectToDatabase } from '../../../lib/database'
+import HealthForm from '../../../models/HealthForm'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
