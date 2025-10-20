@@ -24,5 +24,9 @@
   "keywords": [],
   "author": "pantokrator14",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6"
+  }
 }

@@ -10,7 +10,7 @@ import Image from 'next/image';
  */
 const AboutSection: React.FC = () => {
   return (
-    <section id="sobre-mi" className="bg-blue-500 min-h-screen py-16 px-4 flex items-center">
+    <section id="sobre-mi" className="bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 min-h-screen py-16 px-4 flex items-center">
       <div className="container mx-auto max-w-6xl w-full">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">Pero... ¿Quién soy yo?</h2>
         

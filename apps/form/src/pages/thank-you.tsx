@@ -15,7 +15,7 @@ const ThankYouPage = () => {
   }, [status]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center px-4">
       
       <div className="max-w-md mx-auto bg-white rounded-xl shadow-2xl p-8 text-center">
         {/* Logo */}

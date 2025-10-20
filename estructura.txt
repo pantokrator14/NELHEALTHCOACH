@@ -41,6 +41,7 @@
 │   │   │   │   │   │   └── logout.ts
 │   │   │   │   │   ├── clients
 │   │   │   │   │   │   └── index.ts
+│   │   │   │   │   ├── estructura-api-dashboard.txt
 │   │   │   │   │   ├── forms
 │   │   │   │   │   │   ├── [id].ts
 │   │   │   │   │   │   ├── index.ts
@@ -88,6 +89,7 @@
 │   │   │   ├── pages
 │   │   │   │   ├── api
 │   │   │   │   │   ├── check-encryption.ts
+│   │   │   │   │   ├── estructura-api-form.txt
 │   │   │   │   │   └── submit-form.ts
 │   │   │   │   ├── _app.tsx
 │   │   │   │   ├── _document.tsx
@@ -254,6 +256,7 @@
 │   │   ├── 18
 │   │   │   └── 31845ce5d6f66cb57db601687c8d245a804d6e
 │   │   ├── 19
+│   │   │   ├── 155ceb32cad847ce403b910aefcfce4d208e4c
 │   │   │   └── bd15a732364dce35cd01f51a7bd59267089983
 │   │   ├── 1a
 │   │   │   └── 68edb78bd423e2ea47e7526c497dff290838dc
@@ -288,6 +291,8 @@
 │   │   │   ├── 165d06505271a4dd40d688ddc763e590456209
 │   │   │   ├── 16a12ef775facf34d8609507f6a745b2c2aafd
 │   │   │   └── 4b73c165d9020f2076dc5a74c24bc346e26a2b
+│   │   ├── 26
+│   │   │   └── 35191333ce4caeb8818b246708b0637c6ba5fc
 │   │   ├── 27
 │   │   │   └── 34161da58ebaea96c2ff119e31706bd243b583
 │   │   ├── 28
@@ -372,7 +377,8 @@
 │   │   │   └── 1e53775e47ae5d8c56193659e4fd1251a68579
 │   │   ├── 41
 │   │   │   ├── 78abb946d57ff9d422bf91cddab6d822973a8f
-│   │   │   └── 79a831fbd2d3774455e898af7a82f1df9fc159
+│   │   │   ├── 79a831fbd2d3774455e898af7a82f1df9fc159
+│   │   │   └── be3fca756edf2adee026aaf88622f2cae12523
 │   │   ├── 42
 │   │   │   ├── 230547a04f12777d9520276daca282dcb64255
 │   │   │   ├── 4454c9aabf3c5884ff686668d362d798904565
@@ -381,7 +387,8 @@
 │   │   │   ├── 0450e5f90c251a294f360746c7f314a115f837
 │   │   │   ├── 63f20e0f9fc524087defa97332c90202f8f076
 │   │   │   ├── a7dd3b3ca62aced314472f874e2cea1d5e0639
-│   │   │   └── ca73da7774d503403d33c6534375df2c41a927
+│   │   │   ├── ca73da7774d503403d33c6534375df2c41a927
+│   │   │   └── fecb22cb763c9837831c8663748c3802951959
 │   │   ├── 44
 │   │   │   ├── 35deb4e9d3f8bebc1caa0f0ee6672875d091e0
 │   │   │   ├── 41f7029b7e3193cb996141961e33156d30f7ce
@@ -420,6 +427,7 @@
 │   │   ├── 52
 │   │   │   ├── 2c9ccf56b350f0223739dddd4a88663632560d
 │   │   │   ├── 3a2a8a5fe251c0bb7c8c82f2237e67e896029c
+│   │   │   ├── 83c65b904b4e825167d066179af01724338061
 │   │   │   └── e831b43424828d38887dee6a5fb73d955d308f
 │   │   ├── 53
 │   │   │   ├── 08c8719be7e4002084208746ea99a73f4f4315
@@ -428,7 +436,8 @@
 │   │   ├── 54
 │   │   │   ├── 20394c06420eae7fc4310540943d51e332f895
 │   │   │   ├── 535c2df5d650ac13762a72819381606e8a02e0
-│   │   │   └── 65ac372a836d6df5bbdd5478a3cc4f9357bd67
+│   │   │   ├── 65ac372a836d6df5bbdd5478a3cc4f9357bd67
+│   │   │   └── f70ef183d9d6670e60af187fa73c14ec11c953
 │   │   ├── 55
 │   │   │   └── 7175c7f1af0b05da3ef4571befa971988efea5
 │   │   ├── 56
@@ -474,7 +483,8 @@
 │   │   │   ├── 8a7334c84a5fbd0ce6780d4ba56515596fcc47
 │   │   │   └── cdd8e781075b75a6a962e2364a468f2575862a
 │   │   ├── 63
-│   │   │   └── 2271ba5d1cdef7e0c9eb889d6bc6f79e854f99
+│   │   │   ├── 2271ba5d1cdef7e0c9eb889d6bc6f79e854f99
+│   │   │   └── 3f3535d25936d3c1126009bd0b983216bce4cd
 │   │   ├── 64
 │   │   │   ├── 93a8c193359123a41fdf44a2dfcd1e4a70f536
 │   │   │   └── e7db0ea4454527ed6f3317e40ab27814b5a743
@@ -530,7 +540,8 @@
 │   │   │   ├── 464d3bab663e9fb1e284a011aab74a64326c1b
 │   │   │   └── 932a5444af44580b13e65c40b1bb19165c2213
 │   │   ├── 77
-│   │   │   └── 053960334e2e34dc584dea8019925c3b4ccca9
+│   │   │   ├── 053960334e2e34dc584dea8019925c3b4ccca9
+│   │   │   └── 348eca258a82fe3ddfab404572ef5fbbb20924
 │   │   ├── 78
 │   │   │   ├── cf61f2fd1e1f51dd2423559cf2a5999044a9fa
 │   │   │   └── eeca20de76faeb14ef7566960ab7a73ee40dde
@@ -561,6 +572,7 @@
 │   │   │   ├── 170c19b55a1fa2050509535d8f4a85de8762ef
 │   │   │   └── f8c6c41362c13d1d9ed3adc5046b0420715b0e
 │   │   ├── 80
+│   │   │   ├── 0099bf910a100104764658221b14ecdd994010
 │   │   │   └── ad9ede62ce8017512a75980a50f97075804677
 │   │   ├── 81
 │   │   │   ├── 4c8f4cab3a8c69a3d9b17285c5e14a7a705d1c
@@ -593,7 +605,8 @@
 │   │   ├── 8b
 │   │   │   ├── 48671669499b6a48bc7f39d9084eda9611c06d
 │   │   │   ├── d510fdd2ec485d48c6f1a7ed62c78a99a64608
-│   │   │   └── dfb945b94b148ecb75bc769cbc4f684212fb44
+│   │   │   ├── dfb945b94b148ecb75bc769cbc4f684212fb44
+│   │   │   └── efed996e552c052e2151bc575f533a740fbc54
 │   │   ├── 8c
 │   │   │   ├── 184bcef81a8d9e81ee6674c841507acc6071b5
 │   │   │   ├── 2ceb2f381401b73612bcca758fee0eff9d9892
@@ -620,6 +633,7 @@
 │   │   │   ├── c4b61da5dd762a6f88e4980fd9a73e8fe86e8e
 │   │   │   └── dafff0874816dfddfd1a311fc06523be4c12eb
 │   │   ├── 93
+│   │   │   ├── 1d7e196fe22cb706ee23c6a0caf56f5b4214bb
 │   │   │   ├── 3610312b3d2576e5b00e1e6846963f2d78fe1e
 │   │   │   ├── 4dfcbc32eca97da7ba4c94228a3cb930035433
 │   │   │   ├── 5afbbe863755edb31969ddef3ed5e3c45f9277
@@ -685,6 +699,7 @@
 │   │   │   ├── a31daa543abc7ac6b5d2dd6409040c172cb5b5
 │   │   │   └── a7e1a011cebbdf30a44f9233e4770de89f887a
 │   │   ├── a5
+│   │   │   ├── 057a53addb069f981b0d78deae11735fb4ac95
 │   │   │   ├── 51d22722fc5778864419de8672859473919657
 │   │   │   ├── 52affc7b63966aed04c852550e5f5e5bcf434c
 │   │   │   ├── 56811893f8e384dd91ee1260434210d09b39bb
@@ -712,6 +727,7 @@
 │   │   │   ├── ad13b11b6d2dbfcdca6a129d22e4ef5744ddee
 │   │   │   └── f0a60273c6453e104e599767c74331046d4591
 │   │   ├── ae
+│   │   │   ├── 976d360ba0c83818e823363e408acac91f14a7
 │   │   │   └── ceddb44bc107aa789ca9b48afc03fa6d119521
 │   │   ├── af
 │   │   │   ├── 2076701c39a8466a12fdceba8e6be965ca6cd6
@@ -719,6 +735,7 @@
 │   │   │   ├── f537e4734b4e88e0a9382c6135e9e5bd37a397
 │   │   │   └── fd4865ef35901f09f79f4a6e5e44de181b377f
 │   │   ├── b0
+│   │   │   ├── 420c6c0314a34440dc9e675ac68041eff39d79
 │   │   │   ├── 458a0a574a746c93cebcf1c79df28ac52e2d39
 │   │   │   └── dc2627c0e2b3ba51d36053972d3adfa272457e
 │   │   ├── b1
@@ -758,7 +775,8 @@
 │   │   ├── bd
 │   │   │   └── 39ce586ed014f39989596ee624ec4671efac6e
 │   │   ├── be
-│   │   │   └── b5667cf8c3ecb655b231b143b72359c9b78a3b
+│   │   │   ├── b5667cf8c3ecb655b231b143b72359c9b78a3b
+│   │   │   └── c064642c8c01f24095fb5e55d82685c6794132
 │   │   ├── bf
 │   │   │   ├── 28f3c541f5a10944a60de58a3cd163cdbeccc2
 │   │   │   └── f79fb7f99cb2e499e29cc9398dd80debc721f1
@@ -776,7 +794,8 @@
 │   │   │   └── f75acf70f4cb236196fddefc6035dcab2334dc
 │   │   ├── c7
 │   │   │   ├── b4a635b0f4b1e6d13e9b0800489bc638d4c554
-│   │   │   └── bcb4b1ee14cd5e25078c2c934529afdd2a7df9
+│   │   │   ├── bcb4b1ee14cd5e25078c2c934529afdd2a7df9
+│   │   │   └── fbb65cef250b277796fdf3ba86d50a7bf6706f
 │   │   ├── c8
 │   │   │   ├── 2ec5196a380f05882e0d5dd09549502e7495ea
 │   │   │   ├── 5fb67c463f20d1ee449b0ffee725a61dfb9259
@@ -808,6 +827,7 @@
 │   │   │   ├── b0339526f0905f5444406eaec51b098d7fe68d
 │   │   │   └── ce25d4d0f4cf13fa08d8ebca2891666725987e
 │   │   ├── d5
+│   │   │   ├── 1d38650a8ee2fd4295a8b5a0200b0b7f50d16f
 │   │   │   └── ee6f2bc46c5091065b2dca599a3aa2e59c2182
 │   │   ├── d6
 │   │   │   └── 0310703dd20f16de55f5f500c4b124f7b204c6
@@ -841,6 +861,7 @@
 │   │   │   └── fe78cfb45d5c83d225decc3074cc7893bca48a
 │   │   ├── e1
 │   │   │   ├── 23483ccf458055931d0eb3b7b5a10fceddf883
+│   │   │   ├── 30577f1a3b086d5c9e8ffe95bcf9e55e369344
 │   │   │   └── 4467dcccdf3eb14e3204610bf25d7c7439c1ac
 │   │   ├── e2
 │   │   │   ├── 0933a1adee54daf4199a76c3994b06f2ddf581
@@ -855,6 +876,8 @@
 │   │   │   ├── 23d0b9652dffe7ecf875522ce77a1072b0709d
 │   │   │   ├── 3fafdbaee15dc76a0bd9a74bac2a814f254774
 │   │   │   └── fcd137bcd3f2a482b431add616dccdedbd3633
+│   │   ├── e5
+│   │   │   └── 6098fcd10683e1a7bbbe63d4122affae45e45a
 │   │   ├── e6
 │   │   │   ├── 33f208739d8ae2ceb040eedf297ec12000e99d
 │   │   │   ├── 4de1bc1f5065c9de58aaeb3703d7d537627f3b
@@ -897,7 +920,8 @@
 │   │   │   ├── cc57c598ff153f88bef7f3d0b71d9ccc3d5fb2
 │   │   │   └── ddfdde8cac6ff8b17a4424b876257485593845
 │   │   ├── f1
-│   │   │   └── 5dff90a1f64d4843ff9e4bb0c25b29b981ca8d
+│   │   │   ├── 5dff90a1f64d4843ff9e4bb0c25b29b981ca8d
+│   │   │   └── cd51c49d345de8b9e37a66e41b0459e6d02149
 │   │   ├── f2
 │   │   │   ├── 51376d8688e68d3619c5b817f594a06f18f953
 │   │   │   ├── d8b5e177a8ce5da892cdaf8e670b1e96b402de
@@ -967,4 +991,4 @@
 │   └── shared
 └── vercel.json
 
-293 directories, 675 files
+295 directories, 697 files

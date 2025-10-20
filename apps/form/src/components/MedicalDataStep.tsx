@@ -262,22 +262,24 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="relative w-48 h-16">
-            <Image
-              src="/logo.png"
-              alt="NELHEALTHCOACH"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 py-12 px-4">
+      
 
         <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
+          <div className="max-w-6xl mx-auto">
+            {/* Logo */}
+            <div className="flex justify-center mb-8">
+              <div className="relative w-48 h-16">
+                <Image
+                  src="/logo.png"
+                  alt="NELHEALTHCOACH"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+            </div>
+          
           <div className="p-8">
             <h2 className="text-3xl font-bold text-center text-blue-800 mb-8">
               Información Médica y de Vida
