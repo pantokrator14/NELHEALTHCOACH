@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateToken } from '../../lib/auth';
+import { generateToken } from '../../../lib/auth';
 
 const VALID_CREDENTIALS = {
   email: process.env.COACH_EMAIL,
