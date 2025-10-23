@@ -1,9 +1,17 @@
 import type { NextConfig } from 'next'
 
-const nextConfig: NextConfig = {
-  experimental: {
-    // No experimental options needed here
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  async rewrites() {
+    const apiUrl = process.env.API_URL || 'http://localhost:3001';
+    
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
+      },
+    ];
   },
-}
+};
 
-export default nextConfig
+module.exports = nextConfig;

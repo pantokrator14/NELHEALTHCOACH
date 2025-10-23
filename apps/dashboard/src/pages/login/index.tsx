@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Image from 'next/image'
+import { apiClient } from '@/lib/api';
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -16,24 +17,12 @@ export default function Login() {
     setError('')
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
+      const result = await apiClient.login({ email, password });
 
-      const data = await response.json()
-
-      if (response.ok) {
-        localStorage.setItem('token', data.token)
-        router.push('/dashboard')
-      } else {
-        setError(data.message || 'Credenciales inválidas')
-      }
+      localStorage.setItem('token', result.token);
+      router.push('/dashboard');
     } catch (err) {
-      setError('Error de conexión. Intenta nuevamente.')
+      setError('Error de conexión. Intenta nuevamente.');
     } finally {
       setLoading(false)
     }

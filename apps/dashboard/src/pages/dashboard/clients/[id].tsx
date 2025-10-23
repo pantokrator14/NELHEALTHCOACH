@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
+import { apiClient } from '@/lib/api';
 
 interface Client {
   _id: string
@@ -260,20 +261,8 @@ export default function ClientProfile() {
 
   const fetchClient = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/forms/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setClient(data)
-      } else {
-        console.error('Error fetching client details')
-      }
+      const result = await apiClient.getClient(id);
+      setClient(result.data);
     } catch (error) {
       console.error('Error fetching client:', error)
     } finally {

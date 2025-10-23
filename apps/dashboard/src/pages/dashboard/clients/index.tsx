@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
+import { apiClient } from '@/lib/api';
 
 interface Client {
   _id: string
@@ -27,17 +28,8 @@ export default function Clients() {
 
     const fetchClients = async () => {
       try {
-        const response = await fetch('/api/forms', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setClients(data)
-        }
+        const result = await apiClient.getClients();
+        setClients(result.data);
       } catch (error) {
         console.error('Error fetching clients:', error)
       } finally {

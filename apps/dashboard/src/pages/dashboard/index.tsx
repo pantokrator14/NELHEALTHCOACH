@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../components/dashboard/Layout'
 import Head from 'next/head'
+import { apiClient } from '@/lib/api';
 
 interface Stats {
   clientCount: number

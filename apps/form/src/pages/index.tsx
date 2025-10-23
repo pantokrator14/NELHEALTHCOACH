@@ -3,12 +3,13 @@ import ContractStep from '@/components/ContractStep';
 import PersonalDataStep from '@/components/PersonalDataStep';
 import MedicalDataStep from '@/components/MedicalDataStep';
 import SuccessStep from '@/components/SuccessStep';
-import { FormState, HealthFormData, PersonalData, MedicalData } from '@/types/healthForm';
+import { apiClient } from '@/lib/api';
+import error from 'next/error';
 
 const FormPage: React.FC = () => {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState<Partial<HealthFormData>>({});
-  const [error, setError] = useState<string | null>(null);
+'HealthFormData'.  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const nextStep = () => setStep(step + 1);
@@ -42,18 +43,11 @@ const FormPage: React.FC = () => {
     };
     
     try {
-      const response = await fetch('/api/submit-form', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(completeData),
-      });
-
-      const result = await response.json();
+      const result = await apiClient.submitForm(completeData);
 
       if (result.success) {
         nextStep();
+        console.log('Formulario enviado!');
       } else {
         setError(result.message || 'Error al enviar el formulario');
       }

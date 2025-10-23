@@ -1,11 +1,16 @@
 import type { NextConfig } from 'next'
 
-const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  swcMinify: true,
-  experimental: {
-    // Aquí puedes agregar configuraciones experimentales si las necesitas
+const nextConfig = {
+  async rewrites() {
+    const apiUrl = process.env.API_URL || 'http://localhost:3001';
+    
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
+      },
+    ];
   },
-}
+};
 
-export default nextConfig
+module.exports = nextConfig;
