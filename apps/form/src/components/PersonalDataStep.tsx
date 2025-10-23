@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { personalDataSchema } from '@/lib/validation';
+import { personalDataSchema } from '../lib/validation';
 
 interface PersonalDataStepProps {
   data: any;
@@ -35,157 +35,157 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               />
             </div>
           </div>
-          <h2 className="text-3xl font-bold text-center text-blue-800 mb-8">
+          <h2 className="text-3xl font-bold text-center text-blue-500 mb-8">
             Datos Personales
           </h2>
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Nombre completo *
                 </label>
                 <input
                   type="text"
                   {...register('name')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu nombre completo"
                 />
-                {errors.name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+                {errors.name?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.name?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Dirección *
                 </label>
                 <input
                   type="text"
                   {...register('address')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu dirección completa"
                 />
-                {errors.address && (
-                  <p className="text-red-500 text-sm mt-1">{errors.address.message}</p>
+                {errors.address?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.address?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Teléfono *
                 </label>
                 <input
                   type="tel"
                   {...register('phone')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu número de teléfono"
                 />
-                {errors.phone && (
-                  <p className="text-red-500 text-sm mt-1">{errors.phone.message}</p>
+                {errors.phone?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.phone?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Email *
                 </label>
                 <input
                   type="email"
                   {...register('email')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="tu@email.com"
                 />
-                {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+                {errors.email?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.email?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Fecha de nacimiento *
                 </label>
                 <input
                   type="date"
                   {...register('birthDate')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
-                {errors.birthDate && (
-                  <p className="text-red-500 text-sm mt-1">{errors.birthDate.message}</p>
+                {errors.birthDate?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.birthDate?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Género *
                 </label>
                 <select
                   {...register('gender')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu género</option>
                   <option value="masculino">Masculino</option>
                   <option value="femenino">Femenino</option>
                   <option value="prefiero-no-decir">Prefiero no decir</option>
                 </select>
-                {errors.gender && (
-                  <p className="text-red-500 text-sm mt-1">{errors.gender.message}</p>
+                {errors.gender?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.gender?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Edad *
                 </label>
                 <input
                   type="number"
                   {...register('age')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu edad"
                 />
-                {errors.age && (
-                  <p className="text-red-500 text-sm mt-1">{errors.age.message}</p>
+                {errors.age?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.age?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Peso (kg) *
                 </label>
                 <input
                   type="number"
                   step="0.1"
                   {...register('weight')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu peso en kilogramos"
                 />
-                {errors.weight && (
-                  <p className="text-red-500 text-sm mt-1">{errors.weight.message}</p>
+                {errors.weight?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.weight?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Talla (cm) *
                 </label>
                 <input
                   type="number"
                   {...register('height')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu altura en centímetros"
                 />
-                {errors.height && (
-                  <p className="text-red-500 text-sm mt-1">{errors.height.message}</p>
+                {errors.height?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.height?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Estado civil *
                 </label>
                 <select
                   {...register('maritalStatus')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu estado civil</option>
                   <option value="soltero">Soltero/a</option>
@@ -194,18 +194,18 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   <option value="viudo">Viudo/a</option>
                   <option value="union-libre">Unión libre</option>
                 </select>
-                {errors.maritalStatus && (
-                  <p className="text-red-500 text-sm mt-1">{errors.maritalStatus.message}</p>
+                {errors.maritalStatus?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.maritalStatus?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Educación *
                 </label>
                 <select
                   {...register('education')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
                   <option value="">Selecciona tu nivel educativo</option>
                   <option value="primaria">Primaria</option>
@@ -215,23 +215,23 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   <option value="universitario">Universitario</option>
                   <option value="posgrado">Posgrado</option>
                 </select>
-                {errors.education && (
-                  <p className="text-red-500 text-sm mt-1">{errors.education.message}</p>
+                {errors.education?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.education?.message)}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Ocupación *
                 </label>
                 <input
                   type="text"
                   {...register('occupation')}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu ocupación actual"
                 />
-                {errors.occupation && (
-                  <p className="text-red-500 text-sm mt-1">{errors.occupation.message}</p>
+                {errors.occupation?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.occupation?.message)}</p>
                 )}
               </div>
             </div>

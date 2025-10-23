@@ -9,7 +9,7 @@ import error from 'next/error';
 const FormPage: React.FC = () => {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState<Partial<HealthFormData>>({});
-'HealthFormData'.  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const nextStep = () => setStep(step + 1);

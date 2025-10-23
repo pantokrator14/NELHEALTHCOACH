@@ -25,17 +25,8 @@ export default function Dashboard() {
 
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/stats', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setStats(data)
-        }
+        const result = await apiClient.getStats();
+        setStats(result.data);
       } catch (error) {
         console.error('Error fetching stats:', error)
       } finally {

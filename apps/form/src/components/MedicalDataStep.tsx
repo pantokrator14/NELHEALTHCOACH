@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import Image from 'next/image';
-import { medicalDataSchema } from '@/lib/validation';
+import { medicalDataSchema } from '../lib/validation';
 
 interface MedicalDataStepProps {
   data: any;
@@ -265,8 +265,11 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 py-12 px-4">
       
 
-        <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
-          <div className="max-w-6xl mx-auto">
+        <div className="max-w-4xl mx-auto">
+                
+        </div>
+        <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+          <div className="p-8">
             {/* Logo */}
             <div className="flex justify-center mb-8">
               <div className="relative w-48 h-16">
@@ -279,7 +282,6 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
                 />
               </div>
             </div>
-          
           <div className="p-8">
             <h2 className="text-3xl font-bold text-center text-blue-800 mb-8">
               Información Médica y de Vida
