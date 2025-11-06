@@ -1,49 +1,93 @@
-import mongoose from 'mongoose';
+// apps/api/src/lib/database.ts - CON DIAGNÓSTICO COMPLETO
+import { MongoClient, Db } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
+const MONGODB_DB = process.env.MONGODB_DB || 'healthcoach';
 
 if (!MONGODB_URI) {
-  throw new Error('MONGODB_URI environment variable is required');
+  throw new Error('❌ MONGODB_URI no definida en las variables de entorno');
 }
 
-interface MongooseCache {
-  conn: typeof mongoose | null;
-  promise: Promise<typeof mongoose> | null;
+// Log seguro (sin contraseña)
+const safeMongoURI = MONGODB_URI.replace(
+  /mongodb\+srv:\/\/([^:]+):([^@]+)@/,
+  'mongodb+srv://$1:****@'
+);
+console.log('🔧 Configuración MongoDB:', {
+  uri: safeMongoURI,
+  db: MONGODB_DB,
+  nodeEnv: process.env.NODE_ENV
+});
+
+interface MongoConnection {
+  client: MongoClient;
+  db: Db;
 }
 
 declare global {
-  var mongoose: MongooseCache | undefined;
+  var mongo: {
+    conn: MongoConnection | null;
+    promise: Promise<MongoConnection> | null;
+  } | undefined;
 }
 
-const cached: MongooseCache = global.mongoose || {
-  conn: null,
-  promise: null,
-};
+const cached = global.mongo || { conn: null, promise: null };
 
-if (!global.mongoose) {
-  global.mongoose = cached;
+if (!global.mongo) {
+  global.mongo = cached;
 }
 
-export async function connectToDatabase() {
+export async function connectToDatabase(): Promise<MongoConnection> {
   if (cached.conn) {
+    console.log('♻️ Usando conexión MongoDB en caché');
     return cached.conn;
   }
 
   if (!cached.promise) {
+    console.log('🔌 Intentando conectar a MongoDB...');
+    console.log('📝 Entorno:', {
+      NODE_ENV: process.env.NODE_ENV,
+      PLATFORM: process.platform,
+      ARCH: process.arch
+    });
+
     const opts = {
-      bufferCommands: false,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 15000, // Aumentado a 15 segundos
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+      retryWrites: true,
+      w: 'majority'
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts)
-      .then((mongoose) => {
-        console.log('✅ MongoDB connected successfully');
-        return mongoose;
+    cached.promise = MongoClient.connect(MONGODB_URI, opts)
+      .then((client) => {
+        console.log('✅ Conectado a MongoDB exitosamente');
+        
+        // Probar la conexión
+        return client.db().admin().ping().then(() => {
+          console.log('🏓 Ping a MongoDB exitoso');
+          return {
+            client,
+            db: client.db(MONGODB_DB),
+          };
+        });
       })
       .catch((error) => {
-        console.error('❌ MongoDB connection error:', error);
+        console.error('❌ Error de conexión a MongoDB:', {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          codeName: error.codeName
+        });
+        
+        // Información adicional para diagnóstico
+        console.error('🔍 Diagnóstico:', {
+          hasMongoURI: !!MONGODB_URI,
+          uriLength: MONGODB_URI.length,
+          uriStartsWith: MONGODB_URI.substring(0, 20) + '...'
+        });
+        
         cached.promise = null;
         throw error;
       });
@@ -59,8 +103,24 @@ export async function connectToDatabase() {
   return cached.conn;
 }
 
-// Helper para obtener la colección healthforms
 export async function getHealthFormsCollection() {
-  const db = await connectToDatabase();
-  return db.connection.db.collection('healthforms');
+  try {
+    console.log('📂 Obteniendo colección healthforms...');
+    const { db } = await connectToDatabase();
+    
+    // Listar colecciones para verificar
+    const collections = await db.listCollections().toArray();
+    console.log('📋 Colecciones disponibles:', collections.map(c => c.name));
+    
+    const collection = db.collection('healthforms');
+    
+    // Contar documentos para verificar acceso
+    const count = await collection.countDocuments();
+    console.log(`📊 Documentos en healthforms: ${count}`);
+    
+    return collection;
+  } catch (error) {
+    console.error('❌ Error obteniendo colección:', error);
+    throw error;
+  }
 }

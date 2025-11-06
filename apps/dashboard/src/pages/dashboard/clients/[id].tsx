@@ -247,6 +247,9 @@ export default function ClientProfile() {
   const router = useRouter()
   const { id } = router.query
 
+  // Asegurar que el id es string
+  const clientId = Array.isArray(id) ? id[0] : id;
+
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
@@ -254,47 +257,39 @@ export default function ClientProfile() {
       return
     }
 
-    if (id) {
+    if (clientId) {
       fetchClient()
     }
-  }, [id, router])
+  }, [clientId, router])
 
   const fetchClient = async () => {
     try {
-      const result = await apiClient.getClient(id);
+      if (!clientId) return;
+      
+      const result = await apiClient.getClient(clientId);
       setClient(result.data);
     } catch (error) {
       console.error('Error fetching client:', error)
+      alert('Error al cargar los datos del cliente')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}? Esta acción no se puede deshacer.`)) {
+    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}? Esta acción no se puede deshacer.`)) {
       return
     }
 
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/forms/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        router.push('/dashboard/clients')
-      } else {
-        alert('Error al eliminar el cliente')
-      }
+      await apiClient.deleteClient(clientId);
+      router.push('/dashboard/clients')
     } catch (error) {
       console.error('Error deleting client:', error)
       alert('Error al eliminar el cliente')
     }
   }
+
 
   const handleGenerateRecommendations = () => {
     // Placeholder para futura integración con IA

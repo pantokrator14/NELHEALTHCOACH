@@ -1,7 +1,17 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+const getAuthHeaders = () => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    return token ? { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    } : { 'Content-Type': 'application/json' };
+  }
+  return { 'Content-Type': 'application/json' };
+};
+
 export const apiClient = {
-  // Autenticación
   async login(credentials: { email: string; password: string }) {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
@@ -17,10 +27,16 @@ export const apiClient = {
     return response.json();
   },
 
-  // Clientes
   async getClients() {
-    const response = await fetch(`${API_BASE_URL}/api/clients`);
+    const response = await fetch(`${API_BASE_URL}/api/clients`, {
+      headers: getAuthHeaders(),
+    });
+    
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al cargar clientes');
     }
@@ -28,8 +44,15 @@ export const apiClient = {
   },
 
   async getClient(id: string) {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${id}`);
+    const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al cargar cliente');
     }
@@ -39,7 +62,7 @@ export const apiClient = {
   async updateClient(id: string, data: any) {
     const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
     
@@ -53,6 +76,7 @@ export const apiClient = {
   async deleteClient(id: string) {
     const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     
     if (!response.ok) {
@@ -62,10 +86,16 @@ export const apiClient = {
     return response.json();
   },
 
-  // Estadísticas
   async getStats() {
-    const response = await fetch(`${API_BASE_URL}/api/stats`);
+    const response = await fetch(`${API_BASE_URL}/api/stats`, {
+      headers: getAuthHeaders(),
+    });
+    
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al cargar estadísticas');
     }
