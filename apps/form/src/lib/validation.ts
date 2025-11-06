@@ -1,0 +1,55 @@
+import * as yup from 'yup';
+
+export const personalDataSchema = yup.object({
+  name: yup.string().required('El nombre es requerido'),
+  email: yup.string().email('Email inválido').required('El email es requerido'),
+  phone: yup.string().required('El teléfono es requerido'),
+  address: yup.string().required('La dirección es requerida'),
+  birthDate: yup.string().required('La fecha de nacimiento es requerida'),
+  gender: yup.string().required('El género es requerido'),
+  age: yup.string().required('La edad es requerida'),
+  weight: yup.string().required('El peso es requerido'),
+  height: yup.string().required('La altura es requerida'),
+  maritalStatus: yup.string().required('El estado civil es requerido'),
+  education: yup.string().required('La educación es requerida'),
+  occupation: yup.string().required('La ocupación es requerida'),
+});
+
+export const medicalDataSchema = yup.object({
+  mainComplaint: yup.string().required('La queja principal es requerida'),
+  medications: yup.string(),
+  supplements: yup.string(),
+  currentPastConditions: yup.string(),
+  additionalMedicalHistory: yup.string(),
+  employmentHistory: yup.string(),
+  hobbies: yup.string(),
+  allergies: yup.string(),
+  surgeries: yup.string(),
+  housingHistory: yup.string(),
+  carbohydrateAddiction: yup.mixed(),
+  leptinResistance: yup.mixed(),
+  circadianRhythms: yup.mixed(),
+  sleepHygiene: yup.mixed(),
+  electrosmogExposure: yup.mixed(),
+  generalToxicity: yup.mixed(),
+  microbiotaHealth: yup.mixed(),
+  mentalHealthEmotionIdentification: yup.string(),
+  mentalHealthEmotionIntensity: yup.string(),
+  mentalHealthUncomfortableEmotion: yup.string(),
+  mentalHealthInternalDialogue: yup.string(),
+  mentalHealthStressStrategies: yup.string(),
+  mentalHealthSayingNo: yup.string(),
+  mentalHealthRelationships: yup.string(),
+  mentalHealthExpressThoughts: yup.string(),
+  mentalHealthEmotionalDependence: yup.string(),
+  mentalHealthPurpose: yup.string(),
+  mentalHealthFailureReaction: yup.string(),
+  mentalHealthSelfConnection: yup.string(),
+  mentalHealthSelfRelationship: yup.string(),
+  mentalHealthLimitingBeliefs: yup.string(),
+  mentalHealthIdealBalance: yup.string(),
+});
+
+export const contractSchema = yup.object({
+  contractAccepted: yup.boolean().oneOf([true], 'Debe aceptar los términos y condiciones'),
+});
