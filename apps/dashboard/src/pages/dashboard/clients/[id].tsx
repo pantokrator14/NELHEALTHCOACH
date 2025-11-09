@@ -416,7 +416,7 @@ export default function ClientProfile() {
                         : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                     }`}
                   >
-                    Mental
+                    Emocional
                   </button>
                 </div>
               </div>
@@ -694,7 +694,7 @@ export default function ClientProfile() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-purple-700">
-                  Salud Mental y Emocional
+                  Salud y Bienestar Emocional
                 </h2>
               </div>
               

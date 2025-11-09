@@ -29,13 +29,13 @@ interface Client {
     housingHistory: string
     
     // Evaluaciones (arrays JSON)
-    carbohydrateAddiction: string
-    leptinResistance: string
-    circadianRhythms: string
-    sleepHygiene: string
-    electrosmogExposure: string
-    generalToxicity: string
-    microbiotaHealth: string
+    carbohydrateAddiction: boolean[]
+    leptinResistance: boolean[]
+    circadianRhythms: boolean[]
+    sleepHygiene: boolean[]
+    electrosmogExposure: boolean[]
+    generalToxicity: boolean[]
+    microbiotaHealth: boolean[]
     
     // Salud mental - opción múltiple
     mentalHealthEmotionIdentification: string
@@ -235,35 +235,63 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
   // Función para manejar cambios en evaluaciones SÍ/NO
   const handleEvaluationChange = (section: string, questionIndex: number, value: boolean) => {
     try {
-      const currentData = JSON.parse(formData.medicalData[section as keyof Client['medicalData']] || '[]')
-      currentData[questionIndex] = value
+      // Ahora debería ser un array directo, no un string encriptado
+      const currentArray = [...(formData.medicalData[section as keyof Client['medicalData']] as boolean[] || [])];
+      
+      // Asegurar longitud mínima
+      if (currentArray.length <= questionIndex) {
+        currentArray.push(...Array(questionIndex - currentArray.length + 1).fill(false));
+      }
+      
+      // Actualizar valor
+      currentArray[questionIndex] = value;
       
       setFormData(prev => ({
         ...prev,
         medicalData: {
           ...prev.medicalData,
-          [section]: JSON.stringify(currentData)
+          [section]: currentArray
         }
-      }))
+      }));
     } catch (error) {
-      console.error('Error updating evaluation:', error)
+      console.error(`Error en handleEvaluationChange:`, error);
     }
-  }
+  };
 
   // Función para obtener el valor de una evaluación específica
-  const getEvaluationValue = (section: string, questionIndex: number): boolean | null => {
+  const getEvaluationValue = (section: string, questionIndex: number): boolean => {
     try {
-      const data = JSON.parse(formData.medicalData[section as keyof Client['medicalData']] || '[]')
-      return data[questionIndex] !== undefined ? data[questionIndex] : null
+      const data = formData.medicalData[section as keyof Client['medicalData']];
+      
+      // Si es un array, devolver el valor directamente
+      if (Array.isArray(data)) {
+        return data[questionIndex] || false;
+      }
+      
+      // Si es un string (fallback por compatibilidad), intentar parsear
+      if (typeof data === 'string') {
+        const parsed = JSON.parse(data || '[]');
+        return Array.isArray(parsed) ? (parsed[questionIndex] || false) : false;
+      }
+      
+      // Por defecto, false
+      return false;
     } catch (error) {
-      return null
+      console.warn(`Error obteniendo valor de evaluación ${section}[${questionIndex}]:`, error);
+      return false;
     }
   }
 
   const handleSave = async () => {
     try {
+      console.log('🔄 Intentando guardar cliente:', {
+        clientId: client._id,
+        endpoint: `/api/clients/${client._id}`,
+        formData: formData
+      });
+
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/forms/${client._id}`, {
+      const response = await fetch(`/api/clients/${client._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -272,15 +300,20 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
         body: JSON.stringify(formData)
       })
 
+      const responseData = await response.json();
+      console.log('📨 Respuesta del servidor:', responseData);
+
       if (response.ok) {
+        console.log('✅ Cliente actualizado exitosamente');
         onSave()
         onClose()
       } else {
-        alert('Error al guardar los cambios')
+        console.error('❌ Error del servidor:', responseData);
+        alert(`Error al guardar los cambios: ${responseData.message || 'Error desconocido'}`)
       }
     } catch (error) {
-      console.error('Error actualizando cliente:', error)
-      alert('Error al guardar los cambios')
+      console.error('❌ Error completo actualizando cliente:', error)
+      alert('Error de conexión al guardar los cambios')
     }
   }
 
@@ -401,7 +434,7 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Salud Mental
+              Salud y Bienestar Emocional
             </button>
           </div>
         </div>

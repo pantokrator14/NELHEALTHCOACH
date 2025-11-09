@@ -59,19 +59,31 @@ export const apiClient = {
     return response.json();
   },
 
-  async updateClient(id: string, data: any) {
+async updateClient(id: string, data: any) {
+  console.log('🔄 Enviando actualización para cliente:', id, data);
+  
+  try {
     const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
     
+    const responseData = await response.json();
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error al actualizar cliente');
+      console.error('❌ Error del servidor:', responseData);
+      throw new Error(responseData.message || `Error ${response.status} al actualizar cliente`);
     }
-    return response.json();
-  },
+    
+    console.log('✅ Actualización exitosa:', responseData);
+    return responseData;
+    
+  } catch (error: any) {
+    console.error('❌ Error en updateClient:', error);
+    throw error;
+  }
+},
 
   async deleteClient(id: string) {
     const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {

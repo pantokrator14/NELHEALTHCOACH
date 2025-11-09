@@ -459,7 +459,7 @@ const MedicalDataStep: React.FC<MedicalDataStepProps> = ({ data, onSubmit, onBac
               {/* NUEVA SECCIÓN: Salud Mental - Opción Múltiple */}
               <div className="border border-blue-200 rounded-lg p-6 bg-blue-50">
                 <h3 className="text-2xl font-semibold text-blue-600 mb-6 text-center">
-                  Salud Mental y Bienestar Emocional
+                  Salud y Bienestar Emocional
                 </h3>
                 <div className="space-y-8">
                   {mentalHealthMultipleChoice.map((item, index) => (
