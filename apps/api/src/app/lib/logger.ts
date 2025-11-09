@@ -1,7 +1,6 @@
 // apps/api/src/app/lib/logger.ts
 
-type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD'; // AGREGADO UPLOAD
 
 interface LogEntry {
   timestamp: string;
@@ -17,6 +16,13 @@ interface LogEntry {
     name: string;
     message: string;
     stack?: string;
+  };
+  fileInfo?: { // NUEVO: información específica de archivos
+    fileName?: string;
+    fileSize?: number;
+    fileType?: string;
+    fileCategory?: 'profile' | 'document';
+    s3Key?: string;
   };
 }
 
@@ -104,6 +110,46 @@ class Logger {
       context,
       message,
       data,
+      ...metadata
+    });
+  }
+
+  // Método específico para logs de upload
+  upload(
+    context: LogContext, 
+    message: string, 
+    fileInfo?: { fileName?: string; fileSize?: number; fileType?: string; fileCategory?: 'profile' | 'document'; s3Key?: string },
+    metadata?: { userId?: string; clientId?: string; endpoint?: string; duration?: number }
+  ) {
+    this.logToConsole({
+      timestamp: this.getTimestamp(),
+      level: 'INFO',
+      context,
+      message,
+      fileInfo,
+      ...metadata
+    });
+  }
+
+  // Método para logs de upload con error
+  uploadError(
+    context: LogContext, 
+    message: string, 
+    error?: Error,
+    fileInfo?: { fileName?: string; fileSize?: number; fileType?: string; fileCategory?: 'profile' | 'document'; s3Key?: string },
+    metadata?: { userId?: string; clientId?: string; endpoint?: string; duration?: number }
+  ) {
+    this.logToConsole({
+      timestamp: this.getTimestamp(),
+      level: 'ERROR',
+      context,
+      message,
+      fileInfo,
+      error: error ? {
+        name: error.name,
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      } : undefined,
       ...metadata
     });
   }
