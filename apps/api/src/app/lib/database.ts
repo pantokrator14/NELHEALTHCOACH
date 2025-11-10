@@ -2,7 +2,7 @@ import { MongoClient, Db } from 'mongodb';
 import { logger } from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
-const MONGODB_DB = process.env.MONGODB_DB || 'healthcoach';
+const MONGODB_DB = process.env.DB_NAME || 'nel-healthcoach';
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 if (!MONGODB_URI) {

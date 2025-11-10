@@ -26,10 +26,19 @@ export class S3Service {
     fileSize: number,
     fileCategory: 'profile' | 'document' = 'document'
   ): Promise<{ uploadURL: string; fileKey: string }> {
+    console.log('🔧 Generando URL de upload para:', {
+      fileName,
+      fileType, 
+      fileSize,
+      fileCategory,
+      bucket: process.env.AWS_S3_BUCKET_NAME,
+      region: process.env.AWS_REGION
+    });
+
     const fileKey = `${fileCategory}/${uuidv4()}-${fileName}`;
     
     const command = new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME! || 'nelhealthcoach-bucket', // Actualizado
+      Bucket: process.env.AWS_S3_BUCKET_NAME!,
       Key: fileKey,
       ContentType: fileType,
       ContentLength: fileSize,
@@ -39,9 +48,16 @@ export class S3Service {
       },
     });
 
-    const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    console.log('🔑 Comando S3 creado, generando URL firmada...');
 
-    return { uploadURL, fileKey };
+    try {
+      const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+      console.log('✅ URL firmada generada exitosamente');
+      return { uploadURL, fileKey };
+    } catch (error) {
+      console.error('❌ Error generando URL firmada:', error);
+      throw error;
+    }
   }
 
   static async getFileURL(fileKey: string): Promise<string> {

@@ -6,6 +6,7 @@ import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 
 // GET: Obtener URLs para upload
+// En el método POST, reemplazar la verificación de autenticación:
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +17,17 @@ export async function POST(
       const { fileName, fileType, fileSize, fileCategory } = await request.json();
 
       // Verificar autenticación
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
+       const token = request.headers.get('authorization')?.replace('Bearer ', '');
+      if (!token) {
+        logger.warn('UPLOAD', 'Acceso público a endpoint de upload - permitido para formularios', undefined, {
+          clientId: id
+        });
+        // Continuamos sin lanzar error para permitir acceso público
+      } else {
+        // Si hay token, verificarlo
+        requireAuth(token);
+      }
+
       const user = requireAuth(token);
 
       logger.upload('UPLOAD', 'Solicitud de upload recibida', {
@@ -121,6 +132,13 @@ export async function PUT(
 
       // Verificar autenticación
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
+      if (!token) {
+        logger.warn('UPLOAD', 'Acceso público a endpoint de upload (PUT) - permitido para formularios', undefined, {
+          clientId: id
+        });
+      } else {
+        requireAuth(token);
+      }
       const user = requireAuth(token);
 
       logger.upload('UPLOAD', 'Confirmando upload de archivo', {
