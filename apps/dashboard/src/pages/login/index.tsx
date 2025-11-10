@@ -43,7 +43,7 @@ export default function Login() {
           <div className=" p-8 flex justify-center">
             <div className="relative w-48 h-16">
               <Image
-                src="/logo.png"
+                src="/logo2.png"
                 alt="NELHEALTHCOACH Logo"
                 fill
                 style={{ objectFit: 'contain' }}

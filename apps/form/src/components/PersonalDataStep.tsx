@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema } from '../lib/validation';
+import FileUpload from './FileUpload';
 
 interface PersonalDataStepProps {
   data: any;
@@ -11,10 +12,40 @@ interface PersonalDataStepProps {
 }
 
 const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
     defaultValues: data,
     resolver: yupResolver(personalDataSchema),
   });
+
+  const handlePhotoSelect = (file: File) => {
+    setProfilePhoto(file);
+    setValue('profilePhoto', file);
+    
+    // Crear preview URL
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+  };
+
+  const handlePhotoRemove = () => {
+    setProfilePhoto(null);
+    setValue('profilePhoto', null);
+    setPreviewUrl(null);
+  };
+
+  const onSubmitWithPhoto = (formData: any) => {
+    console.log('📸 Datos personales con foto:', {
+      nombre: formData.name,
+      tieneFoto: !!profilePhoto,
+      nombreFoto: profilePhoto?.name
+    });
+    onSubmit({ 
+      ...formData, 
+      profilePhoto 
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 py-12 px-4">
@@ -39,7 +70,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
             Datos Personales
           </h2>
           
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmitWithPhoto)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
@@ -232,6 +263,20 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 />
                 {errors.occupation?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.occupation?.message)}</p>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <FileUpload
+                  onFileSelect={handlePhotoSelect}
+                  onFileRemove={handlePhotoRemove}
+                  accept="image/jpeg,image/png,image/webp"
+                  label="Foto de rostro (requerida)"
+                  description="Foto clara de tu rostro, sin accesorios como anteojos oscuros. Formatos: JPEG, PNG, WebP. Máximo 5MB."
+                  previewUrl={previewUrl}
+                />
+                {errors.profilePhoto?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.profilePhoto.message)}</p>
                 )}
               </div>
             </div>

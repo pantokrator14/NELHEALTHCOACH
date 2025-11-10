@@ -34,14 +34,13 @@ interface Client {
     housingHistory: string
     
     // Evaluaciones (arrays JSON)
-    carbohydrateAddiction: string
-    leptinResistance: string
-    circadianRhythms: string
-    sleepHygiene: string
-    electrosmogExposure: string
-    generalToxicity: string
-    microbiotaHealth: string
-    
+    carbohydrateAddiction: boolean[]
+    leptinResistance: boolean[]
+    circadianRhythms: boolean[]
+    sleepHygiene: boolean[]
+    electrosmogExposure: boolean[]
+    generalToxicity: boolean[]
+    microbiotaHealth: boolean[]
     // Salud mental - opción múltiple
     mentalHealthEmotionIdentification: string
     mentalHealthEmotionIntensity: string
@@ -320,13 +319,23 @@ export default function ClientProfile() {
   }
 
   // Función para obtener las respuestas de una evaluación específica
-  const getEvaluationAnswers = (evaluationData: string): boolean[] => {
-    try {
-      return JSON.parse(evaluationData || '[]')
-    } catch (error) {
-      return []
+  const getEvaluationAnswers = (evaluationData: any): boolean[] => {
+    if (Array.isArray(evaluationData)) {
+      return evaluationData;
     }
-  }
+    
+    // Si por alguna razón viene como string, intentar parsear
+    if (typeof evaluationData === 'string') {
+      try {
+        const parsed = JSON.parse(evaluationData);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+    
+    return [];
+  };
 
   if (loading) {
     return (
@@ -416,7 +425,7 @@ export default function ClientProfile() {
                         : 'text-gray-600 hover:text-gray-900 hover:bg-white'
                     }`}
                   >
-                    Mental
+                    Emocional
                   </button>
                 </div>
               </div>
@@ -632,7 +641,8 @@ export default function ClientProfile() {
               
               <div className="space-y-4">
                 {Object.entries(evaluationQuestions).map(([key, evaluation]) => {
-                  const answers = getEvaluationAnswers(client.medicalData[key as keyof Client['medicalData']])
+                  const evaluationData = client.medicalData[key as keyof Client['medicalData']];
+                  const answers = getEvaluationAnswers(evaluationData); 
                   const isExpanded = expandedEvaluations[key]
                   
                   return (
@@ -694,7 +704,7 @@ export default function ClientProfile() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-purple-700">
-                  Salud Mental y Emocional
+                  Salud y Bienestar Emocional
                 </h2>
               </div>
               

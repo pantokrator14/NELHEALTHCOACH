@@ -1,20 +1,13 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Paquetes externos para el servidor - FORMA CORRECTA en Next.js 15
+  serverExternalPackages: ['mongodb'],
+  
+  // Configuración experimental (si es necesaria)
   experimental: {
-    serverComponentsExternalPackages: ['mongodb'],
+    // Otras configuraciones experimentales si las necesitas
   },
-  
-  api: {
-    bodyParser: {
-      sizeLimit: '4mb',
-    },
-    responseLimit: '8mb',
-  },
-  
-  env: {
-    CUSTOM_PORT: '3001'
-  }
 };
 
 export default nextConfig;

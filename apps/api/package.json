@@ -9,27 +9,34 @@
     "start:auto": "PORT=${PORT:-3001} next start"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.927.0",
+    "@aws-sdk/s3-request-presigner": "^3.927.0",
     "@hookform/resolvers": "^3.3.1",
     "@types/crypto-js": "^4.1.1",
+    "aws-sdk": "^2.1692.0",
     "crypto-js": "^4.1.1",
+    "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.0.0",
     "mongoose": "^8.0.0",
+    "multer": "^2.0.2",
     "next": "^15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.47.0",
     "typescript": "^5.2.2",
-    "jsonwebtoken": "^9.0.2",
-     "yup": "^1.3.2"
+    "uuid": "^13.0.0",
+    "yup": "^1.3.2"
   },
   "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/multer": "^2.0.0",
     "@types/node": "^20.10.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/crypto-js": "^4.2.2",
-    "@types/jsonwebtoken": "^9.0.5",
-    "typescript": "^5",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9.37.0",
-    "eslint-config-next": "15.4.4"
+    "eslint-config-next": "15.4.4",
+    "typescript": "^5"
   }
 }

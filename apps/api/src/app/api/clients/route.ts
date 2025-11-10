@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { decrypt, encrypt, safeDecrypt } from '@/app/lib/encryption';
+import { encrypt, decrypt } from '@/app/lib/encryption';
+import { logger } from '@/app/lib/logger';
 
 interface MedicalData {
   mainComplaint: string;
@@ -61,40 +61,90 @@ interface ClientFormData {
 
 // GET: Listar todos los clientes (para dashboard)
 export async function GET(request: NextRequest) {
-  try {
-    const healthForms = await getHealthFormsCollection();
-    
-    const clients = await healthForms
-      .find({})
-      .sort({ submissionDate: -1 })
-      .toArray();
+  return logger.time('CLIENTS', 'Obtener lista de clientes', async () => {
+    try {
+      logger.info('CLIENTS', 'Solicitud GET /api/clients recibida', undefined, {
+        endpoint: '/api/clients',
+        method: 'GET'
+      });
 
-    // Desencriptar solo los datos necesarios para la lista
-    const clientList = clients.map(client => {
-      const decryptedName = decrypt(client.personalData.name);
-      const names = decryptedName.split(' ');
+      const healthForms = await getHealthFormsCollection();
       
-      return {
-        _id: client._id.toString(),
-        firstName: names[0] || '',
-        lastName: names.slice(1).join(' ') || '',
-        email: decrypt(client.personalData.email),
-        phone: decrypt(client.personalData.phone),
-        createdAt: client.submissionDate
-      };
-    });
+      const totalCount = await healthForms.countDocuments();
+      logger.debug('CLIENTS', `Total documentos en BD: ${totalCount}`);
 
-    return NextResponse.json({
-      success: true,
-      data: clientList
-    });
-  } catch (error) {
-    console.error('❌ Error fetching clients:', error);
-    return NextResponse.json(
-      { success: false, message: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+      const clients = await healthForms
+        .find({})
+        .sort({ submissionDate: -1 })
+        .toArray();
+
+      logger.info('CLIENTS', `Documentos obtenidos: ${clients.length}`, {
+        firstClientId: clients[0]?._id?.toString()
+      });
+
+      // Procesar y desencriptar clientes
+      const clientList = clients.map(client => {
+        try {
+          const decryptedName = decrypt(client.personalData.name);
+          const names = decryptedName.split(' ');
+          
+          const result = {
+            _id: client._id.toString(),
+            firstName: names[0] || '',
+            lastName: names.slice(1).join(' ') || '',
+            email: decrypt(client.personalData.email),
+            phone: decrypt(client.personalData.phone),
+            createdAt: client.submissionDate
+          };
+
+          logger.debug('CLIENTS', `Cliente procesado: ${result.firstName} ${result.lastName}`, {
+            clientId: client._id.toString()
+          });
+
+          return result;
+
+        } catch (error) {
+          logger.error('CLIENTS', `Error procesando cliente ${client._id}`, error as Error, {
+            clientId: client._id.toString()
+          });
+          
+          return {
+            _id: client._id.toString(),
+            firstName: 'Error',
+            lastName: 'Desencriptación',
+            email: 'error@example.com',
+            phone: 'N/A',
+            createdAt: client.submissionDate
+          };
+        }
+      });
+
+      logger.info('CLIENTS', `Procesamiento completado: ${clientList.length} clientes`, {
+        successCount: clientList.filter(c => c.firstName !== 'Error').length,
+        errorCount: clientList.filter(c => c.firstName === 'Error').length
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: clientList,
+        metadata: {
+          total: clientList.length,
+          processed: clientList.length
+        }
+      });
+
+    } catch (error: any) {
+      logger.error('CLIENTS', 'Error obteniendo lista de clientes', error, {
+        endpoint: '/api/clients',
+        method: 'GET'
+      });
+      
+      return NextResponse.json(
+        { success: false, message: 'Error interno del servidor' },
+        { status: 500 }
+      );
+    }
+  }, { endpoint: '/api/clients' });
 }
 
 // POST: Crear nuevo cliente (desde formulario)

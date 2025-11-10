@@ -1,23 +1,14 @@
-// apps/api/src/lib/database.ts - CON DIAGNÓSTICO COMPLETO
 import { MongoClient, Db } from 'mongodb';
+import { logger } from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 const MONGODB_DB = process.env.MONGODB_DB || 'healthcoach';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 if (!MONGODB_URI) {
+  logger.error('DATABASE', 'MONGODB_URI no definida en las variables de entorno');
   throw new Error('❌ MONGODB_URI no definida en las variables de entorno');
 }
-
-// Log seguro (sin contraseña)
-const safeMongoURI = MONGODB_URI.replace(
-  /mongodb\+srv:\/\/([^:]+):([^@]+)@/,
-  'mongodb+srv://$1:****@'
-);
-console.log('🔧 Configuración MongoDB:', {
-  uri: safeMongoURI,
-  db: MONGODB_DB,
-  nodeEnv: process.env.NODE_ENV
-});
 
 interface MongoConnection {
   client: MongoClient;
@@ -38,89 +29,104 @@ if (!global.mongo) {
 }
 
 export async function connectToDatabase(): Promise<MongoConnection> {
-  if (cached.conn) {
-    console.log('♻️ Usando conexión MongoDB en caché');
-    return cached.conn;
-  }
+  return logger.time('DATABASE', 'Conectar a MongoDB', async () => {
+    if (cached.conn) {
+      logger.debug('DATABASE', 'Usando conexión caché existente');
+      return cached.conn;
+    }
 
-  if (!cached.promise) {
-    console.log('🔌 Intentando conectar a MongoDB...');
-    console.log('📝 Entorno:', {
-      NODE_ENV: process.env.NODE_ENV,
-      PLATFORM: process.platform,
-      ARCH: process.arch
-    });
+    if (!cached.promise) {
+      logger.info('DATABASE', '🔌 Intentando conectar a MongoDB...');
 
-    const opts = {
+      const opts = {
+      // Pool configuration
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 15000, // Aumentado a 15 segundos
+      minPoolSize: 1,
+      maxIdleTimeMS: 30000,
+      
+      // Timeout configuration
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
-      connectTimeoutMS: 15000,
+      
+      // TLS/SSL configuration - DIFERENTE EN DESARROLLO
+      tls: true,
+      tlsAllowInvalidCertificates: isDevelopment, // Permite certificados inválidos en dev
+      tlsAllowInvalidHostnames: isDevelopment,    // Permite hostnames inválidos en dev
+      
+      // Retry configuration
       retryWrites: true,
-      w: 'majority'
+      retryReads: true,
+      w: 'majority',
+      
+      // DNS configuration
+      ...(isDevelopment && {
+        // Configuraciones adicionales solo para desarrollo
+        monitorCommands: true, // Log de comandos MongoDB
+      })
     };
 
+    logger.debug('DATABASE', 'Configuración MongoDB', {
+      serverSelectionTimeoutMS: opts.serverSelectionTimeoutMS,
+      tlsAllowInvalidCertificates: opts.tlsAllowInvalidCertificates,
+      tlsAllowInvalidHostnames: opts.tlsAllowInvalidHostnames,
+      environment: process.env.NODE_ENV
+    });
+
+
     cached.promise = MongoClient.connect(MONGODB_URI, opts)
-      .then((client) => {
-        console.log('✅ Conectado a MongoDB exitosamente');
-        
-        // Probar la conexión
-        return client.db().admin().ping().then(() => {
-          console.log('🏓 Ping a MongoDB exitoso');
+        .then((client) => {
+          logger.info('DATABASE', '✅ Conectado a MongoDB exitosamente');
           return {
             client,
             db: client.db(MONGODB_DB),
           };
+        })
+        .catch((error) => {
+          logger.error('DATABASE', 'Error de conexión a MongoDB', error, {
+            NODE_ENV: process.env.NODE_ENV,
+            PORT: process.env.PORT,
+            hasMongoURI: !!MONGODB_URI,
+            isDevelopment
+          });
+          
+          cached.promise = null;
+          throw error;
         });
-      })
-      .catch((error) => {
-        console.error('❌ Error de conexión a MongoDB:', {
-          name: error.name,
-          message: error.message,
-          code: error.code,
-          codeName: error.codeName
-        });
-        
-        // Información adicional para diagnóstico
-        console.error('🔍 Diagnóstico:', {
-          hasMongoURI: !!MONGODB_URI,
-          uriLength: MONGODB_URI.length,
-          uriStartsWith: MONGODB_URI.substring(0, 20) + '...'
-        });
-        
-        cached.promise = null;
-        throw error;
-      });
-  }
+    }
 
-  try {
-    cached.conn = await cached.promise;
-  } catch (error) {
-    cached.promise = null;
-    throw error;
-  }
-
-  return cached.conn;
+    try {
+      cached.conn = await cached.promise;
+      return cached.conn;
+    } catch (error) {
+      cached.promise = null;
+      throw error;
+    }
+  });
 }
 
 export async function getHealthFormsCollection() {
-  try {
-    console.log('📂 Obteniendo colección healthforms...');
-    const { db } = await connectToDatabase();
+  const { db } = await connectToDatabase();
+  
+  return logger.time('DATABASE', 'Buscar colección healthforms', async () => {
+    const possibleCollectionNames = [
+      'healthforms', 'healthForms', 'HealthForms', 
+      'formularios', 'forms'
+    ];
     
-    // Listar colecciones para verificar
-    const collections = await db.listCollections().toArray();
-    console.log('📋 Colecciones disponibles:', collections.map(c => c.name));
+    for (const collectionName of possibleCollectionNames) {
+      const collection = db.collection(collectionName);
+      const count = await collection.countDocuments();
+      
+      if (count > 0) {
+        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
+        return collection;
+      }
+      
+      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
+    }
     
-    const collection = db.collection('healthforms');
-    
-    // Contar documentos para verificar acceso
-    const count = await collection.countDocuments();
-    console.log(`📊 Documentos en healthforms: ${count}`);
-    
-    return collection;
-  } catch (error) {
-    console.error('❌ Error obteniendo colección:', error);
-    throw error;
-  }
+    logger.warn('DATABASE', 'No se encontraron colecciones con datos, usando "healthforms" por defecto');
+    return db.collection('healthforms');
+  });
 }
