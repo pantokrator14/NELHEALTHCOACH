@@ -238,15 +238,26 @@ export async function POST(request: NextRequest) {
       submissionDate: new Date()
     };
 
+    console.log('🆕 Insertando nuevo cliente en MongoDB...');
     const result = await healthForms.insertOne(newClient);
+    
+    console.log('✅ Cliente insertado:', {
+      insertedId: result.insertedId,
+      insertedIdString: result.insertedId.toString(),
+      acknowledged: result.acknowledged
+    });
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       message: 'Cliente registrado exitosamente',
       data: {
-        id: result.insertedId.toString()
+        _id: result.insertedId.toString()
       }
-    }, { status: 201 });
+    };
+
+    console.log('📤 Enviando respuesta al frontend:', responseData);
+    
+    return NextResponse.json(responseData, { status: 201 });
 
   } catch (error) {
     console.error('❌ Error creando cliente:', error);
