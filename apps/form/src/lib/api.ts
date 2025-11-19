@@ -4,18 +4,34 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 // Función auxiliar para subir archivos
 const uploadFileToS3 = async (uploadURL: string, file: File): Promise<void> => {
   console.log('📤 Subiendo archivo a S3:', file.name);
-  const response = await fetch(uploadURL, {
-    method: 'PUT',
-    body: file,
-    headers: {
-      'Content-Type': file.type,
-    },
-  });
+  console.log('🔗 URL de S3:', uploadURL);
+  
+  try {
+    const response = await fetch(uploadURL, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error('Error al subir archivo a S3');
+    console.log('📊 Respuesta de S3:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error respuesta S3:', errorText);
+      throw new Error(`Error al subir archivo a S3: ${response.status} - ${response.statusText}`);
+    }
+
+    console.log('✅ Archivo subido exitosamente a S3');
+  } catch (error) {
+    console.error('❌ Error en fetch a S3:', error);
+    throw error;
   }
-  console.log('✅ Archivo subido a S3:', file.name);
 };
 
 export const apiClient = {
