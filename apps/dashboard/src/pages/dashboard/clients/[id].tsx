@@ -411,8 +411,8 @@ export default function ClientProfile() {
                     onClick={() => setActiveTab('medical')}
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'medical'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        ? 'bg-yellow-600 text-white shadow-sm'
+                        : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'
                     }`}
                   >
                     Médico
@@ -421,8 +421,8 @@ export default function ClientProfile() {
                     onClick={() => setActiveTab('mental')}
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'mental'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-purple-600 hover:text-purple-900 hover:bg-white'
                     }`}
                   >
                     Emocional
@@ -483,33 +483,33 @@ export default function ClientProfile() {
 
                 {activeTab === 'medical' && (
                   <>
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Motivo principal</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Motivo principal</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Medicamentos</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Medicamentos</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.medications || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Suplementos</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Suplementos</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.supplements || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Condiciones actuales/pasadas</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Condiciones actuales/pasadas</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Alergias</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Alergias</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.allergies || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Cirugías</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Cirugías</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.surgeries || 'No especificado'}</p>
                     </div>
                   </>
@@ -517,29 +517,29 @@ export default function ClientProfile() {
 
                 {activeTab === 'mental' && (
                   <>
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Identificación de emociones</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Identificación de emociones</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIdentification', client.medicalData.mentalHealthEmotionIdentification)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Intensidad emocional</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Intensidad emocional</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIntensity', client.medicalData.mentalHealthEmotionIntensity)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Emociones incómodas</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Emociones incómodas</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthUncomfortableEmotion', client.medicalData.mentalHealthUncomfortableEmotion)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Diálogo interno</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Diálogo interno</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthInternalDialogue', client.medicalData.mentalHealthInternalDialogue)}
                       </p>

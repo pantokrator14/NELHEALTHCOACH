@@ -120,7 +120,8 @@ export const apiClient = {
         console.log('📄 Subiendo documentos médicos...', formData.medicalData.documents.length);
         await this.uploadDocuments(clientId, formData.medicalData.documents);
       } else {
-        console.log('⚠️ No hay documentos para subir');
+        console.log('⚠️ No hay documentos para subir - continuando sin documentos');
+        // No hay error, simplemente continuamos
       }
 
       console.log('✅ Proceso de archivos completado');
