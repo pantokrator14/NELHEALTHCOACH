@@ -54,6 +54,54 @@ export function safeDecrypt(encryptedText: string): string {
   }
 }
 
+export function isEncrypted(text: string): boolean {
+  try {
+    // Si el texto es muy corto, probablemente no esté encriptado
+    if (!text || text.length < 16) return false;
+    
+    // Los textos encriptados con crypto-js tienen características específicas
+    // y generalmente son más largos que el texto original
+    if (text.startsWith('[') || text.startsWith('{') || text.includes('true') || text.includes('false')) {
+      return false;
+    }
+    
+    // Intentar desencriptar sin lanzar error
+    const bytes = CryptoJS.AES.decrypt(text, secretKey);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    
+    return !!decrypted && decrypted.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function smartDecrypt(text: string): string {
+  try {
+    if (!text || !isEncrypted(text)) {
+      return text;
+    }
+    
+    const bytes = CryptoJS.AES.decrypt(text, secretKey);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!decrypted && text) {
+      logger.debug('ENCRYPTION', 'Texto no encriptado detectado en smartDecrypt', {
+        originalLength: text.length,
+        originalPreview: text.substring(0, 50)
+      });
+      return text;
+    }
+    
+    return decrypted;
+  } catch (error) {
+    logger.warn('ENCRYPTION', 'Error en smartDecrypt, retornando texto original', undefined, {
+      textLength: text?.length,
+      error: (error as Error).message
+    });
+    return text;
+  }
+}
+
 export function encryptObject(obj: Record<string, any>): Record<string, any> {
   return logger.time('ENCRYPTION', 'Encriptar objeto', async () => {
     const encrypted: Record<string, any> = {};

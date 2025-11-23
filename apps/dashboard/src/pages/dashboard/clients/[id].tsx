@@ -4,6 +4,16 @@ import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
 import { apiClient } from '@/lib/api';
+import Image from 'next/image'
+
+interface UploadedFile {
+  url: string;
+  key: string;
+  name: string;
+  type: 'profile' | 'document';
+  size: number;
+  uploadedAt?: string;
+}
 
 interface Client {
   _id: string
@@ -20,6 +30,7 @@ interface Client {
     maritalStatus: string
     education: string
     occupation: string
+    profilePhoto?: UploadedFile;  // ✅ NUEVO: Foto de perfil
   }
   medicalData: {
     mainComplaint: string
@@ -32,6 +43,7 @@ interface Client {
     allergies: string
     surgeries: string
     housingHistory: string
+    documents?: UploadedFile[];   // ✅ NUEVO: Documentos médicos
     
     // Evaluaciones (arrays JSON)
     carbohydrateAddiction: boolean[]
@@ -41,7 +53,8 @@ interface Client {
     electrosmogExposure: boolean[]
     generalToxicity: boolean[]
     microbiotaHealth: boolean[]
-    // Salud mental - opción múltiple
+    
+    // Salud mental
     mentalHealthEmotionIdentification: string
     mentalHealthEmotionIntensity: string
     mentalHealthUncomfortableEmotion: string
@@ -245,7 +258,8 @@ export default function ClientProfile() {
   const [expandedEvaluations, setExpandedEvaluations] = useState<{[key: string]: boolean}>({})
   const router = useRouter()
   const { id } = router.query
-
+  const [selectedDocument, setSelectedDocument] = useState<UploadedFile | null>(null)
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false)
   // Asegurar que el id es string
   const clientId = Array.isArray(id) ? id[0] : id;
 
@@ -380,18 +394,39 @@ export default function ClientProfile() {
           {/* Información del cliente - 30% */}
           <div className="w-full lg:w-1/3">
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 sticky top-8 max-h-[calc(100vh-2rem)] overflow-y-auto">
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mr-4">
-                  <span className="text-white font-semibold text-xl">
-                    {firstName.charAt(0)}{lastName.charAt(0)}
-                  </span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    {firstName} {lastName}
-                  </h1>
-                  <p className="text-gray-600">Cliente desde {new Date(client.submissionDate).toLocaleDateString()}</p>
-                </div>
+              <div className="flex flex-col items-center text-center mb-6">
+                {/* Foto de perfil grande centrada */}
+                {client.personalData.profilePhoto ? (
+                  <div className="relative mb-4">
+                    <Image 
+                      src={client.personalData.profilePhoto.url} 
+                      alt={`Foto de ${firstName} ${lastName}`}
+                      className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                      width={240}
+                      height={240}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 bg-blue-500 rounded-full flex items-center justify-center mb-4 shadow-lg border-4 border-blue-600">
+                    <span className="text-white font-bold text-4xl">
+                      {firstName.charAt(0)}{lastName.charAt(0)}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Nombre debajo de la foto */}
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                  {firstName} {lastName}
+                </h1>
+                
+                {/* Fecha debajo del nombre */}
+                <p className="text-gray-600 text-sm">
+                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
               </div>
 
               {/* Navegación por pestañas */}
@@ -402,7 +437,7 @@ export default function ClientProfile() {
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'personal'
                         ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        : 'text-blue-600 hover:text-blue-700 hover:bg-white'
                     }`}
                   >
                     Personal
@@ -478,38 +513,53 @@ export default function ClientProfile() {
                       <label className="text-sm font-medium text-blue-700 mb-1">Estado civil</label>
                       <p className="text-gray-800 font-medium">{client.personalData.maritalStatus}</p>
                     </div>
+
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-blue-700 mb-1">Nivel educativo</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.education || 'No especificado'}</p>
+                    </div>
+
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-blue-700 mb-1">Ocupación</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.occupation || 'No especificado'}</p>
+                    </div>
                   </>
                 )}
 
                 {activeTab === 'medical' && (
                   <>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Motivo principal</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Cuál es tu mayor queja? Por favor enlista todos los síntomas y cuándo comenzaron</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
                     </div>
 
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Medicamentos</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué medicamentos estás tomando?</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.medications || 'No especificado'}</p>
                     </div>
 
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Suplementos</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué suplementos estás tomando? (vitaminas y/o minerales)</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.supplements || 'No especificado'}</p>
                     </div>
 
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Condiciones actuales/pasadas</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Indica tus condiciones de salud actuales y pasadas (por ejemplo: Diabetes Mellitus, Hipertensión, etc.)</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || 'No especificado'}</p>
+                    </div>
+                    
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Hay algo más en tu historial médico que debamos considerar? (incluso de tu niñez)</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.additionalMedicalHistory || 'No especificado'}</p>
                     </div>
 
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Alergias</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Tienes alguna alergia? ¿Cuáles?</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.allergies || 'No especificado'}</p>
                     </div>
 
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Cirugías</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Enlista las cirugías a las que te has sometido</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.surgeries || 'No especificado'}</p>
                     </div>
                   </>
@@ -518,30 +568,86 @@ export default function ClientProfile() {
                 {activeTab === 'mental' && (
                   <>
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Identificación de emociones</label>
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Puedes identificar con facilidad qué emoción estás sintiendo en momentos clave de tu día?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIdentification', client.medicalData.mentalHealthEmotionIdentification)}
                       </p>
                     </div>
 
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Intensidad emocional</label>
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Cómo de intensas suelen ser tus emociones?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIntensity', client.medicalData.mentalHealthEmotionIntensity)}
                       </p>
                     </div>
 
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Emociones incómodas</label>
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Qué haces cuando sientes una emoción incómoda?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthUncomfortableEmotion', client.medicalData.mentalHealthUncomfortableEmotion)}
                       </p>
                     </div>
 
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Diálogo interno</label>
+                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando algo sale mal, ¿cuál es tu diálogo interno más frecuente?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthInternalDialogue', client.medicalData.mentalHealthInternalDialogue)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Ante una situación estresante, ¿qué estrategias sueles utilizar?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthStressStrategies', client.medicalData.mentalHealthStressStrategies)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Te resulta difícil decir "no" por miedo a decepcionar a los demás?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthSayingNo', client.medicalData.mentalHealthSayingNo)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">En tus relaciones, ¿sueles sentir que das más de lo que recibes?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthRelationships', client.medicalData.mentalHealthRelationships)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Expresas abiertamente lo que piensas y sientes, incluso cuando es incómodo?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthExpressThoughts', client.medicalData.mentalHealthExpressThoughts)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Alguna relación actual o pasada te genera malestar o dependencia emocional?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthEmotionalDependence', client.medicalData.mentalHealthEmotionalDependence)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Sientes que tienes un propósito o metas que te motivan?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthPurpose', client.medicalData.mentalHealthPurpose)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando enfrentas un fracaso, ¿cómo reaccionas?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthFailureReaction', client.medicalData.mentalHealthFailureReaction)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Practicas alguna rutina que te ayude a conectar contigo mismo/a (meditación, escritura, naturaleza, etc.)?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthSelfConnection', client.medicalData.mentalHealthSelfConnection)}
                       </p>
                     </div>
                   </>
@@ -592,7 +698,7 @@ export default function ClientProfile() {
                     <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
-                    Estilo de Vida
+                    Historial de empleos
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[80px]">
                     {client.medicalData.employmentHistory || 'Información no disponible'}
@@ -625,7 +731,63 @@ export default function ClientProfile() {
                 </div>
               </div>
             </div>
-
+            {/* Tarjeta de Documentos Médicos */}
+            {(client.medicalData.documents && client.medicalData.documents.length > 0) && (
+              <div className="bg-indigo-50 rounded-xl shadow-md border border-indigo-100 p-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-indigo-700">
+                    Documentos Médicos
+                  </h2>
+                  <span className="ml-3 bg-indigo-100 text-indigo-800 text-sm px-2 py-1 rounded-full">
+                    {client.medicalData.documents.length} archivos
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {client.medicalData.documents.map((doc, index) => (
+                    <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          {doc.type.includes('image') ? (
+                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          <div>
+                            <h3 className="font-semibold text-gray-800 text-sm truncate max-w-[200px]">
+                              {doc.name}
+                            </h3>
+                            <p className="text-xs text-gray-600">
+                              {Math.round(doc.size / 1024)} KB • {doc.type}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setSelectedDocument(doc);
+                            setIsDocumentModalOpen(true);
+                          }}
+                          className="flex-1 bg-indigo-600 text-white text-center py-2 px-3 rounded-lg hover:bg-indigo-700 transition duration-200 text-sm font-medium"
+                        >
+                          Ver Documento
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* NUEVA TARJETA: Evaluaciones de Salud */}
             <div className="bg-pink-50 rounded-xl shadow-md border border-blue-100 p-6">
               <div className="flex items-center mb-4">
@@ -710,19 +872,19 @@ export default function ClientProfile() {
               
               <div className="space-y-4">
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Relación consigo mismo</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Si tuvieras que describir tu relación contigo mismo/a en tres palabras, ¿cuáles serían?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthSelfRelationship || 'No especificado'}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Creencias limitantes</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Hay alguna creencia o pensamiento recurrente que sientas que te limita en tu vida actual?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthLimitingBeliefs || 'No especificado'}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Balance ideal</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Imagina que has alcanzado un equilibrio emocional ideal. ¿Qué cambiaría en tu día a día?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthIdealBalance || 'No especificado'}
                   </p>
@@ -768,6 +930,92 @@ export default function ClientProfile() {
             onClose={() => setIsEditModalOpen(false)}
             onSave={fetchClient}
           />
+        )}
+        {/* Modal para Visualización de Documentos */}
+        {isDocumentModalOpen && selectedDocument && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+              {/* Header del Modal */}
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{selectedDocument.name}</h3>
+                  <p className="text-sm text-gray-600">
+                    {Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <a
+                    href={selectedDocument.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium flex items-center"
+                    download
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar
+                  </a>
+                  <button
+                    onClick={() => {
+                      setIsDocumentModalOpen(false);
+                      setSelectedDocument(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido del Modal */}
+              <div className="flex-1 overflow-auto p-6">
+                {selectedDocument.type.includes('image') ? (
+                  <div className="flex justify-center">
+                    <Image
+                      src={selectedDocument.url} 
+                      alt={selectedDocument.name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : selectedDocument.name.includes('.pdf') ? (
+                  <div className="w-full h-full">
+                    <iframe
+                      src={selectedDocument.url}
+                      className="w-full h-[70vh] border-0"
+                      title={selectedDocument.name}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
+                    <p className="text-gray-600 mb-6">
+                      Este tipo de archivo no se puede previsualizar en el navegador.
+                    </p>
+                    <a
+                      href={selectedDocument.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium inline-flex items-center"
+                      download
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Descargar Archivo
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </Layout>
     </>

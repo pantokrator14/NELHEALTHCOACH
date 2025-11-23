@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import { apiClient } from '@/lib/api';
+import Image from 'next/image'
 
 interface Client {
   _id: string
@@ -11,6 +12,14 @@ interface Client {
   email: string
   phone: string
   createdAt: string
+  profilePhoto?: {  // ✅ Actualizar para que coincida con el backend
+    url: string
+    key: string
+    name: string
+    type: 'profile' | 'document'
+    size: number
+    uploadedAt?: string
+  } | null  // Puede ser null si no hay foto
 }
 
 export default function Clients() {
@@ -118,11 +127,27 @@ export default function Clients() {
                 onClick={() => handleClientClick(client._id)}
                 className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-blue-100 hover:border-blue-300 p-6 group"
               >
-                <div className="flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4 mx-auto group-hover:bg-blue-600 transition-all">
-                  <span className="text-white font-semibold text-lg">
-                    {client.firstName.charAt(0)}{client.lastName.charAt(0)}
-                  </span>
-                </div>
+                {/* Foto de perfil o iniciales */}
+                {client.profilePhoto ? (
+                  <div className="relative mb-4 mx-auto">
+                    <div className="w-30 h-30 rounded-full overflow-hidden mx-auto border-2 border-blue-500 group-hover:border-blue-600 transition-colors">
+                      <Image 
+                        src={client.profilePhoto.url} 
+                        alt={`Foto de ${client.firstName} ${client.lastName}`}
+                        width={100}
+                        height={100}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4 mx-auto group-hover:bg-blue-600 transition-all">
+                    <span className="text-white font-semibold text-lg">
+                      {client.firstName.charAt(0)}{client.lastName.charAt(0)}
+                    </span>
+                  </div>
+                )}
+                
                 <h3 className="text-lg font-semibold text-gray-800 text-center mb-2 group-hover:text-blue-700 transition-colors">
                   {client.firstName} {client.lastName}
                 </h3>
