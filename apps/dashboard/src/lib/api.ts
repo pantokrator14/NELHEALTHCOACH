@@ -59,31 +59,31 @@ export const apiClient = {
     return response.json();
   },
 
-async updateClient(id: string, data: any) {
-  console.log('🔄 Enviando actualización para cliente:', id, data);
-  
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
+  async updateClient(id: string, data: any) {
+    console.log('🔄 Enviando actualización para cliente:', id, data);
     
-    const responseData = await response.json();
-    
-    if (!response.ok) {
-      console.error('❌ Error del servidor:', responseData);
-      throw new Error(responseData.message || `Error ${response.status} al actualizar cliente`);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error('❌ Error del servidor:', responseData);
+        throw new Error(responseData.message || `Error ${response.status} al actualizar cliente`);
+      }
+      
+      console.log('✅ Actualización exitosa:', responseData);
+      return responseData;
+      
+    } catch (error: any) {
+      console.error('❌ Error en updateClient:', error);
+      throw error;
     }
-    
-    console.log('✅ Actualización exitosa:', responseData);
-    return responseData;
-    
-  } catch (error: any) {
-    console.error('❌ Error en updateClient:', error);
-    throw error;
-  }
-},
+  },
 
   async deleteClient(id: string) {
     const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, {
@@ -113,4 +113,66 @@ async updateClient(id: string, data: any) {
     }
     return response.json();
   },
+
+  async generateUploadURL(
+    clientId: string, 
+    fileName: string, 
+    fileType: string, 
+    fileSize: number, 
+    fileCategory: 'profile' | 'document'
+  ) {
+    const response = await fetch(`/api/clients/${clientId}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.getToken()}`,
+      },
+      body: JSON.stringify({
+        fileName,
+        fileType,
+        fileSize,
+        fileCategory
+      }),
+    });
+    return response.json();
+  },
+
+  async confirmUpload(
+    clientId: string,
+    fileKey: string,
+    fileName: string,
+    fileType: string,
+    fileSize: number,
+    fileCategory: 'profile' | 'document',
+    fileURL: string
+  ) {
+    const response = await fetch(`/api/clients/${clientId}/upload`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.getToken()}`,
+      },
+      body: JSON.stringify({
+        fileKey,
+        fileName,
+        fileType,
+        fileSize,
+        fileCategory,
+        fileURL
+      }),
+    });
+    return response.json();
+  },
+
+  async deleteDocument(clientId: string, fileKey: string) {
+    const response = await fetch(`/api/clients/${clientId}/documents`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.getToken()}`,
+      },
+      body: JSON.stringify({ fileKey }),
+    });
+    return response.json();
+  }
 };

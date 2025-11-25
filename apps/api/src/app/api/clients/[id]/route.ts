@@ -5,6 +5,7 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt, encrypt, safeDecrypt, smartDecrypt } from '@/app/lib/encryption';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
+import { S3Service } from '@/app/lib/s3';
 
 // GET: Obtener un cliente específico
 export async function GET(
@@ -608,7 +609,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return logger.time('CLIENTS', 'Eliminar cliente', async () => {
+  return logger.time('CLIENTS', 'Eliminar cliente y archivos S3', async () => {
     try {
       const { id } = await params;
       
@@ -623,8 +624,162 @@ export async function DELETE(
 
       const healthForms = await getHealthFormsCollection();
       
-      logger.debug('CLIENTS', 'Ejecutando eliminación en base de datos', { clientId: id });
+      // Primero obtener el cliente para extraer las claves de S3
+      const client = await healthForms.findOne({ _id: new ObjectId(id) });
+      
+      if (!client) {
+        logger.warn('CLIENTS', 'Cliente no encontrado para eliminación', undefined, { clientId: id });
+        return NextResponse.json(
+          { success: false, message: 'Cliente no encontrado' },
+          { status: 404 }
+        );
+      }
 
+      // Función para extraer claves S3 de los archivos del cliente
+      const extractS3Keys = async (client: any): Promise<string[]> => {
+        const keys: string[] = [];
+        
+        try {
+          // Extraer profilePhoto key si existe
+          if (client.personalData?.profilePhoto) {
+            try {
+              let profilePhoto = client.personalData.profilePhoto;
+              
+              // Si está encriptado como string, desencriptar y parsear
+              if (typeof profilePhoto === 'string') {
+                const decrypted = smartDecrypt(profilePhoto);
+                profilePhoto = JSON.parse(decrypted);
+                
+                // Desencriptar campos internos si es necesario
+                if (typeof profilePhoto === 'object' && profilePhoto !== null) {
+                  const decryptedPhoto: any = {};
+                  for (const [key, value] of Object.entries(profilePhoto)) {
+                    if (typeof value === 'string') {
+                      decryptedPhoto[key] = smartDecrypt(value);
+                    } else {
+                      decryptedPhoto[key] = value;
+                    }
+                  }
+                  profilePhoto = decryptedPhoto;
+                }
+              }
+              
+              if (profilePhoto?.key) {
+                keys.push(profilePhoto.key);
+                logger.debug('CLIENTS', 'ProfilePhoto key encontrada', {
+                  clientId: id,
+                  key: profilePhoto.key
+                });
+              }
+            } catch (error) {
+              logger.error('CLIENTS', 'Error extrayendo profilePhoto key', error as Error, { clientId: id });
+            }
+          }
+
+          // Extraer documents keys si existen
+          if (client.medicalData?.documents) {
+            try {
+              let documents = client.medicalData.documents;
+              
+              // Si está encriptado como string, desencriptar y parsear
+              if (typeof documents === 'string') {
+                const decrypted = smartDecrypt(documents);
+                documents = JSON.parse(decrypted);
+              }
+              
+              if (Array.isArray(documents)) {
+                documents.forEach((doc: any, index: number) => {
+                  try {
+                    // Si el documento es un string (encriptado), desencriptarlo
+                    if (typeof doc === 'string') {
+                      const decryptedDoc = smartDecrypt(doc);
+                      doc = JSON.parse(decryptedDoc);
+                    }
+                    
+                    // Desencriptar campos internos si es necesario
+                    if (typeof doc === 'object' && doc !== null) {
+                      const decryptedDoc: any = {};
+                      for (const [key, value] of Object.entries(doc)) {
+                        if (typeof value === 'string') {
+                          decryptedDoc[key] = smartDecrypt(value);
+                        } else {
+                          decryptedDoc[key] = value;
+                        }
+                      }
+                      doc = decryptedDoc;
+                    }
+                    
+                    if (doc?.key) {
+                      keys.push(doc.key);
+                      logger.debug('CLIENTS', 'Document key encontrada', {
+                        clientId: id,
+                        documentIndex: index,
+                        key: doc.key
+                      });
+                    }
+                  } catch (docError) {
+                    logger.error('CLIENTS', `Error procesando documento ${index}`, docError as Error, {
+                      clientId: id,
+                      documentIndex: index
+                    });
+                  }
+                });
+              }
+            } catch (error) {
+              logger.error('CLIENTS', 'Error extrayendo documents keys', error as Error, { clientId: id });
+            }
+          }
+        } catch (error) {
+          logger.error('CLIENTS', 'Error general extrayendo S3 keys', error as Error, { clientId: id });
+        }
+        
+        return keys;
+      };
+
+      // Extraer todas las claves S3
+      const s3Keys = await extractS3Keys(client);
+      logger.info('CLIENTS', 'Claves S3 encontradas para eliminación', {
+        clientId: id,
+        totalKeys: s3Keys.length,
+        keys: s3Keys
+      });
+
+      // Eliminar archivos de S3
+      if (s3Keys.length > 0) {
+        const deletePromises = s3Keys.map(async (key) => {
+          try {
+            await S3Service.deleteFile(key);
+            logger.info('CLIENTS', 'Archivo S3 eliminado exitosamente', {
+              clientId: id,
+              key
+            });
+            return { key, success: true };
+          } catch (error) {
+            logger.error('CLIENTS', 'Error eliminando archivo S3', error as Error, {
+              clientId: id,
+              key
+            });
+            return { key, success: false, error: (error as Error).message };
+          }
+        });
+
+        const deleteResults = await Promise.all(deletePromises);
+        
+        const successfulDeletes = deleteResults.filter(result => result.success).length;
+        const failedDeletes = deleteResults.filter(result => !result.success).length;
+        
+        logger.info('CLIENTS', 'Resultado eliminación archivos S3', {
+          clientId: id,
+          successful: successfulDeletes,
+          failed: failedDeletes,
+          total: s3Keys.length
+        });
+      } else {
+        logger.info('CLIENTS', 'No hay archivos S3 para eliminar', { clientId: id });
+      }
+
+      // Ahora eliminar el cliente de la base de datos
+      logger.debug('CLIENTS', 'Ejecutando eliminación en base de datos', { clientId: id });
       const result = await healthForms.deleteOne({ _id: new ObjectId(id) });
 
       logger.debug('CLIENTS', 'Resultado de la eliminación', {
@@ -640,11 +795,11 @@ export async function DELETE(
         );
       }
 
-      logger.info('CLIENTS', 'Cliente eliminado exitosamente', { clientId: id });
+      logger.info('CLIENTS', 'Cliente y archivos eliminados exitosamente', { clientId: id });
 
       return NextResponse.json({
         success: true,
-        message: 'Cliente eliminado exitosamente'
+        message: 'Cliente y archivos asociados eliminados exitosamente'
       });
 
     } catch (error: any) {
@@ -662,7 +817,13 @@ export async function DELETE(
       }
 
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { 
+            error: error.message
+          })
+        },
         { status: 500 }
       );
     }

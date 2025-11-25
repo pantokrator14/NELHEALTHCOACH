@@ -67,11 +67,18 @@ export class S3Service {
   }
 
   static async deleteFile(fileKey: string): Promise<void> {
-    const command = new DeleteObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME! || 'nelhealthcoach-bucket', // Actualizado
-      Key: fileKey,
-    });
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET_NAME! || 'nelhealthcoach-bucket',
+        Key: fileKey,
+      });
 
-    await s3Client.send(command);
+      await s3Client.send(command);
+      
+      console.log('✅ Archivo S3 eliminado exitosamente:', fileKey);
+    } catch (error) {
+      console.error('❌ Error eliminando archivo S3:', error);
+      throw error;
+    }
   }
 }
