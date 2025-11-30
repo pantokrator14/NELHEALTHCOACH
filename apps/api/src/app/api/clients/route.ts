@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { encrypt, decrypt, smartDecrypt } from '@/app/lib/encryption';
+import { encrypt, decrypt, decryptFileObject } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 
 interface MedicalData {
@@ -82,42 +82,41 @@ export async function GET(request: NextRequest) {
         firstClientId: clients[0]?._id?.toString()
       });
 
+      // ✅ FUNCIÓN MEJORADA PARA DESENCRIPTAR CAMPOS DE TEXTO
+      const decryptTextField = (text: string): string => {
+        if (!text) return text;
+        
+        // Si es texto encriptado (comienza con U2FsdGVkX1), desencriptar
+        if (text.startsWith('U2FsdGVkX1')) {
+          try {
+            const bytes = decrypt(text);
+            return bytes;
+          } catch (error) {
+            logger.warn('CLIENTS', 'Error desencriptando campo de texto', undefined, {
+              textPreview: text.substring(0, 30)
+            });
+            return text;
+          }
+        }
+        
+        // Si no está encriptado, devolver tal cual
+        return text;
+      };
+
       // Procesar y desencriptar clientes
       const clientList = clients.map(client => {
         try {
-          const decryptedName = smartDecrypt(client.personalData.name);
+          // ✅ USAR decryptTextField EN LUGAR DE smartDecrypt PARA CAMPOS DE TEXTO
+          const decryptedName = decryptTextField(client.personalData?.name || '');
           const names = decryptedName.split(' ');
           
-          // ✅ USAR smartDecrypt para profilePhoto
+          // ✅ PROFILE PHOTO - Desencriptar correctamente
           let decryptedProfilePhoto = null;
-          if (client.personalData.profilePhoto) {
+          if (client.personalData?.profilePhoto) {
             try {
-              if (typeof client.personalData.profilePhoto === 'string') {
-                const profilePhotoStr = smartDecrypt(client.personalData.profilePhoto);
-                try {
-                  decryptedProfilePhoto = JSON.parse(profilePhotoStr);
-                  
-                  // Desencriptar campos internos si es necesario
-                  if (typeof decryptedProfilePhoto === 'object' && decryptedProfilePhoto !== null) {
-                    const decryptedPhoto: any = {};
-                    for (const [key, value] of Object.entries(decryptedProfilePhoto)) {
-                      if (typeof value === 'string') {
-                        decryptedPhoto[key] = smartDecrypt(value);
-                      } else {
-                        decryptedPhoto[key] = value;
-                      }
-                    }
-                    decryptedProfilePhoto = decryptedPhoto;
-                  }
-                } catch (parseError) {
-                  // Si falla el parseo, podría ser que ya es un objeto desencriptado
-                  decryptedProfilePhoto = client.personalData.profilePhoto;
-                }
-              } else if (typeof client.personalData.profilePhoto === 'object') {
-                decryptedProfilePhoto = { ...client.personalData.profilePhoto };
-              }
+              decryptedProfilePhoto = decryptFileObject(client.personalData.profilePhoto);
             } catch (error) {
-              logger.warn('CLIENTS', `Error procesando profilePhoto para cliente ${client._id}`, error as Error);
+              logger.warn('CLIENTS', `Error desencriptando profilePhoto para cliente ${client._id}`, error as Error);
               decryptedProfilePhoto = null;
             }
           }
@@ -126,16 +125,26 @@ export async function GET(request: NextRequest) {
             _id: client._id.toString(),
             firstName: names[0] || '',
             lastName: names.slice(1).join(' ') || '',
-            email: smartDecrypt(client.personalData.email),
-            phone: smartDecrypt(client.personalData.phone),
+            email: decryptTextField(client.personalData?.email || ''),
+            phone: decryptTextField(client.personalData?.phone || ''),
             createdAt: client.submissionDate,
             profilePhoto: decryptedProfilePhoto
           };
 
+          // ✅ LOG PARA VERIFICAR DESENCRIPTACIÓN
+          logger.debug('CLIENTS', 'Cliente procesado', {
+            clientId: client._id.toString(),
+            nameRaw: client.personalData?.name?.substring(0, 30) || 'N/A',
+            nameDecrypted: result.firstName + ' ' + result.lastName,
+            emailDecrypted: result.email?.substring(0, 30) || 'N/A',
+            wasEncrypted: client.personalData?.name?.startsWith('U2FsdGVkX1')
+          });
+
           return result;
         } catch (error) {
           logger.error('CLIENTS', `Error procesando cliente ${client._id}`, error as Error, {
-            clientId: client._id.toString()
+            clientId: client._id.toString(),
+            personalDataKeys: Object.keys(client.personalData || {})
           });
           
           return {

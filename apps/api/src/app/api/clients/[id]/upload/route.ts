@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
-import { encrypt, smartDecrypt } from '@/app/lib/encryption';
+import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 
 // POST: Obtener URLs para upload (ACCESO PÚBLICO COMPLETO - SIN AUTENTICACIÓN)
 export async function POST(
@@ -112,62 +112,99 @@ export async function PUT(
   return logger.time('UPLOAD', 'Confirmar upload y guardar referencia', async () => {
     try {
       const { id } = await params;
-
-      // Validar clientId
-      if (!id || id === 'undefined') {
-        return NextResponse.json(
-          { success: false, message: 'Client ID no válido' },
-          { status: 400 }
-        );
-      }
-
       const { fileKey, fileName, fileType, fileSize, fileCategory, fileURL } = await request.json();
-
-      logger.upload('UPLOAD', 'Confirmando upload de archivo (acceso público)', {
-        fileName,
-        fileType,
-        fileSize,
-        fileCategory,
-        s3Key: fileKey
-      }, { clientId: id });
 
       const healthForms = await getHealthFormsCollection();
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
 
       if (!client) {
-        logger.warn('UPLOAD', 'Cliente no encontrado al confirmar upload', undefined, {
-          clientId: id,
-          fileName,
-          fileCategory
-        });
         return NextResponse.json(
           { success: false, message: 'Cliente no encontrado' },
           { status: 404 }
         );
       }
 
-      const uploadedFile: UploadedFile = {
+      const uploadedFile = {
         url: fileURL,
         key: fileKey,
         name: fileName,
-        type: fileCategory,
+        type: fileType,
         size: fileSize,
         uploadedAt: new Date().toISOString()
       };
+
+      // ✅ ELIMINAR FOTO DE PERFIL ANTERIOR - VERSIÓN MEJORADA
+      if (fileCategory === 'profile') {
+        try {
+          const currentProfilePhoto = client.personalData?.profilePhoto;
+          
+          if (currentProfilePhoto) {
+            let oldFileKey = currentProfilePhoto.key;
+            
+            // ✅ DESENCRIPTAR LA KEY SI ESTÁ ENCRIPTADA
+            if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+              oldFileKey = decrypt(oldFileKey);
+              logger.debug('UPLOAD', 'Key de foto anterior desencriptada', {
+                clientId: id,
+                encryptedKey: currentProfilePhoto.key.substring(0, 30) + '...',
+                decryptedKey: oldFileKey
+              });
+            }
+            
+            // ✅ VERIFICAR QUE NO SEA LA MISMA FOTO (por si acaso)
+            if (oldFileKey && oldFileKey !== fileKey) {
+              logger.info('UPLOAD', '🗑️ Eliminando foto de perfil anterior de S3', {
+                clientId: id,
+                oldKey: oldFileKey,
+                newKey: fileKey
+              });
+              
+              try {
+                await S3Service.deleteFile(oldFileKey);
+                logger.info('UPLOAD', '✅ Foto anterior eliminada de S3', {
+                  clientId: id,
+                  oldKey: oldFileKey
+                });
+              } catch (s3Error) {
+                logger.error('UPLOAD', '⚠️ Error eliminando foto anterior de S3', s3Error as Error, {
+                  clientId: id,
+                  oldKey: oldFileKey
+                });
+                // No fallar la operación principal
+              }
+            } else if (oldFileKey === fileKey) {
+              logger.debug('UPLOAD', '📸 Misma foto, no es necesario eliminar', {
+                clientId: id,
+                fileKey
+              });
+            }
+          } else {
+            logger.debug('UPLOAD', '📸 No hay foto anterior que eliminar', { clientId: id });
+          }
+        } catch (error) {
+          logger.error('UPLOAD', '❌ Error en proceso de eliminación de foto anterior', error as Error, {
+            clientId: id
+          });
+          // No fallar la operación principal si la eliminación falla
+        }
+      }
+
+      // ✅ ENCRIPTAR EL NUEVO ARCHIVO
+      const encryptedFile = encryptFileObject(uploadedFile);
 
       let updateData: any = {};
 
       if (fileCategory === 'profile') {
         updateData = { 
           $set: { 
-            'personalData.profilePhoto': uploadedFile,
+            'personalData.profilePhoto': encryptedFile,
             updatedAt: new Date()
           } 
         };
       } else {
         updateData = { 
           $push: { 
-            'medicalData.documents': uploadedFile 
+            'medicalData.documents': encryptedFile 
           },
           $set: {
             updatedAt: new Date()
@@ -181,22 +218,17 @@ export async function PUT(
       );
 
       if (result.modifiedCount === 0) {
-        logger.warn('UPLOAD', 'No se pudo actualizar el cliente con el archivo', undefined, {
-          clientId: id,
-          fileName,
-          fileCategory
-        });
         return NextResponse.json(
           { success: false, message: 'No se pudo guardar la referencia del archivo' },
           { status: 500 }
         );
       }
 
-      logger.upload('UPLOAD', 'Archivo guardado exitosamente en base de datos', {
-        fileName,
+      logger.info('UPLOAD', '✅ Archivo guardado exitosamente', {
+        clientId: id,
         fileCategory,
-        s3Key: fileKey
-      }, { clientId: id });
+        fileName
+      });
 
       return NextResponse.json({
         success: true,
@@ -219,25 +251,28 @@ export async function PUT(
     }
   }, { endpoint: `/api/clients/${(await params).id}/upload`, clientId: (await params).id });
 }
-
 // DELETE: Eliminar documento
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-  ) {
+) {
   return logger.time('UPLOAD', 'Eliminar documento', async () => {
     try {
       const { id } = await params;
+      const { fileKey } = await request.json();
 
-      // Validar clientId
+      logger.info('UPLOAD', '🗑️ Iniciando eliminación de documento', {
+        clientId: id,
+        fileKey
+      });
+
+      // Validaciones...
       if (!id || id === 'undefined') {
         return NextResponse.json(
           { success: false, message: 'Client ID no válido' },
           { status: 400 }
         );
       }
-
-      const { fileKey } = await request.json();
 
       if (!fileKey) {
         return NextResponse.json(
@@ -250,107 +285,193 @@ export async function DELETE(
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
 
       if (!client) {
-        logger.warn('UPLOAD', 'Cliente no encontrado al eliminar documento', undefined, {
-          clientId: id,
-          fileKey
-        });
+        logger.warn('UPLOAD', 'Cliente no encontrado', undefined, { clientId: id });
         return NextResponse.json(
           { success: false, message: 'Cliente no encontrado' },
           { status: 404 }
         );
       }
 
-      // Función para buscar y eliminar el documento del array
+      // ✅ FUNCIÓN MEJORADA PARA ELIMINAR DOCUMENTOS
       const removeDocumentFromArray = async (): Promise<boolean> => {
         try {
           let documents = client.medicalData?.documents;
           
-          // Si documents está encriptado como string, desencriptar y parsear
-          if (typeof documents === 'string') {
-            try {
-              const decrypted = smartDecrypt(documents);
-              documents = JSON.parse(decrypted);
-            } catch (decryptError) {
-              logger.error('UPLOAD', 'Error desencriptando documentos', decryptError as Error, { clientId: id });
-              return false;
-            }
-          }
-
-          if (!Array.isArray(documents)) {
-            logger.warn('UPLOAD', 'Documents no es un array', undefined, { clientId: id, documentsType: typeof documents });
-            return false;
-          }
-
-          // Buscar el documento por fileKey
-          const documentIndex = documents.findIndex(doc => {
-            let currentDoc = doc;
-            
-            // Si el documento es un string (encriptado), desencriptarlo
-            if (typeof currentDoc === 'string') {
-              try {
-                const decryptedDoc = smartDecrypt(currentDoc);
-                currentDoc = JSON.parse(decryptedDoc);
-              } catch {
-                return false;
-              }
-            }
-            
-            return currentDoc.key === fileKey;
+          logger.debug('UPLOAD', '🔍 Estado inicial de documents para eliminación', {
+            clientId: id,
+            documentsType: typeof documents,
+            isArray: Array.isArray(documents),
+            arrayLength: Array.isArray(documents) ? documents.length : 0
           });
 
-          if (documentIndex === -1) {
-            logger.warn('UPLOAD', 'Documento no encontrado en array', undefined, { clientId: id, fileKey });
+          // ✅ MANEJO DE LA ESTRUCTURA REAL: Array de objetos con campos encriptados
+          if (!Array.isArray(documents)) {
+            logger.warn('UPLOAD', 'Documents no es un array para eliminación', undefined, {
+              clientId: id,
+              documentsType: typeof documents,
+              documentsValue: documents
+            });
             return false;
           }
 
-          // Eliminar el documento del array
+          // ✅ BÚSQUEDA EN ARRAY DE OBJETOS ENCRIPTADOS
+          let documentIndex = -1;
+          let documentToRemove = null;
+
+          for (let i = 0; i < documents.length; i++) {
+            try {
+              const doc = documents[i];
+              
+              // Verificar que es un objeto válido
+              if (!doc || typeof doc !== 'object') {
+                continue;
+              }
+
+              // ✅ DESENCRIPTAR EL CAMPO 'key' PARA COMPARAR
+              let currentKey = doc.key;
+              if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
+                currentKey = decrypt(currentKey);
+              }
+
+              // ✅ COMPARAR CON EL fileKey BUSCADO
+              if (currentKey === fileKey) {
+                documentIndex = i;
+                documentToRemove = doc;
+                
+                // ✅ TAMBIÉN DESENCRIPTAR EL NOMBRE PARA LOGS
+                let documentName = doc.name;
+                if (typeof documentName === 'string' && documentName.startsWith('U2FsdGVkX1')) {
+                  documentName = decrypt(documentName);
+                }
+                
+                logger.debug('UPLOAD', 'Documento encontrado para eliminación', {
+                  clientId: id,
+                  documentIndex: i,
+                  documentName,
+                  fileKey
+                });
+                break;
+              }
+            } catch (error) {
+              logger.debug('UPLOAD', 'Error procesando documento durante búsqueda', undefined, {
+                clientId: id,
+                documentIndex: i,
+                error: (error as Error).message
+              });
+              continue;
+            }
+          }
+
+          if (documentIndex === -1) {
+            logger.warn('UPLOAD', '❌ Documento no encontrado en array para eliminación', undefined, {
+              clientId: id,
+              fileKey,
+              totalDocuments: documents.length,
+              availableKeys: documents.map((doc, idx) => {
+                try {
+                  if (!doc || typeof doc !== 'object') {
+                    return { index: idx, error: 'invalid document' };
+                  }
+                  
+                  let key = doc.key;
+                  let name = doc.name;
+                  
+                  // Intentar desencriptar para el log
+                  if (typeof key === 'string' && key.startsWith('U2FsdGVkX1')) {
+                    try {
+                      key = decrypt(key);
+                    } catch (e) {
+                      key = 'decrypt_error';
+                    }
+                  }
+                  
+                  if (typeof name === 'string' && name.startsWith('U2FsdGVkX1')) {
+                    try {
+                      name = decrypt(name);
+                    } catch (e) {
+                      name = 'decrypt_error';
+                    }
+                  }
+                  
+                  return { 
+                    index: idx, 
+                    key: key || 'no_key', 
+                    name: name || 'no_name' 
+                  };
+                } catch (error) {
+                  return { index: idx, error: 'processing_error' };
+                }
+              })
+            });
+            return false;
+          }
+
+          // ✅ ELIMINACIÓN DEL ARRAY
           documents.splice(documentIndex, 1);
+          logger.debug('UPLOAD', '✅ Documento removido del array', {
+            clientId: id,
+            documentIndex,
+            remainingDocuments: documents.length
+          });
 
-          // Encriptar el array actualizado
-          const encryptedDocuments = encrypt(JSON.stringify(documents));
-
-          // Actualizar el cliente
+          // ✅ ACTUALIZACIÓN DIRECTA DEL ARRAY (sin encriptar el array completo)
           const updateResult = await healthForms.updateOne(
             { _id: new ObjectId(id) },
             { 
               $set: { 
-                'medicalData.documents': encryptedDocuments,
+                'medicalData.documents': documents, // ✅ Guardar el array directamente
                 updatedAt: new Date()
               } 
             }
           );
 
+          logger.debug('UPLOAD', '📝 Resultado de actualización en BD', {
+            clientId: id,
+            modifiedCount: updateResult.modifiedCount,
+            matchedCount: updateResult.matchedCount
+          });
+
           return updateResult.modifiedCount > 0;
+
         } catch (error) {
-          logger.error('UPLOAD', 'Error eliminando documento del array', error as Error, { clientId: id, fileKey });
+          logger.error('UPLOAD', '❌ Error general eliminando documento del array', error as Error, {
+            clientId: id,
+            fileKey,
+            errorMessage: (error as Error).message,
+            errorStack: (error as Error).stack
+          });
           return false;
         }
       };
 
-      // 1. Eliminar el documento de S3
-      try {
-        await S3Service.deleteFile(fileKey);
-        logger.info('UPLOAD', 'Archivo eliminado de S3', { clientId: id, fileKey });
-      } catch (s3Error) {
-        logger.error('UPLOAD', 'Error eliminando archivo de S3', s3Error as Error, { clientId: id, fileKey });
-        // Continuamos aunque falle S3 para intentar limpiar la base de datos
-      }
-
-      // 2. Eliminar la referencia del documento en la base de datos
+      // ✅ PRIMERO: Eliminar de la base de datos
+      logger.debug('UPLOAD', '🗃️ Eliminando de base de datos...', { clientId: id });
       const dbSuccess = await removeDocumentFromArray();
 
       if (!dbSuccess) {
-        logger.warn('UPLOAD', 'No se pudo eliminar la referencia del documento en la base de datos', undefined, {
-          clientId: id,
-          fileKey
-        });
+        logger.error('UPLOAD', '❌ Falló eliminación en base de datos', undefined, { clientId: id });
         return NextResponse.json(
           { success: false, message: 'No se pudo eliminar la referencia del documento' },
           { status: 500 }
         );
       }
 
-      logger.info('UPLOAD', 'Documento eliminado exitosamente', { clientId: id, fileKey });
+      logger.info('UPLOAD', '✅ Documento eliminado de base de datos', { clientId: id });
+
+      // ✅ SEGUNDO: Eliminar de S3
+      try {
+        logger.debug('UPLOAD', '☁️ Eliminando de S3...', { clientId: id, fileKey });
+        await S3Service.deleteFile(fileKey);
+        logger.info('UPLOAD', '✅ Archivo eliminado de S3', { clientId: id, fileKey });
+      } catch (s3Error) {
+        logger.error('UPLOAD', '⚠️ Error eliminando de S3, pero BD ya actualizada', s3Error as Error, {
+          clientId: id,
+          fileKey
+        });
+        // Continuamos porque la BD ya se actualizó
+      }
+
+      logger.info('UPLOAD', '🎉 Documento eliminado exitosamente', { clientId: id, fileKey });
 
       return NextResponse.json({
         success: true,
@@ -359,7 +480,7 @@ export async function DELETE(
 
     } catch (error: any) {
       console.error('❌ Error en DELETE /upload:', error);
-      logger.uploadError('UPLOAD', 'Error eliminando documento', error, undefined, {
+      logger.uploadError('UPLOAD', '💥 Error eliminando documento', error, undefined, {
         clientId: (await params).id
       });
       return NextResponse.json(

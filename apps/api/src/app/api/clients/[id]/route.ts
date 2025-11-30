@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { decrypt, encrypt, safeDecrypt, smartDecrypt } from '@/app/lib/encryption';
+import { decrypt, decryptFileObject, encrypt, safeDecrypt } from '@/app/lib/encryption';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
@@ -69,25 +69,24 @@ export async function GET(
         for (const [key, value] of Object.entries(obj)) {
           const currentPath = path ? `${path}.${key}` : key;
           
-          // ✅ DEFINIR campos que NUNCA deben desencriptarse
-          const isFileField = (currentPath.includes('profilePhoto.url') || 
-                              currentPath.includes('profilePhoto.key') || 
-                              currentPath.includes('documents.url') ||
-                              currentPath.includes('documents.key') ||
-                              (currentPath === 'profilePhoto.type') ||
-                              (currentPath === 'documents.type') ||
-                              currentPath.includes('uploadedAt'));
+          const isFileField = (
+            currentPath.includes('profilePhoto.url') || 
+            currentPath.includes('profilePhoto.key') || 
+            currentPath.includes('documents.url') ||
+            currentPath.includes('documents.key') ||
+            (currentPath === 'profilePhoto.type') ||
+            (currentPath === 'documents.type') ||
+            currentPath.includes('uploadedAt')
+          );
           
           if (typeof value === 'string' && value.trim() !== '') {
             if (isFileField) {
-              // Para campos de archivos específicos, no desencriptar
               decrypted[key] = value;
             } else {
-              // ✅ USAR smartDecrypt para manejar automáticamente textos encriptados y no encriptados
-              decrypted[key] = smartDecrypt(value);
+              // ✅ USAR safeDecrypt EN LUGAR DE smartDecrypt
+              decrypted[key] = safeDecrypt(value);
             }
           } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            // Recursivamente desencriptar objetos anidados
             decrypted[key] = decryptObject(value, currentPath);
           } else {
             decrypted[key] = value;
@@ -176,148 +175,85 @@ export async function GET(
         }
 
         if (Array.isArray(fieldData)) {
-          // Si ya es array, usarlo directamente
           (decryptedClient.medicalData as any)[field] = fieldData;
         } else if (typeof fieldData === 'string') {
-          // ✅ USAR smartDecrypt que maneja automáticamente encriptación
+          // ✅ CORRECCIÓN: SOLO desencriptar si está encriptado
+          let stringToParse = fieldData;
+          
+          // Si empieza con U2FsdGVkX1, está encriptado
+          if (fieldData.startsWith('U2FsdGVkX1')) {
+            stringToParse = safeDecrypt(fieldData);
+            logger.debug('CLIENTS', `Campo ${field} desencriptado`, {
+              clientId: id,
+              wasEncrypted: true
+            });
+          } else {
+            logger.debug('CLIENTS', `Campo ${field} ya está desencriptado`, {
+              clientId: id,
+              wasEncrypted: false
+            });
+          }
+          
           try {
-            const decryptedString = smartDecrypt(fieldData);
-            const parsed = JSON.parse(decryptedString);
-            
+            const parsed = JSON.parse(stringToParse);
             if (Array.isArray(parsed)) {
               (decryptedClient.medicalData as any)[field] = parsed;
               logger.debug('CLIENTS', `${field} procesado exitosamente`, {
                 clientId: id,
-                wasEncrypted: fieldData !== decryptedString,
+                wasEncrypted: fieldData !== stringToParse,
                 arrayLength: parsed.length
               });
             } else {
               throw new Error('El resultado no es un array');
             }
           } catch (error) {
-            logger.warn('CLIENTS', `Error procesando ${field}, intentando parse directo`, undefined, {
+            logger.warn('CLIENTS', `Error procesando ${field}, usando array vacío`, undefined, {
               clientId: id,
               field
             });
-            
-            // Intentar parsear como JSON directamente (caso no encriptado)
-            try {
-              const parsed = JSON.parse(fieldData);
-              if (Array.isArray(parsed)) {
-                (decryptedClient.medicalData as any)[field] = parsed;
-                logger.debug('CLIENTS', `${field} procesado como JSON no encriptado`, {
-                  clientId: id,
-                  arrayLength: parsed.length
-                });
-              } else {
-                throw new Error('No es un array');
-              }
-            } catch (parseError) {
-              logger.error('CLIENTS', `Error procesando ${field} como string`, error as Error, {
-                clientId: id,
-                field
-              });
-              (decryptedClient.medicalData as any)[field] = [];
-            }
-          }
-        } else if (typeof fieldData === 'object') {
-          // ✅ CRÍTICO: Si es objeto, convertirlo a array
-          try {
-            // Intentar extraer valores si es un objeto con claves numéricas
-            const values = Object.values(fieldData);
-            
-            // Filtrar solo booleanos y crear array
-            const booleanArray = values.filter(val => 
-              typeof val === 'boolean' || val === 'true' || val === 'false'
-            ).map(val => 
-              val === 'true' ? true : val === 'false' ? false : Boolean(val)
-            );
-            
-            if (booleanArray.length > 0) {
-              (decryptedClient.medicalData as any)[field] = booleanArray;
-              logger.debug('CLIENTS', `${field} convertido de objeto a array`, {
-                clientId: id,
-                originalKeys: Object.keys(fieldData),
-                arrayLength: booleanArray.length
-              });
-            } else {
-              // Si no podemos extraer valores booleanos, usar array por defecto
-              throw new Error('No se pudieron extraer valores booleanos del objeto');
-            }
-          } catch (error) {
-            logger.error('CLIENTS', `Error convirtiendo ${field} de objeto a array`, error as Error, {
-              clientId: id,
-              field,
-              fieldData
-            });
-            
-            // Usar array por defecto basado en longitud esperada
-            const expectedLengths: Record<string, number> = {
-              carbohydrateAddiction: 11,
-              leptinResistance: 8,
-              circadianRhythms: 11,
-              sleepHygiene: 11,
-              electrosmogExposure: 10,
-              generalToxicity: 8,
-              microbiotaHealth: 10,
-            };
-            
-            const expectedLength = expectedLengths[field] || 0;
-            (decryptedClient.medicalData as any)[field] = Array(expectedLength).fill(false);
-            logger.info('CLIENTS', `${field} recuperado con array por defecto`, { 
-              clientId: id,
-              length: expectedLength 
-            });
+            (decryptedClient.medicalData as any)[field] = [];
           }
         } else {
           (decryptedClient.medicalData as any)[field] = [];
-          logger.warn('CLIENTS', `Campo ${field} tiene tipo no manejado, usando array vacío`, {
-            clientId: id,
-            actualType: typeof fieldData
-          });
         }
       });
 
-      // Procesar documents
-      if (decryptedClient.medicalData.documents) {
-        if (Array.isArray(decryptedClient.medicalData.documents)) {
-          logger.debug('CLIENTS', 'Documents ya es un array', {
-            clientId: id,
-            documentCount: decryptedClient.medicalData.documents.length
-          });
-        } else if (typeof decryptedClient.medicalData.documents === 'string') {
-          try {
-            const decryptedString = decrypt(decryptedClient.medicalData.documents);
-            const parsed = JSON.parse(decryptedString);
-            decryptedClient.medicalData.documents = Array.isArray(parsed) ? parsed : [];
-            logger.debug('CLIENTS', 'Documents desencriptado y parseado', {
-              clientId: id,
-              documentCount: decryptedClient.medicalData.documents.length
-            });
-          } catch (error) {
-            logger.error('CLIENTS', 'Error procesando documents', error as Error, { clientId: id });
-            decryptedClient.medicalData.documents = [];
-          }
-        } else if (typeof decryptedClient.medicalData.documents === 'object') {
-          // Si documents es un objeto, convertirlo a array
-          try {
-            const documentsArray = Object.values(decryptedClient.medicalData.documents);
-            decryptedClient.medicalData.documents = documentsArray.filter(doc => 
-              doc && typeof doc === 'object' && doc.url
-            );
-            logger.debug('CLIENTS', 'Documents convertido de objeto a array', {
-              clientId: id,
-              documentCount: decryptedClient.medicalData.documents.length
-            });
-          } catch (error) {
-            logger.error('CLIENTS', 'Error convirtiendo documents de objeto a array', error as Error, { clientId: id });
-            decryptedClient.medicalData.documents = [];
-          }
-        } else {
-          decryptedClient.medicalData.documents = [];
+      // ✅ DESENCRIPTAR profilePhoto
+      if (decryptedClient.personalData.profilePhoto) {
+        try {
+          decryptedClient.personalData.profilePhoto = decryptFileObject(decryptedClient.personalData.profilePhoto);
+        } catch (error) {
+          logger.error('CLIENTS', 'Error desencriptando profilePhoto', error as Error, { clientId: id });
+          decryptedClient.personalData.profilePhoto = null;
         }
-      } else {
-        decryptedClient.medicalData.documents = [];
+      }
+
+      // ✅ DESENCRIPTAR documents
+      if (decryptedClient.medicalData.documents) {
+        if (typeof decryptedClient.medicalData.documents === 'string') {
+          try {
+            // Desencriptar el string completo
+            const decryptedString = decrypt(decryptedClient.medicalData.documents);
+            const parsedArray = JSON.parse(decryptedString);
+            
+            if (Array.isArray(parsedArray)) {
+              // Desencriptar cada archivo en el array
+              decryptedClient.medicalData.documents = parsedArray.map(file => 
+                decryptFileObject(file)
+              );
+            } else {
+              decryptedClient.medicalData.documents = [];
+            }
+          } catch (error) {
+            logger.error('CLIENTS', 'Error desencriptando documents', error as Error, { clientId: id });
+            decryptedClient.medicalData.documents = [];
+          }
+        } else if (Array.isArray(decryptedClient.medicalData.documents)) {
+          // Si ya es array, desencriptar cada elemento
+          decryptedClient.medicalData.documents = decryptedClient.medicalData.documents.map(file => 
+            decryptFileObject(file)
+          );
+        }
       }
 
       logger.info('CLIENTS', 'Cliente desencriptado exitosamente', { clientId: id });
@@ -425,34 +361,43 @@ export async function PUT(
       }
 
       // Función para encriptar objetos - MEJORADA
-      const encryptObject = (obj: Record<string, any>): Record<string, any> => {
-        const encrypted: Record<string, any> = {};
-        const keys = Object.keys(obj);
+      // Función para desencriptar objetos - VERSIÓN MEJORADA Y SEGURA
+      const decryptObject = (obj: Record<string, any>, path: string = ''): Record<string, any> => {
+        // Si no es objeto, retornar tal cual
+        if (typeof obj !== 'object' || obj === null) return obj;
         
-        logger.debug('ENCRYPTION', 'Encriptando objeto', { 
-          clientId: id,
-          keyCount: keys.length 
-        });
+        const decrypted: Record<string, any> = {};
         
         for (const [key, value] of Object.entries(obj)) {
+          const currentPath = path ? `${path}.${key}` : key;
+          
+          // ✅ LISTA NEGRA EXPLÍCITA - Campos que NUNCA se deben desencriptar
+          const neverDecryptFields = [
+            'url', 'key', 'uploadedAt', 'type', 'size', 'name',
+            'profilePhoto', 'documents'
+          ];
+          
+          const isNeverDecrypt = neverDecryptFields.some(field => 
+            currentPath.includes(field) || key.includes(field)
+          );
+          
           if (typeof value === 'string' && value.trim() !== '') {
-            encrypted[key] = encrypt(value);
-          } else if (typeof value === 'object' && value !== null) {
-            // ✅ ENCRIPTAR OBJETOS COMPLETOS como profilePhoto y documents
-            if (Array.isArray(value)) {
-              // Para arrays como documents, encriptar cada elemento del array
-              encrypted[key] = encrypt(JSON.stringify(value.map(item => 
-                typeof item === 'object' ? encryptObject(item) : item
-              )));
+            if (isNeverDecrypt) {
+              // ✅ Campos de archivos - NO desencriptar NUNCA
+              decrypted[key] = value;
             } else {
-              // Para objetos como profilePhoto
-              encrypted[key] = encrypt(JSON.stringify(encryptObject(value)));
+              // ✅ Para otros campos, usar safeDecrypt (más conservador que smartDecrypt)
+              decrypted[key] = safeDecrypt(value);
             }
+          } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            // Recursivamente desencriptar objetos anidados
+            decrypted[key] = decryptObject(value, currentPath);
           } else {
-            encrypted[key] = value;
+            decrypted[key] = value;
           }
         }
-        return encrypted;
+        
+        return decrypted;
       };
 
       // Procesar arrays en medicalData

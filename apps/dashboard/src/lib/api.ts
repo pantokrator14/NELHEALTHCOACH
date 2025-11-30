@@ -121,12 +121,9 @@ export const apiClient = {
     fileSize: number, 
     fileCategory: 'profile' | 'document'
   ) {
-    const response = await fetch(`/api/clients/${clientId}/upload`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getToken()}`,
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         fileName,
         fileType,
@@ -134,6 +131,11 @@ export const apiClient = {
         fileCategory
       }),
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error generando URL de upload');
+    }
     return response.json();
   },
 
@@ -146,33 +148,58 @@ export const apiClient = {
     fileCategory: 'profile' | 'document',
     fileURL: string
   ) {
-    const response = await fetch(`/api/clients/${clientId}/upload`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getToken()}`,
-      },
-      body: JSON.stringify({
-        fileKey,
-        fileName,
-        fileType,
-        fileSize,
-        fileCategory,
-        fileURL
-      }),
-    });
-    return response.json();
+    console.log('🔵 Confirmando upload:', { clientId, fileName, fileKey });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          fileKey,
+          fileName,
+          fileType,
+          fileSize,
+          fileCategory,
+          fileURL
+        }),
+      });
+      
+      const responseData = await response.json();
+      console.log('🔵 Respuesta de confirmación:', responseData);
+      
+      if (!response.ok) {
+        throw new Error(responseData.message || `Error ${response.status} confirmando upload`);
+      }
+      
+      return responseData;
+      
+    } catch (error: any) {
+      console.error('❌ Error en confirmUpload:', error);
+      throw new Error(error.message || 'Error confirmando upload');
+    }
   },
 
   async deleteDocument(clientId: string, fileKey: string) {
-    const response = await fetch(`/api/clients/${clientId}/documents`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getToken()}`,
-      },
-      body: JSON.stringify({ fileKey }),
-    });
-    return response.json();
+    console.log('🗑️ Eliminando documento:', { clientId, fileKey });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ fileKey }),
+      });
+      
+      const responseData = await response.json();
+      console.log('🗑️ Respuesta de eliminación:', responseData);
+      
+      if (!response.ok) {
+        throw new Error(responseData.message || `Error ${response.status} eliminando documento`);
+      }
+      
+      return responseData;
+    } catch (error: any) {
+      console.error('❌ Error en deleteDocument:', error);
+      throw error;
+    }
   }
 };
