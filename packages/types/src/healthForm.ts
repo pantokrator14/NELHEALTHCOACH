@@ -1,3 +1,23 @@
+export interface UploadedFile {
+  url: string;
+  key: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
+
+  // ✅ Nuevos campos para Textract
+  extractedText?: string;        // Texto extraído (encriptado)
+  extractionDate?: string;       // Fecha de extracción
+  extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  extractedData?: {              // Datos estructurados (encriptados)
+    rawText?: string;
+    tables?: any[];
+    forms?: Record<string, string>;
+  };
+
+}
+
 export interface PersonalData {
   name: string;
   address: string;
@@ -11,6 +31,7 @@ export interface PersonalData {
   maritalStatus: string;
   education: string;
   occupation: string;
+  profilePhoto?: UploadedFile; // ✅ Añadido para foto de perfil
 }
 
 export interface MedicalData {
@@ -24,13 +45,17 @@ export interface MedicalData {
   allergies: string;
   surgeries: string;
   housingHistory: string;
-  carbohydrateAddiction: string | string[];
-  leptinResistance: string | string[];
-  circadianRhythms: string | string[];
-  sleepHygiene: string | string[];
-  electrosmogExposure: string | string[];
-  generalToxicity: string | string[];
-  microbiotaHealth: string | string[];
+  
+  // ✅ Evaluaciones como strings (encriptados en BD)
+  carbohydrateAddiction: string;
+  leptinResistance: string;
+  circadianRhythms: string;
+  sleepHygiene: string;
+  electrosmogExposure: string;
+  generalToxicity: string;
+  microbiotaHealth: string;
+  
+  // Salud mental
   mentalHealthEmotionIdentification: string;
   mentalHealthEmotionIntensity: string;
   mentalHealthUncomfortableEmotion: string;
@@ -46,6 +71,9 @@ export interface MedicalData {
   mentalHealthSelfRelationship: string;
   mentalHealthLimitingBeliefs: string;
   mentalHealthIdealBalance: string;
+  
+  // ✅ Documentos como array de objetos encriptados
+  documents?: UploadedFile[];
 }
 
 export interface HealthFormData {
@@ -61,10 +89,12 @@ export interface Client {
   email: string;
   phone: string;
   createdAt: string;
+  profilePhoto?: UploadedFile; // ✅ Añadido para lista de clientes
 }
 
 export interface ClientDetails extends HealthFormData {
   _id: string;
   ipAddress: string;
   submissionDate: string;
+  updatedAt?: string; // ✅ Añadido para tracking de actualizaciones
 }

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { decrypt, decryptFileObject, encrypt, safeDecrypt } from '@/app/lib/encryption';
+import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
@@ -360,62 +360,40 @@ export async function PUT(
         );
       }
 
-      // Función para encriptar objetos - MEJORADA
-      // Función para desencriptar objetos - VERSIÓN MEJORADA Y SEGURA
-      const decryptObject = (obj: Record<string, any>, path: string = ''): Record<string, any> => {
-        // Si no es objeto, retornar tal cual
-        if (typeof obj !== 'object' || obj === null) return obj;
-        
-        const decrypted: Record<string, any> = {};
+      // ✅ ELIMINADA la función decryptObject duplicada - ya existe en el GET
+
+      // Función para encriptar objetos de datos personales/médicos
+      const encryptObjectData = (obj: Record<string, any>): Record<string, any> => {
+        const encrypted: Record<string, any> = {};
         
         for (const [key, value] of Object.entries(obj)) {
-          const currentPath = path ? `${path}.${key}` : key;
-          
-          // ✅ LISTA NEGRA EXPLÍCITA - Campos que NUNCA se deben desencriptar
-          const neverDecryptFields = [
-            'url', 'key', 'uploadedAt', 'type', 'size', 'name',
-            'profilePhoto', 'documents'
-          ];
-          
-          const isNeverDecrypt = neverDecryptFields.some(field => 
-            currentPath.includes(field) || key.includes(field)
-          );
+          // ✅ NO encriptar campos de archivos (ya se encriptan individualmente)
+          const isFileField = key === 'profilePhoto' || key === 'documents';
           
           if (typeof value === 'string' && value.trim() !== '') {
-            if (isNeverDecrypt) {
-              // ✅ Campos de archivos - NO desencriptar NUNCA
-              decrypted[key] = value;
+            // ✅ Solo encriptar si no está ya encriptado
+            if (isFileField || value.startsWith('U2FsdGVkX1')) {
+              encrypted[key] = value;
             } else {
-              // ✅ Para otros campos, usar safeDecrypt (más conservador que smartDecrypt)
-              decrypted[key] = safeDecrypt(value);
+              encrypted[key] = encrypt(value);
             }
           } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            // Recursivamente desencriptar objetos anidados
-            decrypted[key] = decryptObject(value, currentPath);
+            encrypted[key] = encryptObjectData(value);
           } else {
-            decrypted[key] = value;
+            encrypted[key] = value;
           }
         }
         
-        return decrypted;
+        return encrypted;
       };
 
-      // Procesar arrays en medicalData
-      const processedMedicalData = { ...data.medicalData };
-      
-      logger.debug('CLIENTS', 'Procesando arrays médicos para encriptación', {
-        clientId: id,
-        arrayFields
-      });
-
-      arrayFields.forEach(field => {
-        const arrayData = (processedMedicalData as any)[field];
+      // ✅ Función específica para procesar y encriptar arrays de evaluaciones
+      const processAndEncryptArray = (field: string, arrayData: any[]): string => {
         const expectedLength = expectedLengths[field];
         
         if (!arrayData || !Array.isArray(arrayData)) {
           logger.warn('CLIENTS', `Array ${field} no válido, usando array vacío`, undefined, { clientId: id });
-          (processedMedicalData as any)[field] = encrypt(JSON.stringify([]));
-          return;
+          return encrypt(JSON.stringify([]));
         }
 
         const cleanedArray = arrayData.map((value: any) => {
@@ -444,39 +422,54 @@ export async function PUT(
         }
 
         // ENCRIPTAR el array como string JSON
-        (processedMedicalData as any)[field] = encrypt(JSON.stringify(cleanedArray));
+        const encryptedArray = encrypt(JSON.stringify(cleanedArray));
         
         logger.debug('CLIENTS', `Array ${field} procesado y encriptado`, {
           clientId: id,
           finalLength: cleanedArray.length
         });
+        
+        return encryptedArray;
+      };
+
+      // Procesar arrays en medicalData
+      const processedMedicalData = { ...data.medicalData };
+      
+      logger.debug('CLIENTS', 'Procesando arrays médicos para encriptación', {
+        clientId: id,
+        arrayFields
       });
 
-      // Procesar documents para encriptación
-      if (processedMedicalData.documents && Array.isArray(processedMedicalData.documents)) {
-        processedMedicalData.documents = encrypt(JSON.stringify(processedMedicalData.documents.map(doc => 
-          encryptObject(doc)
-        )));
-        logger.debug('CLIENTS', 'Documents procesado y encriptado', {
-          clientId: id,
-          documentCount: data.medicalData.documents.length
-        });
-      } else {
-        processedMedicalData.documents = encrypt(JSON.stringify([]));
-      }
+      arrayFields.forEach(field => {
+        const arrayData = (processedMedicalData as any)[field];
+        (processedMedicalData as any)[field] = processAndEncryptArray(field, arrayData);
+      });
 
-      // Procesar profilePhoto para encriptación
+      // ✅ Procesar profilePhoto para encriptación (usando encryptFileObject)
       const processedPersonalData = { ...data.personalData };
       if (processedPersonalData.profilePhoto && typeof processedPersonalData.profilePhoto === 'object') {
-        processedPersonalData.profilePhoto = encrypt(JSON.stringify(encryptObject(processedPersonalData.profilePhoto)));
+        processedPersonalData.profilePhoto = encryptFileObject(processedPersonalData.profilePhoto);
         logger.debug('CLIENTS', 'ProfilePhoto procesado y encriptado', { clientId: id });
       }
 
-      // Encriptar datos
+      // ✅ Procesar documents para encriptación (usando encryptFileObject en cada documento)
+      if (processedMedicalData.documents && Array.isArray(processedMedicalData.documents)) {
+        processedMedicalData.documents = processedMedicalData.documents.map(doc => 
+          encryptFileObject(doc)
+        );
+        logger.debug('CLIENTS', 'Documents procesado y encriptado', {
+          clientId: id,
+          documentCount: processedMedicalData.documents.length
+        });
+      } else {
+        processedMedicalData.documents = [];
+      }
+
+      // Encriptar datos personales y médicos
       logger.debug('ENCRYPTION', 'Encriptando datos personales y médicos', { clientId: id });
       
-      const encryptedPersonalData = encryptObject(processedPersonalData);
-      const encryptedMedicalData = encryptObject(processedMedicalData);
+      const encryptedPersonalData = encryptObjectData(processedPersonalData);
+      const encryptedMedicalData = encryptObjectData(processedMedicalData);
 
       const updateData = {
         personalData: encryptedPersonalData,
@@ -487,10 +480,13 @@ export async function PUT(
 
       // Logs de verificación
       logger.debug('ENCRYPTION', 'Datos encriptados', {
+        clientId: id,
         hasProfilePhoto: !!encryptedPersonalData.profilePhoto,
-        profilePhotoEncrypted: typeof encryptedPersonalData.profilePhoto === 'string',
+        profilePhotoType: typeof encryptedPersonalData.profilePhoto,
         hasDocuments: !!encryptedMedicalData.documents,
-        documentsEncrypted: typeof encryptedMedicalData.documents === 'string'
+        documentsIsArray: Array.isArray(encryptedMedicalData.documents),
+        documentsLength: Array.isArray(encryptedMedicalData.documents) ? 
+          encryptedMedicalData.documents.length : 'N/A'
       });
 
       logger.debug('CLIENTS', 'Ejecutando actualización en base de datos', { clientId: id });
@@ -592,7 +588,7 @@ export async function DELETE(
               
               // Si está encriptado como string, desencriptar y parsear
               if (typeof profilePhoto === 'string') {
-                const decrypted = smartDecrypt(profilePhoto);
+                const decrypted = safeDecrypt(profilePhoto);
                 profilePhoto = JSON.parse(decrypted);
                 
                 // Desencriptar campos internos si es necesario
@@ -600,7 +596,7 @@ export async function DELETE(
                   const decryptedPhoto: any = {};
                   for (const [key, value] of Object.entries(profilePhoto)) {
                     if (typeof value === 'string') {
-                      decryptedPhoto[key] = smartDecrypt(value);
+                      decryptedPhoto[key] = safeDecrypt(value);
                     } else {
                       decryptedPhoto[key] = value;
                     }
@@ -628,7 +624,7 @@ export async function DELETE(
               
               // Si está encriptado como string, desencriptar y parsear
               if (typeof documents === 'string') {
-                const decrypted = smartDecrypt(documents);
+                const decrypted = safeDecrypt(documents);
                 documents = JSON.parse(decrypted);
               }
               
@@ -637,7 +633,7 @@ export async function DELETE(
                   try {
                     // Si el documento es un string (encriptado), desencriptarlo
                     if (typeof doc === 'string') {
-                      const decryptedDoc = smartDecrypt(doc);
+                      const decryptedDoc = safeDecrypt(doc);
                       doc = JSON.parse(decryptedDoc);
                     }
                     
@@ -646,7 +642,7 @@ export async function DELETE(
                       const decryptedDoc: any = {};
                       for (const [key, value] of Object.entries(doc)) {
                         if (typeof value === 'string') {
-                          decryptedDoc[key] = smartDecrypt(value);
+                          decryptedDoc[key] = safeDecrypt(value);
                         } else {
                           decryptedDoc[key] = value;
                         }
