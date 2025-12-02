@@ -1,6 +1,6 @@
 // apps/api/src/app/lib/ai-service.ts
 import { logger } from './logger';
-import { encrypt, decrypt } from './encryption';
+import { encrypt, decrypt, safeDecrypt } from './encryption';
 import { 
   PersonalData, 
   MedicalData, 
@@ -8,7 +8,7 @@ import {
   TextractAnalysis,
   AIRecommendationSession,
   ClientAIProgress
-} from '@nel-healthcoach/types';
+} from '../../../../../packages/types/src/healthForm';
 
 export interface AIConfig {
   model: string;
@@ -269,13 +269,29 @@ ${currentProgress ? `Progreso actual: ${currentProgress.overallProgress}%` : ''}
    * Métodos auxiliares para desencriptar y formatear datos...
    */
   private static decryptPersonalData(data: PersonalData): any {
-    // Implementar desencriptación de campos sensibles
-    // Usar safeDecrypt de encryption.ts
-    return data;
+    const decrypted: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string') {
+        decrypted[key] = safeDecrypt(value);
+      } else {
+        decrypted[key] = value;
+      }
+    }
+    return decrypted;
   }
 
   private static decryptMedicalData(data: MedicalData): any {
-    return data;
+    const decrypted: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (key === 'documents') continue; // Los documentos se procesan por separado
+      
+      if (typeof value === 'string') {
+        decrypted[key] = safeDecrypt(value);
+      } else {
+        decrypted[key] = value;
+      }
+    }
+    return decrypted;
   }
 
   private static decryptDocuments(documents: Array<{ name: string; textractAnalysis?: TextractAnalysis }>): string {
@@ -451,36 +467,5 @@ ${currentProgress ? `Progreso actual: ${currentProgress.overallProgress}%` : ''}
     const percentage = Math.round((completed / checklist.length) * 100);
     
     return percentage;
-  }
-
-  /**
-   * Generar recomendaciones para el siguiente mes
-   */
-  static async generateNextMonthRecommendations(
-    previousSession: AIRecommendationSession,
-    checklistResults: any[],
-    coachNotes: string = ''
-  ): Promise<AIRecommendationSession> {
-    // Analizar qué se cumplió y qué no
-    const analysis = this.analyzeChecklistResults(checklistResults);
-    
-    // Construir prompt para siguiente mes
-    const prompt = `Basado en el mes anterior donde: ${analysis}
-    Notas del coach: ${coachNotes}
-    Genera recomendaciones para el mes siguiente, reforzando lo no cumplido y avanzando gradualmente.`;
-    
-    // Llamar a IA con contexto del mes anterior
-    return this.analyzeClientAndGenerateRecommendations({
-      // Necesitaríamos los datos originales del cliente aquí
-      // Esto sería implementado cuando tengamos el endpoint completo
-    }, previousSession.monthNumber + 1);
-  }
-
-  private static analyzeChecklistResults(checklist: any[]): string {
-    const completed = checklist.filter(item => item.completed);
-    const notCompleted = checklist.filter(item => !item.completed);
-    
-    return `Completados: ${completed.length}/${checklist.length}. 
-    No completados: ${notCompleted.map(item => `${item.category}: ${item.item}`).join(', ')}`;
   }
 }

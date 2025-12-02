@@ -6,6 +6,7 @@ import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } f
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
+import { TextractService } from '@/app/lib/textract';
 
 // GET: Obtener un cliente específico
 export async function GET(

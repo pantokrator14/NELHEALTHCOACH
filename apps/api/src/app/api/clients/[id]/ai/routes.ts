@@ -4,7 +4,7 @@ import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
-import { encrypt, safeDecrypt } from '@/app/lib/encryption';
+import { decrypt, encrypt, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
 import { TextractService } from '@/app/lib/textract';
 
@@ -343,7 +343,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[]) {
       const s3Key = safeDecrypt(decryptedDoc.key);
       
       // Determinar tipo de documento basado en nombre o tipo
-      const docType = determineDocumentType(decryptedDoc.name || '');
+      const docType = TextractService.determineDocumentType(decryptedDoc.name || '');
       
       // Procesar con Textract
       const analysis = await TextractService.processMedicalDocument(s3Key, docType);
@@ -354,7 +354,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[]) {
         extractedData: analysis.extractedData,
         extractionDate: analysis.extractedAt.toISOString(),
         extractionStatus: analysis.status,
-        confidence: analysis.status === 'completed' ? 85 : 0,
+        confidence: analysis.status === 'completed' ? analysis.confidence : 0,
         documentType: analysis.documentType
       };
       
@@ -378,24 +378,6 @@ async function reprocessClientDocuments(clientId: string, documents: any[]) {
     clientId, 
     processedCount: processedDocs.length 
   });
-}
-
-function determineDocumentType(filename: string): 'lab_results' | 'prescription' | 'medical_history' | 'other' {
-  const lowerName = filename.toLowerCase();
-  
-  if (lowerName.includes('lab') || lowerName.includes('resultado') || lowerName.includes('análisis')) {
-    return 'lab_results';
-  }
-  
-  if (lowerName.includes('receta') || lowerName.includes('prescripción') || lowerName.includes('medicamento')) {
-    return 'prescription';
-  }
-  
-  if (lowerName.includes('historial') || lowerName.includes('médico') || lowerName.includes('clínico')) {
-    return 'medical_history';
-  }
-  
-  return 'other';
 }
 
 async function updateChecklist(clientId: string, sessionId: string, checklistItems: any[]): Promise<boolean> {

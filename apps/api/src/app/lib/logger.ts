@@ -2,7 +2,7 @@
 
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI';
 
 interface LogEntry {
   timestamp: string;

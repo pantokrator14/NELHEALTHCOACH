@@ -5,6 +5,7 @@ export interface TextractAnalysis {
   extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   confidence?: number;
   documentType?: 'lab_results' | 'prescription' | 'medical_history' | 'other';
+  error?: string;
 }
 
 export interface UploadedFile {
@@ -110,6 +111,9 @@ export interface ClientDetails extends HealthFormData {
   
   // ✅ Nuevo campo para IA
   aiProgress?: ClientAIProgress;
+
+  // ✅ Campos para Textract
+  textractAnalysis?: TextractAnalysis;
 }
 
 export interface AIRecommendationWeek {

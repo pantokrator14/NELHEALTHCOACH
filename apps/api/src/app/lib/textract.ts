@@ -349,4 +349,25 @@ export class TextractService {
       return '';
     }
   }
+
+  /**
+   * Determina el tipo de documento basado en el nombre del archivo
+   */
+  static determineDocumentType(fileName: string): 'lab_results' | 'prescription' | 'medical_history' | 'other' {
+    const lowerName = fileName.toLowerCase();
+    
+    if (lowerName.includes('lab') || lowerName.includes('resultado') || lowerName.includes('análisis') || lowerName.includes('analisis')) {
+      return 'lab_results';
+    }
+    
+    if (lowerName.includes('receta') || lowerName.includes('prescripción') || lowerName.includes('prescripcion') || lowerName.includes('medicamento')) {
+      return 'prescription';
+    }
+    
+    if (lowerName.includes('historial') || lowerName.includes('médico') || lowerName.includes('medico') || lowerName.includes('clínico') || lowerName.includes('clinico')) {
+      return 'medical_history';
+    }
+    
+    return 'other';
+  }
 }
