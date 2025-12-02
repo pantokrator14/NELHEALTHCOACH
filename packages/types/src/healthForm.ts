@@ -1,3 +1,12 @@
+export interface TextractAnalysis {
+  extractedText?: string;        // Texto extraído (encriptado)
+  extractedData?: string;        // Datos estructurados (encriptados)
+  extractionDate?: string;
+  extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  confidence?: number;
+  documentType?: 'lab_results' | 'prescription' | 'medical_history' | 'other';
+}
+
 export interface UploadedFile {
   url: string;
   key: string;
@@ -16,6 +25,7 @@ export interface UploadedFile {
     forms?: Record<string, string>;
   };
 
+  textractAnalysis?: TextractAnalysis;
 }
 
 export interface PersonalData {
@@ -96,5 +106,96 @@ export interface ClientDetails extends HealthFormData {
   _id: string;
   ipAddress: string;
   submissionDate: string;
-  updatedAt?: string; // ✅ Añadido para tracking de actualizaciones
+  updatedAt?: string;
+  
+  // ✅ Nuevo campo para IA
+  aiProgress?: ClientAIProgress;
+}
+
+export interface AIRecommendationWeek {
+  weekNumber: 1 | 2 | 3 | 4;
+  nutrition: {
+    focus: string;
+    meals: string[];
+    recipes: Array<{
+      name: string;
+      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
+      preparation: string;
+      tips?: string;
+    }>;
+    shoppingList: Array<{ item: string; quantity: string; priority: 'high' | 'medium' | 'low' }>;
+  };
+  exercise: {
+    routine: string;
+    frequency: string;
+    duration: string;
+    adaptations: string[];
+    equipment?: string[];
+  };
+  habits: {
+    toAdopt: string[];
+    toEliminate: string[];
+    trackingMethod: string;
+    motivationTip?: string;
+  };
+}
+
+export interface AIRecommendationSession {
+  sessionId: string;
+  monthNumber: number;
+  createdAt: Date;
+  updatedAt: Date;
+  status: 'draft' | 'approved' | 'sent';
+  
+  // Análisis inicial
+  summary: string;          // Resumen general del estado
+  vision: string;          // Visión a 1 año
+  
+  // Datos base
+  baselineMetrics: {
+    currentWeight?: number;
+    targetWeight?: number;
+    currentLifestyle: string[];
+    targetLifestyle: string[];
+  };
+  
+  // Recomendaciones
+  weeks: AIRecommendationWeek[];
+  
+  // Seguimiento
+  checklist?: Array<{
+    weekNumber: number;
+    category: 'nutrition' | 'exercise' | 'habit';
+    item: string;
+    completed: boolean;
+    completedDate?: Date;
+    notes?: string;
+  }>;
+  
+  // Metadatos del coach
+  coachNotes?: string;
+  approvedAt?: Date;
+  sentAt?: Date;
+  
+  // Para historial
+  previousSessionId?: string;
+}
+
+export interface ClientAIProgress {
+  clientId: string;
+  currentSessionId?: string;
+  sessions: AIRecommendationSession[];
+  overallProgress: number; // 0-100%
+  lastEvaluation?: Date;
+  nextEvaluation?: Date;
+  
+  // Estadísticas
+  metrics: {
+    nutritionAdherence: number;
+    exerciseConsistency: number;
+    habitFormation: number;
+    weightProgress?: number;
+    energyLevel?: number;
+    sleepQuality?: number;
+  };
 }
