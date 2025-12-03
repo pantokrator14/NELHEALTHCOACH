@@ -5,6 +5,7 @@ import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
 import { apiClient } from '@/lib/api';
 import Image from 'next/image'
+import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
 
 interface UploadedFile {
   url: string;
@@ -307,12 +308,6 @@ export default function ClientProfile() {
     }
   }
 
-
-  const handleGenerateRecommendations = () => {
-    // Placeholder para futura integración con IA
-    alert('Esta funcionalidad estará disponible pronto con la integración de IA')
-  }
-
   // Función para obtener la etiqueta de la opción de salud mental
   const getMentalHealthLabel = (field: string, value: string): string => {
     if (!value) return 'No especificado'
@@ -417,6 +412,8 @@ export default function ClientProfile() {
       alert('Error al eliminar el documento: ' + (error as Error).message);
     }
   };
+
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   // Función para subir nuevos documentos (USANDO API CLIENT CORREGIDO)
   const handleUploadDocuments = async () => {
@@ -1112,22 +1109,22 @@ export default function ClientProfile() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-green-700">
-                  Recomendaciones
+                  Recomendaciones de IA
                 </h2>
               </div>
               
               <div className="text-center py-4">
                 <button
-                  onClick={handleGenerateRecommendations}
+                  onClick={() => setIsAIModalOpen(true)}
                   className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 shadow-lg flex items-center justify-center mx-auto"
                 >
                   <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  Generar Recomendaciones
+                  Ver Recomendaciones
                 </button>
                 <p className="text-gray-600 text-sm mt-3">
-                  Las recomendaciones personalizadas se generarán usando IA avanzada
+                  Recomendaciones personalizadas generadas por IA avanzada
                 </p>
               </div>
             </div>
@@ -1390,6 +1387,15 @@ export default function ClientProfile() {
               </div>
             </div>
           </div>
+        )}
+        {/* Modal de IA */}
+        {isAIModalOpen && (
+          <AIRecommendationsModal
+            clientId={clientId}
+            clientName={client.personalData.name}
+            onClose={() => setIsAIModalOpen(false)}
+            onRecommendationsGenerated={fetchClient}
+          />
         )}
       </Layout>
     </>

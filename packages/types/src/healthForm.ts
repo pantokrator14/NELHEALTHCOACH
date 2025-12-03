@@ -8,6 +8,27 @@ export interface TextractAnalysis {
   error?: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  description: string;
+  completed: boolean;
+  completedDate?: Date;
+  notes?: string;
+  weekNumber: number;
+  category: 'nutrition' | 'exercise' | 'habit';
+  type?: string; // 'breakfast', 'lunch', 'dinner', 'cardio', 'strength', 'toAdopt', 'toEliminate'
+  details?: {
+    recipe?: {
+      ingredients: Array<{name: string; quantity: string; notes?: string}>;
+      preparation: string;
+      tips?: string;
+    };
+    frequency?: string;
+    duration?: string;
+    equipment?: string[];
+  };
+}
+
 export interface UploadedFile {
   url: string;
   key: string;
@@ -120,29 +141,21 @@ export interface AIRecommendationWeek {
   weekNumber: 1 | 2 | 3 | 4;
   nutrition: {
     focus: string;
-    meals: string[];
-    recipes: Array<{
-      name: string;
-      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
-      preparation: string;
-      tips?: string;
-    }>;
-    shoppingList: Array<{ item: string; quantity: string; priority: 'high' | 'medium' | 'low' }>;
+    checklistItems: ChecklistItem[];
+    shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
   };
   exercise: {
-    routine: string;
-    frequency: string;
-    duration: string;
-    adaptations: string[];
+    focus: string;
+    checklistItems: ChecklistItem[];
     equipment?: string[];
   };
   habits: {
-    toAdopt: string[];
-    toEliminate: string[];
-    trackingMethod: string;
+    checklistItems: ChecklistItem[];
+    trackingMethod?: string;
     motivationTip?: string;
   };
 }
+
 
 export interface AIRecommendationSession {
   sessionId: string;
@@ -151,11 +164,9 @@ export interface AIRecommendationSession {
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent';
   
-  // Análisis inicial
-  summary: string;          // Resumen general del estado
-  vision: string;          // Visión a 1 año
+  summary: string;
+  vision: string;
   
-  // Datos base
   baselineMetrics: {
     currentWeight?: number;
     targetWeight?: number;
@@ -163,25 +174,14 @@ export interface AIRecommendationSession {
     targetLifestyle: string[];
   };
   
-  // Recomendaciones
   weeks: AIRecommendationWeek[];
   
-  // Seguimiento
-  checklist?: Array<{
-    weekNumber: number;
-    category: 'nutrition' | 'exercise' | 'habit';
-    item: string;
-    completed: boolean;
-    completedDate?: Date;
-    notes?: string;
-  }>;
+  // Checklist completo (todos los items de todas las semanas)
+  checklist: ChecklistItem[];
   
-  // Metadatos del coach
   coachNotes?: string;
   approvedAt?: Date;
   sentAt?: Date;
-  
-  // Para historial
   previousSessionId?: string;
 }
 

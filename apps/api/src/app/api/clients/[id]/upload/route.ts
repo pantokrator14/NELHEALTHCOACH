@@ -4,6 +4,7 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { TextractService } from '@/app/lib/textract';
 
 // POST: Obtener URLs para upload (ACCESO PÚBLICO COMPLETO - SIN AUTENTICACIÓN)
 export async function POST(
@@ -190,7 +191,7 @@ export async function PUT(
       }
 
       // ✅ ENCRIPTAR EL NUEVO ARCHIVO
-      const encryptedFile = encryptFileObject(uploadedFile);
+      let encryptedFile = encryptFileObject(uploadedFile);
 
       let updateData: any = {};
 
@@ -202,6 +203,19 @@ export async function PUT(
           } 
         };
       } else {
+        // ✅ PARA DOCUMENTOS: AÑADIR CAMPOS DE TEXTRACT
+        const textractAnalysis = {
+          extractionStatus: 'pending' as const,
+          extractionDate: new Date().toISOString(),
+          documentType: TextractService.determineDocumentType(fileName)
+        };
+
+        // Añadir análisis de Textract al documento
+        encryptedFile = {
+          ...encryptedFile,
+          textractAnalysis
+        };
+
         updateData = { 
           $push: { 
             'medicalData.documents': encryptedFile 
@@ -230,6 +244,17 @@ export async function PUT(
         fileName
       });
 
+      // ✅ PROCESAR DOCUMENTOS CON TEXTRACT EN SEGUNDO PLANO
+      if (fileCategory === 'document') {
+        processDocumentWithTextract(id, fileKey, fileName).catch(error => {
+          logger.error('UPLOAD', 'Error procesando documento con Textract', error as Error, {
+            clientId: id,
+            fileKey,
+            fileName
+          });
+        });
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Archivo guardado exitosamente',
@@ -251,6 +276,7 @@ export async function PUT(
     }
   }, { endpoint: `/api/clients/${(await params).id}/upload`, clientId: (await params).id });
 }
+
 // DELETE: Eliminar documento
 export async function DELETE(
   request: NextRequest,
@@ -489,4 +515,108 @@ export async function DELETE(
       );
     }
   }, { endpoint: `/api/clients/${(await params).id}/upload`, clientId: (await params).id });
+}
+
+// ✅ FUNCIÓN PARA PROCESAR DOCUMENTO CON TEXTRACT EN SEGUNDO PLANO
+async function processDocumentWithTextract(clientId: string, fileKey: string, fileName: string) {
+  try {
+    logger.info('TEXTRACT', 'Iniciando procesamiento de documento en segundo plano', {
+      clientId,
+      fileKey,
+      fileName
+    });
+
+    // Determinar tipo de documento
+    const documentType = TextractService.determineDocumentType(fileName);
+    
+    // Procesar con Textract
+    const analysis = await TextractService.processMedicalDocument(fileKey, documentType);
+    
+    // Obtener colección de healthforms
+    const healthForms = await getHealthFormsCollection();
+    
+    // Buscar el documento en el array de documentos del cliente
+    const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
+    
+    if (!client || !client.medicalData?.documents) {
+      logger.warn('TEXTRACT', 'Cliente o documentos no encontrados', { clientId });
+      return;
+    }
+    
+    let documents = client.medicalData.documents;
+    let documentFound = false;
+    
+    // Buscar y actualizar el documento específico
+    const updatedDocuments = documents.map((doc: any) => {
+      // Si el documento es un string (encriptado), desencriptarlo
+      let decryptedDoc = doc;
+      if (typeof doc === 'string') {
+        try {
+          decryptedDoc = JSON.parse(safeDecrypt(doc));
+        } catch (error) {
+          logger.error('TEXTRACT', 'Error desencriptando documento', error as Error, {
+            clientId,
+            fileKey
+          });
+          return doc; // Devolver el original si hay error
+        }
+      }
+      
+      // Verificar si es el documento que estamos buscando
+      let currentKey = decryptedDoc.key;
+      if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
+        currentKey = decrypt(currentKey);
+      }
+      
+      if (currentKey === fileKey) {
+        documentFound = true;
+        
+        // Actualizar con el análisis de Textract
+        const updatedDoc = {
+          ...decryptedDoc,
+          textractAnalysis: {
+            extractedText: analysis.extractedText,
+            extractedData: analysis.extractedData,
+            extractionDate: analysis.extractedAt.toISOString(),
+            extractionStatus: analysis.status,
+            confidence: analysis.status === 'completed' ? analysis.confidence : 0,
+            documentType: analysis.documentType,
+            error: analysis.error
+          }
+        };
+        
+        // Volver a encriptar el documento
+        return encrypt(JSON.stringify(updatedDoc));
+      }
+      
+      return doc;
+    });
+    
+    if (documentFound) {
+      // Actualizar en la base de datos
+      await healthForms.updateOne(
+        { _id: new ObjectId(clientId) },
+        { $set: { 'medicalData.documents': updatedDocuments } }
+      );
+      
+      logger.info('TEXTRACT', '✅ Análisis de Textract guardado exitosamente', {
+        clientId,
+        fileKey,
+        status: analysis.status,
+        textLength: analysis.status === 'completed' ? 'extraído' : 'falló'
+      });
+    } else {
+      logger.warn('TEXTRACT', 'Documento no encontrado en el array para actualizar', {
+        clientId,
+        fileKey,
+        totalDocuments: documents.length
+      });
+    }
+    
+  } catch (error) {
+    logger.error('TEXTRACT', 'Error procesando documento con Textract', error as Error, {
+      clientId,
+      fileKey
+    });
+  }
 }

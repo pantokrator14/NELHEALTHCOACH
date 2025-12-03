@@ -201,5 +201,111 @@ export const apiClient = {
       console.error('❌ Error en deleteDocument:', error);
       throw error;
     }
+  },
+
+  // Métodos para IA
+  async generateAIRecommendations(
+    clientId: string, 
+    monthNumber: number = 1, 
+    reprocessDocuments: boolean = false,
+    coachNotes: string = ''
+  ) {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        monthNumber,
+        reprocessDocuments,
+        coachNotes
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error generando recomendaciones de IA');
+    }
+    return response.json();
+  },
+
+  async getAIProgress(clientId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al cargar progreso de IA');
+    }
+    return response.json();
+  },
+
+  async updateAIChecklist(clientId: string, sessionId: string, checklistItems: any[]) {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'update_checklist',
+        sessionId,
+        data: { checklistItems }
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando checklist');
+    }
+    return response.json();
+  },
+
+  async approveAISession(clientId: string, sessionId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'approve_session',
+        sessionId
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error aprobando sesión');
+    }
+    return response.json();
+  },
+
+  async sendAISessionToClient(clientId: string, sessionId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'send_to_client',
+        sessionId
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error enviando sesión al cliente');
+    }
+    return response.json();
+  },
+
+  async regenerateAISession(clientId: string, sessionId: string, coachNotes: string = '') {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'regenerate_session',
+        sessionId,
+        data: { coachNotes }
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error regenerando sesión');
+    }
+    return response.json();
   }
 };
