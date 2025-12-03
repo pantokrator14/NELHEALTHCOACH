@@ -7,7 +7,9 @@ import {
   UploadedFile,
   TextractAnalysis,
   AIRecommendationSession,
-  ClientAIProgress
+  ClientAIProgress,
+  AIRecommendationWeek,
+  ChecklistItem
 } from '../../../../../packages/types/src/healthForm';
 
 // Nuevas interfaces para la respuesta de IA
@@ -142,33 +144,47 @@ export class AIService {
         });
 
         // Convertir la respuesta al formato de ChecklistItem
-        const weeks: AIRecommendationWeek[] = parsedResponse.weeks.map((weekResp, weekIndex) => {
-          // Nutrición
+         const weeks: AIRecommendationWeek[] = parsedResponse.weeks.map((weekResp, weekIndex) => {
+          // Nutrición - ENCRIPTAR descripciones
           const nutritionChecklistItems: ChecklistItem[] = weekResp.nutrition.checklistItems.map((item, itemIndex) => ({
             id: `nutrition_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: item.description,
+            description: encrypt(item.description), // ✅ ENCRIPTAR
             completed: false,
             weekNumber: weekResp.weekNumber,
             category: 'nutrition' as const,
             type: item.type,
-            details: item.details
+            details: item.details ? {
+              recipe: item.details.recipe ? {
+                ingredients: item.details.recipe.ingredients.map(ing => ({
+                  name: encrypt(ing.name), // ✅ ENCRIPTAR
+                  quantity: encrypt(ing.quantity), // ✅ ENCRIPTAR
+                  notes: ing.notes ? encrypt(ing.notes) : undefined // ✅ ENCRIPTAR
+                })),
+                preparation: encrypt(item.details.recipe.preparation), // ✅ ENCRIPTAR
+                tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined // ✅ ENCRIPTAR
+              } : undefined
+            } : undefined
           }));
           
-          // Ejercicio
+          // Ejercicio - ENCRIPTAR descripciones
           const exerciseChecklistItems: ChecklistItem[] = weekResp.exercise.checklistItems.map((item, itemIndex) => ({
             id: `exercise_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: item.description,
+            description: encrypt(item.description), // ✅ ENCRIPTAR
             completed: false,
             weekNumber: weekResp.weekNumber,
             category: 'exercise' as const,
             type: item.type,
-            details: item.details
+            details: item.details ? {
+              frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined, // ✅ ENCRIPTAR
+              duration: item.details.duration ? encrypt(item.details.duration) : undefined, // ✅ ENCRIPTAR
+              equipment: item.details.equipment?.map(eq => encrypt(eq)) // ✅ ENCRIPTAR
+            } : undefined
           }));
           
-          // Hábitos
+          // Hábitos - ENCRIPTAR descripciones
           const habitsChecklistItems: ChecklistItem[] = weekResp.habits.checklistItems.map((item, itemIndex) => ({
             id: `habit_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: item.description,
+            description: encrypt(item.description), // ✅ ENCRIPTAR
             completed: false,
             weekNumber: weekResp.weekNumber,
             category: 'habit' as const,
@@ -179,19 +195,25 @@ export class AIService {
           return {
             weekNumber: weekResp.weekNumber as 1 | 2 | 3 | 4,
             nutrition: {
-              focus: weekResp.nutrition.focus,
+              focus: encrypt(weekResp.nutrition.focus), // ✅ ENCRIPTAR
               checklistItems: nutritionChecklistItems,
-              shoppingList: weekResp.nutrition.shoppingList
+              shoppingList: weekResp.nutrition.shoppingList.map(item => ({
+                item: encrypt(item.item), // ✅ ENCRIPTAR
+                quantity: encrypt(item.quantity), // ✅ ENCRIPTAR
+                priority: item.priority
+              }))
             },
             exercise: {
-              focus: weekResp.exercise.focus,
+              focus: encrypt(weekResp.exercise.focus), // ✅ ENCRIPTAR
               checklistItems: exerciseChecklistItems,
-              equipment: weekResp.exercise.checklistItems.flatMap(item => item.details?.equipment || [])
+              equipment: weekResp.exercise.checklistItems.flatMap(item => 
+                item.details?.equipment?.map(eq => encrypt(eq)) || [] // ✅ ENCRIPTAR
+              )
             },
             habits: {
               checklistItems: habitsChecklistItems,
-              trackingMethod: weekResp.habits.trackingMethod,
-              motivationTip: weekResp.habits.motivationTip
+              trackingMethod: weekResp.habits.trackingMethod ? encrypt(weekResp.habits.trackingMethod) : undefined, // ✅ ENCRIPTAR
+              motivationTip: weekResp.habits.motivationTip ? encrypt(weekResp.habits.motivationTip) : undefined // ✅ ENCRIPTAR
             }
           };
         });

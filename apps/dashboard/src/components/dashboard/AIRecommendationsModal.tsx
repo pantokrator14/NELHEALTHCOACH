@@ -1,6 +1,37 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 
+const decryptData = (data: any): any => {
+  if (!data) return data;
+  
+  if (typeof data === 'string') {
+    try {
+      // Intentar desencriptar si parece estar encriptado
+      if (data.startsWith('U2FsdGVkX1')) {
+        const decrypted = window.atob(data); // Usar la función de desencriptación real
+        return decrypted;
+      }
+      return data;
+    } catch (error) {
+      return data;
+    }
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(item => decryptData(item));
+  }
+  
+  if (typeof data === 'object') {
+    const result: any = {};
+    for (const key in data) {
+      result[key] = decryptData(data[key]);
+    }
+    return result;
+  }
+  
+  return data;
+};
+
 // Interfaces actualizadas según la nueva estructura
 interface ChecklistItem {
   id: string;
@@ -94,6 +125,116 @@ export default function AIRecommendationsModal({
   onClose, 
   onRecommendationsGenerated 
 }: AIRecommendationsModalProps) {
+  
+  const convertToNewStructure = (weeks: any[]): AIRecommendationWeek[] => {
+    if (!weeks || !Array.isArray(weeks)) return [];
+    
+    return weeks.map((week, weekIndex) => {
+      // Verificar si ya tiene la nueva estructura
+      if (week.nutrition?.checklistItems && Array.isArray(week.nutrition.checklistItems)) {
+        return week;
+      }
+      
+      // Convertir estructura antigua a nueva
+      const nutritionChecklistItems: ChecklistItem[] = [];
+      const exerciseChecklistItems: ChecklistItem[] = [];
+      const habitsChecklistItems: ChecklistItem[] = [];
+      
+      // Convertir meals a checklistItems
+      if (week.nutrition?.meals && Array.isArray(week.nutrition.meals)) {
+        week.nutrition.meals.forEach((meal: string, index: number) => {
+          nutritionChecklistItems.push({
+            id: `nutrition_${weekIndex}_${index}_${Date.now()}`,
+            description: meal,
+            completed: false,
+            weekNumber: week.weekNumber || (weekIndex + 1),
+            category: 'nutrition',
+            type: index === 0 ? 'breakfast' : index === 1 ? 'lunch' : 'dinner',
+            details: week.nutrition?.recipes?.[index] ? {
+              recipe: week.nutrition.recipes[index]
+            } : undefined
+          });
+        });
+      }
+      
+      // Convertir exercise routine a checklistItems
+      if (week.exercise?.routine) {
+        exerciseChecklistItems.push({
+          id: `exercise_${weekIndex}_0_${Date.now()}`,
+          description: week.exercise.routine,
+          completed: false,
+          weekNumber: week.weekNumber || (weekIndex + 1),
+          category: 'exercise',
+          details: {
+            frequency: week.exercise.frequency,
+            duration: week.exercise.duration,
+            equipment: week.exercise.equipment
+          }
+        });
+      }
+      
+      // Convertir adaptations a checklistItems
+      if (week.exercise?.adaptations && Array.isArray(week.exercise.adaptations)) {
+        week.exercise.adaptations.forEach((adaptation: string, index: number) => {
+          exerciseChecklistItems.push({
+            id: `exercise_adapt_${weekIndex}_${index}_${Date.now()}`,
+            description: adaptation,
+            completed: false,
+            weekNumber: week.weekNumber || (weekIndex + 1),
+            category: 'exercise',
+            type: 'adaptation'
+          });
+        });
+      }
+      
+      // Convertir hábitos
+      if (week.habits?.toAdopt && Array.isArray(week.habits.toAdopt)) {
+        week.habits.toAdopt.forEach((habit: string, index: number) => {
+          habitsChecklistItems.push({
+            id: `habit_adopt_${weekIndex}_${index}_${Date.now()}`,
+            description: habit,
+            completed: false,
+            weekNumber: week.weekNumber || (weekIndex + 1),
+            category: 'habit',
+            type: 'toAdopt'
+          });
+        });
+      }
+      
+      if (week.habits?.toEliminate && Array.isArray(week.habits.toEliminate)) {
+        week.habits.toEliminate.forEach((habit: string, index: number) => {
+          habitsChecklistItems.push({
+            id: `habit_eliminate_${weekIndex}_${index}_${Date.now()}`,
+            description: habit,
+            completed: false,
+            weekNumber: week.weekNumber || (weekIndex + 1),
+            category: 'habit',
+            type: 'toEliminate'
+          });
+        });
+      }
+      
+      return {
+        weekNumber: (week.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
+        nutrition: {
+          focus: week.nutrition?.focus || 'Nutrición keto',
+          checklistItems: nutritionChecklistItems,
+          shoppingList: week.nutrition?.shoppingList || []
+        },
+        exercise: {
+          focus: week.exercise?.focus || week.exercise?.routine || 'Ejercicio adaptado',
+          checklistItems: exerciseChecklistItems,
+          equipment: week.exercise?.equipment || []
+        },
+        habits: {
+          checklistItems: habitsChecklistItems,
+          trackingMethod: week.habits?.trackingMethod,
+          motivationTip: week.habits?.motivationTip
+        }
+      };
+    });
+  };
+
   // Estados principales
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,8 +296,10 @@ export default function AIRecommendationsModal({
       setLoading(true);
       const response = await apiClient.getAIProgress(clientId);
       if (response.data.hasAIProgress) {
-        setAiProgress(response.data.aiProgress);
-        // Establecer el último mes como activo
+        // Desencriptar los datos recibidos
+        const decryptedProgress = decryptData(response.data.aiProgress);
+        setAiProgress(decryptedProgress);
+        
         const lastMonth = Math.max(...response.data.aiProgress.sessions.map(s => s.monthNumber));
         if (lastMonth > 0) {
           setActiveMonthTab(lastMonth);
@@ -405,12 +548,16 @@ export default function AIRecommendationsModal({
   };
 
   // Renderizar semana completa
-  const renderWeek = (week: AIRecommendationWeek, weekIndex: number, sessionId: string) => {
+  const renderWeek = (week: any, weekIndex: number, sessionId: string) => {
+    // Asegurarnos de que week tenga la estructura correcta
+    const processedWeek = week.nutrition?.checklistItems ? week : convertToNewStructure([week])[0];
+    
+    // Resto del código de renderWeek usando processedWeek en lugar de week
     const isExpanded = expandedWeeks.includes(weekIndex);
     const weekId = `${sessionId}_week_${weekIndex}`;
     
     // Calcular progreso de la semana
-    const weekItems = activeSession?.checklist.filter(item => item.weekNumber === week.weekNumber) || [];
+    const weekItems = activeSession?.checklist?.filter(item => item.weekNumber === processedWeek.weekNumber) || [];
     const completedWeekItems = weekItems.filter(item => item.completed).length;
     const weekProgress = weekItems.length > 0 ? Math.round((completedWeekItems / weekItems.length) * 100) : 0;
 
@@ -754,7 +901,7 @@ export default function AIRecommendationsModal({
                     value={coachNotes}
                     onChange={(e) => setCoachNotes(e.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Agrega observaciones específicas o instrucciones para la IA..."
                   />
                 </div>

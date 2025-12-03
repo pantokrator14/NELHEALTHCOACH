@@ -549,7 +549,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
 }
 
 async function reprocessClientDocuments(clientId: string, documents: any[], requestId: string) {
-  const loggerWithContext = logger.withContext({ requestId, clientId });
+  const loggerWithContext = requestId ? logger.withContext({ requestId, clientId }) : logger;
   
   loggerWithContext.info('TEXTRACT', 'Reprocesando documentos del cliente');
   
@@ -567,10 +567,6 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
       return;
     }
     
-    loggerWithContext.debug('TEXTRACT', 'Documentos a reprocesar', {
-      documentCount: docsArray.length
-    });
-    
     const processingPromises = docsArray.map(async (doc, index) => {
       try {
         let decryptedDoc = doc;
@@ -580,28 +576,37 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
           decryptedDoc = JSON.parse(safeDecrypt(doc));
         }
         
+        // Desencriptar el nombre del documento para mostrarlo
+        const originalName = safeDecrypt(decryptedDoc.name || '');
         const s3Key = safeDecrypt(decryptedDoc.key);
-        const docName = safeDecrypt(decryptedDoc.name || '');
         
         loggerWithContext.debug('TEXTRACT', `Procesando documento ${index}`, {
           s3Key,
-          originalName: docName
+          originalName
         });
 
         // Determinar tipo de documento
-        const docType = TextractService.determineDocumentType(docName);
+        const docType = TextractService.determineDocumentType(originalName);
         
         // Procesar con Textract
         const analysis = await TextractService.processMedicalDocument(s3Key, docType);
         
-        // Actualizar documento con análisis
-        decryptedDoc.textractAnalysis = {
-          extractedText: analysis.extractedText,
-          extractedData: analysis.extractedData,
-          extractionDate: analysis.extractedAt.toISOString(),
-          extractionStatus: analysis.status,
-          confidence: analysis.status === 'completed' ? analysis.confidence : 0,
-          documentType: analysis.documentType
+        // Crear nuevo documento con campos encriptados apropiadamente
+        const updatedDoc = {
+          name: encrypt(originalName), // ✅ Nombre encriptado
+          key: encrypt(s3Key), // ✅ Key encriptada
+          type: decryptedDoc.type,
+          size: decryptedDoc.size,
+          uploadedAt: decryptedDoc.uploadedAt,
+          url: decryptedDoc.url, // URL puede permanecer sin encriptar
+          textractAnalysis: {
+            extractedText: analysis.extractedText,
+            extractedData: analysis.extractedData,
+            extractionDate: analysis.extractedAt.toISOString(),
+            extractionStatus: analysis.status,
+            confidence: analysis.status === 'completed' ? analysis.confidence : 0,
+            documentType: analysis.documentType
+          }
         };
         
         loggerWithContext.debug('TEXTRACT', `Documento ${index} procesado`, {
@@ -609,7 +614,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
           confidence: analysis.confidence
         });
         
-        return encrypt(JSON.stringify(decryptedDoc));
+        return encrypt(JSON.stringify(updatedDoc));
       } catch (error) {
         loggerWithContext.error('TEXTRACT', `Error reprocesando documento ${index}`, error as Error);
         return doc;
@@ -627,9 +632,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
     
     loggerWithContext.info('TEXTRACT', 'Documentos reprocesados', { 
       clientId, 
-      processedCount: processedDocs.length,
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount
+      processedCount: processedDocs.length
     });
     
   } catch (error) {
