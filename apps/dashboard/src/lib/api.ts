@@ -239,21 +239,29 @@ export const apiClient = {
     return response.json();
   },
 
-  async updateAIChecklist(clientId: string, sessionId: string, checklistItems: any[]) {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+  updateAIChecklist: async (
+    clientId: string, 
+    sessionId: string, 
+    checklistItems: ChecklistItem[]
+  ) => {
+    const response = await fetch(`/api/clients/${clientId}/ai`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
       body: JSON.stringify({
         action: 'update_checklist',
         sessionId,
         data: { checklistItems }
-      }),
+      })
     });
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error actualizando checklist');
+      const error = await response.json();
+      throw new Error(error.message || 'Error actualizando checklist');
     }
+    
     return response.json();
   },
 

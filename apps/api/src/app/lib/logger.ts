@@ -1,7 +1,7 @@
 // apps/api/src/app/lib/logger.ts
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'FRONTEND';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'FRONTEND' | 'REPAIR';
 
 interface LogEntry {
   timestamp: string;

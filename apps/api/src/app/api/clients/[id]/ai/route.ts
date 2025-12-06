@@ -4,10 +4,95 @@ import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
-import { decrypt, encrypt, safeDecrypt } from '@/app/lib/encryption';
+import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
 import { TextractService } from '@/app/lib/textract';
 import { ChecklistItem } from '../../../../../../../../packages/types/src/healthForm';
+
+function decryptAISessionCompletely(session: any): any {
+  try {
+    return {
+      ...session,
+      summary: safeDecrypt(session.summary),
+      vision: safeDecrypt(session.vision),
+      weeks: session.weeks?.map((week: any) => ({
+        weekNumber: week.weekNumber,
+        nutrition: {
+          focus: safeDecrypt(week.nutrition.focus),
+          checklistItems: week.nutrition.checklistItems?.map((item: any) => ({
+            ...item,
+            description: safeDecrypt(item.description),
+            details: item.details ? {
+              ...item.details,
+              recipe: item.details.recipe ? {
+                ...item.details.recipe,
+                ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+                  name: safeDecrypt(ing.name),
+                  quantity: safeDecrypt(ing.quantity),
+                  notes: ing.notes ? safeDecrypt(ing.notes) : undefined
+                })) || [],
+                preparation: safeDecrypt(item.details.recipe.preparation),
+                tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
+              } : undefined,
+              frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
+              duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
+              equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
+            } : undefined
+          })) || [],
+          shoppingList: week.nutrition.shoppingList?.map((item: any) => ({
+            item: safeDecrypt(item.item),
+            quantity: safeDecrypt(item.quantity),
+            priority: item.priority
+          })) || []
+        },
+        exercise: {
+          focus: safeDecrypt(week.exercise.focus),
+          checklistItems: week.exercise.checklistItems?.map((item: any) => ({
+            ...item,
+            description: safeDecrypt(item.description),
+            details: item.details ? {
+              frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
+              duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
+              equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
+            } : undefined
+          })) || [],
+          equipment: week.exercise.equipment?.map((eq: string) => safeDecrypt(eq)) || []
+        },
+        habits: {
+          checklistItems: week.habits.checklistItems?.map((item: any) => ({
+            ...item,
+            description: safeDecrypt(item.description)
+          })) || [],
+          trackingMethod: week.habits.trackingMethod ? safeDecrypt(week.habits.trackingMethod) : undefined,
+          motivationTip: week.habits.motivationTip ? safeDecrypt(week.habits.motivationTip) : undefined
+        }
+      })) || [],
+      checklist: session.checklist?.map((item: any) => ({
+        ...item,
+        description: safeDecrypt(item.description),
+        details: item.details ? {
+          ...item.details,
+          recipe: item.details.recipe ? {
+            ...item.details.recipe,
+            ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+              name: safeDecrypt(ing.name),
+              quantity: safeDecrypt(ing.quantity),
+              notes: ing.notes ? safeDecrypt(ing.notes) : undefined
+            })) || [],
+            preparation: safeDecrypt(item.details.recipe.preparation),
+            tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
+          } : undefined,
+          frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
+          duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
+          equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
+        } : undefined
+      })) || []
+    };
+  } catch (error) {
+    logger.error('AI', 'Error desencriptando sesión completa', error as Error);
+    return session;
+  }
+}
 
 // GET: Obtener recomendaciones de IA existentes
 export async function GET(
@@ -68,22 +153,11 @@ export async function GET(
       });
 
       // Desencriptar sesiones si es necesario
-      const decryptedSessions = aiProgress.sessions?.map(session => {
-        try {
-          return {
-            ...session,
-            summary: safeDecrypt(session.summary),
-            vision: safeDecrypt(session.vision)
-          };
-        } catch (error) {
-          loggerWithContext.error('AI', 'Error desencriptando sesión', error as Error, {
-            sessionId: session.sessionId
-          });
-          return session;
-        }
-      }) || [];
+      const decryptedSessions = aiProgress.sessions?.map(session => 
+        decryptAISessionCompletely(session)
+      ) || [];
 
-      loggerWithContext.info('AI', 'Sesiones desencriptadas', {
+      loggerWithContext.info('AI', 'Sesiones completamente desencriptadas', {
         sessionCount: decryptedSessions.length
       });
 
@@ -93,10 +167,10 @@ export async function GET(
           hasAIProgress: true,
           aiProgress: {
             ...aiProgress,
-            sessions: decryptedSessions
+            sessions: decryptedSessions  // ✅ Ahora completamente desencriptadas
           }
         },
-        requestId // Para debugging en frontend
+        requestId
       });
 
     } catch (error: any) {
@@ -226,8 +300,20 @@ export async function POST(
         }
       };
 
-      if (!client.aiProgress) {
-        // Primera vez: crear estructura de progreso
+      // Verificar si ya existe una sesión para este mes
+      const existingSessionIndex = client.aiProgress?.sessions?.findIndex(
+        (s: any) => s.monthNumber === monthNumber
+      );
+
+      loggerWithContext.debug('AI', 'Buscando sesión existente', {
+        monthNumber,
+        hasAIProgress: !!client.aiProgress,
+        sessionsCount: client.aiProgress?.sessions?.length || 0,
+        existingSessionIndex
+      });
+
+      if (!client.aiProgress || existingSessionIndex === -1) {
+        // Primera vez para este mes: crear estructura
         updateData.$set['aiProgress'] = {
           clientId: id,
           currentSessionId: recommendations.sessionId,
@@ -242,18 +328,24 @@ export async function POST(
           }
         };
         
-        loggerWithContext.info('AI', 'Creando primer progreso de IA para cliente');
+        loggerWithContext.info('AI', 'Creando nueva sesión para mes', { monthNumber });
       } else {
-        // Agregar nueva sesión
-        updateData.$push = {
-          'aiProgress.sessions': recommendations
-        };
+        // ✅ REEMPLAZAR la sesión existente para este mes
+        const updatedSessions = [...client.aiProgress.sessions];
+        
+        // Mantener el mismo sessionId si estamos regenerando?
+        // O crear uno nuevo? Vamos a mantener el mes pero nuevo ID
+        updatedSessions[existingSessionIndex] = recommendations;
+        
+        updateData.$set['aiProgress.sessions'] = updatedSessions;
         updateData.$set['aiProgress.currentSessionId'] = recommendations.sessionId;
         updateData.$set['aiProgress.lastEvaluation'] = new Date();
         updateData.$set['aiProgress.nextEvaluation'] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         
-        loggerWithContext.info('AI', 'Agregando nueva sesión a progreso existente', {
-          totalSessions: client.aiProgress.sessions.length + 1
+        loggerWithContext.info('AI', 'Reemplazando sesión existente', {
+          monthNumber,
+          oldSessionId: client.aiProgress.sessions[existingSessionIndex].sessionId,
+          newSessionId: recommendations.sessionId
         });
       }
 
@@ -283,9 +375,10 @@ export async function POST(
         data: {
           sessionId: recommendations.sessionId,
           monthNumber,
-          summary: safeDecrypt(recommendations.summary),
-          vision: safeDecrypt(recommendations.vision),
+          summary: recommendations.summary, // Ya desencriptado en ai-service
+          vision: recommendations.vision,   // Ya desencriptado en ai-service
           weekCount: recommendations.weeks.length,
+          weeks: recommendations.weeks,     // Ya desencriptado en ai-service
           requestId
         }
       });
@@ -517,12 +610,12 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
       if (session.checklist && Array.isArray(session.checklist)) {
         // Filtrar solo items completados para mostrar progreso
         const completedItems = session.checklist
-          .filter(item => item.completed)
-          .map(item => ({
-            description: safeDecrypt(item.description || ''),
-            completed: true,
-            completedDate: item.completedDate
-          }));
+        .filter(item => item.completed)
+        .map(item => ({
+          description: safeDecrypt(item.description || ''),
+          completed: true,
+          completedDate: item.completedDate
+        }));
         
         previousChecklistStatus.push({
           month: session.monthNumber,
@@ -569,70 +662,112 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
     
     const processingPromises = docsArray.map(async (doc, index) => {
       try {
-        let decryptedDoc = doc;
+        let documentObj = doc;
         
         // Si el documento está encriptado como string, desencriptarlo
         if (typeof doc === 'string') {
-          decryptedDoc = JSON.parse(safeDecrypt(doc));
+          try {
+            const decrypted = safeDecrypt(doc);
+            documentObj = JSON.parse(decrypted);
+          } catch (parseError) {
+            loggerWithContext.warn('TEXTRACT', `Documento ${index} no es JSON válido, usando como está`);
+            return doc; // Devolver como está
+          }
         }
         
-        // Desencriptar el nombre del documento para mostrarlo
-        const originalName = safeDecrypt(decryptedDoc.name || '');
-        const s3Key = safeDecrypt(decryptedDoc.key);
-        
-        loggerWithContext.debug('TEXTRACT', `Procesando documento ${index}`, {
-          s3Key,
-          originalName
-        });
-
-        // Determinar tipo de documento
-        const docType = TextractService.determineDocumentType(originalName);
-        
-        // Procesar con Textract
-        const analysis = await TextractService.processMedicalDocument(s3Key, docType);
-        
-        // Crear nuevo documento con campos encriptados apropiadamente
-        const updatedDoc = {
-          name: encrypt(originalName), // ✅ Nombre encriptado
-          key: encrypt(s3Key), // ✅ Key encriptada
-          type: decryptedDoc.type,
-          size: decryptedDoc.size,
-          uploadedAt: decryptedDoc.uploadedAt,
-          url: decryptedDoc.url, // URL puede permanecer sin encriptar
-          textractAnalysis: {
-            extractedText: analysis.extractedText,
-            extractedData: analysis.extractedData,
-            extractionDate: analysis.extractedAt.toISOString(),
-            extractionStatus: analysis.status,
-            confidence: analysis.status === 'completed' ? analysis.confidence : 0,
-            documentType: analysis.documentType
+        // Verificar si ya es un objeto con la estructura correcta
+        if (documentObj.name && documentObj.key) {
+          // Ya tiene estructura correcta, solo reprocesar si es necesario
+          const originalName = safeDecrypt(documentObj.name);
+          const s3Key = safeDecrypt(documentObj.key);
+          
+          loggerWithContext.debug('TEXTRACT', `Documento ya estructurado ${index}`, {
+            name: originalName,
+            hasTextract: !!documentObj.textractAnalysis
+          });
+          
+          // Si ya tiene textractAnalysis, no reprocesar
+          if (documentObj.textractAnalysis?.extractedText) {
+            return documentObj; // Mantener como está
           }
-        };
-        
-        loggerWithContext.debug('TEXTRACT', `Documento ${index} procesado`, {
-          status: analysis.status,
-          confidence: analysis.confidence
-        });
-        
-        return encrypt(JSON.stringify(updatedDoc));
+          
+          // Si no tiene textract, procesarlo
+          const docType = TextractService.determineDocumentType(originalName);
+          const analysis = await TextractService.processMedicalDocument(s3Key, docType);
+          
+          return {
+            ...documentObj,
+            textractAnalysis: {
+              extractedText: analysis.extractedText,
+              extractedData: analysis.extractedData,
+              extractionDate: analysis.extractedAt.toISOString(),
+              extractionStatus: analysis.status,
+              confidence: analysis.status === 'completed' ? analysis.confidence : 0,
+              documentType: analysis.documentType
+            }
+          };
+        } else {
+          // Es un objeto viejo que necesita estructuración completa
+          loggerWithContext.warn('TEXTRACT', `Documento ${index} necesita reestructuración`, {
+            hasName: !!documentObj.name,
+            hasKey: !!documentObj.key,
+            type: typeof documentObj
+          });
+          
+          // Intentar extraer datos del objeto viejo
+          const originalName = documentObj.originalname || documentObj.name || `documento-${index}`;
+          const s3Key = documentObj.key || documentObj.s3Key;
+          
+          if (!s3Key) {
+            loggerWithContext.error('TEXTRACT', `Documento ${index} sin s3Key`);
+            return documentObj;
+          }
+          
+          // Procesar con Textract
+          const docType = TextractService.determineDocumentType(originalName);
+          const analysis = await TextractService.processMedicalDocument(s3Key, docType);
+          
+          // Crear nueva estructura
+          return {
+            name: encrypt(originalName),
+            key: encrypt(s3Key),
+            type: documentObj.type || 'application/octet-stream',
+            size: documentObj.size || 0,
+            uploadedAt: documentObj.uploadedAt || new Date(),
+            url: documentObj.url || documentObj.location,
+            textractAnalysis: {
+              extractedText: analysis.extractedText,
+              extractedData: analysis.extractedData,
+              extractionDate: analysis.extractedAt.toISOString(),
+              extractionStatus: analysis.status,
+              confidence: analysis.status === 'completed' ? analysis.confidence : 0,
+              documentType: analysis.documentType
+            }
+          };
+        }
       } catch (error) {
         loggerWithContext.error('TEXTRACT', `Error reprocesando documento ${index}`, error as Error);
-        return doc;
+        return doc; // Devolver original si hay error
       }
     });
 
     const processedDocs = await Promise.all(processingPromises);
     
+    // Filtrar documentos nulos
+    const validDocs = processedDocs.filter(doc => doc !== null);
+    
     // Actualizar en base de datos
     const healthForms = await getHealthFormsCollection();
     const result = await healthForms.updateOne(
       { _id: new ObjectId(clientId) },
-      { $set: { 'medicalData.documents': processedDocs } }
+      { $set: { 'medicalData.documents': validDocs } }
     );
     
     loggerWithContext.info('TEXTRACT', 'Documentos reprocesados', { 
       clientId, 
-      processedCount: processedDocs.length
+      total: processedDocs.length,
+      valid: validDocs.length,
+      modified: result.modifiedCount
     });
     
   } catch (error) {
@@ -643,7 +778,11 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
 async function updateChecklist(clientId: string, sessionId: string, checklistItems: ChecklistItem[], requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
   
-  loggerWithContext.info('AI', 'Actualizando checklist', { sessionId });
+  loggerWithContext.info('AI', 'Actualizando checklist', { 
+    sessionId,
+    itemCount: checklistItems.length,
+    completedCount: checklistItems.filter(item => item.completed).length
+  });
   
   try {
     const healthForms = await getHealthFormsCollection();
@@ -662,22 +801,41 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
       }
     );
     
+    console.log('📝 Update checklist result:', {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedCount: result.upsertedCount
+    });
+    
     if (result.modifiedCount > 0) {
       // Recalcular progreso general
       const completedItems = checklistItems.filter(item => item.completed).length;
       const totalItems = checklistItems.length;
       const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
       
+      // Actualizar progreso general
       await healthForms.updateOne(
         { _id: new ObjectId(clientId) },
-        { $set: { 'aiProgress.overallProgress': progress } }
+        { 
+          $set: { 
+            'aiProgress.overallProgress': progress,
+            'aiProgress.lastEvaluation': new Date()
+          } 
+        }
       );
       
-      loggerWithContext.info('AI', 'Checklist actualizado', { sessionId, progress });
+      loggerWithContext.info('AI', 'Checklist actualizado exitosamente', { 
+        sessionId, 
+        progress,
+        completedItems,
+        totalItems
+      });
+      
       return true;
+    } else {
+      loggerWithContext.warn('AI', 'No se modificó ningún documento', { sessionId });
+      return false;
     }
-    
-    return false;
   } catch (error) {
     loggerWithContext.error('AI', 'Error actualizando checklist', error as Error);
     return false;
@@ -773,3 +931,4 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     return false;
   }
 }
+

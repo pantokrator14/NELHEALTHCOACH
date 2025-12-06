@@ -1,30 +1,36 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 
-const decryptData = (data: any): any => {
+
+
+const isEncrypted = (text: string): boolean => {
+  return !!text && typeof text === 'string' && text.startsWith('U2FsdGVkX1');
+};
+
+// Función para limpiar texto encriptado temporalmente
+const cleanEncryptedText = (text: string): string => {
+  if (isEncrypted(text)) {
+    return '[Datos encriptados - Cargando...]';
+  }
+  return text;
+};
+
+// Función para procesar datos y limpiar texto encriptado
+const processDataForDisplay = (data: any): any => {
   if (!data) return data;
   
   if (typeof data === 'string') {
-    try {
-      // Intentar desencriptar si parece estar encriptado
-      if (data.startsWith('U2FsdGVkX1')) {
-        const decrypted = window.atob(data); // Usar la función de desencriptación real
-        return decrypted;
-      }
-      return data;
-    } catch (error) {
-      return data;
-    }
+    return cleanEncryptedText(data);
   }
   
   if (Array.isArray(data)) {
-    return data.map(item => decryptData(item));
+    return data.map(item => processDataForDisplay(item));
   }
   
-  if (typeof data === 'object') {
+  if (typeof data === 'object' && data !== null) {
     const result: any = {};
     for (const key in data) {
-      result[key] = decryptData(data[key]);
+      result[key] = processDataForDisplay(data[key]);
     }
     return result;
   }
@@ -125,7 +131,7 @@ export default function AIRecommendationsModal({
   onClose, 
   onRecommendationsGenerated 
 }: AIRecommendationsModalProps) {
-  
+
   const convertToNewStructure = (weeks: any[]): AIRecommendationWeek[] => {
     if (!weeks || !Array.isArray(weeks)) return [];
     
@@ -239,7 +245,8 @@ export default function AIRecommendationsModal({
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  
+  const [activeSessionId, setActiveSessionId] = useState<string>('');
+
   // Estados para navegación
   const [activeMonthTab, setActiveMonthTab] = useState<number>(1);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]); // Semana 1 expandida por defecto
@@ -260,6 +267,7 @@ export default function AIRecommendationsModal({
     currentValue: any;
   } | null>(null);
   const [editText, setEditText] = useState('');
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   
   // Estados para detalles expandidos
   const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
@@ -273,6 +281,27 @@ export default function AIRecommendationsModal({
     loadAIProgress();
   }, [clientId]);
 
+  const syncItemState = (itemId: string, sessions: any[]): ChecklistItem | null => {
+    for (const session of sessions) {
+      // Buscar en checklist global
+      const globalItem = session.checklist.find((i: ChecklistItem) => i.id === itemId);
+      if (globalItem) return globalItem;
+      
+      // Buscar en semanas
+      for (const week of session.weeks) {
+        const nutritionItem = week.nutrition.checklistItems.find((i: ChecklistItem) => i.id === itemId);
+        if (nutritionItem) return nutritionItem;
+        
+        const exerciseItem = week.exercise.checklistItems.find((i: ChecklistItem) => i.id === itemId);
+        if (exerciseItem) return exerciseItem;
+        
+        const habitItem = week.habits.checklistItems.find((i: ChecklistItem) => i.id === itemId);
+        if (habitItem) return habitItem;
+      }
+    }
+    return null;
+  };
+
   // Calcular progreso acumulado de todos los meses
   const calculateCumulativeProgress = (): number => {
     if (!aiProgress || !aiProgress.sessions.length) return 0;
@@ -285,28 +314,54 @@ export default function AIRecommendationsModal({
   };
 
   // Obtener sesión activa (mes actual)
-  const activeSession = aiProgress?.sessions.find(session => session.monthNumber === activeMonthTab);
-  
   // Obtener índice de la sesión en el array
-  const activeSessionIndex = aiProgress?.sessions.findIndex(session => session.monthNumber === activeMonthTab) ?? -1;
+  const activeSession = aiProgress?.sessions.find(
+    session => session.sessionId === activeSessionId
+  ) || aiProgress?.sessions.find(
+    session => session.monthNumber === activeMonthTab
+  ) || aiProgress?.sessions[0];
+
+  useEffect(() => {
+    console.log('🔍 aiProgress actualizado:', {
+      sessions: aiProgress?.sessions?.length,
+      overallProgress: aiProgress?.overallProgress,
+      activeSessionId,
+      activeSessionChecklist: activeSession?.checklist?.length
+    });
+  }, [aiProgress, activeSessionId, activeSession]);
 
   // Cargar progreso de IA
   const loadAIProgress = async () => {
     try {
       setLoading(true);
       const response = await apiClient.getAIProgress(clientId);
+      
       if (response.data.hasAIProgress) {
-        // Desencriptar los datos recibidos
-        const decryptedProgress = decryptData(response.data.aiProgress);
-        setAiProgress(decryptedProgress);
+        // ✅ El backend YA debe enviar datos desencriptados
+        // NO necesitas llamar a decryptData aquí
+        console.log('Datos recibidos del backend:', response.data.aiProgress);
         
-        const lastMonth = Math.max(...response.data.aiProgress.sessions.map(s => s.monthNumber));
-        if (lastMonth > 0) {
-          setActiveMonthTab(lastMonth);
+        // Verificar si los datos ya están desencriptados
+        const aiProgressData = response.data.aiProgress;
+        
+        // Si el backend está enviando datos desencriptados correctamente
+        setAiProgress(aiProgressData);
+        
+        // Encontrar el último mes para mostrar por defecto
+        if (aiProgressData.sessions && aiProgressData.sessions.length > 0) {
+          const lastMonth = Math.max(...aiProgressData.sessions.map((s: any) => s.monthNumber));
+          if (lastMonth > 0) {
+            setActiveMonthTab(lastMonth);
+          }
         }
+      } else {
+        // No hay progreso de IA
+        setAiProgress(null);
       }
     } catch (error) {
       console.error('Error cargando progreso de IA:', error);
+      // En caso de error, mostrar datos vacíos
+      setAiProgress(null);
     } finally {
       setLoading(false);
     }
@@ -348,17 +403,72 @@ export default function AIRecommendationsModal({
   ) => {
     if (!aiProgress || !activeSession) return;
 
-    // Encontrar el item en el checklist
-    const checklist = activeSession.checklist.map(item => 
-      item.id === itemId ? { ...item, completed, completedDate: completed ? new Date() : undefined } : item
+    // Crear una copia profunda para evitar problemas de referencia
+    const updatedAiProgress = JSON.parse(JSON.stringify(aiProgress));
+    
+    // Encontrar la sesión y actualizar
+    const sessionIndex = updatedAiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
     );
-
-    try {
-      await apiClient.updateAIChecklist(clientId, sessionId, checklist);
-      await loadAIProgress(); // Recargar para ver cambios
-    } catch (error) {
-      console.error('Error actualizando checklist:', error);
-      alert('Error al actualizar checklist: ' + (error as Error).message);
+    
+    if (sessionIndex !== -1) {
+      const session = updatedAiProgress.sessions[sessionIndex];
+      
+      // 1. Actualizar en el checklist global
+      session.checklist = session.checklist.map((item: any) => 
+        item.id === itemId 
+          ? { 
+              ...item, 
+              completed, 
+              completedDate: completed ? new Date() : undefined,
+              updatedAt: new Date()
+            } 
+          : item
+      );
+      
+      // 2. Actualizar en todas las semanas
+      session.weeks = session.weeks.map((week: any) => {
+        // Actualizar en nutrition
+        const nutritionUpdated = week.nutrition.checklistItems.map((item: any) =>
+          item.id === itemId 
+            ? { ...item, completed, completedDate: completed ? new Date() : undefined }
+            : item
+        );
+        
+        // Actualizar en exercise
+        const exerciseUpdated = week.exercise.checklistItems.map((item: any) =>
+          item.id === itemId 
+            ? { ...item, completed, completedDate: completed ? new Date() : undefined }
+            : item
+        );
+        
+        // Actualizar en habits
+        const habitsUpdated = week.habits.checklistItems.map((item: any) =>
+          item.id === itemId 
+            ? { ...item, completed, completedDate: completed ? new Date() : undefined }
+            : item
+        );
+        
+        return {
+          ...week,
+          nutrition: { ...week.nutrition, checklistItems: nutritionUpdated },
+          exercise: { ...week.exercise, checklistItems: exerciseUpdated },
+          habits: { ...week.habits, checklistItems: habitsUpdated }
+        };
+      });
+      
+      // 3. Actualizar el estado inmediatamente
+      setAiProgress(updatedAiProgress);
+      
+      // 4. Enviar al backend
+      try {
+        await apiClient.updateAIChecklist(clientId, sessionId, session.checklist);
+        console.log('✅ Checkbox actualizado en backend');
+      } catch (error) {
+        console.error('Error actualizando backend:', error);
+        // En caso de error, revertir
+        await loadAIProgress();
+      }
     }
   };
 
@@ -388,18 +498,15 @@ export default function AIRecommendationsModal({
     if (!editMode || !editingField || !aiProgress || !activeSession) return;
 
     try {
-      // Dependiendo del tipo de campo a editar
-      if (editingField.type === 'summary' || editingField.type === 'vision') {
-        // Para resumen y visión, necesitamos una llamada API específica
-        // Por ahora, actualizamos localmente y hacemos PATCH
-        const updatedSession = {
-          ...activeSession,
-          [editingField.type]: editText
-        };
+      if (editingField.type === 'checklist') {
+        // Guardar los cambios del checklist
+        await apiClient.updateAIChecklist(
+          clientId, 
+          activeSession.sessionId, 
+          activeSession.checklist
+        );
         
-        // Aquí deberías implementar una llamada API para actualizar la sesión
-        // Por simplicidad, recargamos
-        await loadAIProgress();
+        alert('✅ Checklist actualizado exitosamente');
       }
       
       setEditMode(false);
@@ -432,17 +539,37 @@ export default function AIRecommendationsModal({
 
   // Regenerar sesión
   const handleRegenerateSession = async (sessionId: string) => {
-    if (!confirm('¿Regenerar las recomendaciones? Esto creará nuevas recomendaciones basadas en los datos actuales.')) {
-      return;
-    }
+    const coachNotes = prompt(
+      '¿Por qué quieres regenerar las recomendaciones?\nAgrega notas para la IA:',
+      'Mejoras en el plan, cambio de objetivos, etc.'
+    );
+    
+    if (!coachNotes) return; // Si canceló
 
     try {
-      await apiClient.regenerateAISession(clientId, sessionId, coachNotes);
-      await loadAIProgress();
-      alert('Sesión regenerada exitosamente');
+      setGenerating(true);
+      
+      // Obtener el mes actual de la sesión
+      const sessionToRegenerate = aiProgress?.sessions.find(s => s.sessionId === sessionId);
+      if (!sessionToRegenerate) return;
+      
+      // Llamar a la API para generar NUEVAS recomendaciones
+      const response = await apiClient.generateAIRecommendations(
+        clientId, 
+        sessionToRegenerate.monthNumber,
+        false, // reprocessDocuments
+        coachNotes
+      );
+
+      if (response.success) {
+        await loadAIProgress();
+        alert('✅ Nuevas recomendaciones generadas exitosamente');
+      }
     } catch (error) {
       console.error('Error regenerando sesión:', error);
       alert('Error al regenerar sesión: ' + (error as Error).message);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -475,73 +602,50 @@ export default function AIRecommendationsModal({
 
   // Renderizar item de checklist con detalles
   const renderChecklistItem = (item: ChecklistItem, sessionId: string) => {
-    const isRecipe = item.category === 'nutrition' && item.details?.recipe;
-    const isExpanded = expandedRecipes.includes(item.id);
+    // Usar estado local para el checkbox
+    const isChecked = checkedItems.has(item.id) || item.completed;
+    
+    const handleCheckboxClick = async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Actualizar estado local inmediatamente
+      setCheckedItems(prev => {
+        const newSet = new Set(prev);
+        if (isChecked) {
+          newSet.delete(item.id);
+        } else {
+          newSet.add(item.id);
+        }
+        return newSet;
+      });
+      
+      // Actualizar backend
+      await handleChecklistChange(sessionId, item.id, !isChecked);
+    };
 
     return (
       <div key={item.id} className="flex items-start py-2 border-b border-gray-100 last:border-0">
-        <input
-          type="checkbox"
-          checked={item.completed}
-          onChange={(e) => handleChecklistChange(sessionId, item.id, e.target.checked)}
-          className="mt-1 mr-3 text-green-600 rounded focus:ring-green-500"
-          disabled={editMode}
-        />
+        <div 
+          onClick={handleCheckboxClick}
+          className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+            isChecked 
+              ? 'bg-green-500 border-green-500' 
+              : 'bg-white border-gray-300 hover:border-green-400'
+          }`}
+        >
+          {isChecked && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
         
         <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <span className={`${item.completed ? 'line-through text-gray-500' : 'text-gray-700'}`}>
-              {item.description}
-              {item.type && (
-                <span className="ml-2 text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                  {item.type}
-                </span>
-              )}
-            </span>
-            
-            {isRecipe && (
-              <button
-                onClick={() => toggleRecipeExpansion(item.id)}
-                className="ml-2 text-xs text-green-600 hover:text-green-800"
-              >
-                {isExpanded ? '▲ Ocultar receta' : '▼ Ver receta'}
-              </button>
-            )}
-          </div>
-          
-          {isRecipe && isExpanded && item.details?.recipe && (
-            <div className="mt-3 ml-6 p-3 bg-green-50 rounded-lg border border-green-100">
-              <h5 className="font-medium text-green-700 mb-2">Receta:</h5>
-              <p className="text-gray-600 text-sm mb-3">{item.details.recipe.preparation}</p>
-              
-              <h6 className="font-medium text-gray-700 mb-1">Ingredientes:</h6>
-              <ul className="text-sm text-gray-600 space-y-1">
-                {item.details.recipe.ingredients.map((ing, idx) => (
-                  <li key={idx}>
-                    • {ing.name}: {ing.quantity} {ing.notes && `(${ing.notes})`}
-                  </li>
-                ))}
-              </ul>
-              
-              {item.details.recipe.tips && (
-                <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-100">
-                  <span className="text-xs text-yellow-700">💡 {item.details.recipe.tips}</span>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {item.details?.frequency && (
-            <p className="text-xs text-gray-500 mt-1">
-              📅 {item.details.frequency} {item.details.duration && `• ⏱️ ${item.details.duration}`}
-            </p>
-          )}
-          
-          {item.details?.equipment && item.details.equipment.length > 0 && (
-            <p className="text-xs text-gray-500 mt-1">
-              🏋️ {item.details.equipment.join(', ')}
-            </p>
-          )}
+          <span className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} cursor-pointer`}
+                onClick={handleCheckboxClick}>
+            {item.description}
+          </span>
         </div>
       </div>
     );
@@ -724,30 +828,61 @@ export default function AIRecommendationsModal({
           </div>
         </div>
 
+        {activeSession?.sessionId?.startsWith('fallback_') && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="text-yellow-700 font-medium">
+                ⚠️ Modo offline: Recomendaciones generadas localmente
+              </span>
+              <button 
+                onClick={() => window.open('https://platform.deepseek.com', '_blank')}
+                className="ml-auto text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded hover:bg-yellow-200"
+              >
+                Activar IA →
+              </button>
+            </div>
+            <p className="text-yellow-600 text-sm mt-1">
+              Para obtener recomendaciones personalizadas con IA, agrega fondos a tu cuenta de DeepSeek.
+              Costo estimado: ~$0.01/cliente por mes.
+            </p>
+          </div>
+        )}
+        
         {/* Tabs de meses */}
         {aiProgress && aiProgress.sessions.length > 0 && (
           <div className="border-b border-green-200 bg-white">
             <div className="flex space-x-1 px-6 overflow-x-auto">
-              {aiProgress.sessions.map(session => (
-                <button
-                  key={session.monthNumber}
-                  onClick={() => setActiveMonthTab(session.monthNumber)}
-                  className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeMonthTab === session.monthNumber
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-green-600'
-                  }`}
-                >
-                  Mes {session.monthNumber}
-                  <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
-                    session.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    session.status === 'sent' ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {session.status === 'draft' ? 'Borrador' :
-                     session.status === 'approved' ? 'Aprobado' : 'Enviado'}
-                  </span>
-                </button>
+              {aiProgress.sessions
+                .sort((a, b) => a.monthNumber - b.monthNumber) // Ordenar por mes
+                .map(session => (
+                  <button
+                    key={session.sessionId} // ✅ Usar sessionId que es único
+                    onClick={() => {
+                      setActiveMonthTab(session.monthNumber);
+                      setActiveSessionId(session.sessionId); // ✅ Guardar también el sessionId
+                    }}
+                    className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeSession?.sessionId === session.sessionId // ✅ Comparar por sessionId
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-green-600'
+                    }`}
+                  >
+                    Mes {session.monthNumber}
+                    {session.sessionId.startsWith('fallback_') && (
+                      <span className="ml-1 text-xs text-red-500">(Fallback)</span>
+                    )}
+                    <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                      session.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      session.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {session.status === 'draft' ? 'Borrador' :
+                      session.status === 'approved' ? 'Aprobado' : 'Enviado'}
+                    </span>
+                  </button>
               ))}
             </div>
           </div>
@@ -780,14 +915,14 @@ export default function AIRecommendationsModal({
             // Contenido de la sesión activa
             <div className="space-y-6">
               {/* Modo edición - Botones guardar/cancelar */}
-              {editMode && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center justify-between">
+              {editMode && editingField?.type === 'checklist' && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center">
                       <svg className="w-6 h-6 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <h3 className="text-lg font-bold text-yellow-700">Modo Edición</h3>
+                      <h3 className="text-lg font-bold text-yellow-700">Modo Edición - Checklist</h3>
                     </div>
                     <div className="flex space-x-3">
                       <button
@@ -804,6 +939,84 @@ export default function AIRecommendationsModal({
                       </button>
                     </div>
                   </div>
+                  
+                  <div className="space-y-4">
+                    {activeSession?.checklist.map((item, index) => (
+                      <div key={item.id} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={(e) => handleChecklistChange(activeSession.sessionId, item.id, e.target.checked)}
+                          className="text-green-600"
+                        />
+                        <input
+                          type="text"
+                          defaultValue={item.description}
+                          onChange={(e) => {
+                            const newDescription = e.target.value;
+                            
+                            // 1. Actualizar el checklist global
+                            const updatedChecklist = [...activeSession.checklist];
+                            const itemIndex = updatedChecklist.findIndex(item => item.id === item.id);
+                            if (itemIndex !== -1) {
+                              updatedChecklist[itemIndex] = { 
+                                ...updatedChecklist[itemIndex], 
+                                description: newDescription 
+                              };
+                            }
+
+                            // 2. Actualizar también en las semanas correspondientes
+                            const updatedWeeks = activeSession.weeks.map(week => {
+                              // Buscar en nutrition
+                              const nutritionUpdated = week.nutrition.checklistItems.map(item =>
+                                item.id === item.id ? { ...item, description: newDescription } : item
+                              );
+                              
+                              // Buscar en exercise
+                              const exerciseUpdated = week.exercise.checklistItems.map(item =>
+                                item.id === item.id ? { ...item, description: newDescription } : item
+                              );
+                              
+                              // Buscar en habits
+                              const habitsUpdated = week.habits.checklistItems.map(item =>
+                                item.id === item.id ? { ...item, description: newDescription } : item
+                              );
+
+                              return {
+                                ...week,
+                                nutrition: { ...week.nutrition, checklistItems: nutritionUpdated },
+                                exercise: { ...week.exercise, checklistItems: exerciseUpdated },
+                                habits: { ...week.habits, checklistItems: habitsUpdated }
+                              };
+                            });
+
+                            // 3. Actualizar el estado completo
+                            const updatedSessions = aiProgress?.sessions.map(s =>
+                              s.sessionId === activeSession.sessionId
+                                ? { 
+                                    ...s, 
+                                    checklist: updatedChecklist,
+                                    weeks: updatedWeeks
+                                  }
+                                : s
+                            );
+
+                            if (aiProgress && updatedSessions) {
+                              setAiProgress({
+                                ...aiProgress,
+                                sessions: updatedSessions
+                              });
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 text-gray-600 border border-gray-300 rounded-md"
+                          placeholder="Descripción del item..."
+                        />
+                        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                          {item.category}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -811,15 +1024,22 @@ export default function AIRecommendationsModal({
               <div className="bg-white rounded-xl p-6 border border-green-200">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-green-700">📊 Análisis y Visión</h3>
-                  {!editMode && (
+                  {!editMode && activeSession && (
                     <button
-                      onClick={() => setEditMode(true)}
+                      onClick={() => {
+                        setEditMode(true);
+                        setEditingField({
+                          sessionId: activeSession.sessionId,
+                          type: 'checklist',
+                          currentValue: activeSession.checklist
+                        });
+                      }}
                       className="text-green-600 hover:text-green-800 flex items-center"
                     >
                       <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Editar
+                      Editar Checklist
                     </button>
                   )}
                 </div>
@@ -836,7 +1056,7 @@ export default function AIRecommendationsModal({
                         value={editingField?.type === 'summary' ? editText : activeSession.summary}
                         onChange={(e) => setEditText(e.target.value)}
                         rows={6}
-                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full px-3 py-2 text-gray-600 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         placeholder="Escribe el resumen del estado actual del cliente..."
                       />
                     ) : (
@@ -857,7 +1077,7 @@ export default function AIRecommendationsModal({
                         value={editingField?.type === 'vision' ? editText : activeSession.vision}
                         onChange={(e) => setEditText(e.target.value)}
                         rows={6}
-                        className="w-full px-3 py-2 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full px-3 py-2 text-gray-600 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         placeholder="Describe la visión a 1 año del cliente..."
                       />
                     ) : (
