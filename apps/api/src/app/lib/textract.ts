@@ -11,6 +11,7 @@ export interface TextractResult {
 }
 
 export interface MedicalDocumentAnalysis {
+  confidence: any;
   originalKey: string;
   extractedText: string;     // Encriptado
   extractedData: string;     // Encriptado (JSON con estructuras)

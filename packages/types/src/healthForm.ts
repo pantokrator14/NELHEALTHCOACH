@@ -1,3 +1,22 @@
+export interface ProcessedDocument {
+  id: string;
+  originalDocumentId?: string; // Referencia al documento original si existe
+  originalName: string; // Nombre del archivo original (encriptado)
+  s3Key: string; // Key de S3 (encriptado)
+  title: string; // Título/descripción (encriptado)
+  content: string; // Contenido extraído (encriptado)
+  processedAt: Date;
+  processedBy: 'textract' | 'manual' | 'other';
+  confidence: number; // 0-100
+  metadata?: {
+    pageCount?: number;
+    language?: string;
+    documentType?: string;
+    extractionStatus: 'completed' | 'failed' | 'pending';
+    [key: string]: any;
+  };
+}
+
 export interface TextractAnalysis {
   extractedText?: string;        // Texto extraído (encriptado)
   extractedData?: string;        // Datos estructurados (encriptados)
@@ -106,6 +125,8 @@ export interface MedicalData {
   
   // ✅ Documentos como array de objetos encriptados
   documents?: UploadedFile[];
+  processedDocuments?: ProcessedDocument[]; // Documentos procesados
+  lastDocumentProcessed?: Date;
 }
 
 export interface HealthFormData {
