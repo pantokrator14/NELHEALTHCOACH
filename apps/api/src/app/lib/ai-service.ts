@@ -709,13 +709,6 @@ export class AIService {
     return 'Obesidad';
   }
 
-  // Función auxiliar para categoría de IMC (añadir a la clase AIService)
-  private static getBMICategory(bmi: number): string {
-    if (bmi < 18.5) return 'Bajo peso';
-    if (bmi < 25) return 'Peso normal';
-    if (bmi < 30) return 'Sobrepeso';
-    return 'Obesidad';
-  }
   /**
    * Llama a la API de DeepSeek con manejo mejorado de errores
    */
