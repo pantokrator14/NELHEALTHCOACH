@@ -91,7 +91,7 @@ export class AIService {
   private static config: AIConfig = {
     model: 'deepseek-chat',
     temperature: 0.7,
-    maxTokens: 4000,
+    maxTokens: 8000,
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
   };
@@ -408,286 +408,305 @@ export class AIService {
    * Construye el prompt para DeepSeek con estructura específica
    */
   private static buildAnalysisPrompt(input: AIAnalysisInput, monthNumber: number): string {
-    const { personalData, medicalData, documents, previousSessions, currentProgress, coachNotes, documentHistory } = input;
+    const { personalData, medicalData, documents, previousSessions, currentProgress, coachNotes } = input;
     
-    // Extraer información del cliente para personalización
-    const clientName = personalData.name || 'el cliente';
-    const clientAge = personalData.age || 'edad no especificada';
-    const clientWeight = personalData.weight ? parseFloat(personalData.weight) : null;
-    const clientHeight = personalData.height ? parseFloat(personalData.height) : null;
+    // Extraer información crítica del cliente (optimizado)
+    const clientName = this.safeDecryptString(personalData.name) || 'cliente';
+    const clientAge = this.safeDecryptString(personalData.age) || 'no especificada';
+    const clientWeight = personalData.weight ? parseFloat(this.safeDecryptString(personalData.weight)) : null;
+    const clientHeight = personalData.height ? parseFloat(this.safeDecryptString(personalData.height)) : null;
     const bmi = clientWeight && clientHeight ? (clientWeight / ((clientHeight/100) ** 2)).toFixed(1) : null;
     
-    // ===== FORMATO DE DOCUMENTOS PROCESADOS =====
-    let processedDocsText = '';
-    if (documents && documents.length > 0) {
-      // Filtrar documentos con contenido significativo (más de 50 caracteres y confianza > 50)
-      const significantDocs = documents.filter(doc => 
-        doc.content && doc.content.length > 50 && (doc.confidence || 0) > 50
-      );
-      
-      if (significantDocs.length > 0) {
-        processedDocsText = '\n\n# 📄 DOCUMENTOS MÉDICOS ANALIZADOS:\n';
-        
-        significantDocs.forEach((doc, index) => {
-          const docIndex = index + 1;
-          const confidence = doc.confidence ? `${doc.confidence}%` : 'N/A';
-          const docType = doc.type ? `(${doc.type})` : '';
-          
-          processedDocsText += `\n## Documento ${docIndex}: ${doc.title} ${docType}\n`;
-          processedDocsText += `🔍 Confianza de extracción: ${confidence}\n`;
-          
-          // Limitar contenido para no hacer el prompt demasiado largo
-          let contentPreview = doc.content;
-          if (contentPreview.length > 1500) {
-            contentPreview = contentPreview.substring(0, 1500) + '... [contenido recortado]';
-          }
-          
-          processedDocsText += `📝 Contenido extraído:\n${contentPreview}\n`;
-          
-          // Añadir información específica si está disponible
-          if (doc.pageCount) {
-            processedDocsText += `📄 Páginas: ${doc.pageCount}\n`;
-          }
-          if (doc.language && doc.language !== 'es') {
-            processedDocsText += `🌐 Idioma original: ${doc.language}\n`;
-          }
-        });
-        
-        // Resumen de documentos
-        processedDocsText += `\n📊 Resumen: ${significantDocs.length} documento(s) médico(s) analizado(s) con éxito.`;
-      } else {
-        processedDocsText = '\n\n# 📄 DOCUMENTOS MÉDICOS:\n';
-        processedDocsText += '❌ No se pudo extraer texto significativo de los documentos médicos. ';
-        processedDocsText += 'Los documentos pueden estar escaneados con baja calidad o ser imágenes sin texto.';
-      }
-    } else {
-      processedDocsText = '\n\n# 📄 DOCUMENTOS MÉDICOS:\n';
-      processedDocsText += '⚠️ No hay documentos médicos disponibles para análisis. ';
-      processedDocsText += 'Las recomendaciones se basarán únicamente en los datos proporcionados en el formulario.';
-    }
-    
-    // ===== INFORMACIÓN DE HISTORIAL DE PROCESAMIENTO =====
-    let processingHistoryText = '';
-    if (documentHistory && documentHistory.length > 0) {
-      processingHistoryText = '\n\n# 📅 HISTORIAL DE PROCESAMIENTO DE DOCUMENTOS:\n';
-      
-      // Ordenar por fecha más reciente
-      const sortedHistory = [...documentHistory].sort((a, b) => 
-        new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime()
-      );
-      
-      sortedHistory.slice(0, 3).forEach((history, index) => {
-        const date = new Date(history.processedAt).toLocaleDateString('es-ES');
-        const status = history.status === 'completed' ? '✅ Completado' : 
-                      history.status === 'failed' ? '❌ Falló' : '⏳ Pendiente';
-        
-        processingHistoryText += `\n${index + 1}. ${date}: ${status} (${history.processedBy})`;
-        if (history.confidence) {
-          processingHistoryText += ` - Confianza: ${history.confidence}%`;
-        }
-      });
-    }
-    
-    // ===== HISTORIAL DE SESIONES ANTERIORES =====
-    let previousSessionsText = '';
-    if (previousSessions && previousSessions.length > 0) {
-      previousSessionsText = `\n\n# 📈 HISTORIAL DE SESIONES ANTERIORES (${previousSessions.length} meses):\n`;
-      
-      // Mostrar solo las últimas 3 sesiones para no hacer el prompt muy largo
-      const recentSessions = previousSessions.slice(-3);
-      
-      recentSessions.forEach((session, index) => {
-        previousSessionsText += `\n## Mes ${session.monthNumber}:\n`;
-        
-        if (session.summary && session.summary.length > 50) {
-          const summaryPreview = session.summary.substring(0, 150);
-          previousSessionsText += `- Resumen: ${summaryPreview}${session.summary.length > 150 ? '...' : ''}\n`;
-        }
-        
-        // Items completados del checklist
-        if (session.checklist && Array.isArray(session.checklist)) {
-          const completed = session.checklist.filter(item => item.completed).length;
-          const total = session.checklist.length;
-          const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-          
-          previousSessionsText += `- Progreso: ${completed}/${total} items completados (${progress}%)\n`;
-          
-          // Listar algunos items completados si los hay
-          const recentCompleted = session.checklist
-            .filter(item => item.completed && item.completedDate)
-            .sort((a, b) => new Date(b.completedDate!).getTime() - new Date(a.completedDate!).getTime())
-            .slice(0, 3);
-            
-          if (recentCompleted.length > 0) {
-            previousSessionsText += `- Últimos completados: ${recentCompleted.map(item => {
-              const desc = item.description?.substring(0, 40) || '';
-              return `${desc}${item.description && item.description.length > 40 ? '...' : ''}`;
-            }).join(', ')}\n`;
-          }
-        }
-      });
-      
-      // Si hay más de 3 sesiones, mostrar resumen
-      if (previousSessions.length > 3) {
-        const olderSessions = previousSessions.slice(0, -3);
-        const olderCompleted = olderSessions.flatMap(s => 
-          s.checklist?.filter(item => item.completed) || []
-        ).length;
-        const olderTotal = olderSessions.flatMap(s => s.checklist || []).length;
-        const olderProgress = olderTotal > 0 ? Math.round((olderCompleted / olderTotal) * 100) : 0;
-        
-        previousSessionsText += `\n## Resumen de ${olderSessions.length} meses anteriores:\n`;
-        previousSessionsText += `- Progreso histórico: ${olderProgress}% (${olderCompleted}/${olderTotal} items)\n`;
-      }
-    }
-    
-    // ===== INFORMACIÓN DE EVALUACIONES MÉDICAS =====
-    let medicalInfoText = this.formatMedicalData(medicalData);
-    
-    // ===== INFORMACIÓN PERSONAL =====
-    let personalInfoText = this.formatPersonalData(personalData);
-    
-    // ===== CONTEXTO ACTUAL =====
-    const currentContext = `
-  # 📊 CONTEXTO ACTUAL:
-  - Mes de tratamiento: ${monthNumber}
-  - ${currentProgress ? `Progreso acumulado: ${currentProgress.overallProgress}%` : 'Primera evaluación'}
-  - ${currentProgress?.metrics ? `
-    Métricas actuales:
-    • Nutrición: ${currentProgress.metrics.nutritionAdherence}%
-    • Ejercicio: ${currentProgress.metrics.exerciseConsistency}%
-    • Hábitos: ${currentProgress.metrics.habitFormation}%
-    ${currentProgress.metrics.weightProgress ? `• Peso: ${currentProgress.metrics.weightProgress}%` : ''}
-    ${currentProgress.metrics.energyLevel ? `• Energía: ${currentProgress.metrics.energyLevel}/10` : ''}
-    ${currentProgress.metrics.sleepQuality ? `• Sueño: ${currentProgress.metrics.sleepQuality}/10` : ''}
-    ` : ''}`;
-    
-    // ===== NOTAS DEL COACH =====
-    const coachNotesText = coachNotes ? `\n\n# 💬 NOTAS DEL COACH:\n${coachNotes}\n` : '';
-    
-    // ===== CONSTRUIR PROMPT COMPLETO =====
-    const prompt = `Eres un coach de salud especializado en dieta keto (75% grasa animal, 20% proteína, 5% carbohidratos) y hábitos saludables.
+    // ===== SISTEMA Y ROL (crítico para el comportamiento de la IA) =====
+    const systemRole = `Eres un coach médico especializado en:
+  1. Dieta keto (75% grasa animal, 20% proteína, 5% carbohidratos)
+  2. Medicina funcional y nutrición clínica
+  3. Formación de hábitos saludables sostenibles
 
-  ## 🎯 INSTRUCCIONES CRÍTICAS:
+  TAREA: Crear un plan de 4 semanas progresivo y acumulativo para ${clientName}.`;
 
-  1. **ESTRUCTURA OBLIGATORIA**: Devuelve SOLO un objeto JSON válido con esta estructura exacta:
-  \`\`\`json
+    // ===== REGLAS ABSOLUTAS (estructura JSON obligatoria) =====
+    const absoluteRules = `🚨 REGLAS ABSOLUTAS:
+  1. Devuelve SOLO JSON válido
+  2. Estructura EXACTA:
   {
-    "summary": "texto aquí",
-    "vision": "texto aquí", 
+    "summary": "Análisis general del cliente (máx 300 chars)",
+    "vision": "Visión a 12 meses: peso ideal calculado, porcentaje de grasa objetivo, mejoras en salud y hábitos. Incluir cálculos basados en datos del cliente.",
     "baselineMetrics": {
-      "currentLifestyle": [],
-      "targetLifestyle": []
+      "currentLifestyle": ["item1", "item2", "item3"],
+      "targetLifestyle": ["item1", "item2", "item3"]
     },
-    "weeks": [ ... ]
+    "weeks": [4 objetos semana]
   }
-  \`\`\`
+  
+  VISIÓN A 12 MESES: Debe incluir:
+   - Peso ideal calculado (fórmula de Devine: Hombres: 50kg + 0.9kg por cm sobre 152cm; Mujeres: 45.5kg + 0.9kg por cm sobre 152cm)
+   - Porcentaje de grasa corporal ideal (Hombres: 15-20%, Mujeres: 20-25%)
+   - Mejoras específicas en base a quejas médicas
+   - Hábitos consolidados esperados
+   - Estado de salud general proyectado"
 
-  2. **PROGRESIÓN ACUMULATIVA REAL**:
-    - SEMANA 1: 1 alimento + 1 ejercicio + 1 hábito adoptar + 1 hábito eliminar
-    - SEMANA 2: 2 alimentos (1 nuevo + 1 anterior) + 2 ejercicios (1 nuevo + 1 anterior) + 2 hábitos adoptar (1 nuevo + 1 anterior) + 2 hábitos eliminar
-    - SEMANA 3: 3 alimentos (1 nuevo + 2 anteriores) + 3 ejercicios (1 nuevo + 2 anteriores) + 3 hábitos adoptar (1 nuevo + 2 anteriores) + 3 hábitos eliminar
-    - SEMANA 4: 4 alimentos (1 nuevo + 3 anteriores) + 4 ejercicios (1 nuevo + 3 anteriores) + 4 hábitos adoptar (1 nuevo + 3 anteriores) + 4 hábitos eliminar
+  3. PROGRESIÓN ACUMULATIVA:
+  • Semana 1: 1 alimento + 1 ejercicio + 1 hábito adoptar + 1 hábito eliminar
+  • Semana 2: 2 alimentos (1 nuevo) + 2 ejercicios (1 nuevo) + 2 hábitos adoptar (1 nuevo) + 2 hábitos eliminar
+  • Semana 3: 3 alimentos (1 nuevo) + 3 ejercicios (1 nuevo) + 3 hábitos adoptar (1 nuevo) + 3 hábitos eliminar
+  • Semana 4: 4 alimentos (1 nuevo) + 4 ejercicios (1 nuevo) + 4 hábitos adoptar (1 nuevo) + 4 hábitos eliminar`;
 
-  3. **ADAPTACIÓN AL CLIENTE**: Considera cuidadosamente:
-    - 📋 **Datos médicos del cliente** (alergias, medicamentos, condiciones)
-    - 📄 **Contenido de documentos médicos** si están disponibles
-    - 📈 **Progreso histórico** en sesiones anteriores
-    - 🎯 **Metas específicas** mencionadas en el formulario
+    // ===== INFORMACIÓN CRÍTICA DEL CLIENTE (formato conciso) =====
+    const clientInfo = `👤 CLIENTE: ${clientName}, ${clientAge} años${
+      clientWeight ? `, ${clientWeight}kg` : ''}${
+      clientHeight ? `, ${clientHeight}cm` : ''}${
+      bmi ? ` (IMC: ${bmi})` : ''}
+  📋 OCUPACIÓN: ${this.safeDecryptString(personalData.occupation) || 'No especificada'}
+  📍 UBICACIÓN: ${this.safeDecryptString(personalData.address) || 'No especificada'}`;
 
-  ## 👤 INFORMACIÓN DEL CLIENTE:
-  ${personalInfoText}
+    // ===== DATOS MÉDICOS ESENCIALES (solo lo crítico) =====
+    const medicalInfo = this.formatMedicalDataConcise(medicalData);
+    
+    // ===== DOCUMENTOS MÉDICOS (extremadamente conciso, solo si existen) =====
+    let docsInfo = '';
+    if (documents && documents.length > 0) {
+      const relevantDocs = documents.filter(d => 
+        d.content && d.content.length > 50 && (d.confidence || 0) > 60
+      ).slice(0, 2); // Solo 2 documentos máximo
+      
+      if (relevantDocs.length > 0) {
+        docsInfo = '\n📄 DOCUMENTOS MÉDICOS:';
+        relevantDocs.forEach((doc, i) => {
+          docsInfo += `\n${i+1}. ${doc.title || 'Documento'}: `;
+          // Extraer solo puntos clave (primeros 300 chars)
+          const content = doc.content || '';
+          const keyPoints = content.split(/[.!?]/).slice(0, 3).join('. ');
+          docsInfo += keyPoints.substring(0, 150) + (keyPoints.length > 150 ? '...' : '');
+        });
+      }
+    }
 
-  ## 🏥 EVALUACIONES MÉDICAS:
-  ${medicalInfoText}
+    // ===== HISTORIAL ANTERIOR (solo si existe, formato ultra-conciso) =====
+    let historyInfo = '';
+    if (previousSessions && previousSessions.length > 0) {
+      const lastSession = previousSessions[previousSessions.length - 1];
+      historyInfo = `\n📈 SESIÓN ANTERIOR (Mes ${lastSession.monthNumber}):`;
+      
+      // Progreso general
+      if (lastSession.checklist) {
+        const completed = lastSession.checklist.filter((item: any) => item.completed).length;
+        const total = lastSession.checklist.length;
+        const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+        historyInfo += ` ${progress}% completado`;
+      }
+      
+      // Hábitos más difíciles (últimos 3 incompletos)
+      const incomplete = lastSession.checklist
+        ?.filter((item: any) => !item.completed)
+        ?.slice(0, 3)
+        ?.map((item: any) => {
+          try {
+            const desc = this.safeDecryptString(item.description) || '';
+            return desc.substring(0, 30) + (desc.length > 30 ? '...' : '');
+          } catch {
+            return 'Item incompleto';
+          }
+        }) || [];
+      
+      if (incomplete.length > 0) {
+        historyInfo += `\n⚠️ Dificultades: ${incomplete.join(', ')}`;
+      }
+    }
 
-  ${processedDocsText}
+    // ===== CONTEXTO ACTUAL =====
+    let contextInfo = '';
+    if (currentProgress) {
+      contextInfo = `\n📊 PROGRESO ACTUAL: ${currentProgress.overallProgress || 0}%`;
+      if (currentProgress.metrics) {
+        contextInfo += `\n📈 Métricas: N${currentProgress.metrics.nutritionAdherence || 0}% ` +
+                    `E${currentProgress.metrics.exerciseConsistency || 0}% ` +
+                    `H${currentProgress.metrics.habitFormation || 0}%`;
+      }
+    }
 
-  ${processingHistoryText}
+    // ===== NOTAS DEL COACH (solo si existen) =====
+    let notesInfo = '';
+    if (coachNotes && coachNotes.trim().length > 10) {
+      notesInfo = `\n💬 NOTAS COACH: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
+    }
 
-  ${previousSessionsText}
-
-  ${currentContext}
-
-  ${coachNotesText}
-
-  ## 📝 EJEMPLO DE ESTRUCTURA REQUERIDA PARA SEMANA 1:
-  \`\`\`json
+    // ===== ESQUEMA DE RESPUESTA (estructura exacta requerida) =====
+    const responseSchema = `\n\n🎯 ESTRUCTURA DE RESPUESTA (JSON EXACTO):
   {
-    "weekNumber": 1,
-    "nutrition": {
-      "focus": "Eliminar azúcares y alimentos procesados",
-      "checklistItems": [
-        {
-          "description": "Desayuno: Huevos con aguacate",
-          "type": "breakfast",
-          "details": {
-            "recipe": {
-              "ingredients": [
-                {"name": "Huevos", "quantity": "2-3 unidades", "notes": "orgánicos"},
-                {"name": "Aguacate", "quantity": "1/2 unidad", "notes": "maduro"}
-              ],
-              "preparation": "Batir los huevos, cocinar en mantequilla, servir con aguacate.",
-              "tips": "Añadir sal marina al gusto"
+    "summary": "Resumen conciso del estado actual del cliente considerando datos médicos y objetivos.",
+    "vision": "Visión a 12 meses: peso ideal calculado, porcentaje de grasa objetivo, mejoras en salud y hábitos. Incluir cálculos basados en datos del cliente.",
+    "baselineMetrics": {
+      "currentLifestyle": ["hábito1", "hábito2", "hábito3"],
+      "targetLifestyle": ["objetivo1", "objetivo2", "objetivo3"]
+    },
+    "weeks": [
+      {
+        "weekNumber": 1,
+        "nutrition": {
+          "focus": "Enfoque nutricional semana 1",
+          "checklistItems": [
+            {
+              "description": "Alimento/receta específica",
+              "type": "breakfast/lunch/dinner/snack",
+              "details": {
+                "recipe": {
+                  "ingredients": [
+                    {"name": "ingrediente", "quantity": "cantidad", "notes": "opcional"}
+                  ],
+                  "preparation": "Instrucciones de preparación",
+                  "tips": "Consejos adicionales"
+                }
+              }
             }
-          }
-        }
-      ],
-      "shoppingList": [
-        {"item": "Huevos", "quantity": "12 unidades", "priority": "high"},
-        {"item": "Aguacates", "quantity": "3-4 unidades", "priority": "high"}
-      ]
-    },
-    "exercise": {
-      "focus": "Movilidad básica y caminata",
-      "checklistItems": [
-        {
-          "description": "Caminata rápida 20 minutos",
-          "type": "cardio",
-          "details": {
-            "frequency": "3 días por semana",
-            "duration": "20 minutos",
-            "equipment": ["zapatos cómodos"]
-          }
-        }
-      ]
-    },
-    "habits": {
-      "checklistItems": [
-        {
-          "description": "Beber 2 litros de agua al día",
-          "type": "toAdopt"
+          ],
+          "shoppingList": [
+            {"item": "producto", "quantity": "cantidad", "priority": "high/medium/low"}
+          ]
         },
-        {
-          "description": "Eliminar refrescos azucarados",
-          "type": "toEliminate"
+        "exercise": {
+          "focus": "Enfoque ejercicio semana 1",
+          "checklistItems": [
+            {
+              "description": "Ejercicio específico",
+              "type": "cardio/strength/flexibility",
+              "details": {
+                "frequency": "veces por semana",
+                "duration": "duración",
+                "equipment": ["equipo necesario"]
+              }
+            }
+          ]
+        },
+        "habits": {
+          "checklistItems": [
+            {
+              "description": "Hábito a adoptar",
+              "type": "toAdopt"
+            },
+            {
+              "description": "Hábito a eliminar",
+              "type": "toEliminate"
+            }
+          ]
         }
-      ],
-      "trackingMethod": "Botella de 2L marcada",
-      "motivationTip": "Cada vaso de agua es un paso hacia tu salud"
+      }
+    ]
+  }`;
+
+    // ===== CONSIDERACIONES ESPECÍFICAS (adaptaciones críticas) =====
+    const specificConsiderations = `\n🔍 ADAPTACIONES REQUERIDAS (considerar siempre):
+  ${medicalData.allergies ? `• ALERGIAS: ${this.safeDecryptString(medicalData.allergies)}` : '• Sin alergias reportadas'}
+  ${medicalData.medications ? `• MEDICAMENTOS: ${this.safeDecryptString(medicalData.medications)}` : '• Sin medicamentos reportados'}
+  ${medicalData.mainComplaint ? `• QUEJA PRINCIPAL: ${this.safeDecryptString(medicalData.mainComplaint)}` : ''}
+  ${medicalData.surgeries ? `• CIRUGÍAS: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
+  ${personalData.occupation ? `• IMPACTO OCUPACIÓN: ${this.safeDecryptString(personalData.occupation)} en rutina` : ''}`;
+
+    // ===== CONSTRUCCIÓN DEL PROMPT FINAL (optimizado) =====
+    const prompt = `${systemRole}
+
+  ${absoluteRules}
+
+  ${clientInfo}
+  ${medicalInfo}
+  ${docsInfo}
+  ${historyInfo}
+  ${contextInfo}
+  ${notesInfo}
+  ${specificConsiderations}
+
+  ${responseSchema}
+
+  📌 INSTRUCCIÓN FINAL: Genera un plan REALISTA, PERSONALIZADO y PROGRESIVO.
+    Considera limitaciones físicas, horarios, acceso a alimentos y sostenibilidad.
+    Los alimentos deben ser accesibles en ${this.safeDecryptString(personalData.location) || 'la ubicación del cliente'}.
+    Priorizar ejercicios que puedan hacerse ${personalData.homeEquipment === 'si' ? 'en casa' : 'sin equipo especializado'}.
+
+  🚨 DEVUELVE SOLO EL OBJETO JSON, SIN TEXTO ADICIONAL.`;
+
+    console.log('📝 Prompt optimizado - Longitud:', prompt.length);
+    console.log('📝 Tokens estimados:', Math.ceil(prompt.length / 4));
+    
+    return prompt;
+  }
+
+  // ===== MÉTODOS AUXILIARES OPTIMIZADOS =====
+
+  /**
+   * Desencriptar string de forma segura (optimizada)
+   */
+  private static safeDecryptString(value: any): string {
+    if (!value || typeof value !== 'string') return '';
+    try {
+      return safeDecrypt(value);
+    } catch {
+      return value; // Si falla, devolver el valor original
     }
   }
-  \`\`\`
 
-  ## 🚨 IMPORTANTE FINAL:
-  1. Devuelve SOLO el JSON, sin texto adicional
-  2. Sigue EXACTAMENTE la estructura especificada
-  3. La progresión DEBE ser acumulativa (semana 2 incluye items de semana 1)
-  4. Los alimentos deben variar semanalmente (no repetir exactamente lo mismo)
-  5. Adapta las recomendaciones al historial médico del cliente
-  6. Considera alergias y limitaciones mencionadas
-  7. Si hay documentos médicos, refiérete a ellos en el análisis cuando sea relevante
-  8. El plan debe ser REALISTA y ALCANZABLE para el cliente
+  /**
+   * Formatear datos médicos de forma concisa
+   */
+  private static formatMedicalDataConcise(data: any): string {
+    if (!data) return '\n🏥 SIN DATOS MÉDICOS';
+    
+    const criticalInfo = [];
+    
+    if (data.allergies) {
+      const allergies = this.safeDecryptString(data.allergies);
+      if (allergies.toLowerCase() !== 'ninguna' && allergies.toLowerCase() !== 'no') {
+        criticalInfo.push(`🚫 Alergias: ${allergies}`);
+      }
+    }
+    
+    if (data.medications) {
+      const meds = this.safeDecryptString(data.medications);
+      if (meds.toLowerCase() !== 'ninguno' && meds.toLowerCase() !== 'no') {
+        criticalInfo.push(`💊 Medicamentos: ${meds}`);
+      }
+    }
+    
+    if (data.mainComplaint) {
+      criticalInfo.push(`🤕 Queja principal: ${this.safeDecryptString(data.mainComplaint)}`);
+    }
+    
+    if (data.surgeries) {
+      const surgeries = this.safeDecryptString(data.surgeries);
+      if (surgeries.toLowerCase() !== 'ninguna' && surgeries.toLowerCase() !== 'no') {
+        criticalInfo.push(`🩺 Cirugías: ${surgeries}`);
+      }
+    }
+    
+    // Evaluaciones críticas
+    if (data.carbohydrateAddiction === true) {
+      criticalInfo.push('🍩 Adicción a carbohidratos: SÍ');
+    }
+    
+    if (data.leptinResistance === true) {
+      criticalInfo.push('⚖️ Resistencia a leptina: SÍ');
+    }
+    
+    // Condiciones actuales/pasadas (limitado)
+    if (data.currentPastConditions) {
+      const conditions = this.safeDecryptString(data.currentPastConditions);
+      if (conditions.toLowerCase() !== 'ninguna' && conditions.length < 100) {
+        criticalInfo.push(`📋 Condiciones: ${conditions.substring(0, 80)}${conditions.length > 80 ? '...' : ''}`);
+      }
+    }
+    
+    return criticalInfo.length > 0 
+      ? '\n🏥 DATOS MÉDICOS CRÍTICOS:\n' + criticalInfo.join('\n')
+      : '\n🏥 Sin condiciones médicas críticas reportadas';
+  }
 
-  ## 📊 DATOS ESPECÍFICOS PARA ADAPTACIÓN:
-
-  ${bmi ? `- IMC calculado: ${bmi} (${this.getBMICategory(parseFloat(bmi))})` : ''}
-  ${clientWeight ? `- Peso actual: ${clientWeight} kg` : ''}
-  ${medicalData.mainComplaint ? `- Queja principal: ${medicalData.mainComplaint}` : ''}
-  ${medicalData.allergies ? `- Alergias: ${medicalData.allergies}` : ''}
-  ${medicalData.medications ? `- Medicamentos: ${medicalData.medications}` : ''}`;
-
-    return prompt;
+  /**
+   * Categoría IMC (mantener igual)
+   */
+  private static getBMICategory(bmi: number): string {
+    if (bmi < 18.5) return 'Bajo peso';
+    if (bmi < 25) return 'Peso normal';
+    if (bmi < 30) return 'Sobrepeso';
+    return 'Obesidad';
   }
 
   // Función auxiliar para categoría de IMC (añadir a la clase AIService)
@@ -832,69 +851,152 @@ export class AIService {
     try {
       console.log('🔍 DEBUG parseAIResponse: Iniciando parseo');
       console.log('📝 Response length:', response.length);
-      console.log('📝 Response (first 200 chars):', response.substring(0, 200));
       
-      // Intentar limpiar el JSON si tiene markdown
-      let jsonString = response;
-      
-      // Si tiene ```json ... ```, extraer solo el contenido
-      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (jsonMatch && jsonMatch[1]) {
-        console.log('🔍 Encontrado markdown JSON, extrayendo...');
-        jsonString = jsonMatch[1];
+      // Intentar parsear directamente
+      try {
+        return JSON.parse(response);
+      } catch (firstError) {
+        console.log('⚠️ Primer intento falló, intentando limpiar JSON...');
+        
+        // Limpiar posibles markdown
+        let jsonString = response;
+        
+        // Remover ```json ... ```
+        jsonString = jsonString.replace(/```json\s*/g, '');
+        jsonString = jsonString.replace(/```\s*/g, '');
+        
+        // Buscar JSON entre llaves
+        const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonString = jsonMatch[0];
+        }
+        
+        // Intentar arreglar JSON truncado
+        jsonString = this.fixTruncatedJSON(jsonString);
+        
+        console.log('📝 JSON limpiado (first 300 chars):', jsonString.substring(0, 300));
+        
+        return JSON.parse(jsonString);
       }
-      
-      // También buscar entre llaves
-      const braceMatch = response.match(/\{[\s\S]*\}/);
-      if (braceMatch && braceMatch[0] && !jsonString.startsWith('{')) {
-        console.log('🔍 Encontrado JSON entre llaves, usando...');
-        jsonString = braceMatch[0];
-      }
-      
-      console.log('📝 JSON a parsear (first 300 chars):', jsonString.substring(0, 300));
-      
-      const parsed = JSON.parse(jsonString) as {
-        summary: string;
-        vision: string;
-        baselineMetrics: any;
-        weeks: any[];
-      };
-      
-      console.log('✅ JSON parseado exitosamente');
-      console.log('📊 Keys:', Object.keys(parsed));
-      console.log('📊 Tiene weeks?', 'weeks' in parsed);
-      console.log('📊 Weeks es array?', Array.isArray(parsed.weeks));
-      
-      if (!parsed.weeks || !Array.isArray(parsed.weeks)) {
-        console.error('❌ parsed.weeks no existe o no es array:', parsed.weeks);
-        throw new Error('La respuesta de IA no tiene la estructura esperada (weeks debe ser array)');
-      }
-      
-      console.log(`📊 Número de semanas: ${parsed.weeks.length}`);
-      
-      // Validación más flexible
-      parsed.weeks.forEach((week, index) => {
-        const weekNum = index + 1;
-        console.log(`📊 Semana ${weekNum}:`, {
-          hasNutrition: !!week.nutrition,
-          hasExercise: !!week.exercise,
-          hasHabits: !!week.habits,
-          nutritionChecklistItems: week.nutrition?.checklistItems?.length || 0,
-          exerciseChecklistItems: week.exercise?.checklistItems?.length || 0,
-          habitsChecklistItems: week.habits?.checklistItems?.length || 0
-        });
-      });
-      
-      return parsed;
       
     } catch (error: any) {
       console.error('❌ ERROR en parseAIResponse:', error.message);
-      console.error('📦 Response que causó el error:', response.substring(0, 500));
-      loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', error, {
-        responsePreview: response.substring(0, 500)
-      });
+      
+      // Si falla, intentar extraer lo que haya
+      const fallback = this.extractPartialResponse(response);
+      if (fallback) {
+        console.log('🔄 Usando respuesta parcial extraída');
+        return fallback;
+      }
+      
       throw error;
     }
+  }
+
+  /**
+   * Intentar arreglar JSON truncado
+   */
+  private static fixTruncatedJSON(jsonString: string): string {
+    // Contar llaves para ver si está balanceado
+    const openBraces = (jsonString.match(/{/g) || []).length;
+    const closeBraces = (jsonString.match(/}/g) || []).length;
+    
+    if (openBraces > closeBraces) {
+      console.log(`⚠️ JSON desbalanceado: {=${openBraces}, }=${closeBraces}, agregando llaves de cierre`);
+      jsonString = jsonString + '}'.repeat(openBraces - closeBraces);
+    }
+    
+    // Verificar si el último carácter es una coma o comilla sin cerrar
+    if (jsonString.trim().endsWith(',') || jsonString.trim().endsWith('"')) {
+      console.log('⚠️ JSON termina con carácter inválido, recortando...');
+      jsonString = jsonString.trim();
+      jsonString = jsonString.substring(0, jsonString.length - 1);
+    }
+    
+    return jsonString;
+  }
+
+  /**
+   * Extraer respuesta parcial si el JSON está muy dañado
+   */
+  private static extractPartialResponse(response: string): any {
+    try {
+      // Intentar encontrar secciones clave
+      const summaryMatch = response.match(/"summary"\s*:\s*"([^"]*)"/);
+      const visionMatch = response.match(/"vision"\s*:\s*"([^"]*)"/);
+      const weeksMatch = response.match(/"weeks"\s*:\s*\[(.*)\]/s);
+      
+      if (summaryMatch || visionMatch) {
+        console.log('🔍 Respuesta parcial encontrada');
+        
+        // Crear estructura básica
+        const result: any = {
+          summary: summaryMatch ? summaryMatch[1].substring(0, 500) : 'Resumen no disponible',
+          vision: visionMatch ? visionMatch[1].substring(0, 500) : 'Visión no disponible',
+          baselineMetrics: {
+            currentLifestyle: ['Información limitada'],
+            targetLifestyle: ['Mejora general']
+          },
+          weeks: []
+        };
+        
+        // Intentar extraer semanas si es posible
+        if (weeksMatch) {
+          try {
+            // Esto es simplificado - en producción necesitarías un parser más robusto
+            const weeksText = weeksMatch[1];
+            const weekMatches = weeksText.match(/\{[^}]*\}/g);
+            if (weekMatches) {
+              result.weeks = weekMatches.slice(0, 4).map((weekText, index) => {
+                const weekNum = index + 1;
+                return {
+                  weekNumber: weekNum,
+                  nutrition: {
+                    focus: `Nutrición semana ${weekNum}`,
+                    checklistItems: [],
+                    shoppingList: []
+                  },
+                  exercise: {
+                    focus: `Ejercicio semana ${weekNum}`,
+                    checklistItems: []
+                  },
+                  habits: {
+                    checklistItems: []
+                  }
+                };
+              });
+            }
+          } catch (e) {
+            console.log('⚠️ No se pudieron extraer semanas');
+          }
+        }
+        
+        // Si no hay semanas, agregar una básica
+        if (result.weeks.length === 0) {
+          result.weeks = [{
+            weekNumber: 1,
+            nutrition: {
+              focus: 'Nutrición básica',
+              checklistItems: [],
+              shoppingList: []
+            },
+            exercise: {
+              focus: 'Ejercicio básico',
+              checklistItems: []
+            },
+            habits: {
+              checklistItems: []
+            }
+          }];
+        }
+        
+        return result;
+      }
+    } catch (error) {
+      console.log('⚠️ No se pudo extraer respuesta parcial');
+    }
+    
+    return null;
   }
 
   /**

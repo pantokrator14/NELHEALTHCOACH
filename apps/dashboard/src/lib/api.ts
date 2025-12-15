@@ -210,21 +210,47 @@ export const apiClient = {
     reprocessDocuments: boolean = false,
     coachNotes: string = ''
   ) {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        monthNumber,
-        reprocessDocuments,
-        coachNotes
-      }),
+    console.log('🚀 generateAIRecommendations llamado:', {
+      clientId,
+      monthNumber,
+      API_BASE_URL,
+      endpoint: `${API_BASE_URL}/api/clients/${clientId}/ai`
     });
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error generando recomendaciones de IA');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          monthNumber,
+          reprocessDocuments,
+          coachNotes
+        }),
+      });
+      
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText || 'Error desconocido' };
+        }
+        throw new Error(errorData.message || 'Error generando recomendaciones de IA');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Response data:', data);
+      return data;
+      
+    } catch (error: any) {
+      console.error('💥 Error en generateAIRecommendations:', error);
+      throw error;
     }
-    return response.json();
   },
 
   async getAIProgress(clientId: string) {
@@ -244,12 +270,9 @@ export const apiClient = {
     sessionId: string, 
     checklistItems: ChecklistItem[]
   ) => {
-    const response = await fetch(`/api/clients/${clientId}/ai`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, { // <-- CORREGIDO
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
+      headers: getAuthHeaders(), // <-- Usa getAuthHeaders() en lugar de crear headers manualmente
       body: JSON.stringify({
         action: 'update_checklist',
         sessionId,
