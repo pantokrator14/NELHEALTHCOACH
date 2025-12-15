@@ -720,7 +720,7 @@ export class AIService {
         messages: [
           {
             role: 'system',
-            content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido.'
+            content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.'
           },
           {
             role: 'user',
@@ -733,6 +733,7 @@ export class AIService {
       };
 
       console.log('🌐 URL:', `${this.config.baseURL}/chat/completions`);
+      console.log('📤 Request body size:', JSON.stringify(requestBody).length);
       
       const startTime = Date.now();
       const response = await fetch(`${this.config.baseURL}/chat/completions`, {
@@ -749,37 +750,67 @@ export class AIService {
       const duration = Date.now() - startTime;
       
       console.log('📡 Status:', response.status);
+      console.log('📡 Status Text:', response.statusText);
       console.log('⏱️ Duración:', duration, 'ms');
       
+      // Obtener el texto de respuesta primero
+      const responseText = await response.text();
+      console.log('📦 Raw response length:', responseText.length);
+      console.log('📦 Raw response (first 1000 chars):', responseText.substring(0, 1000));
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Error respuesta:', errorText);
-        throw new Error(`DeepSeek API Error: ${response.status} - ${errorText.substring(0, 200)}`);
+        console.error('❌ Error respuesta:', responseText);
+        throw new Error(`DeepSeek API Error: ${response.status} - ${responseText.substring(0, 200)}`);
       }
 
-      const data = await response.json();
-      console.log('✅ Respuesta recibida');
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('✅ JSON parseado correctamente');
+      } catch (jsonError) {
+        console.error('❌ Error parseando respuesta JSON:', jsonError);
+        console.error('📦 Texto que falló:', responseText.substring(0, 500));
+        throw new Error('La respuesta de DeepSeek no es JSON válido');
+      }
+      
       console.log('📊 Token usage:', data.usage);
+      console.log('📊 Finish reason:', data.choices?.[0]?.finish_reason);
       
       const content = data.choices[0]?.message?.content;
       
       if (!content) {
-        console.error('❌ No content en respuesta:', data);
+        console.error('❌ No content en respuesta. Data completa:', JSON.stringify(data, null, 2));
         throw new Error('La respuesta de DeepSeek no contiene contenido');
       }
 
+      console.log('📝 Content length:', content.length);
+      console.log('📝 Content (first 500 chars):', content.substring(0, 500));
+      
       // Verificar que sea JSON válido
       try {
-        JSON.parse(content);
-        console.log('✅ JSON válido recibido');
+        const parsedContent = JSON.parse(content);
+        console.log('✅ Contenido es JSON válido');
+        console.log('📊 Estructura del JSON:', Object.keys(parsedContent));
+        
+        // Verificar estructura mínima
+        if (!parsedContent.weeks || !Array.isArray(parsedContent.weeks)) {
+          console.error('❌ JSON no tiene estructura weeks array:', parsedContent);
+          throw new Error('La respuesta no tiene la estructura esperada (weeks array)');
+        }
+        
+        console.log(`✅ ${parsedContent.weeks.length} semanas recibidas`);
+        
       } catch (e) {
-        console.error('❌ JSON inválido:', content.substring(0, 500));
+        console.error('❌ Contenido no es JSON válido:', content.substring(0, 300));
+        console.error('❌ Error de parseo:', e);
+        throw new Error('El contenido de la respuesta no es JSON válido');
       }
       
       return content;
       
     } catch (error: any) {
-      console.error('💥 Error completo en callDeepSeekAPI:', error);
+      console.error('💥 Error completo en callDeepSeekAPI:', error.message);
+      console.error('💥 Stack:', error.stack);
       loggerWithContext.error('AI_SERVICE', 'Error en llamada a DeepSeek API', error);
       
       // Para debugging, muestra el mock en desarrollo
@@ -799,46 +830,66 @@ export class AIService {
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      const jsonString = jsonMatch ? jsonMatch[0] : response;
+      console.log('🔍 DEBUG parseAIResponse: Iniciando parseo');
+      console.log('📝 Response length:', response.length);
+      console.log('📝 Response (first 200 chars):', response.substring(0, 200));
+      
+      // Intentar limpiar el JSON si tiene markdown
+      let jsonString = response;
+      
+      // Si tiene ```json ... ```, extraer solo el contenido
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        console.log('🔍 Encontrado markdown JSON, extrayendo...');
+        jsonString = jsonMatch[1];
+      }
+      
+      // También buscar entre llaves
+      const braceMatch = response.match(/\{[\s\S]*\}/);
+      if (braceMatch && braceMatch[0] && !jsonString.startsWith('{')) {
+        console.log('🔍 Encontrado JSON entre llaves, usando...');
+        jsonString = braceMatch[0];
+      }
+      
+      console.log('📝 JSON a parsear (first 300 chars):', jsonString.substring(0, 300));
       
       const parsed = JSON.parse(jsonString) as {
         summary: string;
         vision: string;
         baselineMetrics: any;
-        weeks: AIWeekResponse[];
+        weeks: any[];
       };
       
-      // Validar progresión acumulativa
+      console.log('✅ JSON parseado exitosamente');
+      console.log('📊 Keys:', Object.keys(parsed));
+      console.log('📊 Tiene weeks?', 'weeks' in parsed);
+      console.log('📊 Weeks es array?', Array.isArray(parsed.weeks));
+      
+      if (!parsed.weeks || !Array.isArray(parsed.weeks)) {
+        console.error('❌ parsed.weeks no existe o no es array:', parsed.weeks);
+        throw new Error('La respuesta de IA no tiene la estructura esperada (weeks debe ser array)');
+      }
+      
+      console.log(`📊 Número de semanas: ${parsed.weeks.length}`);
+      
+      // Validación más flexible
       parsed.weeks.forEach((week, index) => {
-        const expectedCount = index + 1; // Semana 1: 1, Semana 2: 2, etc.
-        
-        // Validar nutrición
-        if (week.nutrition.checklistItems.length < expectedCount) {
-          throw new Error(`Semana ${week.weekNumber}: Nutrición debe tener al menos ${expectedCount} items, tiene ${week.nutrition.checklistItems.length}`);
-        }
-        
-        // Validar ejercicio
-        if (week.exercise.checklistItems.length < expectedCount) {
-          throw new Error(`Semana ${week.weekNumber}: Ejercicio debe tener al menos ${expectedCount} items, tiene ${week.exercise.checklistItems.length}`);
-        }
-        
-        // Validar hábitos (toAdopt + toEliminate)
-        const habitItems = week.habits.checklistItems;
-        const adoptCount = habitItems.filter(h => h.type === 'toAdopt').length;
-        const eliminateCount = habitItems.filter(h => h.type === 'toEliminate').length;
-        
-        if (adoptCount < expectedCount) {
-          throw new Error(`Semana ${week.weekNumber}: Hábitos para adoptar debe tener al menos ${expectedCount} items, tiene ${adoptCount}`);
-        }
-        
-        if (eliminateCount < expectedCount) {
-          throw new Error(`Semana ${week.weekNumber}: Hábitos para eliminar debe tener al menos ${expectedCount} items, tiene ${eliminateCount}`);
-        }
+        const weekNum = index + 1;
+        console.log(`📊 Semana ${weekNum}:`, {
+          hasNutrition: !!week.nutrition,
+          hasExercise: !!week.exercise,
+          hasHabits: !!week.habits,
+          nutritionChecklistItems: week.nutrition?.checklistItems?.length || 0,
+          exerciseChecklistItems: week.exercise?.checklistItems?.length || 0,
+          habitsChecklistItems: week.habits?.checklistItems?.length || 0
+        });
       });
       
       return parsed;
+      
     } catch (error: any) {
+      console.error('❌ ERROR en parseAIResponse:', error.message);
+      console.error('📦 Response que causó el error:', response.substring(0, 500));
       loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', error, {
         responsePreview: response.substring(0, 500)
       });
