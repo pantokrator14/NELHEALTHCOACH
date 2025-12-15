@@ -1565,5 +1565,23 @@ export class AIService {
       return false;
     }
   }
+
+  private static calculateIdealWeight(gender: string, height: number): number {
+    // Fórmula de Devine
+    if (gender?.toLowerCase().includes('hombre') || gender?.toLowerCase().includes('masculino')) {
+      return 50 + 0.9 * (height - 152);
+    } else {
+      // Para mujeres o por defecto
+      return 45.5 + 0.9 * (height - 152);
+    }
+  }
+
+  private static calculateBodyFatGoal(gender: string): string {
+    if (gender?.toLowerCase().includes('hombre') || gender?.toLowerCase().includes('masculino')) {
+      return "15-20%";
+    } else {
+      return "20-25%";
+    }
+  }
 }
 
