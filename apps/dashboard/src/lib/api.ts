@@ -1,14 +1,16 @@
+import { ChecklistItem } from '../../../../packages/types/src/healthForm';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
-    return token ? { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    } : { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
-  return { 'Content-Type': 'application/json' };
+  return headers;
 };
 
 export const apiClient = {
@@ -59,7 +61,7 @@ export const apiClient = {
     return response.json();
   },
 
-  async updateClient(id: string, data: any) {
+  async updateClient(id: string, data: unknown) {
     console.log('🔄 Enviando actualización para cliente:', id, data);
     
     try {
@@ -79,7 +81,7 @@ export const apiClient = {
       console.log('✅ Actualización exitosa:', responseData);
       return responseData;
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error en updateClient:', error);
       throw error;
     }
@@ -173,7 +175,7 @@ export const apiClient = {
       
       return responseData;
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error en confirmUpload:', error);
       throw new Error(error.message || 'Error confirmando upload');
     }
@@ -197,7 +199,7 @@ export const apiClient = {
       }
       
       return responseData;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error en deleteDocument:', error);
       throw error;
     }
@@ -254,15 +256,47 @@ export const apiClient = {
   },
 
   async getAIProgress(clientId: string) {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
-      headers: getAuthHeaders(),
-    });
+    console.log('🔍 getAIProgress llamado para cliente:', clientId);
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error al cargar progreso de IA');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+        headers: getAuthHeaders(),
+      });
+      
+      console.log('📡 Status de getAIProgress:', response.status);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al cargar progreso de IA');
+      }
+      
+      const result = await response.json();
+      console.log('📦 Respuesta completa getAIProgress:', {
+        success: result.success,
+        hasData: !!result.data,
+        hasAIProgress: result.data?.hasAIProgress,
+        sessions: result.data?.aiProgress?.sessions?.length || 0,
+        // Verificar estructura de la primera sesión
+        firstSession: result.data?.aiProgress?.sessions?.[0] ? {
+          sessionId: result.data.aiProgress.sessions[0].sessionId,
+          summary: result.data.aiProgress.sessions[0].summary?.substring(0, 50),
+          vision: result.data.aiProgress.sessions[0].vision?.substring(0, 50),
+          weeks: result.data.aiProgress.sessions[0].weeks?.length || 0,
+          week1Habits: result.data.aiProgress.sessions[0].weeks?.[0]?.habits?.checklistItems?.length || 0
+        } : null
+      });
+      
+      // ✅ IMPORTANTE: Devuelve el objeto completo que incluye `success` y `data`
+      return result;
+      
+    } catch (error: unknown) {
+      console.error('💥 Error en getAIProgress:', error);
+      throw error;
     }
-    return response.json();
   },
 
   updateAIChecklist: async (

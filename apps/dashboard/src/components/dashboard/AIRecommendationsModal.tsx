@@ -1070,7 +1070,7 @@ export default function AIRecommendationsModal({
                   <div className="space-y-3">
                     <h4 className="font-semibold text-gray-700 flex items-center">
                       <span className="mr-2">🎯</span>
-                      Visión a 1 Año
+                      Visión para el siguiente mes
                     </h4>
                     {editMode ? (
                       <textarea
@@ -1078,7 +1078,7 @@ export default function AIRecommendationsModal({
                         onChange={(e) => setEditText(e.target.value)}
                         rows={6}
                         className="w-full px-3 py-2 text-gray-600 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        placeholder="Describe la visión a 1 año del cliente..."
+                        placeholder="Describe la visión para el siguiente mes del cliente..."
                       />
                     ) : (
                       <div className="p-3 bg-green-50 rounded-lg">

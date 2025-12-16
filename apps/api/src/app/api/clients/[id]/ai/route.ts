@@ -11,7 +11,14 @@ import { ChecklistItem } from '../../../../../../../../packages/types/src/health
 import { EmailService } from '@/app/lib/email-service';
 
 function decryptAISessionCompletely(session: any): any {
+  console.log('🔓 Iniciando desencriptación de sesión:', session.sessionId);
+  
   try {
+    console.log('📥 Sesión entrante:', {
+      summary: session.summary?.substring(0, 50),
+      vision: session.vision?.substring(0, 50),
+      weeksCount: session.weeks?.length || 0
+    });
     return {
       ...session,
       summary: safeDecrypt(session.summary),
@@ -154,7 +161,7 @@ export async function GET(
       });
 
       // Desencriptar sesiones si es necesario
-      const decryptedSessions = aiProgress.sessions?.map(session => 
+      const decryptedSessions = aiProgress.sessions?.map((session: any) => 
         decryptAISessionCompletely(session)
       ) || [];
 
@@ -1116,29 +1123,75 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 async function regenerateSession(clientId: string, sessionId: string, coachNotes: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
   
-  loggerWithContext.info('AI', 'Regenerando sesión', { sessionId });
+  loggerWithContext.info('AI', 'Regenerando sesión con IA', { sessionId, coachNotesLength: coachNotes.length });
   
   try {
     const healthForms = await getHealthFormsCollection();
     
+    // 1. Obtener cliente y sesión existente
+    const client = await healthForms.findOne({ 
+      _id: new ObjectId(clientId),
+      'aiProgress.sessions.sessionId': sessionId
+    });
+
+    if (!client || !client.aiProgress) {
+      loggerWithContext.warn('AI', 'Cliente o sesión no encontrada');
+      return false;
+    }
+
+    const sessionIndex = client.aiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
+    );
+
+    if (sessionIndex === -1) {
+      loggerWithContext.warn('AI', 'Sesión no encontrada');
+      return false;
+    }
+
+    const existingSession = client.aiProgress.sessions[sessionIndex];
+    
+    // 2. Preparar datos para IA (igual que en POST)
+    const aiInput = await prepareAIInput(client, requestId);
+    
+    // 3. Agregar notas del coach a la entrada
+    aiInput.coachNotes = coachNotes;
+    aiInput.previousSessions = client.aiProgress.sessions;
+    aiInput.currentProgress = client.aiProgress;
+
+    // 4. Generar NUEVAS recomendaciones
+    loggerWithContext.info('AI', 'Llamando a IA para regenerar');
+    const newRecommendations = await AIService.analyzeClientAndGenerateRecommendations(
+      aiInput, 
+      existingSession.monthNumber,
+      { requestId, clientId }
+    );
+
+    // 5. Reemplazar sesión existente con la nueva
+    const updatedSessions = [...client.aiProgress.sessions];
+    updatedSessions[sessionIndex] = newRecommendations;
+
     const result = await healthForms.updateOne(
-      { 
-        _id: new ObjectId(clientId),
-        'aiProgress.sessions.sessionId': sessionId
-      },
+      { _id: new ObjectId(clientId) },
       {
         $set: {
-          'aiProgress.sessions.$.status': 'draft',
-          'aiProgress.sessions.$.coachNotes': coachNotes,
-          'aiProgress.sessions.$.updatedAt': new Date()
+          'aiProgress.sessions': updatedSessions,
+          'aiProgress.currentSessionId': newRecommendations.sessionId,
+          'aiProgress.lastEvaluation': new Date(),
+          updatedAt: new Date()
         }
       }
     );
+
+    loggerWithContext.info('AI', 'Sesión regenerada con IA', { 
+      sessionId, 
+      newSessionId: newRecommendations.sessionId,
+      modified: result.modifiedCount 
+    });
     
-    loggerWithContext.info('AI', 'Sesión regenerada', { sessionId, modified: result.modifiedCount });
     return result.modifiedCount > 0;
+    
   } catch (error) {
-    loggerWithContext.error('AI', 'Error regenerando sesión', error as Error);
+    loggerWithContext.error('AI', 'Error regenerando sesión con IA', error as Error);
     return false;
   }
 }
