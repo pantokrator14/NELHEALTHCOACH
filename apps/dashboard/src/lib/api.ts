@@ -356,21 +356,51 @@ export const apiClient = {
     return response.json();
   },
 
-  async regenerateAISession(clientId: string, sessionId: string, coachNotes: string = '') {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        action: 'regenerate_session',
-        sessionId,
-        data: { coachNotes }
-      }),
+  async regenerateAISession(
+    clientId: string, 
+    sessionId: string, 
+    coachNotes: string = ''
+  ) {
+    console.log('🔄 regenerateAISession llamado:', {
+      clientId,
+      sessionId,
+      hasCoachNotes: !!coachNotes && coachNotes.trim().length > 0
     });
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error regenerando sesión');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action: 'regenerate_session',
+          sessionId,
+          data: { 
+            coachNotes: coachNotes || ''
+          }
+        }),
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText || 'Error desconocido' };
+        }
+        throw new Error(errorData.message || 'Error regenerando sesión');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Regeneración exitosa:', data);
+      return data;
+      
+    } catch (error: any) {
+      console.error('💥 Error en regenerateAISession:', error);
+      throw error;
     }
-    return response.json();
-  }
+  },
 };

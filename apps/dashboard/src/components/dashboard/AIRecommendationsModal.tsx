@@ -538,38 +538,69 @@ export default function AIRecommendationsModal({
   };
 
   // Regenerar sesión
-  const handleRegenerateSession = async (sessionId: string) => {
-    const coachNotes = prompt(
-      '¿Por qué quieres regenerar las recomendaciones?\nAgrega notas para la IA:',
-      'Mejoras en el plan, cambio de objetivos, etc.'
-    );
-    
-    if (!coachNotes) return; // Si canceló
-
+  const handleRegenerate = async () => {
     try {
-      setGenerating(true);
+      setLoading(true);
+      console.log('🔄 Iniciando regeneración de recomendaciones...');
       
-      // Obtener el mes actual de la sesión
-      const sessionToRegenerate = aiProgress?.sessions.find(s => s.sessionId === sessionId);
-      if (!sessionToRegenerate) return;
-      
-      // Llamar a la API para generar NUEVAS recomendaciones
-      const response = await apiClient.generateAIRecommendations(
-        clientId, 
-        sessionToRegenerate.monthNumber,
-        false, // reprocessDocuments
-        coachNotes
+      // Solicitar notas opcionales al coach
+      const coachNotes = prompt(
+        '¿Deseas agregar alguna nota o instrucción específica para la regeneración?\n\n' +
+        'Ejemplos:\n' +
+        '- "Enfocarse más en ejercicios para espalda"\n' +
+        '- "Evitar alimentos con lactosa"\n' +
+        '- "Incluir más recetas vegetarianas"\n\n' +
+        'Deja en blanco si no tienes notas específicas:',
+        ''
       );
-
+      
+      console.log('📝 Notas del coach para regeneración:', coachNotes);
+      
+      const response = await apiClient.regenerateAISession(
+        clientId,
+        currentSession.sessionId,
+        coachNotes || ''
+      );
+      
       if (response.success) {
-        await loadAIProgress();
-        alert('✅ Nuevas recomendaciones generadas exitosamente');
+        console.log('✅ Recomendaciones regeneradas exitosamente');
+        
+        // Mostrar notificación
+        toast.success('Recomendaciones regeneradas exitosamente', {
+          duration: 3000,
+          position: 'top-right'
+        });
+        
+        // Recargar las recomendaciones
+        await loadAIRecommendations();
+        
+        // Si hay notas del coach, mostrarlas
+        if (coachNotes && coachNotes.trim().length > 0) {
+          toast.info('Notas del coach incluidas en la regeneración', {
+            duration: 4000,
+            position: 'top-right'
+          });
+        }
+      } else {
+        throw new Error(response.message || 'Error al regenerar recomendaciones');
       }
-    } catch (error) {
-      console.error('Error regenerando sesión:', error);
-      alert('Error al regenerar sesión: ' + (error as Error).message);
+    } catch (error: any) {
+      console.error('❌ Error regenerando recomendaciones:', error);
+      
+      // Manejar error específico de estado
+      if (error.message.includes("estado 'draft'")) {
+        toast.error('Solo se pueden regenerar recomendaciones en estado "Borrador". Aprueba o envía las actuales primero.', {
+          duration: 5000,
+          position: 'top-right'
+        });
+      } else {
+        toast.error(`Error: ${error.message}`, {
+          duration: 4000,
+          position: 'top-right'
+        });
+      }
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
@@ -1202,10 +1233,27 @@ export default function AIRecommendationsModal({
               {activeSession && (
                 <>
                   <button
-                    onClick={() => handleRegenerateSession(activeSession.sessionId)}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                    onClick={handleRegenerate}
+                    disabled={loading || currentSession?.status !== 'draft'}
+                    variant="outline"
+                    className="flex items-center gap-2"
                   >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
                     Regenerar
+                    {currentSession?.status !== 'draft' && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Solo se pueden regenerar recomendaciones en estado "Borrador"
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </button>
                   
                   {activeSession.status === 'draft' && (

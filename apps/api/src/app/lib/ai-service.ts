@@ -108,13 +108,22 @@ export class AIService {
   static async analyzeClientAndGenerateRecommendations(
     input: AIAnalysisInput,
     monthNumber: number = 1,
-    metadata?: { requestId?: string; clientId?: string }
+    metadata?: { requestId?: string; clientId?: string; isRegeneration?: boolean; previousSessionId?: string; }
   ): Promise<AIRecommendationSession> {
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
-    return loggerWithContext.time('AI_SERVICE', 'Generar recomendaciones', async () => {
+    return loggerWithContext.time('AI_SERVICE', metadata?.isRegeneration ? '🔄 Regenerando recomendaciones' : '🚀 Generando recomendaciones', async () => {
+    
       try {
-        console.log('=== DEBUG: Iniciando generación de recomendaciones ===');
+        
+        console.log('=== DEBUG: ' + (metadata?.isRegeneration ? 'REGENERACIÓN' : 'GENERACIÓN') + ' de recomendaciones ===');
+        
+        if (metadata?.isRegeneration) {
+          console.log('🔄 MODO REGENERACIÓN ACTIVADO');
+          console.log('📋 Previous Session ID:', metadata.previousSessionId);
+          console.log('📝 Coach Notes:', input.coachNotes?.substring(0, 100) || 'No hay');
+        }
+    
         
         // Validar configuración
         if (!this.config.apiKey) {
@@ -178,7 +187,9 @@ export class AIService {
         // Crear sesión
         const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const session: AIRecommendationSession = {
-          sessionId,
+          sessionId: metadata?.isRegeneration 
+            ? `regen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            : `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           monthNumber,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -190,16 +201,31 @@ export class AIService {
             targetLifestyle: ['Mejora general']
           },
           weeks,
-          checklist: allChecklistItems
+          checklist: allChecklistItems,
+          // Campos de regeneración
+          ...(metadata?.isRegeneration && {
+            regenerationCount: 1,
+            regenerationHistory: [{
+              timestamp: new Date(),
+              previousSessionId: metadata.previousSessionId || '',
+              coachNotes: input.coachNotes || '',
+              triggeredBy: 'coach'
+            }]
+          })
         };
 
-        loggerWithContext.info('AI_SERVICE', 'Recomendaciones generadas exitosamente', {
-          sessionId,
-          monthNumber,
-          weekCount: session.weeks.length,
-          checklistItemCount: session.checklist.length,
-          model: this.config.model
-        }, metadata);
+        loggerWithContext.info('AI_SERVICE', 
+          metadata?.isRegeneration ? '✅ Recomendaciones regeneradas exitosamente' : '✅ Recomendaciones generadas exitosamente', 
+          {
+            sessionId: session.sessionId,
+            monthNumber,
+            weekCount: session.weeks.length,
+            checklistItemCount: session.checklist.length,
+            model: this.config.model,
+            isRegeneration: metadata?.isRegeneration || false
+          }, 
+          metadata
+        );
 
         return session;
 

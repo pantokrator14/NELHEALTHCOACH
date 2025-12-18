@@ -484,8 +484,8 @@ export async function PUT(
           break;
 
         case 'regenerate_session':
-          updateResult = await regenerateSession(id, sessionId, data.coachNotes, requestId);
-          message = 'Sesión regenerada';
+          updateResult = await regenerateSession(id, sessionId, data.coachNotes || '', requestId);
+          message = 'Sesión regenerada exitosamente';
           break;
 
         default:
@@ -1123,76 +1123,200 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 async function regenerateSession(clientId: string, sessionId: string, coachNotes: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
   
-  loggerWithContext.info('AI', 'Regenerando sesión con IA', { sessionId, coachNotesLength: coachNotes.length });
+  loggerWithContext.info('AI_REGEN', '🚀 Iniciando proceso de regeneración', { 
+    sessionId,
+    hasCoachNotes: !!coachNotes && coachNotes.trim().length > 0,
+    notesLength: coachNotes?.length || 0
+  });
   
   try {
     const healthForms = await getHealthFormsCollection();
     
-    // 1. Obtener cliente y sesión existente
+    // 1. Obtener el cliente y la sesión actual
+    loggerWithContext.debug('AI_REGEN', 'Buscando cliente y sesión', { clientId, sessionId });
+    
     const client = await healthForms.findOne({ 
       _id: new ObjectId(clientId),
       'aiProgress.sessions.sessionId': sessionId
     });
 
     if (!client || !client.aiProgress) {
-      loggerWithContext.warn('AI', 'Cliente o sesión no encontrada');
+      loggerWithContext.error('AI_REGEN', 'Cliente o progreso de IA no encontrado', {
+        clientId,
+        hasClient: !!client,
+        hasAIProgress: !!client?.aiProgress
+      });
       return false;
     }
 
+    // 2. Encontrar la sesión específica
     const sessionIndex = client.aiProgress.sessions.findIndex(
       (s: any) => s.sessionId === sessionId
     );
 
     if (sessionIndex === -1) {
-      loggerWithContext.warn('AI', 'Sesión no encontrada');
+      loggerWithContext.error('AI_REGEN', 'Sesión no encontrada', { sessionId });
       return false;
     }
 
     const existingSession = client.aiProgress.sessions[sessionIndex];
     
-    // 2. Preparar datos para IA (igual que en POST)
+    // 3. ✅ VERIFICAR QUE LA SESIÓN ESTÉ EN ESTADO 'draft'
+    loggerWithContext.debug('AI_REGEN', 'Verificando estado de sesión', {
+      sessionId,
+      currentStatus: existingSession.status,
+      allowed: existingSession.status === 'draft'
+    });
+    
+    if (existingSession.status !== 'draft') {
+      loggerWithContext.error('AI_REGEN', '❌ No se puede regenerar - sesión no está en estado draft', {
+        sessionId,
+        currentStatus: existingSession.status,
+        allowedStatuses: ['draft']
+      });
+      throw new Error(`Solo se pueden regenerar sesiones en estado 'draft'. Estado actual: '${existingSession.status}'`);
+    }
+
+    loggerWithContext.info('AI_REGEN', '✅ Sesión validada para regeneración', {
+      sessionId,
+      monthNumber: existingSession.monthNumber,
+      status: existingSession.status
+    });
+
+    // 4. Preparar datos para la IA incluyendo notas del coach
+    loggerWithContext.info('AI_REGEN', '🔄 Preparando datos para regeneración');
+    
     const aiInput = await prepareAIInput(client, requestId);
     
-    // 3. Agregar notas del coach a la entrada
-    aiInput.coachNotes = coachNotes;
-    aiInput.previousSessions = client.aiProgress.sessions;
-    aiInput.currentProgress = client.aiProgress;
+    // Agregar notas del coach si las hay
+    if (coachNotes && coachNotes.trim().length > 0) {
+      aiInput.coachNotes = coachNotes;
+      loggerWithContext.debug('AI_REGEN', 'Notas del coach incluidas', {
+        notesLength: coachNotes.length,
+        preview: coachNotes.substring(0, 100) + (coachNotes.length > 100 ? '...' : '')
+      });
+    } else {
+      loggerWithContext.debug('AI_REGEN', 'No hay notas del coach, regenerando sin modificaciones');
+    }
+    
+    // Agregar sesiones anteriores (excluyendo la actual si es necesario)
+    if (client.aiProgress.sessions && client.aiProgress.sessions.length > 0) {
+      const otherSessions = client.aiProgress.sessions.filter(
+        (s: any, idx: number) => idx !== sessionIndex
+      );
+      aiInput.previousSessions = otherSessions;
+      loggerWithContext.debug('AI_REGEN', 'Sesiones anteriores incluidas', {
+        count: otherSessions.length
+      });
+    }
 
-    // 4. Generar NUEVAS recomendaciones
-    loggerWithContext.info('AI', 'Llamando a IA para regenerar');
+    // 5. Generar NUEVAS recomendaciones con la IA
+    loggerWithContext.info('AI_REGEN', '🤖 Llamando a IA para generar nuevas recomendaciones', {
+      monthNumber: existingSession.monthNumber,
+      hasPreviousSessions: aiInput.previousSessions?.length || 0
+    });
+    
     const newRecommendations = await AIService.analyzeClientAndGenerateRecommendations(
       aiInput, 
       existingSession.monthNumber,
-      { requestId, clientId }
-    );
-
-    // 5. Reemplazar sesión existente con la nueva
-    const updatedSessions = [...client.aiProgress.sessions];
-    updatedSessions[sessionIndex] = newRecommendations;
-
-    const result = await healthForms.updateOne(
-      { _id: new ObjectId(clientId) },
-      {
-        $set: {
-          'aiProgress.sessions': updatedSessions,
-          'aiProgress.currentSessionId': newRecommendations.sessionId,
-          'aiProgress.lastEvaluation': new Date(),
-          updatedAt: new Date()
-        }
+      { 
+        requestId, 
+        clientId,
+        isRegeneration: true, // <-- Nuevo flag
+        previousSessionId: sessionId // <-- ID de la sesión anterior
       }
     );
 
-    loggerWithContext.info('AI', 'Sesión regenerada con IA', { 
-      sessionId, 
+    loggerWithContext.info('AI_REGEN', '✅ Nuevas recomendaciones generadas', {
       newSessionId: newRecommendations.sessionId,
-      modified: result.modifiedCount 
+      monthNumber: newRecommendations.monthNumber,
+      weekCount: newRecommendations.weeks?.length || 0,
+      summaryLength: newRecommendations.summary?.length || 0
+    });
+
+    // 6. Actualizar la sesión en la base de datos (REEMPLAZAR)
+    // Mantener el mismo sessionId? O crear uno nuevo? 
+    // Vamos a crear uno nuevo para mantener historial de regeneraciones
+    const updateData: any = {
+      $set: {
+        'aiProgress.sessions.$.sessionId': newRecommendations.sessionId, // Nuevo ID
+        'aiProgress.sessions.$.summary': newRecommendations.summary,
+        'aiProgress.sessions.$.vision': newRecommendations.vision,
+        'aiProgress.sessions.$.baselineMetrics': newRecommendations.baselineMetrics,
+        'aiProgress.sessions.$.weeks': newRecommendations.weeks,
+        'aiProgress.sessions.$.checklist': newRecommendations.checklist,
+        'aiProgress.sessions.$.status': 'draft', // Mantener en draft
+        'aiProgress.sessions.$.updatedAt': new Date(),
+        'aiProgress.sessions.$.regeneratedAt': new Date(),
+        'aiProgress.sessions.$.regenerationCount': (existingSession.regenerationCount || 0) + 1,
+        'aiProgress.currentSessionId': newRecommendations.sessionId,
+        'aiProgress.lastEvaluation': new Date(),
+        updatedAt: new Date()
+      }
+    };
+
+    // Agregar notas del coach si las hay
+    if (coachNotes && coachNotes.trim().length > 0) {
+      updateData.$set['aiProgress.sessions.$.coachNotes'] = coachNotes;
+      updateData.$set['aiProgress.sessions.$.lastCoachNotes'] = coachNotes;
+    }
+
+    // Agregar historial de regeneración
+    const regenerationHistory = {
+      timestamp: new Date(),
+      previousSessionId: existingSession.sessionId,
+      coachNotes: coachNotes || null,
+      triggeredBy: 'coach'
+    };
+
+    updateData.$push = {
+      'aiProgress.sessions.$.regenerationHistory': regenerationHistory
+    };
+
+    const result = await healthForms.updateOne(
+      { 
+        _id: new ObjectId(clientId),
+        'aiProgress.sessions.sessionId': sessionId
+      },
+      updateData
+    );
+
+    loggerWithContext.debug('AI_REGEN', 'Resultado de actualización en BD', {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      oldSessionId: sessionId,
+      newSessionId: newRecommendations.sessionId
+    });
+
+    if (result.modifiedCount > 0) {
+      loggerWithContext.info('AI_REGEN', '🎉 Regeneración completada exitosamente', {
+        oldSessionId: sessionId,
+        newSessionId: newRecommendations.sessionId,
+        monthNumber: existingSession.monthNumber,
+        regenerationNumber: (existingSession.regenerationCount || 0) + 1
+      });
+      return true;
+    } else {
+      loggerWithContext.error('AI_REGEN', '❌ No se modificó ningún documento', {
+        sessionId,
+        matchedCount: result.matchedCount
+      });
+      return false;
+    }
+    
+  } catch (error: any) {
+    loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', error, {
+      sessionId,
+      clientId,
+      errorMessage: error.message,
+      errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
     
-    return result.modifiedCount > 0;
+    // Enviar error específico si es por estado incorrecto
+    if (error.message.includes("estado 'draft'")) {
+      throw error; // Propagar error específico
+    }
     
-  } catch (error) {
-    loggerWithContext.error('AI', 'Error regenerando sesión con IA', error as Error);
     return false;
   }
 }
-

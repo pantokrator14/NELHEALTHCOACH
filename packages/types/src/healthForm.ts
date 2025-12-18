@@ -183,27 +183,32 @@ export interface AIRecommendationSession {
   monthNumber: number;
   createdAt: Date;
   updatedAt: Date;
-  status: 'draft' | 'approved' | 'sent';
-  
-  summary: string;
-  vision: string;
-  
+  status: 'draft' | 'approved' | 'sent' | 'completed';
+  summary: string; // encriptado
+  vision: string; // encriptado
   baselineMetrics: {
-    currentWeight?: number;
-    targetWeight?: number;
     currentLifestyle: string[];
     targetLifestyle: string[];
   };
-  
   weeks: AIRecommendationWeek[];
-  
-  // Checklist completo (todos los items de todas las semanas)
   checklist: ChecklistItem[];
   
+  // Nuevos campos para regeneración
+  regenerationCount?: number;
+  regenerationHistory?: Array<{
+    timestamp: Date;
+    previousSessionId: string;
+    coachNotes?: string;
+    triggeredBy: 'coach' | 'system';
+  }>;
   coachNotes?: string;
+  lastCoachNotes?: string;
+  regeneratedAt?: Date;
   approvedAt?: Date;
   sentAt?: Date;
-  previousSessionId?: string;
+  completedAt?: Date;
+  emailSent?: boolean;
+  emailError?: string;
 }
 
 export interface ClientAIProgress {
