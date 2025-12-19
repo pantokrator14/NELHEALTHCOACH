@@ -558,28 +558,18 @@ export default function AIRecommendationsModal({
       
       const response = await apiClient.regenerateAISession(
         clientId,
-        currentSession.sessionId,
+        activeSession!.sessionId,
         coachNotes || ''
       );
       
       if (response.success) {
         console.log('✅ Recomendaciones regeneradas exitosamente');
-        
-        // Mostrar notificación
-        toast.success('Recomendaciones regeneradas exitosamente', {
-          duration: 3000,
-          position: 'top-right'
-        });
-        
-        // Recargar las recomendaciones
-        await loadAIRecommendations();
+       
+        await loadAIProgress();
         
         // Si hay notas del coach, mostrarlas
         if (coachNotes && coachNotes.trim().length > 0) {
-          toast.info('Notas del coach incluidas en la regeneración', {
-            duration: 4000,
-            position: 'top-right'
-          });
+          console.log('Notas del coach incluidas en la regeneración');
         }
       } else {
         throw new Error(response.message || 'Error al regenerar recomendaciones');
@@ -589,15 +579,9 @@ export default function AIRecommendationsModal({
       
       // Manejar error específico de estado
       if (error.message.includes("estado 'draft'")) {
-        toast.error('Solo se pueden regenerar recomendaciones en estado "Borrador". Aprueba o envía las actuales primero.', {
-          duration: 5000,
-          position: 'top-right'
-        });
+        console.log('Solo se pueden regenerar recomendaciones en estado "Borrador".');
       } else {
-        toast.error(`Error: ${error.message}`, {
-          duration: 4000,
-          position: 'top-right'
-        });
+        console.log(`Error: ${error.message}`);
       }
     } finally {
       setLoading(false);
@@ -1234,25 +1218,23 @@ export default function AIRecommendationsModal({
                 <>
                   <button
                     onClick={handleRegenerate}
-                    disabled={loading || currentSession?.status !== 'draft'}
-                    variant="outline"
-                    className="flex items-center gap-2"
+                    disabled={loading || activeSession?.status !== 'draft'}
+                    className="flex items-center gap-2 px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50"
                   >
                     {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10" strokeWidth="4" stroke="currentColor" strokeOpacity="0.25"></circle>
+                        <path d="M22 12a10 10 0 00-10-10" strokeWidth="4" stroke="currentColor" strokeLinecap="round"></path>
+                      </svg>
                     ) : (
-                      <RefreshCw className="h-4 w-4" />
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 12a8 8 0 10-8 8" />
+                        <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 4v6h-6" />
+                      </svg>
                     )}
                     Regenerar
-                    {currentSession?.status !== 'draft' && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Solo se pueden regenerar recomendaciones en estado "Borrador"
-                        </TooltipContent>
-                      </Tooltip>
+                    {activeSession?.status !== 'draft' && (
+                      <span className="ml-2 text-xs text-gray-500" title='Solo se pueden regenerar recomendaciones en estado "Borrador"'>ⓘ</span>
                     )}
                   </button>
                   
@@ -1281,4 +1263,8 @@ export default function AIRecommendationsModal({
       </div>
     </div>
   );
+}
+
+function loadAIRecommendations() {
+  throw new Error('Function not implemented.');
 }
