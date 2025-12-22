@@ -861,13 +861,22 @@ export default function AIRecommendationsModal({
    */
   const handleSendToClient = async (sessionId: string) => {
     try {
-      console.log('📤 Enviando sesión al cliente:', sessionId);
-      await apiClient.sendAISessionToClient(clientId, sessionId);
-      await loadAIProgress();
-      alert('✅ Recomendaciones enviadas al cliente exitosamente');
+      console.log('📤 Enviando recomendaciones al cliente...');
+      
+      const response = await apiClient.sendAISessionToClient(clientId, sessionId);
+      
+      if (response.success) {
+        console.log('✅ Recomendaciones enviadas al cliente');
+        await loadAIProgress();
+        
+        // Mostrar confirmación
+        alert('✅ Recomendaciones enviadas exitosamente al cliente por correo electrónico.');
+      } else {
+        throw new Error(response.message || 'Error enviando al cliente');
+      }
     } catch (error: any) {
       console.error('❌ Error enviando al cliente:', error);
-      alert('Error al enviar al cliente: ' + error.message);
+      alert(`Error: ${error.message}`);
     }
   };
 
@@ -1545,6 +1554,12 @@ export default function AIRecommendationsModal({
                     >
                       Enviar al Cliente
                     </button>
+                  )}
+
+                  {activeSession.status === 'sent' && (
+                    <span className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">
+                      ✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}
+                    </span>
                   )}
                 </>
               )}

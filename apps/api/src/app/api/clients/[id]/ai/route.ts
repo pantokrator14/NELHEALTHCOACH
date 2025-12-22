@@ -995,12 +995,69 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
 async function approveSession(clientId: string, sessionId: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
   
-  loggerWithContext.info('AI', 'Aprobando sesión y enviando email', { sessionId });
+  loggerWithContext.info('AI', '✅ Aprobando sesión (sin enviar email)', { sessionId });
   
   try {
     const healthForms = await getHealthFormsCollection();
     
-    // 1. Obtener el cliente completo para extraer email y datos
+    // Verificar que la sesión esté en estado 'draft'
+    const client = await healthForms.findOne({ 
+      _id: new ObjectId(clientId),
+      'aiProgress.sessions.sessionId': sessionId,
+      'aiProgress.sessions.$.status': 'draft' // Solo aprobar si está en draft
+    });
+
+    if (!client) {
+      loggerWithContext.warn('AI', 'Cliente no encontrado o sesión no está en estado draft', {
+        clientId,
+        sessionId
+      });
+      return false;
+    }
+
+    // Actualizar solo el estado a 'approved'
+    const result = await healthForms.updateOne(
+      { 
+        _id: new ObjectId(clientId),
+        'aiProgress.sessions.sessionId': sessionId
+      },
+      {
+        $set: {
+          'aiProgress.sessions.$.status': 'approved',
+          'aiProgress.sessions.$.approvedAt': new Date(),
+          'aiProgress.sessions.$.updatedAt': new Date()
+        }
+      }
+    );
+
+    if (result.modifiedCount > 0) {
+      loggerWithContext.info('AI', '✅ Sesión aprobada exitosamente (email NO enviado)', { 
+        sessionId 
+      });
+      return true;
+    } else {
+      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', { sessionId });
+      return false;
+    }
+    
+  } catch (error: any) {
+    loggerWithContext.error('AI', '❌ Error aprobando sesión', error, {
+      clientId,
+      sessionId
+    });
+    return false;
+  }
+}
+
+async function sendToClient(clientId: string, sessionId: string, requestId: string): Promise<boolean> {
+  const loggerWithContext = logger.withContext({ requestId, clientId });
+  
+  loggerWithContext.info('AI', '📤 Enviando sesión al cliente via email', { sessionId });
+  
+  try {
+    const healthForms = await getHealthFormsCollection();
+    
+    // 1. Obtener el cliente completo
     const client = await healthForms.findOne({ 
       _id: new ObjectId(clientId),
       'aiProgress.sessions.sessionId': sessionId
@@ -1023,10 +1080,20 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
 
     const session = client.aiProgress.sessions[sessionIndex];
     
-    // 3. Desencriptar la sesión completa para el email
+    // 3. Verificar que la sesión esté aprobada
+    if (session.status !== 'approved') {
+      loggerWithContext.warn('AI', 'Sesión no está aprobada', { 
+        sessionId, 
+        currentStatus: session.status,
+        requiredStatus: 'approved'
+      });
+      return false;
+    }
+
+    // 4. Desencriptar la sesión completa para el email
     const decryptedSession = decryptAISessionCompletely(session);
     
-    // 4. Obtener y desencriptar el email del cliente
+    // 5. Obtener y desencriptar el email del cliente
     let clientEmail = '';
     let clientName = 'Cliente';
     
@@ -1049,38 +1116,22 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
       clientName = client.personalData?.name || 'Cliente';
     }
 
-    // 5. Validar que el cliente tenga email
+    // 6. Validar que el cliente tenga email
     if (!clientEmail || !clientEmail.includes('@')) {
       loggerWithContext.error('AI', 'Email del cliente inválido o no encontrado', {
         clientEmail,
         clientId,
         sessionId
       });
-      
-      // Actualizar solo el estado sin enviar email
-      const result = await healthForms.updateOne(
-        { 
-          _id: new ObjectId(clientId),
-          'aiProgress.sessions.sessionId': sessionId
-        },
-        {
-          $set: {
-            'aiProgress.sessions.$.status': 'approved',
-            'aiProgress.sessions.$.approvedAt': new Date(),
-            'aiProgress.sessions.$.updatedAt': new Date()
-          }
-        }
-      );
-      
-      return result.modifiedCount > 0;
+      return false;
     }
 
-    // 6. Enviar email con el plan mensual
+    // 7. Enviar email con el plan mensual usando EmailService
     let emailSent = false;
     let emailError: any = null;
     
     try {
-      loggerWithContext.info('EMAIL', 'Iniciando envío de email de plan mensual', {
+      loggerWithContext.info('EMAIL', '✉️ Iniciando envío de email de plan mensual', {
         clientEmail,
         clientName,
         monthNumber: session.monthNumber
@@ -1120,34 +1171,31 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
         });
       }
       
-    } catch (emailError: any) {
-      loggerWithContext.error('EMAIL', 'Error enviando email', emailError, {
+    } catch (err: any) {
+      emailError = err;
+      loggerWithContext.error('EMAIL', 'Error enviando email', err, {
         clientEmail,
         clientName,
         monthNumber: session.monthNumber
       });
     }
 
-    // 7. Determinar el estado final basado en el éxito del email
-    const newStatus = emailSent ? 'sent' : 'approved';
+    // 8. Determinar el estado final basado en el éxito del email
+    const newStatus = emailSent ? 'sent' : 'approved'; // Si falla el email, mantener como aprobado
     const updateData: any = {
       $set: {
         'aiProgress.sessions.$.status': newStatus,
-        'aiProgress.sessions.$.approvedAt': new Date(),
         'aiProgress.sessions.$.updatedAt': new Date(),
-        'aiProgress.sessions.$.emailSent': emailSent
+        'aiProgress.sessions.$.emailSent': emailSent,
+        'aiProgress.sessions.$.emailSentAt': emailSent ? new Date() : undefined
       }
     };
 
-    if (emailSent) {
-      updateData.$set['aiProgress.sessions.$.sentAt'] = new Date();
-    }
-    
     if (emailError) {
       updateData.$set['aiProgress.sessions.$.emailError'] = emailError.message;
     }
 
-    // 8. Actualizar la sesión en la base de datos
+    // 9. Actualizar la sesión en la base de datos
     const result = await healthForms.updateOne(
       { 
         _id: new ObjectId(clientId),
@@ -1158,61 +1206,31 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
 
     if (result.modifiedCount > 0) {
       if (emailSent) {
-        loggerWithContext.info('AI', '✅ Sesión aprobada y email enviado exitosamente', { 
+        loggerWithContext.info('AI', '✅ Sesión enviada al cliente exitosamente', { 
           sessionId, 
           clientEmail,
           clientName,
           monthNumber: session.monthNumber 
         });
       } else {
-        loggerWithContext.warn('AI', '⚠️ Sesión aprobada pero email NO enviado', { 
+        loggerWithContext.warn('AI', '⚠️ Sesión NO se pudo enviar al cliente (email falló)', { 
           sessionId,
           clientEmail,
           clientName,
           emailError: emailError?.message || 'Servicio de email no configurado'
         });
       }
-      return true;
+      return emailSent; // Retorna true solo si el email se envió
     } else {
-      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', { sessionId });
+      loggerWithContext.warn('AI', 'No se modificó ningún documento al enviar sesión', { sessionId });
       return false;
     }
     
   } catch (error: any) {
-    loggerWithContext.error('AI', 'Error aprobando sesión', error, {
+    loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', error, {
       clientId,
       sessionId
     });
-    return false;
-  }
-}
-
-async function sendToClient(clientId: string, sessionId: string, requestId: string): Promise<boolean> {
-  const loggerWithContext = logger.withContext({ requestId, clientId });
-  
-  loggerWithContext.info('AI', 'Enviando sesión al cliente', { sessionId });
-  
-  try {
-    const healthForms = await getHealthFormsCollection();
-    
-    const result = await healthForms.updateOne(
-      { 
-        _id: new ObjectId(clientId),
-        'aiProgress.sessions.sessionId': sessionId
-      },
-      {
-        $set: {
-          'aiProgress.sessions.$.status': 'sent',
-          'aiProgress.sessions.$.sentAt': new Date(),
-          'aiProgress.sessions.$.updatedAt': new Date()
-        }
-      }
-    );
-    
-    loggerWithContext.info('AI', 'Sesión enviada al cliente', { sessionId });
-    return result.modifiedCount > 0;
-  } catch (error) {
-    loggerWithContext.error('AI', 'Error enviando sesión al cliente', error as Error);
     return false;
   }
 }
