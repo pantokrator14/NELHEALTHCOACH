@@ -1,13 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 
-
-
+// ===== FUNCIONES AUXILIARES =====
+/**
+ * Verifica si un texto está encriptado (formato AES-256)
+ */
 const isEncrypted = (text: string): boolean => {
   return !!text && typeof text === 'string' && text.startsWith('U2FsdGVkX1');
 };
 
-// Función para limpiar texto encriptado temporalmente
+/**
+ * Limpia texto encriptado temporalmente para mostrar placeholder
+ */
 const cleanEncryptedText = (text: string): string => {
   if (isEncrypted(text)) {
     return '[Datos encriptados - Cargando...]';
@@ -15,7 +19,9 @@ const cleanEncryptedText = (text: string): string => {
   return text;
 };
 
-// Función para procesar datos y limpiar texto encriptado
+/**
+ * Procesa datos recursivamente para mostrar texto limpio
+ */
 const processDataForDisplay = (data: any): any => {
   if (!data) return data;
   
@@ -38,7 +44,7 @@ const processDataForDisplay = (data: any): any => {
   return data;
 };
 
-// Interfaces actualizadas según la nueva estructura
+// ===== INTERFACES =====
 interface ChecklistItem {
   id: string;
   description: string;
@@ -99,6 +105,17 @@ interface AIRecommendationSession {
   approvedAt?: Date;
   sentAt?: Date;
   previousSessionId?: string;
+  regenerationCount?: number;
+  regenerationHistory?: Array<{
+    timestamp: Date;
+    previousSessionId: string;
+    coachNotes?: string;
+    triggeredBy: 'coach' | 'system';
+  }>;
+  lastCoachNotes?: string;
+  regeneratedAt?: Date;
+  emailSent?: boolean;
+  emailError?: string;
 }
 
 interface ClientAIProgress {
@@ -125,13 +142,90 @@ interface AIRecommendationsModalProps {
   onRecommendationsGenerated?: () => void;
 }
 
+// ===== COMPONENTE PRINCIPAL =====
 export default function AIRecommendationsModal({ 
   clientId, 
   clientName, 
   onClose, 
   onRecommendationsGenerated 
 }: AIRecommendationsModalProps) {
+  // ===== ESTADOS PRINCIPALES =====
+  const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string>('');
+  
+  // ===== ESTADOS DE NAVEGACIÓN =====
+  const [activeMonthTab, setActiveMonthTab] = useState<number>(1);
+  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]); // Semana 1 expandida por defecto
+  const [forceRefresh, setForceRefresh] = useState(0);
+  
+  // ===== ESTADOS DE FORMULARIOS =====
+  const [showNewEvaluationForm, setShowNewEvaluationForm] = useState(false);
+  const [coachNotes, setCoachNotes] = useState('');
+  const [reprocessDocuments, setReprocessDocuments] = useState(false);
+  
+  // ===== ESTADOS DE EDICIÓN =====
+  const [editMode, setEditMode] = useState(false);
+  const [editingField, setEditingField] = useState<{
+    sessionId: string;
+    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week';
+    itemId?: string;
+    weekIndex?: number;
+    category?: 'nutrition' | 'exercise' | 'habit';
+    currentValue: any;
+  } | null>(null);
+  const [editText, setEditText] = useState('');
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  
+  // ===== ESTADOS DE DETALLES EXPANDIDOS =====
+  const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
+  const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
+  
+  // ===== REFERENCIA PARA SCROLL =====
+  const modalContentRef = useRef<HTMLDivElement>(null);
 
+  // ===== EFECTOS =====
+  /**
+   * Efecto principal: Cargar datos cuando se abre el modal o se fuerza refresco
+   */
+  useEffect(() => {
+    console.log('🚀 Modal activado, cargando datos...');
+    loadAIProgress();
+  }, [forceRefresh]);
+
+  /**
+   * Efecto secundario: Sincronizar activeSessionId con activeMonthTab
+   */
+  useEffect(() => {
+    if (aiProgress?.sessions && activeMonthTab) {
+      const sessionForMonth = aiProgress.sessions.find(s => s.monthNumber === activeMonthTab);
+      if (sessionForMonth && sessionForMonth.sessionId !== activeSessionId) {
+        console.log('🔄 Sincronizando activeSessionId con mes activo:', sessionForMonth.sessionId);
+        setActiveSessionId(sessionForMonth.sessionId);
+      }
+    }
+  }, [aiProgress, activeMonthTab]);
+
+  /**
+   * Efecto de depuración: Monitorear cambios en estados clave
+   */
+  useEffect(() => {
+    console.log('🔍 MONITOR DE ESTADOS:', {
+      hasAiProgress: !!aiProgress,
+      sessionsCount: aiProgress?.sessions?.length || 0,
+      activeSessionId,
+      activeMonthTab,
+      activeSession: aiProgress?.sessions?.find(s => s.sessionId === activeSessionId),
+      editMode,
+      editingFieldType: editingField?.type
+    });
+  }, [aiProgress, activeSessionId, editMode, editingField]);
+
+  // ===== FUNCIONES AUXILIARES =====
+  /**
+   * Convierte estructura antigua de semanas a la nueva estructura
+   */
   const convertToNewStructure = (weeks: any[]): AIRecommendationWeek[] => {
     if (!weeks || !Array.isArray(weeks)) return [];
     
@@ -241,46 +335,9 @@ export default function AIRecommendationsModal({
     });
   };
 
-  // Estados principales
-  const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string>('');
-
-  // Estados para navegación
-  const [activeMonthTab, setActiveMonthTab] = useState<number>(1);
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]); // Semana 1 expandida por defecto
-  
-  // Estados para formularios
-  const [showNewEvaluationForm, setShowNewEvaluationForm] = useState(false);
-  const [coachNotes, setCoachNotes] = useState('');
-  const [reprocessDocuments, setReprocessDocuments] = useState(false);
-  
-  // Estados para edición
-  const [editMode, setEditMode] = useState(false);
-  const [editingField, setEditingField] = useState<{
-    sessionId: string;
-    type: 'summary' | 'vision' | 'checklistItem' | 'week';
-    itemId?: string;
-    weekIndex?: number;
-    category?: 'nutrition' | 'exercise' | 'habit';
-    currentValue: any;
-  } | null>(null);
-  const [editText, setEditText] = useState('');
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  
-  // Estados para detalles expandidos
-  const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
-  const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
-  
-  // Referencia para scroll
-  const modalContentRef = useRef<HTMLDivElement>(null);
-
-  // Cargar progreso al abrir modal
-  useEffect(() => {
-    loadAIProgress();
-  }, [clientId]);
-
+  /**
+   * Sincroniza el estado de un item entre sesiones
+   */
   const syncItemState = (itemId: string, sessions: any[]): ChecklistItem | null => {
     for (const session of sessions) {
       // Buscar en checklist global
@@ -302,7 +359,10 @@ export default function AIRecommendationsModal({
     return null;
   };
 
-  // Calcular progreso acumulado de todos los meses
+  // ===== CÁLCULOS Y MEMOS =====
+  /**
+   * Calcula el progreso acumulado de todos los meses
+   */
   const calculateCumulativeProgress = (): number => {
     if (!aiProgress || !aiProgress.sessions.length) return 0;
     
@@ -313,64 +373,95 @@ export default function AIRecommendationsModal({
     return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
   };
 
-  // Obtener sesión activa (mes actual)
-  // Obtener índice de la sesión en el array
-  const activeSession = aiProgress?.sessions.find(
-    session => session.sessionId === activeSessionId
-  ) || aiProgress?.sessions.find(
-    session => session.monthNumber === activeMonthTab
-  ) || aiProgress?.sessions[0];
-
-  useEffect(() => {
-    console.log('🔍 aiProgress actualizado:', {
-      sessions: aiProgress?.sessions?.length,
-      overallProgress: aiProgress?.overallProgress,
-      activeSessionId,
-      activeSessionChecklist: activeSession?.checklist?.length
+  /**
+   * Obtiene la sesión activa basada en activeSessionId
+   */
+  const activeSession = useMemo(() => {
+    if (!aiProgress?.sessions || !activeSessionId) {
+      // Si no hay sesión activa, intentar usar la primera sesión
+      if (aiProgress?.sessions?.length > 0) {
+        const firstSession = aiProgress.sessions[0];
+        if (!activeSessionId) {
+          setActiveSessionId(firstSession.sessionId);
+          setActiveMonthTab(firstSession.monthNumber);
+        }
+        return firstSession;
+      }
+      return null;
+    }
+    
+    const session = aiProgress.sessions.find(s => s.sessionId === activeSessionId);
+    
+    console.log('🎯 Sesión activa encontrada:', {
+      sessionId: session?.sessionId,
+      monthNumber: session?.monthNumber,
+      status: session?.status,
+      weekCount: session?.weeks?.length
     });
-  }, [aiProgress, activeSessionId, activeSession]);
+    
+    return session || null;
+  }, [aiProgress, activeSessionId]);
 
-  // Cargar progreso de IA
+  // ===== MANEJADORES DE DATOS =====
+  /**
+   * Carga el progreso de IA desde el backend
+   */
   const loadAIProgress = async () => {
     try {
+      console.log('🔄 Cargando IA Progress para cliente:', clientId);
       setLoading(true);
+      
       const response = await apiClient.getAIProgress(clientId);
       
-      if (response.data.hasAIProgress) {
-        // ✅ El backend YA debe enviar datos desencriptados
-        // NO necesitas llamar a decryptData aquí
-        console.log('Datos recibidos del backend:', response.data.aiProgress);
+      if (response.success && response.data?.aiProgress) {
+        const progress = response.data.aiProgress;
+        console.log('📥 Datos recibidos:', {
+          sessions: progress.sessions?.length || 0,
+          currentSessionId: progress.currentSessionId,
+          overallProgress: progress.overallProgress
+        });
         
-        // Verificar si los datos ya están desencriptados
-        const aiProgressData = response.data.aiProgress;
+        setAiProgress(progress);
         
-        // Si el backend está enviando datos desencriptados correctamente
-        setAiProgress(aiProgressData);
-        
-        // Encontrar el último mes para mostrar por defecto
-        if (aiProgressData.sessions && aiProgressData.sessions.length > 0) {
-          const lastMonth = Math.max(...aiProgressData.sessions.map((s: any) => s.monthNumber));
-          if (lastMonth > 0) {
-            setActiveMonthTab(lastMonth);
+        // Establecer sesión activa si no hay una
+        if (progress.sessions?.length > 0) {
+          if (!activeSessionId && progress.currentSessionId) {
+            console.log('🎯 Estableciendo currentSessionId del backend:', progress.currentSessionId);
+            setActiveSessionId(progress.currentSessionId);
+            
+            // Encontrar el mes correspondiente
+            const session = progress.sessions.find(s => s.sessionId === progress.currentSessionId);
+            if (session) {
+              setActiveMonthTab(session.monthNumber);
+            }
+          } else if (!activeSessionId) {
+            // Usar la primera sesión
+            const firstSession = progress.sessions[0];
+            console.log('🎯 Estableciendo primera sesión como activa:', firstSession.sessionId);
+            setActiveSessionId(firstSession.sessionId);
+            setActiveMonthTab(firstSession.monthNumber);
           }
         }
       } else {
-        // No hay progreso de IA
+        console.warn('⚠️ No se encontró progreso de IA:', response.message);
         setAiProgress(null);
       }
-    } catch (error) {
-      console.error('Error cargando progreso de IA:', error);
-      // En caso de error, mostrar datos vacíos
-      setAiProgress(null);
+    } catch (error: any) {
+      console.error('❌ Error cargando IA Progress:', error);
+      alert('Error al cargar recomendaciones: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Generar nuevas recomendaciones
+  /**
+   * Genera nuevas recomendaciones de IA
+   */
   const handleGenerateRecommendations = async (monthNumber: number = 1) => {
     try {
+      console.log('🚀 Generando recomendaciones para mes:', monthNumber);
       setGenerating(true);
+      
       const response = await apiClient.generateAIRecommendations(
         clientId, 
         monthNumber,
@@ -379,108 +470,238 @@ export default function AIRecommendationsModal({
       );
 
       if (response.success) {
+        console.log('✅ Recomendaciones generadas:', response.data);
         await loadAIProgress();
+        
         if (onRecommendationsGenerated) {
           onRecommendationsGenerated();
         }
+        
+        // Resetear formulario
         setCoachNotes('');
         setShowNewEvaluationForm(false);
         setReprocessDocuments(false);
+      } else {
+        throw new Error(response.message || 'Error generando recomendaciones');
       }
-    } catch (error) {
-      console.error('Error generando recomendaciones:', error);
-      alert('Error al generar recomendaciones: ' + (error as Error).message);
+    } catch (error: any) {
+      console.error('❌ Error generando recomendaciones:', error);
+      alert('Error al generar recomendaciones: ' + error.message);
     } finally {
       setGenerating(false);
     }
   };
 
-  // Actualizar checklist item
+  // ===== MANEJADORES DE CHECKLIST =====
+  /**
+   * Maneja cambios en los checkboxes del checklist
+   */
   const handleChecklistChange = async (
     sessionId: string,
     itemId: string,
     completed: boolean
   ) => {
-    if (!aiProgress || !activeSession) return;
+    if (!aiProgress) return;
 
-    // Crear una copia profunda para evitar problemas de referencia
-    const updatedAiProgress = JSON.parse(JSON.stringify(aiProgress));
-    
-    // Encontrar la sesión y actualizar
-    const sessionIndex = updatedAiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
-    );
-    
-    if (sessionIndex !== -1) {
-      const session = updatedAiProgress.sessions[sessionIndex];
+    console.log('✅ handleChecklistChange:', { itemId, completed });
+
+    try {
+      // 1. Encontrar la sesión
+      const sessionIndex = aiProgress.sessions.findIndex(
+        (s: any) => s.sessionId === sessionId
+      );
       
-      // 1. Actualizar en el checklist global
-      session.checklist = session.checklist.map((item: any) => 
+      if (sessionIndex === -1) {
+        console.error('❌ Sesión no encontrada:', sessionId);
+        return;
+      }
+      
+      const session = aiProgress.sessions[sessionIndex];
+      
+      // 2. Actualizar localmente para feedback inmediato
+      const updatedChecklist = session.checklist.map((item: any) => 
         item.id === itemId 
           ? { 
               ...item, 
               completed, 
               completedDate: completed ? new Date() : undefined,
               updatedAt: new Date()
-            } 
+            }
           : item
       );
       
-      // 2. Actualizar en todas las semanas
-      session.weeks = session.weeks.map((week: any) => {
-        // Actualizar en nutrition
-        const nutritionUpdated = week.nutrition.checklistItems.map((item: any) =>
+      // 3. Actualizar también en las semanas correspondientes
+      const updatedWeeks = session.weeks.map(week => {
+        // Buscar y actualizar en nutrition
+        const updatedNutritionItems = week.nutrition.checklistItems.map(item =>
           item.id === itemId 
             ? { ...item, completed, completedDate: completed ? new Date() : undefined }
             : item
         );
         
-        // Actualizar en exercise
-        const exerciseUpdated = week.exercise.checklistItems.map((item: any) =>
+        // Buscar y actualizar en exercise
+        const updatedExerciseItems = week.exercise.checklistItems.map(item =>
           item.id === itemId 
             ? { ...item, completed, completedDate: completed ? new Date() : undefined }
             : item
         );
         
-        // Actualizar en habits
-        const habitsUpdated = week.habits.checklistItems.map((item: any) =>
+        // Buscar y actualizar en habits
+        const updatedHabitsItems = week.habits.checklistItems.map(item =>
           item.id === itemId 
             ? { ...item, completed, completedDate: completed ? new Date() : undefined }
             : item
         );
-        
+
         return {
           ...week,
-          nutrition: { ...week.nutrition, checklistItems: nutritionUpdated },
-          exercise: { ...week.exercise, checklistItems: exerciseUpdated },
-          habits: { ...week.habits, checklistItems: habitsUpdated }
+          nutrition: { ...week.nutrition, checklistItems: updatedNutritionItems },
+          exercise: { ...week.exercise, checklistItems: updatedExerciseItems },
+          habits: { ...week.habits, checklistItems: updatedHabitsItems }
         };
       });
+
+      // 4. Actualizar estado local
+      const updatedSessions = [...aiProgress.sessions];
+      updatedSessions[sessionIndex] = {
+        ...session,
+        checklist: updatedChecklist,
+        weeks: updatedWeeks,
+        updatedAt: new Date()
+      };
       
-      // 3. Actualizar el estado inmediatamente
-      setAiProgress(updatedAiProgress);
+      setAiProgress({
+        ...aiProgress,
+        sessions: updatedSessions
+      });
+
+      // 5. Enviar al backend
+      await apiClient.updateAIChecklist(
+        clientId,
+        sessionId,
+        updatedChecklist
+      );
       
-      // 4. Enviar al backend
-      try {
-        await apiClient.updateAIChecklist(clientId, sessionId, session.checklist);
-        console.log('✅ Checkbox actualizado en backend');
-      } catch (error) {
-        console.error('Error actualizando backend:', error);
-        // En caso de error, revertir
-        await loadAIProgress();
-      }
+      console.log('✅ Checkbox actualizado y sincronizado con backend');
+      
+    } catch (error: any) {
+      console.error('❌ Error actualizando checkbox:', error);
+      alert('Error al actualizar. Recarga la página.');
     }
   };
 
-  // Iniciar edición
+  /**
+   * Maneja la edición de un item del checklist
+   */
+  const handleEditChecklistItem = async (
+    sessionId: string,
+    itemId: string,
+    newDescription: string
+  ) => {
+    if (!aiProgress || !activeSession) {
+      console.error('❌ No hay datos para editar');
+      return false;
+    }
+
+    console.log('✏️ Editando item del checklist:', {
+      sessionId,
+      itemId,
+      newDescription
+    });
+
+    try {
+      // 1. Crear copia del checklist actualizado
+      const updatedChecklist = activeSession.checklist.map((item: any) =>
+        item.id === itemId
+          ? { ...item, description: newDescription, updatedAt: new Date() }
+          : item
+      );
+
+      // 2. También actualizar en las semanas
+      const updatedWeeks = activeSession.weeks.map(week => {
+        // Actualizar en nutrition
+        const updatedNutritionItems = week.nutrition.checklistItems.map(item =>
+          item.id === itemId ? { ...item, description: newDescription } : item
+        );
+        
+        // Actualizar en exercise
+        const updatedExerciseItems = week.exercise.checklistItems.map(item =>
+          item.id === itemId ? { ...item, description: newDescription } : item
+        );
+        
+        // Actualizar en habits
+        const updatedHabitsItems = week.habits.checklistItems.map(item =>
+          item.id === itemId ? { ...item, description: newDescription } : item
+        );
+
+        return {
+          ...week,
+          nutrition: { ...week.nutrition, checklistItems: updatedNutritionItems },
+          exercise: { ...week.exercise, checklistItems: updatedExerciseItems },
+          habits: { ...week.habits, checklistItems: updatedHabitsItems }
+        };
+      });
+
+      // 3. Actualizar estado local
+      const updatedSessions = aiProgress.sessions.map((s: any) =>
+        s.sessionId === sessionId 
+          ? { 
+              ...s, 
+              checklist: updatedChecklist,
+              weeks: updatedWeeks,
+              updatedAt: new Date()
+            }
+          : s
+      );
+      
+      setAiProgress({
+        ...aiProgress,
+        sessions: updatedSessions
+      });
+
+      // 4. Enviar al backend
+      const response = await apiClient.updateAIChecklist(
+        clientId,
+        sessionId,
+        updatedChecklist
+      );
+
+      if (response.success) {
+        console.log('✅ Item editado exitosamente');
+        return true;
+      } else {
+        throw new Error(response.message || 'Error del backend');
+      }
+    } catch (error: any) {
+      console.error('❌ Error editando item:', error);
+      
+      // Recargar datos para sincronizar
+      await loadAIProgress();
+      
+      throw error;
+    }
+  };
+
+  // ===== MANEJADORES DE EDICIÓN =====
+  /**
+   * Inicia el modo de edición para un campo específico
+   */
   const handleStartEdit = (
     sessionId: string,
-    type: 'summary' | 'vision' | 'checklistItem' | 'week',
+    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week',
     currentValue: any,
     itemId?: string,
     weekIndex?: number,
     category?: 'nutrition' | 'exercise' | 'habit'
   ) => {
+    console.log('🔧 Iniciando modo edición:', {
+      type,
+      itemId,
+      weekIndex,
+      category,
+      currentValueType: typeof currentValue
+    });
+
     setEditMode(true);
     setEditingField({
       sessionId,
@@ -490,58 +711,107 @@ export default function AIRecommendationsModal({
       category,
       currentValue
     });
-    setEditText(typeof currentValue === 'string' ? currentValue : JSON.stringify(currentValue, null, 2));
+    
+    // Determinar qué valor mostrar en el editor
+    if (type === 'checklistItem' && itemId) {
+      // Buscar el item específico en el checklist
+      const item = activeSession?.checklist?.find((item: any) => item.id === itemId);
+      setEditText(item?.description || currentValue || '');
+    } else if (type === 'checklist') {
+      // Para edición masiva del checklist
+      setEditText('');
+    } else {
+      setEditText(typeof currentValue === 'string' ? currentValue : JSON.stringify(currentValue, null, 2));
+    }
   };
 
-  // Guardar edición
+  /**
+   * Guarda los cambios de edición
+   */
   const handleSaveEdit = async () => {
-    if (!editMode || !editingField || !aiProgress || !activeSession) return;
+    if (!editMode || !editingField || !aiProgress) {
+      console.error('❌ No hay nada que guardar');
+      return;
+    }
+
+    console.log('💾 Guardando edición:', {
+      type: editingField.type,
+      itemId: editingField.itemId,
+      sessionId: editingField.sessionId
+    });
 
     try {
-      if (editingField.type === 'checklist') {
-        // Guardar los cambios del checklist
-        await apiClient.updateAIChecklist(
-          clientId, 
-          activeSession.sessionId, 
-          activeSession.checklist
+      if (editingField.type === 'checklistItem' && editingField.itemId) {
+        // Edición individual de un item
+        await handleEditChecklistItem(
+          editingField.sessionId,
+          editingField.itemId,
+          editText
         );
-        
-        alert('✅ Checklist actualizado exitosamente');
+      } else if (editingField.type === 'checklist') {
+        // Edición masiva del checklist (ya manejada en el input onChange)
+        // Solo salir del modo edición
+        console.log('✅ Cambios del checklist ya aplicados en tiempo real');
+      } else {
+        // Edición de summary, vision, etc.
+        console.log('📝 Editando campo:', editingField.type);
+        // Implementar según sea necesario
       }
       
+      // Salir del modo edición
       setEditMode(false);
       setEditingField(null);
       setEditText('');
-    } catch (error) {
-      console.error('Error guardando edición:', error);
-      alert('Error al guardar cambios: ' + (error as Error).message);
+      
+      console.log('✅ Edición guardada exitosamente');
+      
+    } catch (error: any) {
+      console.error('❌ Error guardando edición:', error);
+      alert(`Error: ${error.message}`);
     }
   };
 
-  // Cancelar edición
+  /**
+   * Cancela la edición sin guardar cambios
+   */
   const handleCancelEdit = () => {
+    console.log('❌ Cancelando edición');
     setEditMode(false);
     setEditingField(null);
     setEditText('');
+    
+    // Recargar datos para restaurar estado original
+    loadAIProgress();
   };
 
-  // Aprobar sesión
+  // ===== MANEJADORES DE ACCIONES =====
+  /**
+   * Aprueba una sesión de recomendaciones
+   */
   const handleApproveSession = async (sessionId: string) => {
     try {
+      console.log('✅ Aprobando sesión:', sessionId);
       await apiClient.approveAISession(clientId, sessionId);
       await loadAIProgress();
-      alert('Sesión aprobada exitosamente');
-    } catch (error) {
-      console.error('Error aprobando sesión:', error);
-      alert('Error al aprobar sesión: ' + (error as Error).message);
+      console.log('✅ Sesión aprobada exitosamente');
+    } catch (error: any) {
+      console.error('❌ Error aprobando sesión:', error);
+      alert('Error al aprobar sesión: ' + error.message);
     }
   };
 
-  // Regenerar sesión
+  /**
+   * Regenera una sesión con IA
+   */
   const handleRegenerate = async () => {
     try {
+      if (!activeSession) {
+        console.error('❌ No hay sesión activa para regenerar');
+        return;
+      }
+      
       setLoading(true);
-      console.log('🔄 Iniciando regeneración de recomendaciones...');
+      console.log('🔄 Iniciando regeneración de sesión:', activeSession.sessionId);
       
       // Solicitar notas opcionales al coach
       const coachNotes = prompt(
@@ -558,18 +828,16 @@ export default function AIRecommendationsModal({
       
       const response = await apiClient.regenerateAISession(
         clientId,
-        activeSession!.sessionId,
+        activeSession.sessionId,
         coachNotes || ''
       );
       
       if (response.success) {
         console.log('✅ Recomendaciones regeneradas exitosamente');
-       
         await loadAIProgress();
         
-        // Si hay notas del coach, mostrarlas
         if (coachNotes && coachNotes.trim().length > 0) {
-          console.log('Notas del coach incluidas en la regeneración');
+          console.log('📝 Notas del coach incluidas en la regeneración');
         }
       } else {
         throw new Error(response.message || 'Error al regenerar recomendaciones');
@@ -579,16 +847,51 @@ export default function AIRecommendationsModal({
       
       // Manejar error específico de estado
       if (error.message.includes("estado 'draft'")) {
-        console.log('Solo se pueden regenerar recomendaciones en estado "Borrador".');
+        alert('❌ Solo se pueden regenerar recomendaciones en estado "Borrador". Aprueba o envía las actuales primero.');
       } else {
-        console.log(`Error: ${error.message}`);
+        alert(`❌ Error: ${error.message}`);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Expandir/contraer semana
+  /**
+   * Envía las recomendaciones al cliente
+   */
+  const handleSendToClient = async (sessionId: string) => {
+    try {
+      console.log('📤 Enviando sesión al cliente:', sessionId);
+      await apiClient.sendAISessionToClient(clientId, sessionId);
+      await loadAIProgress();
+      alert('✅ Recomendaciones enviadas al cliente exitosamente');
+    } catch (error: any) {
+      console.error('❌ Error enviando al cliente:', error);
+      alert('Error al enviar al cliente: ' + error.message);
+    }
+  };
+
+  // ===== MANEJADORES DE UI =====
+  /**
+   * Cambia la pestaña de mes activo
+   */
+  const handleChangeMonthTab = (monthNumber: number) => {
+    console.log('📅 Cambiando mes activo a:', monthNumber);
+    setActiveMonthTab(monthNumber);
+    
+    // Buscar sesión para este mes
+    const sessionForMonth = aiProgress?.sessions?.find(
+      session => session.monthNumber === monthNumber
+    );
+    if (sessionForMonth) {
+      console.log('🎯 Estableciendo sesión activa:', sessionForMonth.sessionId);
+      setActiveSessionId(sessionForMonth.sessionId);
+    }
+  };
+
+  /**
+   * Expande o contrae una semana
+   */
   const toggleWeekExpansion = (weekIndex: number) => {
     setExpandedWeeks(prev => 
       prev.includes(weekIndex) 
@@ -597,45 +900,30 @@ export default function AIRecommendationsModal({
     );
   };
 
-  // Toggle receta expandida
-  const toggleRecipeExpansion = (itemId: string) => {
-    setExpandedRecipes(prev => 
-      prev.includes(itemId) 
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
-    );
+  /**
+   * Expande o contrae todas las semanas
+   */
+  const toggleAllWeeks = () => {
+    if (expandedWeeks.length === 4) {
+      setExpandedWeeks([]);
+    } else {
+      setExpandedWeeks([0, 1, 2, 3]);
+    }
   };
 
-  // Toggle lista de compras expandida
-  const toggleShoppingListExpansion = (weekId: string) => {
-    setExpandedShoppingLists(prev => 
-      prev.includes(weekId) 
-        ? prev.filter(id => id !== weekId)
-        : [...prev, weekId]
-    );
-  };
-
-  // Renderizar item de checklist con detalles
+  // ===== RENDERIZADORES =====
+  /**
+   * Renderiza un item del checklist con checkbox
+   */
   const renderChecklistItem = (item: ChecklistItem, sessionId: string) => {
-    // Usar estado local para el checkbox
-    const isChecked = checkedItems.has(item.id) || item.completed;
+    // Determinar si el item está marcado
+    const isChecked = item.completed;
     
     const handleCheckboxClick = async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       
-      // Actualizar estado local inmediatamente
-      setCheckedItems(prev => {
-        const newSet = new Set(prev);
-        if (isChecked) {
-          newSet.delete(item.id);
-        } else {
-          newSet.add(item.id);
-        }
-        return newSet;
-      });
-      
-      // Actualizar backend
+      // Actualizar estado local y backend
       await handleChecklistChange(sessionId, item.id, !isChecked);
     };
 
@@ -657,21 +945,49 @@ export default function AIRecommendationsModal({
         </div>
         
         <div className="flex-1">
-          <span className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} cursor-pointer`}
-                onClick={handleCheckboxClick}>
-            {item.description}
-          </span>
+          {editMode && editingField?.type === 'checklistItem' && editingField?.itemId === item.id ? (
+            <input
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={handleSaveEdit}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+              autoFocus
+              className="w-full px-2 py-1 border border-green-300 rounded"
+            />
+          ) : (
+            <span 
+              className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} cursor-pointer`}
+              onClick={handleCheckboxClick}
+              onDoubleClick={() => handleStartEdit(
+                sessionId, 
+                'checklistItem', 
+                item.description, 
+                item.id
+              )}
+            >
+              {item.description}
+            </span>
+          )}
+          
+          {/* Mostrar detalles si existen */}
+          {item.details?.recipe && (
+            <div className="mt-1 ml-2 pl-2 border-l-2 border-green-200">
+              <p className="text-xs text-gray-500">Receta disponible</p>
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
-  // Renderizar semana completa
+  /**
+   * Renderiza una semana completa con sus secciones
+   */
   const renderWeek = (week: any, weekIndex: number, sessionId: string) => {
-    // Asegurarnos de que week tenga la estructura correcta
+    // Asegurar estructura correcta
     const processedWeek = week.nutrition?.checklistItems ? week : convertToNewStructure([week])[0];
     
-    // Resto del código de renderWeek usando processedWeek en lugar de week
     const isExpanded = expandedWeeks.includes(weekIndex);
     const weekId = `${sessionId}_week_${weekIndex}`;
     
@@ -706,7 +1022,7 @@ export default function AIRecommendationsModal({
           </div>
         </div>
         
-        {/* Contenido expandible de la semana */}
+        {/* Contenido expandible */}
         {isExpanded && (
           <div className="p-6 space-y-6">
             {/* Nutrición */}
@@ -717,7 +1033,11 @@ export default function AIRecommendationsModal({
                   Nutrición: {week.nutrition.focus}
                 </h4>
                 <button
-                  onClick={() => toggleShoppingListExpansion(weekId)}
+                  onClick={() => setExpandedShoppingLists(prev => 
+                    prev.includes(weekId) 
+                      ? prev.filter(id => id !== weekId)
+                      : [...prev, weekId]
+                  )}
                   className="text-xs text-green-600 hover:text-green-800"
                 >
                   {expandedShoppingLists.includes(weekId) ? '▲ Ocultar compras' : '▼ Ver lista de compras'}
@@ -728,11 +1048,11 @@ export default function AIRecommendationsModal({
                 {week.nutrition.checklistItems.map(item => renderChecklistItem(item, sessionId))}
               </div>
               
-              {expandedShoppingLists.includes(weekId) && (
+              {expandedShoppingLists.includes(weekId) && week.nutrition.shoppingList?.length > 0 && (
                 <div className="mt-4 ml-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                   <h5 className="font-medium text-blue-700 mb-3">🛒 Lista de Compras Semana {week.weekNumber}:</h5>
                   <div className="grid grid-cols-2 gap-2">
-                    {week.nutrition.shoppingList.map((shopItem, idx) => (
+                    {week.nutrition.shoppingList.map((shopItem: any, idx: number) => (
                       <div key={idx} className={`p-2 rounded ${shopItem.priority === 'high' ? 'bg-red-50 border border-red-100' : shopItem.priority === 'medium' ? 'bg-yellow-50 border border-yellow-100' : 'bg-gray-50 border border-gray-100'}`}>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-700">{shopItem.item}</span>
@@ -789,7 +1109,7 @@ export default function AIRecommendationsModal({
     );
   };
 
-  // Si está cargando
+  // ===== RENDERIZADO CONDICIONAL =====
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -806,7 +1126,7 @@ export default function AIRecommendationsModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl my-8 flex flex-col border border-green-200 max-h-[90vh]">
-        {/* Header con progreso acumulado */}
+        {/* Header */}
         <div className="p-6 border-b border-green-200 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -843,6 +1163,7 @@ export default function AIRecommendationsModal({
           </div>
         </div>
 
+        {/* Advertencia si es fallback */}
         {activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
             <div className="flex items-center">
@@ -852,16 +1173,9 @@ export default function AIRecommendationsModal({
               <span className="text-yellow-700 font-medium">
                 ⚠️ Modo offline: Recomendaciones generadas localmente
               </span>
-              <button 
-                onClick={() => window.open('https://platform.deepseek.com', '_blank')}
-                className="ml-auto text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded hover:bg-yellow-200"
-              >
-                Activar IA →
-              </button>
             </div>
             <p className="text-yellow-600 text-sm mt-1">
-              Para obtener recomendaciones personalizadas con IA, agrega fondos a tu cuenta de DeepSeek.
-              Costo estimado: ~$0.01/cliente por mes.
+              Para obtener recomendaciones personalizadas con IA, verifica tu cuenta de DeepSeek.
             </p>
           </div>
         )}
@@ -871,24 +1185,18 @@ export default function AIRecommendationsModal({
           <div className="border-b border-green-200 bg-white">
             <div className="flex space-x-1 px-6 overflow-x-auto">
               {aiProgress.sessions
-                .sort((a, b) => a.monthNumber - b.monthNumber) // Ordenar por mes
+                .sort((a, b) => a.monthNumber - b.monthNumber)
                 .map(session => (
                   <button
-                    key={session.sessionId} // ✅ Usar sessionId que es único
-                    onClick={() => {
-                      setActiveMonthTab(session.monthNumber);
-                      setActiveSessionId(session.sessionId); // ✅ Guardar también el sessionId
-                    }}
+                    key={session.sessionId}
+                    onClick={() => handleChangeMonthTab(session.monthNumber)}
                     className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      activeSession?.sessionId === session.sessionId // ✅ Comparar por sessionId
+                      activeSessionId === session.sessionId
                         ? 'border-green-500 text-green-600'
                         : 'border-transparent text-gray-500 hover:text-green-600'
                     }`}
                   >
                     Mes {session.monthNumber}
-                    {session.sessionId.startsWith('fallback_') && (
-                      <span className="ml-1 text-xs text-red-500">(Fallback)</span>
-                    )}
                     <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
                       session.status === 'approved' ? 'bg-green-100 text-green-800' :
                       session.status === 'sent' ? 'bg-blue-100 text-blue-800' :
@@ -929,7 +1237,7 @@ export default function AIRecommendationsModal({
           ) : (
             // Contenido de la sesión activa
             <div className="space-y-6">
-              {/* Modo edición - Botones guardar/cancelar */}
+              {/* Modo edición */}
               {editMode && editingField?.type === 'checklist' && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
                   <div className="flex items-center justify-between mb-4">
@@ -956,7 +1264,7 @@ export default function AIRecommendationsModal({
                   </div>
                   
                   <div className="space-y-4">
-                    {activeSession?.checklist.map((item, index) => (
+                    {activeSession.checklist.map((item, index) => (
                       <div key={item.id} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                         <input
                           type="checkbox"
@@ -966,46 +1274,47 @@ export default function AIRecommendationsModal({
                         />
                         <input
                           type="text"
-                          defaultValue={item.description}
+                          value={item.description}
                           onChange={(e) => {
                             const newDescription = e.target.value;
                             
-                            // 1. Actualizar el checklist global
-                            const updatedChecklist = [...activeSession.checklist];
-                            const itemIndex = updatedChecklist.findIndex(item => item.id === item.id);
-                            if (itemIndex !== -1) {
-                              updatedChecklist[itemIndex] = { 
-                                ...updatedChecklist[itemIndex], 
-                                description: newDescription 
-                              };
-                            }
+                            // Actualizar checklist global
+                            const updatedChecklist = activeSession.checklist.map((checklistItem, idx) => 
+                              idx === index 
+                                ? { ...checklistItem, description: newDescription }
+                                : checklistItem
+                            );
 
-                            // 2. Actualizar también en las semanas correspondientes
-                            const updatedWeeks = activeSession.weeks.map(week => {
-                              // Buscar en nutrition
-                              const nutritionUpdated = week.nutrition.checklistItems.map(item =>
-                                item.id === item.id ? { ...item, description: newDescription } : item
-                              );
-                              
-                              // Buscar en exercise
-                              const exerciseUpdated = week.exercise.checklistItems.map(item =>
-                                item.id === item.id ? { ...item, description: newDescription } : item
-                              );
-                              
-                              // Buscar en habits
-                              const habitsUpdated = week.habits.checklistItems.map(item =>
-                                item.id === item.id ? { ...item, description: newDescription } : item
-                              );
+                            // Actualizar también en las semanas
+                            const updatedWeeks = activeSession.weeks.map(week => ({
+                              ...week,
+                              nutrition: {
+                                ...week.nutrition,
+                                checklistItems: week.nutrition.checklistItems.map(weekItem =>
+                                  weekItem.id === item.id 
+                                    ? { ...weekItem, description: newDescription }
+                                    : weekItem
+                                )
+                              },
+                              exercise: {
+                                ...week.exercise,
+                                checklistItems: week.exercise.checklistItems.map(weekItem =>
+                                  weekItem.id === item.id 
+                                    ? { ...weekItem, description: newDescription }
+                                    : weekItem
+                                )
+                              },
+                              habits: {
+                                ...week.habits,
+                                checklistItems: week.habits.checklistItems.map(weekItem =>
+                                  weekItem.id === item.id 
+                                    ? { ...weekItem, description: newDescription }
+                                    : weekItem
+                                )
+                              }
+                            }));
 
-                              return {
-                                ...week,
-                                nutrition: { ...week.nutrition, checklistItems: nutritionUpdated },
-                                exercise: { ...week.exercise, checklistItems: exerciseUpdated },
-                                habits: { ...week.habits, checklistItems: habitsUpdated }
-                              };
-                            });
-
-                            // 3. Actualizar el estado completo
+                            // Actualizar el estado completo
                             const updatedSessions = aiProgress?.sessions.map(s =>
                               s.sessionId === activeSession.sessionId
                                 ? { 
@@ -1026,8 +1335,13 @@ export default function AIRecommendationsModal({
                           className="flex-1 px-3 py-2 text-gray-600 border border-gray-300 rounded-md"
                           placeholder="Descripción del item..."
                         />
-                        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                          {item.category}
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          item.category === 'nutrition' ? 'bg-green-100 text-green-800' :
+                          item.category === 'exercise' ? 'bg-blue-100 text-blue-800' :
+                          'bg-purple-100 text-purple-800'
+                        }`}>
+                          {item.category === 'nutrition' ? 'Nutrición' :
+                           item.category === 'exercise' ? 'Ejercicio' : 'Hábito'}
                         </span>
                       </div>
                     ))}
@@ -1039,16 +1353,13 @@ export default function AIRecommendationsModal({
               <div className="bg-white rounded-xl p-6 border border-green-200">
                 <div className="flex justify-between items-start mb-6">
                   <h3 className="text-xl font-bold text-green-700">📊 Análisis y Visión</h3>
-                  {!editMode && activeSession && (
+                  {!editMode && activeSession.status === 'draft' && (
                     <button
-                      onClick={() => {
-                        setEditMode(true);
-                        setEditingField({
-                          sessionId: activeSession.sessionId,
-                          type: 'checklist',
-                          currentValue: activeSession.checklist
-                        });
-                      }}
+                      onClick={() => handleStartEdit(
+                        activeSession.sessionId,
+                        'checklist',
+                        activeSession.checklist
+                      )}
                       className="text-green-600 hover:text-green-800 flex items-center"
                     >
                       <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1066,19 +1377,9 @@ export default function AIRecommendationsModal({
                       <span className="mr-2">🔍</span>
                       Resumen del Estado Actual
                     </h4>
-                    {editMode ? (
-                      <textarea
-                        value={editingField?.type === 'summary' ? editText : activeSession.summary}
-                        onChange={(e) => setEditText(e.target.value)}
-                        rows={6}
-                        className="w-full px-3 py-2 text-gray-600 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        placeholder="Escribe el resumen del estado actual del cliente..."
-                      />
-                    ) : (
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-gray-600 whitespace-pre-line">{activeSession.summary}</p>
-                      </div>
-                    )}
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-gray-600 whitespace-pre-line">{activeSession.summary}</p>
+                    </div>
                   </div>
                   
                   {/* Visión */}
@@ -1087,19 +1388,9 @@ export default function AIRecommendationsModal({
                       <span className="mr-2">🎯</span>
                       Visión para el siguiente mes
                     </h4>
-                    {editMode ? (
-                      <textarea
-                        value={editingField?.type === 'vision' ? editText : activeSession.vision}
-                        onChange={(e) => setEditText(e.target.value)}
-                        rows={6}
-                        className="w-full px-3 py-2 text-gray-600 border border-green-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        placeholder="Describe la visión para el siguiente mes del cliente..."
-                      />
-                    ) : (
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <p className="text-gray-600 whitespace-pre-line">{activeSession.vision}</p>
-                      </div>
-                    )}
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <p className="text-gray-600 whitespace-pre-line">{activeSession.vision}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1109,7 +1400,7 @@ export default function AIRecommendationsModal({
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-bold text-green-700">📅 Plan Semanal</h3>
                   <button
-                    onClick={() => setExpandedWeeks(expandedWeeks.length === 4 ? [] : [0, 1, 2, 3])}
+                    onClick={toggleAllWeeks}
                     className="text-sm text-green-600 hover:text-green-800"
                   >
                     {expandedWeeks.length === 4 ? 'Contraer todas' : 'Expandir todas'}
@@ -1126,7 +1417,9 @@ export default function AIRecommendationsModal({
           {/* Formulario para nueva evaluación */}
           {showNewEvaluationForm && (
             <div className="bg-white rounded-xl p-6 border border-green-200 shadow-sm mt-6">
-              <h3 className="text-xl font-bold text-green-700 mb-4">Nueva Evaluación - Mes {aiProgress ? aiProgress.sessions.length + 1 : 1}</h3>
+              <h3 className="text-xl font-bold text-green-700 mb-4">
+                Nueva Evaluación - Mes {aiProgress ? aiProgress.sessions.length + 1 : 1}
+              </h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1218,8 +1511,9 @@ export default function AIRecommendationsModal({
                 <>
                   <button
                     onClick={handleRegenerate}
-                    disabled={loading || activeSession?.status !== 'draft'}
-                    className="flex items-center gap-2 px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50"
+                    disabled={loading || activeSession.status !== 'draft'}
+                    className="flex items-center gap-2 px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={activeSession.status !== 'draft' ? 'Solo se pueden regenerar recomendaciones en estado "Borrador"' : ''}
                   >
                     {loading ? (
                       <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1233,9 +1527,6 @@ export default function AIRecommendationsModal({
                       </svg>
                     )}
                     Regenerar
-                    {activeSession?.status !== 'draft' && (
-                      <span className="ml-2 text-xs text-gray-500" title='Solo se pueden regenerar recomendaciones en estado "Borrador"'>ⓘ</span>
-                    )}
                   </button>
                   
                   {activeSession.status === 'draft' && (
@@ -1249,7 +1540,7 @@ export default function AIRecommendationsModal({
                   
                   {activeSession.status === 'approved' && (
                     <button
-                      onClick={() => alert('Función de envío por correo pendiente de implementar')}
+                      onClick={() => handleSendToClient(activeSession.sessionId)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
                       Enviar al Cliente
@@ -1263,8 +1554,4 @@ export default function AIRecommendationsModal({
       </div>
     </div>
   );
-}
-
-function loadAIRecommendations() {
-  throw new Error('Function not implemented.');
 }

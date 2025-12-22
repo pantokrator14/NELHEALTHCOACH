@@ -304,22 +304,32 @@ export const apiClient = {
     sessionId: string, 
     checklistItems: ChecklistItem[]
   ) => {
-    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, { // <-- CORREGIDO
-      method: 'PUT',
-      headers: getAuthHeaders(), // <-- Usa getAuthHeaders() en lugar de crear headers manualmente
-      body: JSON.stringify({
-        action: 'update_checklist',
-        sessionId,
-        data: { checklistItems }
-      })
-    });
+    console.log('📝 Enviando checklist al backend...');
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Error actualizando checklist');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action: 'update_checklist',
+          sessionId,
+          data: { checklistItems }
+        }),
+      });
+
+      const responseData = await response.json();
+      console.log('📦 Respuesta completa:', responseData);
+      
+      if (!response.ok) {
+        throw new Error(responseData.message || `Error ${response.status}`);
+      }
+      
+      return responseData;
+      
+    } catch (error: any) {
+      console.error('💥 Error en updateAIChecklist:', error);
+      throw error;
     }
-    
-    return response.json();
   },
 
   async approveAISession(clientId: string, sessionId: string) {

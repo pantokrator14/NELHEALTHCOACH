@@ -11,15 +11,14 @@ import { ChecklistItem } from '../../../../../../../../packages/types/src/health
 import { EmailService } from '@/app/lib/email-service';
 
 function decryptAISessionCompletely(session: any): any {
-  console.log('🔓 Iniciando desencriptación de sesión:', session.sessionId);
-  
   try {
-    console.log('📥 Sesión entrante:', {
-      summary: session.summary?.substring(0, 50),
-      vision: session.vision?.substring(0, 50),
-      weeksCount: session.weeks?.length || 0
+    console.log('🔓 Iniciando desencriptación completa de sesión:', {
+      sessionId: session.sessionId,
+      hasChecklist: !!session.checklist,
+      checklistLength: session.checklist?.length || 0
     });
-    return {
+    
+    const decrypted = {
       ...session,
       summary: safeDecrypt(session.summary),
       vision: safeDecrypt(session.vision),
@@ -75,30 +74,54 @@ function decryptAISessionCompletely(session: any): any {
           motivationTip: week.habits.motivationTip ? safeDecrypt(week.habits.motivationTip) : undefined
         }
       })) || [],
-      checklist: session.checklist?.map((item: any) => ({
-        ...item,
-        description: safeDecrypt(item.description),
-        details: item.details ? {
-          ...item.details,
-          recipe: item.details.recipe ? {
-            ...item.details.recipe,
-            ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
-              name: safeDecrypt(ing.name),
-              quantity: safeDecrypt(ing.quantity),
-              notes: ing.notes ? safeDecrypt(ing.notes) : undefined
-            })) || [],
-            preparation: safeDecrypt(item.details.recipe.preparation),
-            tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
-          } : undefined,
-          frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
-          duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
-          equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
-        } : undefined
-      })) || []
+      checklist: session.checklist?.map((item: any, index: number) => {
+        console.log(`🔓 Desencriptando item ${index + 1} del checklist:`, {
+          id: item.id,
+          category: item.category
+        });
+        
+        return {
+          ...item,
+          description: safeDecrypt(item.description),
+          details: item.details ? {
+            ...item.details,
+            recipe: item.details.recipe ? {
+              ...item.details.recipe,
+              ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+                name: safeDecrypt(ing.name),
+                quantity: safeDecrypt(ing.quantity),
+                notes: ing.notes ? safeDecrypt(ing.notes) : undefined
+              })) || [],
+              preparation: safeDecrypt(item.details.recipe.preparation),
+              tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
+            } : undefined,
+            frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
+            duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
+            equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
+          } : undefined
+        };
+      }) || []
     };
+
+    console.log('✅ Sesión completamente desencriptada:', {
+      sessionId: decrypted.sessionId,
+      checklistItems: decrypted.checklist?.length || 0,
+      weeks: decrypted.weeks?.length || 0
+    });
+
+    return decrypted;
   } catch (error) {
+    console.error('❌ Error desencriptando sesión completa:', error);
     logger.error('AI', 'Error desencriptando sesión completa', error as Error);
-    return session;
+    
+    // Fallback: intentar desencriptar lo básico
+    return {
+      ...session,
+      summary: safeDecrypt(session.summary) || 'Error desencriptando',
+      vision: safeDecrypt(session.vision) || 'Error desencriptando',
+      weeks: [],
+      checklist: []
+    };
   }
 }
 
@@ -428,24 +451,19 @@ export async function PUT(
   });
 
   return loggerWithContext.time('AI', 'Actualizar recomendaciones IA', async () => {
+    let requestBody = null; // Guardar el body aquí
+    
     try {
       loggerWithContext.info('AI', 'Actualizando recomendaciones IA');
       
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
       requireAuth(token);
 
-      let body;
-      try {
-        body = await request.json();
-      } catch (error) {
-        loggerWithContext.error('AI', 'Error parseando JSON de la solicitud', error as Error);
-        return NextResponse.json(
-          { success: false, message: 'Cuerpo de solicitud inválido' },
-          { status: 400 }
-        );
-      }
-
-      const { action, sessionId, data } = body;
+      // ✅ LEER EL BODY UNA SOLA VEZ Y GUARDARLO
+      requestBody = await request.json();
+      console.log('📦 Body recibido en PUT:', requestBody);
+      
+      const { action, sessionId, data } = requestBody;
       
       loggerWithContext.info('AI', 'Parámetros de actualización', {
         action,
@@ -469,23 +487,36 @@ export async function PUT(
 
       switch (action) {
         case 'update_checklist':
-          updateResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
-          message = 'Checklist actualizado';
-          break;
+          console.log('🔄 UPDATE_CHECKLIST: Iniciando...', {
+            sessionId,
+            checklistItemsCount: data?.checklistItems?.length || 0
+          });
+          
+          const updateResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
+          
+          // ✅ DEVUELVE DIRECTAMENTE LO QUE updateChecklist DEVUELVE
+          return NextResponse.json(updateResult);
 
         case 'approve_session':
+          console.log('✅ APPROVE_SESSION: Iniciando...', { sessionId });
           updateResult = await approveSession(id, sessionId, requestId);
           message = 'Sesión aprobada';
           break;
 
         case 'send_to_client':
+          console.log('📤 SEND_TO_CLIENT: Iniciando...', { sessionId });
           updateResult = await sendToClient(id, sessionId, requestId);
           message = 'Recomendaciones enviadas al cliente';
           break;
 
         case 'regenerate_session':
-          updateResult = await regenerateSession(id, sessionId, data.coachNotes || '', requestId);
-          message = 'Sesión regenerada exitosamente';
+          console.log('🔄 REGENERATE_SESSION: Iniciando...', { 
+            sessionId,
+            hasCoachNotes: !!data?.coachNotes,
+            notesLength: data?.coachNotes?.length || 0
+          });
+          updateResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
+          message = 'Sesión regenerada';
           break;
 
         default:
@@ -504,7 +535,7 @@ export async function PUT(
         );
       }
 
-      loggerWithContext.info('AI', message);
+      console.log(`✅ ${action} completado exitosamente`);
       return NextResponse.json({
         success: true,
         message,
@@ -512,22 +543,29 @@ export async function PUT(
       });
 
     } catch (error: any) {
+      console.error('💥 ERROR en endpoint PUT:', error.message);
+      
+      // ✅ USAR EL requestBody QUE YA GUARDAMOS, NO LEER DE NUEVO
       loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error, {
-        action: (await request.json()).action
+        action: requestBody?.action || 'unknown',
+        errorType: error.constructor.name,
+        errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
       
       return NextResponse.json(
         { 
           success: false, 
           message: 'Error interno del servidor',
-          requestId
+          requestId,
+          ...(process.env.NODE_ENV === 'development' && { 
+            error: error.message
+          })
         },
         { status: 500 }
       );
     }
   });
 }
-
 // Funciones auxiliares
 async function prepareAIInput(client: any, requestId: string): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
@@ -828,10 +866,10 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
   }
 }
 
-async function updateChecklist(clientId: string, sessionId: string, checklistItems: ChecklistItem[], requestId: string): Promise<boolean> {
+async function updateChecklist(clientId: string, sessionId: string, checklistItems: ChecklistItem[], requestId: string): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
   
-  loggerWithContext.info('AI', 'Actualizando checklist', { 
+  loggerWithContext.info('AI', '🚀 Iniciando actualización de checklist', { 
     sessionId,
     itemCount: checklistItems.length,
     completedCount: checklistItems.filter(item => item.completed).length
@@ -840,58 +878,117 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
   try {
     const healthForms = await getHealthFormsCollection();
     
-    // Actualizar el checklist completo
-    const result = await healthForms.updateOne(
+    // 1. Obtener el cliente actual
+    const client = await healthForms.findOne({ 
+      _id: new ObjectId(clientId),
+      'aiProgress.sessions.sessionId': sessionId
+    });
+
+    if (!client || !client.aiProgress) {
+      throw new Error('Cliente o sesión no encontrada');
+    }
+
+    const sessionIndex = client.aiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
+    );
+
+    if (sessionIndex === -1) {
+      throw new Error('Sesión no encontrada');
+    }
+
+    // 2. ENCRIPTAR el checklist que viene del frontend
+    const encryptedChecklistItems: ChecklistItem[] = checklistItems.map((item) => {
+      // Verificar si ya está encriptado
+      let encryptedDescription = item.description;
+      if (item.description && !item.description.startsWith('U2FsdGVkX1')) {
+        encryptedDescription = encrypt(item.description);
+      }
+
+      // Encriptar detalles si existen
+      let encryptedDetails = item.details;
+      if (item.details) {
+        encryptedDetails = { ...item.details };
+        
+        if (item.details.recipe) {
+          encryptedDetails.recipe = {
+            ...item.details.recipe,
+            ingredients: item.details.recipe.ingredients?.map(ing => ({
+              name: encrypt(ing.name || ''),
+              quantity: encrypt(ing.quantity || ''),
+              notes: ing.notes ? encrypt(ing.notes) : undefined
+            })) || [],
+            preparation: encrypt(item.details.recipe.preparation || ''),
+            tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
+          };
+        }
+      }
+
+      return {
+        ...item,
+        description: encryptedDescription,
+        details: encryptedDetails
+      };
+    });
+
+    // 3. Actualizar en la base de datos
+    const updateResult = await healthForms.updateOne(
       { 
         _id: new ObjectId(clientId),
         'aiProgress.sessions.sessionId': sessionId
       },
       {
         $set: {
-          'aiProgress.sessions.$.checklist': checklistItems,
-          'aiProgress.sessions.$.updatedAt': new Date()
+          'aiProgress.sessions.$.checklist': encryptedChecklistItems,
+          'aiProgress.sessions.$.updatedAt': new Date(),
+          'aiProgress.lastEvaluation': new Date(),
+          updatedAt: new Date()
         }
       }
     );
-    
-    console.log('📝 Update checklist result:', {
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
-      upsertedCount: result.upsertedCount
-    });
-    
-    if (result.modifiedCount > 0) {
-      // Recalcular progreso general
-      const completedItems = checklistItems.filter(item => item.completed).length;
-      const totalItems = checklistItems.length;
-      const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-      
-      // Actualizar progreso general
-      await healthForms.updateOne(
-        { _id: new ObjectId(clientId) },
-        { 
-          $set: { 
-            'aiProgress.overallProgress': progress,
-            'aiProgress.lastEvaluation': new Date()
-          } 
-        }
-      );
-      
-      loggerWithContext.info('AI', 'Checklist actualizado exitosamente', { 
-        sessionId, 
-        progress,
-        completedItems,
-        totalItems
-      });
-      
-      return true;
-    } else {
-      loggerWithContext.warn('AI', 'No se modificó ningún documento', { sessionId });
-      return false;
+
+    if (updateResult.modifiedCount === 0) {
+      throw new Error('No se pudo actualizar la base de datos');
     }
-  } catch (error) {
-    loggerWithContext.error('AI', 'Error actualizando checklist', error as Error);
-    return false;
+
+    // 4. ✅ OBTENER EL DOCUMENTO ACTUALIZADO COMPLETO
+    const updatedClient = await healthForms.findOne({ 
+      _id: new ObjectId(clientId)
+    });
+
+    if (!updatedClient?.aiProgress) {
+      throw new Error('No se pudo obtener el cliente actualizado');
+    }
+
+    const updatedSessionIndex = updatedClient.aiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
+    );
+
+    const updatedSession = updatedClient.aiProgress.sessions[updatedSessionIndex];
+
+    // ✅ DESENCRIPTAR LA SESIÓN COMPLETA
+    const decryptedSession = decryptAISessionCompletely(updatedSession);
+
+    // Calcular progreso
+    const completedItems = decryptedSession.checklist?.filter(item => item.completed).length || 0;
+    const totalItems = decryptedSession.checklist?.length || 0;
+    const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    return {
+      success: true,
+      data: {
+        session: decryptedSession,  // ✅ SESIÓN COMPLETA DESENCRIPTADA
+        progress: progress,
+        completedItems: completedItems,
+        totalItems: totalItems
+      }
+    };
+
+  } catch (error: any) {
+    loggerWithContext.error('AI', '💥 Error actualizando checklist', error);
+    return {
+      success: false,
+      message: error.message
+    };
   }
 }
 
