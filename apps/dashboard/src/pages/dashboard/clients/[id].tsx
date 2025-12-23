@@ -1,9 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
 import { apiClient } from '@/lib/api';
+import Image from 'next/image'
+import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
+
+interface UploadedFile {
+  url: string;
+  key: string;
+  name: string;
+  type: 'profile' | 'document';
+  size: number;
+  uploadedAt?: string;
+}
 
 interface Client {
   _id: string
@@ -20,6 +31,7 @@ interface Client {
     maritalStatus: string
     education: string
     occupation: string
+    profilePhoto?: UploadedFile;  // ✅ NUEVO: Foto de perfil
   }
   medicalData: {
     mainComplaint: string
@@ -32,6 +44,7 @@ interface Client {
     allergies: string
     surgeries: string
     housingHistory: string
+    documents?: UploadedFile[];   // ✅ NUEVO: Documentos médicos
     
     // Evaluaciones (arrays JSON)
     carbohydrateAddiction: boolean[]
@@ -41,7 +54,8 @@ interface Client {
     electrosmogExposure: boolean[]
     generalToxicity: boolean[]
     microbiotaHealth: boolean[]
-    // Salud mental - opción múltiple
+    
+    // Salud mental
     mentalHealthEmotionIdentification: string
     mentalHealthEmotionIntensity: string
     mentalHealthUncomfortableEmotion: string
@@ -245,7 +259,12 @@ export default function ClientProfile() {
   const [expandedEvaluations, setExpandedEvaluations] = useState<{[key: string]: boolean}>({})
   const router = useRouter()
   const { id } = router.query
-
+  const [selectedDocument, setSelectedDocument] = useState<UploadedFile | null>(null)
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false)
+  const [isProfilePhotoModalOpen, setIsProfilePhotoModalOpen] = useState(false)
+  const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   // Asegurar que el id es string
   const clientId = Array.isArray(id) ? id[0] : id;
 
@@ -289,12 +308,6 @@ export default function ClientProfile() {
     }
   }
 
-
-  const handleGenerateRecommendations = () => {
-    // Placeholder para futura integración con IA
-    alert('Esta funcionalidad estará disponible pronto con la integración de IA')
-  }
-
   // Función para obtener la etiqueta de la opción de salud mental
   const getMentalHealthLabel = (field: string, value: string): string => {
     if (!value) return 'No especificado'
@@ -335,6 +348,157 @@ export default function ClientProfile() {
     }
     
     return [];
+  };
+  // Función para cambiar la foto de perfil (CORREGIDA)
+  const handleProfilePhotoChange = async (file: File) => {
+    if (!clientId) return;
+    
+    setUploading(true);
+    try {
+      // 1. Obtener URL de upload para la nueva foto
+      const uploadResponse = await apiClient.generateUploadURL(
+        clientId,
+        file.name,
+        file.type,
+        file.size,
+        'profile'
+      );
+
+      // 2. Subir archivo a S3
+      await fetch(uploadResponse.data.uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      // 3. Confirmar upload y actualizar en base de datos
+      await apiClient.confirmUpload(
+        clientId,
+        uploadResponse.data.fileKey,
+        file.name,
+        file.type,
+        file.size,
+        'profile',
+        uploadResponse.data.fileURL
+      );
+
+      // 4. Recargar datos del cliente
+      await fetchClient();
+      
+      alert('Foto de perfil actualizada exitosamente');
+      setIsProfilePhotoModalOpen(false);
+    } catch (error) {
+      console.error('Error actualizando foto de perfil:', error);
+      alert('Error al actualizar la foto de perfil: ' + (error as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Función para eliminar un documento (USANDO API CLIENT CORREGIDO)
+  const handleDeleteDocument = async (document: UploadedFile) => {
+    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar el documento "${document.name}"?`)) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteDocument(clientId, document.key);
+      await fetchClient(); // Recargar datos
+      alert('Documento eliminado exitosamente');
+    } catch (error) {
+      console.error('Error eliminando documento:', error);
+      alert('Error al eliminar el documento: ' + (error as Error).message);
+    }
+  };
+
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+
+  // Función para subir nuevos documentos (USANDO API CLIENT CORREGIDO)
+  const handleUploadDocuments = async () => {
+    if (!clientId || selectedFiles.length === 0) return;
+    
+    setUploading(true);
+    
+    const uploadPromises = selectedFiles.map(async (file) => {
+      try {
+        // 1. Obtener URL de upload
+        const uploadResponse = await apiClient.generateUploadURL(
+          clientId,
+          file.name,
+          file.type,
+          file.size,
+          'document'
+        );
+
+        // 2. Subir archivo a S3
+        await fetch(uploadResponse.data.uploadURL, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type,
+          },
+        });
+
+        // 3. Confirmar upload
+        await apiClient.confirmUpload(
+          clientId,
+          uploadResponse.data.fileKey,
+          file.name,
+          file.type,
+          file.size,
+          'document',
+          uploadResponse.data.fileURL
+        );
+
+        return { success: true, fileName: file.name };
+      } catch (error) {
+        console.error(`Error subiendo ${file.name}:`, error);
+        return { success: false, fileName: file.name, error };
+      }
+    });
+
+    try {
+      const results = await Promise.all(uploadPromises);
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      if (failed > 0) {
+        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron. Revisa la consola para más detalles.`);
+      } else {
+        alert('Todos los documentos se subieron exitosamente');
+      }
+
+      await fetchClient(); // Recargar datos
+      setSelectedFiles([]);
+      setIsDocumentsModalOpen(false);
+    } catch (error) {
+      console.error('Error subiendo documentos:', error);
+      alert('Error al subir los documentos: ' + (error as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Funciones para drag & drop
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    setSelectedFiles(prev => [...prev, ...fileArray]);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    handleFileSelect(e.dataTransfer.files);
+  };
+
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -380,18 +544,61 @@ export default function ClientProfile() {
           {/* Información del cliente - 30% */}
           <div className="w-full lg:w-1/3">
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 sticky top-8 max-h-[calc(100vh-2rem)] overflow-y-auto">
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mr-4">
-                  <span className="text-white font-semibold text-xl">
-                    {firstName.charAt(0)}{lastName.charAt(0)}
-                  </span>
+              <div className="flex flex-col items-center text-center mb-6">
+                {client.personalData.profilePhoto ? (
+                <div className="relative mb-4">
+                  <Image 
+                    src={client.personalData.profilePhoto.url} 
+                    alt={`Foto de ${firstName} ${lastName}`}
+                    className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                    width={240}
+                    height={240}
+                  />
+                  {/* Botón circular azul para editar foto */}
+                  <button
+                    onClick={() => setIsProfilePhotoModalOpen(true)}
+                    className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition duration-200"
+                    title="Cambiar foto de perfil"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    {firstName} {lastName}
-                  </h1>
-                  <p className="text-gray-600">Cliente desde {new Date(client.submissionDate).toLocaleDateString()}</p>
+              ) : (
+                <div className="relative mb-4">
+                  <div className="w-60 h-60 bg-blue-500 rounded-full flex items-center justify-center shadow-lg border-4 border-blue-600">
+                    <span className="text-white font-bold text-4xl">
+                      {firstName.charAt(0)}{lastName.charAt(0)}
+                    </span>
+                  </div>
+                  {/* Botón circular azul para agregar foto */}
+                  <button
+                    onClick={() => setIsProfilePhotoModalOpen(true)}
+                    className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition duration-200"
+                    title="Agregar foto de perfil"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                 </div>
+              )}
+                
+                {/* Nombre debajo de la foto */}
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                  {firstName} {lastName}
+                </h1>
+                
+                {/* Fecha debajo del nombre */}
+                <p className="text-gray-600 text-sm">
+                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
               </div>
 
               {/* Navegación por pestañas */}
@@ -402,7 +609,7 @@ export default function ClientProfile() {
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'personal'
                         ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        : 'text-blue-600 hover:text-blue-700 hover:bg-white'
                     }`}
                   >
                     Personal
@@ -411,8 +618,8 @@ export default function ClientProfile() {
                     onClick={() => setActiveTab('medical')}
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'medical'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        ? 'bg-yellow-600 text-white shadow-sm'
+                        : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'
                     }`}
                   >
                     Médico
@@ -421,8 +628,8 @@ export default function ClientProfile() {
                     onClick={() => setActiveTab('mental')}
                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'mental'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-white'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-purple-600 hover:text-purple-900 hover:bg-white'
                     }`}
                   >
                     Emocional
@@ -478,38 +685,53 @@ export default function ClientProfile() {
                       <label className="text-sm font-medium text-blue-700 mb-1">Estado civil</label>
                       <p className="text-gray-800 font-medium">{client.personalData.maritalStatus}</p>
                     </div>
+
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-blue-700 mb-1">Nivel educativo</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.education || 'No especificado'}</p>
+                    </div>
+
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-blue-700 mb-1">Ocupación</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.occupation || 'No especificado'}</p>
+                    </div>
                   </>
                 )}
 
                 {activeTab === 'medical' && (
                   <>
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Motivo principal</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Cuál es tu mayor queja? Por favor enlista todos los síntomas y cuándo comenzaron</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Medicamentos</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué medicamentos estás tomando?</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.medications || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Suplementos</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué suplementos estás tomando? (vitaminas y/o minerales)</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.supplements || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Condiciones actuales/pasadas</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Indica tus condiciones de salud actuales y pasadas (por ejemplo: Diabetes Mellitus, Hipertensión, etc.)</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || 'No especificado'}</p>
                     </div>
+                    
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Hay algo más en tu historial médico que debamos considerar? (incluso de tu niñez)</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.additionalMedicalHistory || 'No especificado'}</p>
+                    </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Alergias</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Tienes alguna alergia? ¿Cuáles?</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.allergies || 'No especificado'}</p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Cirugías</label>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Enlista las cirugías a las que te has sometido</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.surgeries || 'No especificado'}</p>
                     </div>
                   </>
@@ -517,31 +739,87 @@ export default function ClientProfile() {
 
                 {activeTab === 'mental' && (
                   <>
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Identificación de emociones</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Puedes identificar con facilidad qué emoción estás sintiendo en momentos clave de tu día?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIdentification', client.medicalData.mentalHealthEmotionIdentification)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Intensidad emocional</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Cómo de intensas suelen ser tus emociones?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthEmotionIntensity', client.medicalData.mentalHealthEmotionIntensity)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Emociones incómodas</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Qué haces cuando sientes una emoción incómoda?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthUncomfortableEmotion', client.medicalData.mentalHealthUncomfortableEmotion)}
                       </p>
                     </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Diálogo interno</label>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando algo sale mal, ¿cuál es tu diálogo interno más frecuente?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthInternalDialogue', client.medicalData.mentalHealthInternalDialogue)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Ante una situación estresante, ¿qué estrategias sueles utilizar?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthStressStrategies', client.medicalData.mentalHealthStressStrategies)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Te resulta difícil decir "no" por miedo a decepcionar a los demás?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthSayingNo', client.medicalData.mentalHealthSayingNo)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">En tus relaciones, ¿sueles sentir que das más de lo que recibes?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthRelationships', client.medicalData.mentalHealthRelationships)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Expresas abiertamente lo que piensas y sientes, incluso cuando es incómodo?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthExpressThoughts', client.medicalData.mentalHealthExpressThoughts)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Alguna relación actual o pasada te genera malestar o dependencia emocional?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthEmotionalDependence', client.medicalData.mentalHealthEmotionalDependence)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Sientes que tienes un propósito o metas que te motivan?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthPurpose', client.medicalData.mentalHealthPurpose)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando enfrentas un fracaso, ¿cómo reaccionas?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthFailureReaction', client.medicalData.mentalHealthFailureReaction)}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Practicas alguna rutina que te ayude a conectar contigo mismo/a (meditación, escritura, naturaleza, etc.)?</label>
+                      <p className="text-gray-800 font-medium">
+                        {getMentalHealthLabel('mentalHealthSelfConnection', client.medicalData.mentalHealthSelfConnection)}
                       </p>
                     </div>
                   </>
@@ -592,7 +870,7 @@ export default function ClientProfile() {
                     <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
-                    Estilo de Vida
+                    Historial de empleos
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[80px]">
                     {client.medicalData.employmentHistory || 'Información no disponible'}
@@ -625,7 +903,99 @@ export default function ClientProfile() {
                 </div>
               </div>
             </div>
-
+            {/* Tarjeta de Documentos Médicos */}
+            <div className="bg-indigo-50 rounded-xl shadow-md border border-indigo-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-indigo-700">
+                    Documentos Médicos
+                  </h2>
+                  <span className="ml-3 bg-indigo-100 text-indigo-800 text-sm px-2 py-1 rounded-full">
+                    {client.medicalData.documents?.length || 0} archivos
+                  </span>
+                </div>
+                {/* Botón para agregar documentos */}
+                <button
+                  onClick={() => setIsDocumentsModalOpen(true)}
+                  className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-200 flex items-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Agregar Documentos
+                </button>
+              </div>
+              
+              {client.medicalData.documents && client.medicalData.documents.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {client.medicalData.documents.map((doc, index) => (
+                    <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow relative">
+                      {/* Botón de eliminar documento */}
+                      <button
+                        onClick={() => handleDeleteDocument(doc)}
+                        className="absolute -top-2 -right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition duration-200"
+                        title="Eliminar documento"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          {doc.type.includes('image') ? (
+                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          <div>
+                            <h3 className="font-semibold text-gray-800 text-sm truncate max-w-[200px]">
+                              {doc.name}
+                            </h3>
+                            <p className="text-xs text-gray-600">
+                              {Math.round(doc.size / 1024)} KB • {doc.type}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setSelectedDocument(doc);
+                            setIsDocumentModalOpen(true);
+                          }}
+                          className="flex-1 bg-indigo-600 text-white text-center py-2 px-3 rounded-lg hover:bg-indigo-700 transition duration-200 text-sm font-medium"
+                        >
+                          Ver Documento
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-indigo-200">
+                  <svg className="w-12 h-12 text-indigo-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-indigo-500 font-medium mb-2">No hay documentos cargados</p>
+                  <button
+                    onClick={() => setIsDocumentsModalOpen(true)}
+                    className="text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    Agregar el primer documento
+                  </button>
+                </div>
+              )}
+            </div>
             {/* NUEVA TARJETA: Evaluaciones de Salud */}
             <div className="bg-pink-50 rounded-xl shadow-md border border-blue-100 p-6">
               <div className="flex items-center mb-4">
@@ -710,19 +1080,19 @@ export default function ClientProfile() {
               
               <div className="space-y-4">
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Relación consigo mismo</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Si tuvieras que describir tu relación contigo mismo/a en tres palabras, ¿cuáles serían?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthSelfRelationship || 'No especificado'}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Creencias limitantes</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Hay alguna creencia o pensamiento recurrente que sientas que te limita en tu vida actual?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthLimitingBeliefs || 'No especificado'}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Balance ideal</h3>
+                  <h3 className="font-semibold text-purple-700 mb-2">Imagina que has alcanzado un equilibrio emocional ideal. ¿Qué cambiaría en tu día a día?</h3>
                   <p className="text-gray-700 text-sm">
                     {client.medicalData.mentalHealthIdealBalance || 'No especificado'}
                   </p>
@@ -739,22 +1109,22 @@ export default function ClientProfile() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-green-700">
-                  Recomendaciones
+                  Recomendaciones de IA
                 </h2>
               </div>
               
               <div className="text-center py-4">
                 <button
-                  onClick={handleGenerateRecommendations}
+                  onClick={() => setIsAIModalOpen(true)}
                   className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 shadow-lg flex items-center justify-center mx-auto"
                 >
                   <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  Generar Recomendaciones
+                  Ver Recomendaciones
                 </button>
                 <p className="text-gray-600 text-sm mt-3">
-                  Las recomendaciones personalizadas se generarán usando IA avanzada
+                  Recomendaciones personalizadas generadas por IA avanzada
                 </p>
               </div>
             </div>
@@ -767,6 +1137,264 @@ export default function ClientProfile() {
             client={client}
             onClose={() => setIsEditModalOpen(false)}
             onSave={fetchClient}
+          />
+        )}
+        {/* Modal para Visualización de Documentos */}
+        {isDocumentModalOpen && selectedDocument && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+              {/* Header del Modal */}
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">{selectedDocument.name}</h3>
+                  <p className="text-sm text-gray-600">
+                    {Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <a
+                    href={selectedDocument.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium flex items-center"
+                    download
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar
+                  </a>
+                  <button
+                    onClick={() => {
+                      setIsDocumentModalOpen(false);
+                      setSelectedDocument(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido del Modal */}
+              <div className="flex-1 overflow-auto p-6">
+                {selectedDocument.type.includes('image') ? (
+                  <div className="flex justify-center">
+                    <Image
+                      src={selectedDocument.url} 
+                      alt={selectedDocument.name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : selectedDocument.name.includes('.pdf') ? (
+                  <div className="w-full h-full">
+                    <iframe
+                      src={selectedDocument.url}
+                      className="w-full h-[70vh] border-0"
+                      title={selectedDocument.name}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
+                    <p className="text-gray-600 mb-6">
+                      Este tipo de archivo no se puede previsualizar en el navegador.
+                    </p>
+                    <a
+                      href={selectedDocument.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium inline-flex items-center"
+                      download
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Descargar Archivo
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Modal para cambiar foto de perfil */}
+        {isProfilePhotoModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full">
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800">Cambiar Foto de Perfil</h3>
+                <button
+                  onClick={() => setIsProfilePhotoModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="p-6">
+                <div className="text-center mb-6">
+                  <p className="text-gray-600 mb-4">Selecciona una nueva imagen para el perfil</p>
+                  
+                  <label className="block bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium cursor-pointer text-center">
+                    <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Seleccionar Archivo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleProfilePhotoChange(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  
+                  <p className="text-xs text-gray-500 mt-2">Formatos: JPG, PNG, GIF, WEBP (Máx. 5MB)</p>
+                </div>
+                
+                {uploading && (
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="text-gray-600 mt-2">Subiendo imagen...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal para agregar documentos */}
+        {isDocumentsModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800">Agregar Documentos Médicos</h3>
+                <button
+                  onClick={() => {
+                    setIsDocumentsModalOpen(false);
+                    setSelectedFiles([]);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-6">
+                {/* Área de Drag & Drop */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className="border-2 border-dashed border-indigo-300 rounded-lg p-8 text-center hover:border-indigo-400 transition duration-200 mb-6"
+                >
+                  <svg className="w-12 h-12 text-indigo-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-indigo-600 font-medium mb-2">Arrastra y suelta archivos aquí</p>
+                  <p className="text-gray-500 text-sm mb-4">o</p>
+                  <label className="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-200 font-medium cursor-pointer">
+                    Seleccionar Archivos
+                    <input
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => handleFileSelect(e.target.files)}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Formatos: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX (Máx. 5MB por archivo)
+                  </p>
+                </div>
+
+                {/* Archivos seleccionados */}
+                {selectedFiles.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-semibold text-gray-800 mb-3">Archivos seleccionados:</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {selectedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                          <div className="flex items-center">
+                            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-sm text-gray-700 truncate max-w-[200px]">{file.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">
+                              ({Math.round(file.size / 1024)} KB)
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeSelectedFile(index)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setIsDocumentsModalOpen(false);
+                    setSelectedFiles([]);
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUploadDocuments}
+                  disabled={selectedFiles.length === 0 || uploading}
+                  className="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      Subir Documentos ({selectedFiles.length})
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Modal de IA */}
+        {isAIModalOpen && (
+          <AIRecommendationsModal
+            clientId={clientId}
+            clientName={client.personalData.name}
+            onClose={() => setIsAIModalOpen(false)}
+            onRecommendationsGenerated={fetchClient}
           />
         )}
       </Layout>

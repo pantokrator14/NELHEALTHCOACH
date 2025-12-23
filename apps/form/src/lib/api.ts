@@ -4,18 +4,34 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 // Función auxiliar para subir archivos
 const uploadFileToS3 = async (uploadURL: string, file: File): Promise<void> => {
   console.log('📤 Subiendo archivo a S3:', file.name);
-  const response = await fetch(uploadURL, {
-    method: 'PUT',
-    body: file,
-    headers: {
-      'Content-Type': file.type,
-    },
-  });
+  console.log('🔗 URL de S3:', uploadURL);
+  
+  try {
+    const response = await fetch(uploadURL, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error('Error al subir archivo a S3');
+    console.log('📊 Respuesta de S3:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error respuesta S3:', errorText);
+      throw new Error(`Error al subir archivo a S3: ${response.status} - ${response.statusText}`);
+    }
+
+    console.log('✅ Archivo subido exitosamente a S3');
+  } catch (error) {
+    console.error('❌ Error en fetch a S3:', error);
+    throw error;
   }
-  console.log('✅ Archivo subido a S3:', file.name);
 };
 
 export const apiClient = {
@@ -26,11 +42,11 @@ export const apiClient = {
     const clientData = {
       personalData: {
         ...formData.personalData,
-        profilePhoto: undefined // Excluir el archivo del JSON
+        profilePhoto: undefined
       },
       medicalData: {
         ...formData.medicalData,
-        documents: undefined // Excluir documentos del JSON
+        documents: undefined
       },
       contractAccepted: formData.contractAccepted
     };
@@ -51,7 +67,41 @@ export const apiClient = {
     }
 
     const result = await response.json();
-    const clientId = result.data._id;
+    console.log('✅ Respuesta completa del servidor:', JSON.stringify(result, null, 2));
+
+    // VERIFICACIÓN MEJORADA - Buscar _id específicamente
+    if (!result.success) {
+      console.error('❌ La respuesta del servidor no fue exitosa:', result);
+      throw new Error(result.message || 'Error del servidor');
+    }
+
+    let clientId;
+    
+    // ✅ BUSCAR _id PRIMERO (que es lo que debería devolver el backend corregido)
+    if (result.data && result.data._id) {
+      clientId = result.data._id;
+      console.log('✅ ClientId obtenido de result.data._id:', clientId);
+    } 
+    // ✅ También buscar 'id' por si acaso (backwards compatibility)
+    else if (result.data && result.data.id) {
+      clientId = result.data.id;
+      console.log('✅ ClientId obtenido de result.data.id:', clientId);
+    }
+    // ✅ Buscar en otros lugares por si hay inconsistencias
+    else if (result._id) {
+      clientId = result._id;
+      console.log('✅ ClientId obtenido de result._id:', clientId);
+    }
+    else if (result.id) {
+      clientId = result.id;
+      console.log('✅ ClientId obtenido de result.id:', clientId);
+    }
+    else {
+      console.error('❌ NO SE PUDO OBTENER EL CLIENT_ID. Respuesta completa:', result);
+      // Continuamos sin clientId - el formulario se envió pero sin archivos
+      console.log('⚠️ Continuando sin subir archivos debido a clientId faltante');
+      return result;
+    }
 
     console.log('✅ Cliente creado, ID:', clientId);
 
@@ -70,13 +120,14 @@ export const apiClient = {
         console.log('📄 Subiendo documentos médicos...', formData.medicalData.documents.length);
         await this.uploadDocuments(clientId, formData.medicalData.documents);
       } else {
-        console.log('⚠️ No hay documentos para subir');
+        console.log('⚠️ No hay documentos para subir - continuando sin documentos');
+        // No hay error, simplemente continuamos
       }
 
-      console.log('✅ Todos los archivos subidos exitosamente');
+      console.log('✅ Proceso de archivos completado');
     } catch (uploadError) {
-      console.error('❌ Error subiendo archivos:', uploadError);
-      // NO relanzamos el error para que el formulario se complete aunque falle S3
+      console.error('❌ Error en proceso de archivos:', uploadError);
+      // No relanzamos el error - el formulario principal ya se envió
     }
 
     return result;

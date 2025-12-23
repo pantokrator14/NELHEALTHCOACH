@@ -69,7 +69,7 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
   }, [documents, errors]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-400 via-green-500 to-green-600 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
         <div className="p-8">
           {/* Logo */}
@@ -85,8 +85,8 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
             </div>
           </div>
           
-          <h2 className="text-3xl font-bold text-center text-blue-500 mb-8">
-            Documentos Médicos
+          <h2 className="text-3xl font-bold text-center text-green-500 mb-8">
+            Documentos Médicos (OPCIONAL)
           </h2>
           
           <form onSubmit={(e) => {
@@ -94,9 +94,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
             handleFormSubmit();
           }} className="space-y-8">
             {/* Sección de upload de documentos */}
-            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-              <h3 className="text-xl font-semibold text-blue-700 mb-4">
-                Subir Resultados Médicos
+            <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+              <h3 className="text-xl font-semibold text-green-700 mb-4">
+                Subir Resultados Médicos 
               </h3>
               
               <FileUpload
@@ -116,21 +116,21 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
               {/* Lista de documentos subidos */}
               {documents.length > 0 && (
                 <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-blue-600 mb-3">
+                  <h4 className="text-lg font-semibold text-green-600 mb-3">
                     Documentos seleccionados ({documents.length})
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {documents.map((doc) => (
-                      <div key={doc.id} className="bg-white p-4 rounded-lg border border-blue-200 flex items-center justify-between">
+                      <div key={doc.id} className="bg-white p-4 rounded-lg border border-green-200 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                             {doc.file.type.startsWith('image/') ? '🖼️' : '📄'}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-700 truncate max-w-[150px]">
+                            <p className="text-sm font-medium text-green-700 truncate max-w-[150px]">
                               {doc.file.name}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-green-500">
                               {(doc.file.size / 1024 / 1024).toFixed(2)} MB
                             </p>
                           </div>
@@ -150,9 +150,9 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
               )}
             </div>
 
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <h4 className="font-semibold text-yellow-700 mb-2">📋 Documentos recomendados:</h4>
-              <ul className="text-sm text-yellow-600 list-disc list-inside space-y-1">
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <h4 className="font-semibold text-green-700 mb-2">📋 Documentos recomendados:</h4>
+              <ul className="text-sm text-green-600 list-disc list-inside space-y-1">
                 <li>Resultados de análisis de sangre</li>
                 <li>Estudios de imagen (radiografías, ecografías, etc.)</li>
                 <li>Recetas médicas actuales</li>
@@ -172,8 +172,8 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 flex items-center"
-                disabled={loading || documents.length === 0} // Deshabilitar si no hay documentos
+                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 flex items-center"
+                disabled={loading} // ← SOLO deshabilitar por loading, NO por falta de documentos
               >
                 {loading ? (
                   <>
@@ -181,7 +181,7 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
                     Enviando...
                   </>
                 ) : (
-                  `Finalizar Registro ${documents.length > 0 ? `(${documents.length} archivos)` : ''}`
+                  `Finalizar Registro ${documents.length > 0 ? `(${documents.length} archivos)` : '(sin documentos)'}`
                 )}
               </button>
             </div>

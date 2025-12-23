@@ -1,8 +1,11 @@
+// apps/form/src/pages/index.tsx
 import React, { useState } from 'react';
 import ContractStep from '@/components/ContractStep';
 import PersonalDataStep from '@/components/PersonalDataStep';
-import MedicalDataStep from '@/components/MedicalDataStep';
-import DocumentsStep from '@/components/DocumentsStep'; // NUEVO
+import BasicMedicalStep from '@/components/BasicMedicalStep'; // NUEVO
+import HealthEvaluationsStep from '@/components/HealthEvaluationsStep'; // NUEVO
+import MentalHealthStep from '@/components/MentalHealthStep'; // NUEVO
+import DocumentsStep from '@/components/DocumentsStep';
 import SuccessStep from '@/components/SuccessStep';
 import { apiClient } from '@/lib/api';
 
@@ -24,6 +27,7 @@ interface PersonalData {
 }
 
 interface MedicalData {
+  // Campos de BasicMedicalStep
   mainComplaint: string;
   medications: string;
   supplements: string;
@@ -34,6 +38,8 @@ interface MedicalData {
   allergies: string;
   surgeries: string;
   housingHistory: string;
+  
+  // Campos de HealthEvaluationsStep
   carbohydrateAddiction: any;
   leptinResistance: any;
   circadianRhythms: any;
@@ -41,6 +47,8 @@ interface MedicalData {
   electrosmogExposure: any;
   generalToxicity: any;
   microbiotaHealth: any;
+  
+  // Campos de MentalHealthStep
   mentalHealthEmotionIdentification: string;
   mentalHealthEmotionIntensity: string;
   mentalHealthUncomfortableEmotion: string;
@@ -56,6 +64,7 @@ interface MedicalData {
   mentalHealthSelfRelationship: string;
   mentalHealthLimitingBeliefs: string;
   mentalHealthIdealBalance: string;
+  
   documents?: File[];
 }
 
@@ -92,14 +101,41 @@ const FormPage: React.FC = () => {
     nextStep();
   };
 
-  const handleMedicalDataSubmit = (data: MedicalData) => {
-    updateFormData({ medicalData: data });
-    nextStep(); // Ahora va al paso de documentos, no al éxito
+  // NUEVO: Manejar envío de datos médicos básicos
+  const handleBasicMedicalSubmit = (data: any) => {
+    updateFormData({ 
+      medicalData: {
+        ...formData.medicalData,
+        ...data
+      }
+    });
+    nextStep();
   };
 
-  // NUEVA FUNCIÓN: Manejar envío de documentos
+  // NUEVO: Manejar envío de evaluaciones de salud
+  const handleHealthEvaluationsSubmit = (data: any) => {
+    updateFormData({ 
+      medicalData: {
+        ...formData.medicalData,
+        ...data
+      }
+    });
+    nextStep();
+  };
+
+  // NUEVO: Manejar envío de bienestar emocional
+  const handleMentalHealthSubmit = (data: any) => {
+    updateFormData({ 
+      medicalData: {
+        ...formData.medicalData,
+        ...data
+      }
+    });
+    nextStep();
+  };
+
+  // Manejar envío de documentos (ahora es el paso 6)
   const handleDocumentsSubmit = async (data: any) => {
-    console.log('📨 handleDocumentsSubmit llamado', data);
     setLoading(true);
     setError(null);
     
@@ -112,32 +148,31 @@ const FormPage: React.FC = () => {
       }
     };
     
-    console.log('📋 Datos completos a enviar:', {
-      tieneDatosPersonales: !!completeData.personalData,
-      tieneDatosMedicos: !!completeData.medicalData,
-      numeroDeDocumentos: completeData.medicalData.documents?.length || 0,
-      tieneFotoPerfil: !!completeData.personalData?.profilePhoto
+    console.log('📋 Enviando formulario completo...', {
+      personalData: completeData.personalData,
+      medicalDataFields: Object.keys(completeData.medicalData).filter(key => key !== 'documents'),
+      documentCount: completeData.medicalData.documents?.length || 0,
+      hasProfilePhoto: !!completeData.personalData.profilePhoto
     });
 
     try {
-      console.log('🔄 Llamando a apiClient.submitForm...');
       const result = await apiClient.submitForm(completeData);
 
       if (result.success) {
-        console.log('✅ Formulario enviado exitosamente!', result);
         nextStep();
+        console.log('✅ Formulario enviado exitosamente!');
       } else {
-        console.error('❌ Error en la respuesta del servidor:', result);
         setError(result.message || 'Error al enviar el formulario');
       }
     } catch (error: any) {
-      console.error('❌ Error capturado en handleDocumentsSubmit:', error);
+      console.error('❌ Error:', error);
       setError('Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.');
     } finally {
       setLoading(false);
     }
   };
 
+  // NUEVO FLUJO: 7 pasos
   const steps = [
     <ContractStep key="contract" onAccept={handleContractAccept} onReject={handleContractReject} />,
     <PersonalDataStep 
@@ -146,10 +181,22 @@ const FormPage: React.FC = () => {
       onSubmit={handlePersonalDataSubmit} 
       onBack={prevStep} 
     />,
-    <MedicalDataStep 
-      key="medical"
+    <BasicMedicalStep 
+      key="basic-medical"
       data={formData.medicalData || {}} 
-      onSubmit={handleMedicalDataSubmit} 
+      onSubmit={handleBasicMedicalSubmit} 
+      onBack={prevStep} 
+    />,
+    <HealthEvaluationsStep 
+      key="health-evaluations"
+      data={formData.medicalData || {}} 
+      onSubmit={handleHealthEvaluationsSubmit} 
+      onBack={prevStep} 
+    />,
+    <MentalHealthStep 
+      key="mental-health"
+      data={formData.medicalData || {}} 
+      onSubmit={handleMentalHealthSubmit} 
       onBack={prevStep} 
     />,
     <DocumentsStep 

@@ -2,9 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { decrypt, encrypt, safeDecrypt, encryptObject } from '@/app/lib/encryption';
+import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
+import { S3Service } from '@/app/lib/s3';
+import { TextractService } from '@/app/lib/textract';
 
 // GET: Obtener un cliente específico
 export async function GET(
@@ -38,30 +40,106 @@ export async function GET(
           { status: 404 }
         );
       }
-
+      logger.debug('CLIENTS', 'Estructura del cliente en BD:', {
+        clientId: client._id.toString(),
+        personalDataKeys: Object.keys(client.personalData || {}),
+        medicalDataKeys: Object.keys(client.medicalData || {}),
+        hasProfilePhoto: !!client.personalData.profilePhoto,
+        profilePhotoType: typeof client.personalData.profilePhoto,
+        hasDocuments: !!client.medicalData.documents,
+        documentsType: typeof client.medicalData.documents,
+        sampleMedicalField: {
+          carbohydrateAddiction: {
+            value: client.medicalData.carbohydrateAddiction,
+            type: typeof client.medicalData.carbohydrateAddiction,
+            preview: typeof client.medicalData.carbohydrateAddiction === 'string' ? 
+              client.medicalData.carbohydrateAddiction.substring(0, 50) + '...' : 'N/A'
+          }
+        }
+      });
       logger.debug('CLIENTS', 'Cliente encontrado', {
         clientId: client._id.toString(),
         hasPersonalData: !!client.personalData,
         personalDataKeys: Object.keys(client.personalData || {})
       });
 
-      // Función para desencriptar objetos
-      const decryptObject = (obj: Record<string, any>): Record<string, any> => {
+      // Función para desencriptar objetos - MEJORADA
+      const decryptObject = (obj: Record<string, any>, path: string = ''): Record<string, any> => {
         const decrypted: Record<string, any> = {};
+        
         for (const [key, value] of Object.entries(obj)) {
+          const currentPath = path ? `${path}.${key}` : key;
+          
+          const isFileField = (
+            currentPath.includes('profilePhoto.url') || 
+            currentPath.includes('profilePhoto.key') || 
+            currentPath.includes('documents.url') ||
+            currentPath.includes('documents.key') ||
+            (currentPath === 'profilePhoto.type') ||
+            (currentPath === 'documents.type') ||
+            currentPath.includes('uploadedAt')
+          );
+          
           if (typeof value === 'string' && value.trim() !== '') {
-            try {
-              const decryptedValue = decrypt(value);
-              decrypted[key] = decryptedValue;
-            } catch (error) {
-              logger.warn('ENCRYPTION', `No se pudo desencriptar ${key}`, error as Error, { clientId: id });
+            if (isFileField) {
               decrypted[key] = value;
+            } else {
+              // ✅ USAR safeDecrypt EN LUGAR DE smartDecrypt
+              decrypted[key] = safeDecrypt(value);
             }
+          } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            decrypted[key] = decryptObject(value, currentPath);
           } else {
             decrypted[key] = value;
           }
         }
+        
         return decrypted;
+      };
+
+      // Función para desencriptar arrays de objetos (como documents)
+      const decryptArray = (encryptedArray: string): any[] => {
+        if (!encryptedArray) return [];
+        
+        try {
+          // Primero desencriptar el string completo
+          const decryptedString = decrypt(encryptedArray);
+          // Luego parsear como JSON
+          const parsedArray = JSON.parse(decryptedString);
+          
+          if (!Array.isArray(parsedArray)) {
+            logger.warn('ENCRYPTION', 'El resultado desencriptado no es un array', { 
+              decryptedString: decryptedString.substring(0, 100) 
+            });
+            return [];
+          }
+          
+          // Desencriptar cada objeto en el array
+          return parsedArray.map(item => {
+            if (typeof item === 'object' && item !== null) {
+              const decryptedItem: any = {};
+              for (const [key, value] of Object.entries(item)) {
+                if (typeof value === 'string') {
+                  try {
+                    decryptedItem[key] = decrypt(value);
+                  } catch (error) {
+                    decryptedItem[key] = value; // Mantener original si falla
+                    logger.debug('ENCRYPTION', `No se pudo desencriptar campo ${key} en documento`, { value });
+                  }
+                } else {
+                  decryptedItem[key] = value;
+                }
+              }
+              return decryptedItem;
+            }
+            return item;
+          });
+        } catch (error) {
+          logger.error('ENCRYPTION', 'Error desencriptando array', error as Error, {
+            encryptedArray: encryptedArray?.substring(0, 100)
+          });
+          return [];
+        }
       };
 
       // Desencriptar datos del cliente
@@ -74,6 +152,15 @@ export async function GET(
         submissionDate: client.submissionDate
       };
 
+      logger.debug('CLIENTS', 'Verificación de datos desencriptados', {
+        clientId: id,
+        name: decryptedClient.personalData.name ? 'DESENCRIPTADO' : 'FALLO',
+        email: decryptedClient.personalData.email ? 'DESENCRIPTADO' : 'FALLO',
+        hasProfilePhoto: !!decryptedClient.personalData.profilePhoto,
+        profilePhotoUrl: decryptedClient.personalData.profilePhoto?.url ? 'EXISTS' : 'MISSING',
+        documentCount: decryptedClient.medicalData.documents?.length || 0
+      });
+
       // Procesar arrays en medicalData
       const arrayFields = [
         'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
@@ -81,58 +168,94 @@ export async function GET(
       ];
 
       arrayFields.forEach(field => {
-        const encryptedFieldData = (decryptedClient.medicalData as any)[field];
+        const fieldData = (decryptedClient.medicalData as any)[field];
         
-        if (!encryptedFieldData) {
+        if (!fieldData) {
           (decryptedClient.medicalData as any)[field] = [];
           return;
         }
 
-        if (typeof encryptedFieldData === 'string') {
+        if (Array.isArray(fieldData)) {
+          (decryptedClient.medicalData as any)[field] = fieldData;
+        } else if (typeof fieldData === 'string') {
+          // ✅ CORRECCIÓN: SOLO desencriptar si está encriptado
+          let stringToParse = fieldData;
+          
+          // Si empieza con U2FsdGVkX1, está encriptado
+          if (fieldData.startsWith('U2FsdGVkX1')) {
+            stringToParse = safeDecrypt(fieldData);
+            logger.debug('CLIENTS', `Campo ${field} desencriptado`, {
+              clientId: id,
+              wasEncrypted: true
+            });
+          } else {
+            logger.debug('CLIENTS', `Campo ${field} ya está desencriptado`, {
+              clientId: id,
+              wasEncrypted: false
+            });
+          }
+          
           try {
-            logger.debug('ENCRYPTION', `Desencriptando campo médico: ${field}`, { clientId: id });
-            
-            const decryptedString = decrypt(encryptedFieldData);
-            logger.debug('ENCRYPTION', `${field} desencriptado`, { 
-              clientId: id,
-              decryptedLength: decryptedString.length 
-            });
-            
-            const parsed = JSON.parse(decryptedString);
-            (decryptedClient.medicalData as any)[field] = Array.isArray(parsed) ? parsed : [];
-            
-            logger.debug('CLIENTS', `${field} parseado como array`, {
-              clientId: id,
-              arrayLength: (decryptedClient.medicalData as any)[field].length
-            });
-            
+            const parsed = JSON.parse(stringToParse);
+            if (Array.isArray(parsed)) {
+              (decryptedClient.medicalData as any)[field] = parsed;
+              logger.debug('CLIENTS', `${field} procesado exitosamente`, {
+                clientId: id,
+                wasEncrypted: fieldData !== stringToParse,
+                arrayLength: parsed.length
+              });
+            } else {
+              throw new Error('El resultado no es un array');
+            }
           } catch (error) {
-            logger.error('CLIENTS', `Error desencriptando/parseando ${field}`, error as Error, {
+            logger.warn('CLIENTS', `Error procesando ${field}, usando array vacío`, undefined, {
               clientId: id,
               field
             });
-            
-            // Recuperación especial para campos problemáticos
-            if (field === 'generalToxicity') {
-              logger.debug('CLIENTS', `Aplicando recuperación especial para ${field}`, { clientId: id });
-              try {
-                const expectedLength = 8;
-                (decryptedClient.medicalData as any)[field] = Array(expectedLength).fill(false);
-                logger.info('CLIENTS', `${field} recuperado con array por defecto`, { clientId: id });
-              } catch (recoveryError) {
-                logger.error('CLIENTS', `Recuperación falló para ${field}`, recoveryError as Error, { clientId: id });
-                (decryptedClient.medicalData as any)[field] = [];
-              }
-            } else {
-              (decryptedClient.medicalData as any)[field] = [];
-            }
+            (decryptedClient.medicalData as any)[field] = [];
           }
-        } else if (Array.isArray(encryptedFieldData)) {
-          (decryptedClient.medicalData as any)[field] = encryptedFieldData;
         } else {
           (decryptedClient.medicalData as any)[field] = [];
         }
       });
+
+      // ✅ DESENCRIPTAR profilePhoto
+      if (decryptedClient.personalData.profilePhoto) {
+        try {
+          decryptedClient.personalData.profilePhoto = decryptFileObject(decryptedClient.personalData.profilePhoto);
+        } catch (error) {
+          logger.error('CLIENTS', 'Error desencriptando profilePhoto', error as Error, { clientId: id });
+          decryptedClient.personalData.profilePhoto = null;
+        }
+      }
+
+      // ✅ DESENCRIPTAR documents
+      if (decryptedClient.medicalData.documents) {
+        if (typeof decryptedClient.medicalData.documents === 'string') {
+          try {
+            // Desencriptar el string completo
+            const decryptedString = decrypt(decryptedClient.medicalData.documents);
+            const parsedArray = JSON.parse(decryptedString);
+            
+            if (Array.isArray(parsedArray)) {
+              // Desencriptar cada archivo en el array
+              decryptedClient.medicalData.documents = parsedArray.map(file => 
+                decryptFileObject(file)
+              );
+            } else {
+              decryptedClient.medicalData.documents = [];
+            }
+          } catch (error) {
+            logger.error('CLIENTS', 'Error desencriptando documents', error as Error, { clientId: id });
+            decryptedClient.medicalData.documents = [];
+          }
+        } else if (Array.isArray(decryptedClient.medicalData.documents)) {
+          // Si ya es array, desencriptar cada elemento
+          decryptedClient.medicalData.documents = decryptedClient.medicalData.documents.map(file => 
+            decryptFileObject(file)
+          );
+        }
+      }
 
       logger.info('CLIENTS', 'Cliente desencriptado exitosamente', { clientId: id });
 
@@ -140,6 +263,8 @@ export async function GET(
         success: true,
         data: decryptedClient
       });
+
+      
 
     } catch (error: any) {
       logger.error('CLIENTS', 'Error obteniendo cliente', error, {
@@ -236,42 +361,40 @@ export async function PUT(
         );
       }
 
-      // Función para encriptar objetos
-      const encryptObject = (obj: Record<string, any>): Record<string, any> => {
+      // ✅ ELIMINADA la función decryptObject duplicada - ya existe en el GET
+
+      // Función para encriptar objetos de datos personales/médicos
+      const encryptObjectData = (obj: Record<string, any>): Record<string, any> => {
         const encrypted: Record<string, any> = {};
-        const keys = Object.keys(obj);
-        
-        logger.debug('ENCRYPTION', 'Encriptando objeto', { 
-          clientId: id,
-          keyCount: keys.length 
-        });
         
         for (const [key, value] of Object.entries(obj)) {
+          // ✅ NO encriptar campos de archivos (ya se encriptan individualmente)
+          const isFileField = key === 'profilePhoto' || key === 'documents';
+          
           if (typeof value === 'string' && value.trim() !== '') {
-            encrypted[key] = encrypt(value);
+            // ✅ Solo encriptar si no está ya encriptado
+            if (isFileField || value.startsWith('U2FsdGVkX1')) {
+              encrypted[key] = value;
+            } else {
+              encrypted[key] = encrypt(value);
+            }
+          } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            encrypted[key] = encryptObjectData(value);
           } else {
             encrypted[key] = value;
           }
         }
+        
         return encrypted;
       };
 
-      // Procesar arrays en medicalData
-      const processedMedicalData = { ...data.medicalData };
-      
-      logger.debug('CLIENTS', 'Procesando arrays médicos para encriptación', {
-        clientId: id,
-        arrayFields
-      });
-
-      arrayFields.forEach(field => {
-        const arrayData = (processedMedicalData as any)[field];
+      // ✅ Función específica para procesar y encriptar arrays de evaluaciones
+      const processAndEncryptArray = (field: string, arrayData: any[]): string => {
         const expectedLength = expectedLengths[field];
         
         if (!arrayData || !Array.isArray(arrayData)) {
           logger.warn('CLIENTS', `Array ${field} no válido, usando array vacío`, undefined, { clientId: id });
-          (processedMedicalData as any)[field] = encrypt(JSON.stringify([]));
-          return;
+          return encrypt(JSON.stringify([]));
         }
 
         const cleanedArray = arrayData.map((value: any) => {
@@ -300,19 +423,54 @@ export async function PUT(
         }
 
         // ENCRIPTAR el array como string JSON
-        (processedMedicalData as any)[field] = encrypt(JSON.stringify(cleanedArray));
+        const encryptedArray = encrypt(JSON.stringify(cleanedArray));
         
         logger.debug('CLIENTS', `Array ${field} procesado y encriptado`, {
           clientId: id,
           finalLength: cleanedArray.length
         });
+        
+        return encryptedArray;
+      };
+
+      // Procesar arrays en medicalData
+      const processedMedicalData = { ...data.medicalData };
+      
+      logger.debug('CLIENTS', 'Procesando arrays médicos para encriptación', {
+        clientId: id,
+        arrayFields
       });
 
-      // Encriptar datos
+      arrayFields.forEach(field => {
+        const arrayData = (processedMedicalData as any)[field];
+        (processedMedicalData as any)[field] = processAndEncryptArray(field, arrayData);
+      });
+
+      // ✅ Procesar profilePhoto para encriptación (usando encryptFileObject)
+      const processedPersonalData = { ...data.personalData };
+      if (processedPersonalData.profilePhoto && typeof processedPersonalData.profilePhoto === 'object') {
+        processedPersonalData.profilePhoto = encryptFileObject(processedPersonalData.profilePhoto);
+        logger.debug('CLIENTS', 'ProfilePhoto procesado y encriptado', { clientId: id });
+      }
+
+      // ✅ Procesar documents para encriptación (usando encryptFileObject en cada documento)
+      if (processedMedicalData.documents && Array.isArray(processedMedicalData.documents)) {
+        processedMedicalData.documents = processedMedicalData.documents.map(doc => 
+          encryptFileObject(doc)
+        );
+        logger.debug('CLIENTS', 'Documents procesado y encriptado', {
+          clientId: id,
+          documentCount: processedMedicalData.documents.length
+        });
+      } else {
+        processedMedicalData.documents = [];
+      }
+
+      // Encriptar datos personales y médicos
       logger.debug('ENCRYPTION', 'Encriptando datos personales y médicos', { clientId: id });
       
-      const encryptedPersonalData = encryptObject(data.personalData);
-      const encryptedMedicalData = encryptObject(processedMedicalData);
+      const encryptedPersonalData = encryptObjectData(processedPersonalData);
+      const encryptedMedicalData = encryptObjectData(processedMedicalData);
 
       const updateData = {
         personalData: encryptedPersonalData,
@@ -320,6 +478,17 @@ export async function PUT(
         contractAccepted: encrypt(data.contractAccepted.toString()),
         updatedAt: new Date()
       };
+
+      // Logs de verificación
+      logger.debug('ENCRYPTION', 'Datos encriptados', {
+        clientId: id,
+        hasProfilePhoto: !!encryptedPersonalData.profilePhoto,
+        profilePhotoType: typeof encryptedPersonalData.profilePhoto,
+        hasDocuments: !!encryptedMedicalData.documents,
+        documentsIsArray: Array.isArray(encryptedMedicalData.documents),
+        documentsLength: Array.isArray(encryptedMedicalData.documents) ? 
+          encryptedMedicalData.documents.length : 'N/A'
+      });
 
       logger.debug('CLIENTS', 'Ejecutando actualización en base de datos', { clientId: id });
 
@@ -382,7 +551,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return logger.time('CLIENTS', 'Eliminar cliente', async () => {
+  return logger.time('CLIENTS', 'Eliminar cliente y archivos S3', async () => {
     try {
       const { id } = await params;
       
@@ -397,8 +566,162 @@ export async function DELETE(
 
       const healthForms = await getHealthFormsCollection();
       
-      logger.debug('CLIENTS', 'Ejecutando eliminación en base de datos', { clientId: id });
+      // Primero obtener el cliente para extraer las claves de S3
+      const client = await healthForms.findOne({ _id: new ObjectId(id) });
+      
+      if (!client) {
+        logger.warn('CLIENTS', 'Cliente no encontrado para eliminación', undefined, { clientId: id });
+        return NextResponse.json(
+          { success: false, message: 'Cliente no encontrado' },
+          { status: 404 }
+        );
+      }
 
+      // Función para extraer claves S3 de los archivos del cliente
+      const extractS3Keys = async (client: any): Promise<string[]> => {
+        const keys: string[] = [];
+        
+        try {
+          // Extraer profilePhoto key si existe
+          if (client.personalData?.profilePhoto) {
+            try {
+              let profilePhoto = client.personalData.profilePhoto;
+              
+              // Si está encriptado como string, desencriptar y parsear
+              if (typeof profilePhoto === 'string') {
+                const decrypted = safeDecrypt(profilePhoto);
+                profilePhoto = JSON.parse(decrypted);
+                
+                // Desencriptar campos internos si es necesario
+                if (typeof profilePhoto === 'object' && profilePhoto !== null) {
+                  const decryptedPhoto: any = {};
+                  for (const [key, value] of Object.entries(profilePhoto)) {
+                    if (typeof value === 'string') {
+                      decryptedPhoto[key] = safeDecrypt(value);
+                    } else {
+                      decryptedPhoto[key] = value;
+                    }
+                  }
+                  profilePhoto = decryptedPhoto;
+                }
+              }
+              
+              if (profilePhoto?.key) {
+                keys.push(profilePhoto.key);
+                logger.debug('CLIENTS', 'ProfilePhoto key encontrada', {
+                  clientId: id,
+                  key: profilePhoto.key
+                });
+              }
+            } catch (error) {
+              logger.error('CLIENTS', 'Error extrayendo profilePhoto key', error as Error, { clientId: id });
+            }
+          }
+
+          // Extraer documents keys si existen
+          if (client.medicalData?.documents) {
+            try {
+              let documents = client.medicalData.documents;
+              
+              // Si está encriptado como string, desencriptar y parsear
+              if (typeof documents === 'string') {
+                const decrypted = safeDecrypt(documents);
+                documents = JSON.parse(decrypted);
+              }
+              
+              if (Array.isArray(documents)) {
+                documents.forEach((doc: any, index: number) => {
+                  try {
+                    // Si el documento es un string (encriptado), desencriptarlo
+                    if (typeof doc === 'string') {
+                      const decryptedDoc = safeDecrypt(doc);
+                      doc = JSON.parse(decryptedDoc);
+                    }
+                    
+                    // Desencriptar campos internos si es necesario
+                    if (typeof doc === 'object' && doc !== null) {
+                      const decryptedDoc: any = {};
+                      for (const [key, value] of Object.entries(doc)) {
+                        if (typeof value === 'string') {
+                          decryptedDoc[key] = safeDecrypt(value);
+                        } else {
+                          decryptedDoc[key] = value;
+                        }
+                      }
+                      doc = decryptedDoc;
+                    }
+                    
+                    if (doc?.key) {
+                      keys.push(doc.key);
+                      logger.debug('CLIENTS', 'Document key encontrada', {
+                        clientId: id,
+                        documentIndex: index,
+                        key: doc.key
+                      });
+                    }
+                  } catch (docError) {
+                    logger.error('CLIENTS', `Error procesando documento ${index}`, docError as Error, {
+                      clientId: id,
+                      documentIndex: index
+                    });
+                  }
+                });
+              }
+            } catch (error) {
+              logger.error('CLIENTS', 'Error extrayendo documents keys', error as Error, { clientId: id });
+            }
+          }
+        } catch (error) {
+          logger.error('CLIENTS', 'Error general extrayendo S3 keys', error as Error, { clientId: id });
+        }
+        
+        return keys;
+      };
+
+      // Extraer todas las claves S3
+      const s3Keys = await extractS3Keys(client);
+      logger.info('CLIENTS', 'Claves S3 encontradas para eliminación', {
+        clientId: id,
+        totalKeys: s3Keys.length,
+        keys: s3Keys
+      });
+
+      // Eliminar archivos de S3
+      if (s3Keys.length > 0) {
+        const deletePromises = s3Keys.map(async (key) => {
+          try {
+            await S3Service.deleteFile(key);
+            logger.info('CLIENTS', 'Archivo S3 eliminado exitosamente', {
+              clientId: id,
+              key
+            });
+            return { key, success: true };
+          } catch (error) {
+            logger.error('CLIENTS', 'Error eliminando archivo S3', error as Error, {
+              clientId: id,
+              key
+            });
+            return { key, success: false, error: (error as Error).message };
+          }
+        });
+
+        const deleteResults = await Promise.all(deletePromises);
+        
+        const successfulDeletes = deleteResults.filter(result => result.success).length;
+        const failedDeletes = deleteResults.filter(result => !result.success).length;
+        
+        logger.info('CLIENTS', 'Resultado eliminación archivos S3', {
+          clientId: id,
+          successful: successfulDeletes,
+          failed: failedDeletes,
+          total: s3Keys.length
+        });
+      } else {
+        logger.info('CLIENTS', 'No hay archivos S3 para eliminar', { clientId: id });
+      }
+
+      // Ahora eliminar el cliente de la base de datos
+      logger.debug('CLIENTS', 'Ejecutando eliminación en base de datos', { clientId: id });
       const result = await healthForms.deleteOne({ _id: new ObjectId(id) });
 
       logger.debug('CLIENTS', 'Resultado de la eliminación', {
@@ -414,11 +737,11 @@ export async function DELETE(
         );
       }
 
-      logger.info('CLIENTS', 'Cliente eliminado exitosamente', { clientId: id });
+      logger.info('CLIENTS', 'Cliente y archivos eliminados exitosamente', { clientId: id });
 
       return NextResponse.json({
         success: true,
-        message: 'Cliente eliminado exitosamente'
+        message: 'Cliente y archivos asociados eliminados exitosamente'
       });
 
     } catch (error: any) {
@@ -436,7 +759,13 @@ export async function DELETE(
       }
 
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { 
+            error: error.message
+          })
+        },
         { status: 500 }
       );
     }
