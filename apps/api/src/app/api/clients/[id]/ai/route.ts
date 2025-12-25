@@ -451,7 +451,7 @@ export async function PUT(
   });
 
   return loggerWithContext.time('AI', 'Actualizar recomendaciones IA', async () => {
-    let requestBody = null; // Guardar el body aquí
+    let requestBody = null;
     
     try {
       loggerWithContext.info('AI', 'Actualizando recomendaciones IA');
@@ -459,7 +459,6 @@ export async function PUT(
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
       requireAuth(token);
 
-      // ✅ LEER EL BODY UNA SOLA VEZ Y GUARDARLO
       requestBody = await request.json();
       console.log('📦 Body recibido en PUT:', requestBody);
       
@@ -482,7 +481,8 @@ export async function PUT(
         );
       }
 
-      let updateResult;
+      // ⚠️ CAMBIO: Usar diferentes nombres de variables para cada caso
+      let operationResult: any;
       let message = '';
 
       switch (action) {
@@ -492,20 +492,64 @@ export async function PUT(
             checklistItemsCount: data?.checklistItems?.length || 0
           });
           
-          const updateResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
-          
-          // ✅ DEVUELVE DIRECTAMENTE LO QUE updateChecklist DEVUELVE
-          return NextResponse.json(updateResult);
+          // ✅ Directamente retornamos aquí, no necesitamos almacenar el resultado
+          const updateChecklistResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
+          return NextResponse.json(updateChecklistResult);
 
         case 'approve_session':
           console.log('✅ APPROVE_SESSION: Iniciando...', { sessionId });
-          updateResult = await approveSession(id, sessionId, requestId);
-          message = 'Sesión aprobada';
+
+          console.log('🔍 DEBUG: Estado antes de aprobar', {
+            clientId: id,
+            sessionId,
+            action: 'approve_session'
+          });
+
+           // Depuración rápida
+          const debugInfo = await debugSessionStatus(id, sessionId);
+          console.log('🔍 DEBUG Session Status:', debugInfo);
+
+          try {
+            operationResult = await approveSession(id, sessionId, requestId);
+            
+            if (!operationResult) {
+              // ❌ Dar un mensaje más específico
+              loggerWithContext.error('AI', 'Falló la aprobación de sesión', {
+                sessionId,
+                possibleReasons: [
+                  'Sesión no encontrada',
+                  'Sesión no está en estado draft', 
+                  'Cliente no encontrado'
+                ]
+              });
+              
+              return NextResponse.json(
+                { 
+                  success: false, 
+                  message: 'No se pudo aprobar la sesión. Verifica que la sesión esté en estado "draft".',
+                  requestId
+                },
+                { status: 400 } // Cambia a 400 Bad Request
+              );
+            }
+            
+            message = 'Sesión aprobada exitosamente';
+          } catch (error: any) {
+            loggerWithContext.error('AI', 'Error en approve_session', error);
+            return NextResponse.json(
+              { 
+                success: false, 
+                message: `Error aprobando sesión: ${error.message}`,
+                requestId
+              },
+              { status: 500 }
+            );
+          }
           break;
 
         case 'send_to_client':
           console.log('📤 SEND_TO_CLIENT: Iniciando...', { sessionId });
-          updateResult = await sendToClient(id, sessionId, requestId);
+          operationResult = await sendToClient(id, sessionId, requestId);
           message = 'Recomendaciones enviadas al cliente';
           break;
 
@@ -515,7 +559,7 @@ export async function PUT(
             hasCoachNotes: !!data?.coachNotes,
             notesLength: data?.coachNotes?.length || 0
           });
-          updateResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
+          operationResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
           message = 'Sesión regenerada';
           break;
 
@@ -527,8 +571,12 @@ export async function PUT(
           );
       }
 
-      if (!updateResult) {
-        loggerWithContext.error('AI', 'No se pudo realizar la actualización');
+      // ⚠️ CORRECCIÓN: Usar la variable correcta `operationResult`
+      if (!operationResult) {
+        loggerWithContext.error('AI', 'No se pudo realizar la actualización', {
+          action,
+          sessionId
+        });
         return NextResponse.json(
           { success: false, message: 'No se pudo realizar la actualización' },
           { status: 500 }
@@ -545,7 +593,6 @@ export async function PUT(
     } catch (error: any) {
       console.error('💥 ERROR en endpoint PUT:', error.message);
       
-      // ✅ USAR EL requestBody QUE YA GUARDAMOS, NO LEER DE NUEVO
       loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error, {
         action: requestBody?.action || 'unknown',
         errorType: error.constructor.name,
@@ -1000,22 +1047,49 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
   try {
     const healthForms = await getHealthFormsCollection();
     
-    // Verificar que la sesión esté en estado 'draft'
+    // 1. Primero buscar el cliente
     const client = await healthForms.findOne({ 
-      _id: new ObjectId(clientId),
-      'aiProgress.sessions.sessionId': sessionId,
-      'aiProgress.sessions.$.status': 'draft' // Solo aprobar si está en draft
+      _id: new ObjectId(clientId)
     });
 
-    if (!client) {
-      loggerWithContext.warn('AI', 'Cliente no encontrado o sesión no está en estado draft', {
+    if (!client || !client.aiProgress) {
+      loggerWithContext.warn('AI', 'Cliente o progreso de IA no encontrado', {
         clientId,
-        sessionId
+        hasClient: !!client,
+        hasAIProgress: !!client?.aiProgress
       });
       return false;
     }
 
-    // Actualizar solo el estado a 'approved'
+    // 2. Verificar que la sesión existe y está en estado 'draft'
+    const sessionIndex = client.aiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
+    );
+
+    if (sessionIndex === -1) {
+      loggerWithContext.warn('AI', 'Sesión no encontrada', {
+        clientId,
+        sessionId,
+        availableSessions: client.aiProgress.sessions?.map((s: any) => ({
+          sessionId: s.sessionId,
+          status: s.status
+        }))
+      });
+      return false;
+    }
+
+    const targetSession = client.aiProgress.sessions[sessionIndex];
+    
+    if (targetSession.status !== 'draft') {
+      loggerWithContext.warn('AI', 'Sesión no está en estado draft', { 
+        sessionId, 
+        currentStatus: targetSession.status,
+        requiredStatus: 'draft'
+      });
+      return false;
+    }
+
+    // 3. Actualizar solo el estado a 'approved'
     const result = await healthForms.updateOne(
       { 
         _id: new ObjectId(clientId),
@@ -1025,25 +1099,33 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
         $set: {
           'aiProgress.sessions.$.status': 'approved',
           'aiProgress.sessions.$.approvedAt': new Date(),
-          'aiProgress.sessions.$.updatedAt': new Date()
+          'aiProgress.sessions.$.updatedAt': new Date(),
+          'aiProgress.updatedAt': new Date()
         }
       }
     );
 
     if (result.modifiedCount > 0) {
       loggerWithContext.info('AI', '✅ Sesión aprobada exitosamente (email NO enviado)', { 
-        sessionId 
+        sessionId,
+        modifiedCount: result.modifiedCount,
+        matchedCount: result.matchedCount
       });
       return true;
     } else {
-      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', { sessionId });
+      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', { 
+        sessionId,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount
+      });
       return false;
     }
     
   } catch (error: any) {
     loggerWithContext.error('AI', '❌ Error aprobando sesión', error, {
       clientId,
-      sessionId
+      sessionId,
+      errorMessage: error.message
     });
     return false;
   }
@@ -1433,5 +1515,34 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     }
     
     return false;
+  }
+}
+
+async function debugSessionStatus(clientId: string, targetSessionId: string): Promise<any> {
+  try {
+    const healthForms = await getHealthFormsCollection();
+    const client = await healthForms.findOne({ 
+      _id: new ObjectId(clientId)
+    });
+
+    if (!client?.aiProgress) {
+      return { error: 'Cliente sin progreso de IA' };
+    }
+
+    const sessions = client.aiProgress.sessions || [];
+    
+    return {
+      clientId,
+      totalSessions: sessions.length,
+      targetSession: sessions.find((s: any) => s.sessionId === targetSessionId),
+      allSessions: sessions.map((s: any) => ({
+        sessionId: s.sessionId,
+        monthNumber: s.monthNumber,
+        status: s.status,
+        updatedAt: s.updatedAt
+      }))
+    };
+  } catch (error) {
+    return { error: error.message };
   }
 }
