@@ -17,8 +17,8 @@ const AboutSection: React.FC = () => {
         <div className="flex flex-col lg:flex-row items-center gap-10">
           <div>
              <Image
-               src="/images/about/nelhealthcoach.jpg"
-               alt="Nel Health Coach"
+               src="/images/about/nelhealthcoach.png"
+               alt="Manuel Martínez | NelHealthCoach"
                width={600}
                height={800}
               className="w-full h-auto rounded-xl shadow-lg"
