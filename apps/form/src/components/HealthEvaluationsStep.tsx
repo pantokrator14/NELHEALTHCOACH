@@ -2,17 +2,17 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { medicalDataSchema } from '../lib/validation';
+import { medicalDataSchema, MedicalDataFormValues } from '../lib/validation';
 import Image from 'next/image';
 
 interface HealthEvaluationsStepProps {
-  data: any;
-  onSubmit: (data: any) => void;
+  data: MedicalDataFormValues;
+  onSubmit: (data: MedicalDataFormValues) => void;
   onBack: () => void;
 }
 
 const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm<MedicalDataFormValues>({
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
@@ -20,7 +20,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
   // Preguntas exactas como en el formulario original
   const yesNoQuestions = [
     {
-      section: 'carbohydrateAddiction',
+      section: 'carbohydrateAddiction' as const,
       title: 'Adicción a los carbohidratos',
       questions: [
         '¿El primer alimento que consumes en el día es de sabor dulce (azúcar o carbohidrato)?',
@@ -37,7 +37,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'leptinResistance',
+      section: 'leptinResistance' as const,
       title: 'Resistencia a la leptina',
       questions: [
         '¿Tienes sobrepeso u obesidad?',
@@ -51,7 +51,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'circadianRhythms',
+      section: 'circadianRhythms' as const,
       title: 'Alteración de los ritmos circadianos / Exposición al sol',
       questions: [
         '¿Lo primero que ves al despertar es tu celular?',
@@ -68,7 +68,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'sleepHygiene',
+      section: 'sleepHygiene' as const,
       title: 'Alteración en la higiene del sueño',
       questions: [
         '¿Duermes con el celular encendido cerca de ti?',
@@ -85,7 +85,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'electrosmogExposure',
+      section: 'electrosmogExposure' as const,
       title: 'Exposición al electrosmog',
       questions: [
         'Al hacer llamadas por celular ¿te lo pegas a la oreja?',
@@ -101,7 +101,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'generalToxicity',
+      section: 'generalToxicity' as const,
       title: 'Toxicidad general',
       questions: [
         '¿Bebes agua embotellada?',
@@ -115,7 +115,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
       ]
     },
     {
-      section: 'microbiotaHealth',
+      section: 'microbiotaHealth' as const,
       title: 'Salud de la microbiota',
       questions: [
         '¿Sufres de estreñimiento o de diarrea?',
@@ -163,7 +163,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
             </div>
 
             {/* Secciones de preguntas SÍ/NO */}
-            {yesNoQuestions.map((section, sectionIndex) => (
+            {yesNoQuestions.map((section) => (
               <div key={section.section} className="border border-pink-200 rounded-lg p-6 bg-pink-50">
                 <h3 className="text-xl font-semibold text-pink-700 mb-4">{section.title}</h3>
                 <div className="space-y-4">
@@ -175,7 +175,9 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                           <input
                             type="radio"
                             value="true"
-                            {...register(`${section.section}.${questionIndex}`)}
+                            // ✅ SOLUCIÓN: Usar un objeto para name en lugar de register
+                            name={`${section.section}[${questionIndex}]`}
+                            ref={register as unknown as React.LegacyRef<HTMLInputElement>}
                             className="mr-2 text-pink-700 focus:ring-pink-500"
                           />
                           <span className="text-sm font-semibold text-pink-700">SÍ</span>
@@ -184,7 +186,9 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                           <input
                             type="radio"
                             value="false"
-                            {...register(`${section.section}.${questionIndex}`)}
+                            // ✅ SOLUCIÓN: Usar un objeto para name en lugar de register
+                            name={`${section.section}[${questionIndex}]`}
+                            ref={register as unknown as React.LegacyRef<HTMLInputElement>}
                             className="mr-2 text-pink-700 focus:ring-pink-500"
                           />
                           <span className="text-sm font-semibold text-pink-700">NO</span>

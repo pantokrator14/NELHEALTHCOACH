@@ -3,20 +3,22 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema } from '../lib/validation';
+import { InferType } from 'yup';
 import Image from 'next/image';
+type MedicalData = InferType<typeof medicalDataSchema>;
 
 interface BasicMedicalStepProps {
-  data: any;
-  onSubmit: (data: any) => void;
+  data: Partial<MedicalData>;
+  onSubmit: (data: MedicalData) => void;
   onBack: () => void;
 }
 
 const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: data,
+  const { register, handleSubmit, formState: { errors } } = useForm<MedicalData>({
+    defaultValues: data as Partial<MedicalData>,
     resolver: yupResolver(medicalDataSchema),
   });
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 py-12 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">

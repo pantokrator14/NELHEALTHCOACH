@@ -1,6 +1,24 @@
 // apps/form/src/lib/api.ts
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Minimal types for the form payload used by submitForm
+type PersonalData = {
+  profilePhoto?: File | null;
+  [key: string]: unknown;
+};
+
+type MedicalData = {
+  documents?: File[];
+  [key: string]: unknown;
+};
+
+type FormPayload = {
+  personalData: PersonalData;
+  medicalData: MedicalData;
+  contractAccepted?: boolean;
+  [key: string]: unknown;
+};
+
 // Función auxiliar para subir archivos
 const uploadFileToS3 = async (uploadURL: string, file: File): Promise<void> => {
   console.log('📤 Subiendo archivo a S3:', file.name);
@@ -15,27 +33,23 @@ const uploadFileToS3 = async (uploadURL: string, file: File): Promise<void> => {
       },
     });
 
-    console.log('📊 Respuesta de S3:', {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries())
-    });
+    console.log('📊 Respuesta de S3:', { status: response.status, ok: response.ok });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error respuesta S3:', errorText);
-      throw new Error(`Error al subir archivo a S3: ${response.status} - ${response.statusText}`);
+      const text = await response.text().catch(() => '<no body>');
+      console.error('❌ Error subiendo a S3:', text);
+      throw new Error(`Error subiendo a S3: ${response.status}`);
     }
 
-    console.log('✅ Archivo subido exitosamente a S3');
-  } catch (error) {
-    console.error('❌ Error en fetch a S3:', error);
-    throw error;
+    console.log('✅ Archivo subido a S3 correctamente:', file.name);
+  } catch (err) {
+    console.error('❌ Excepción subiendo a S3:', err);
+    throw err;
   }
 };
 
 export const apiClient = {
-  async submitForm(formData: any) {
+  async submitForm(formData: FormPayload) {
     console.log('🚀 Iniciando envío de formulario...');
     
     // Primero crear el cliente sin archivos
@@ -75,7 +89,7 @@ export const apiClient = {
       throw new Error(result.message || 'Error del servidor');
     }
 
-    let clientId;
+    let clientId: string | undefined;
     
     // ✅ BUSCAR _id PRIMERO (que es lo que debería devolver el backend corregido)
     if (result.data && result.data._id) {
@@ -110,7 +124,7 @@ export const apiClient = {
       // Subir foto de perfil
       if (formData.personalData.profilePhoto) {
         console.log('📸 Subiendo foto de perfil...');
-        await this.uploadProfilePhoto(clientId, formData.personalData.profilePhoto);
+        await this.uploadProfilePhoto(clientId as string, formData.personalData.profilePhoto as File);
       } else {
         console.log('⚠️ No hay foto de perfil para subir');
       }
@@ -118,7 +132,7 @@ export const apiClient = {
       // Subir documentos médicos
       if (formData.medicalData.documents && formData.medicalData.documents.length > 0) {
         console.log('📄 Subiendo documentos médicos...', formData.medicalData.documents.length);
-        await this.uploadDocuments(clientId, formData.medicalData.documents);
+        await this.uploadDocuments(clientId as string, formData.medicalData.documents as File[]);
       } else {
         console.log('⚠️ No hay documentos para subir - continuando sin documentos');
         // No hay error, simplemente continuamos
