@@ -23,7 +23,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
   // ✅ Usar FieldValues como genérico para useForm
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<FieldValues>({
     defaultValues: data as FieldValues,
-    resolver: yupResolver(personalDataSchema) as any, // ✅ Type assertion necesario
+    resolver: yupResolver(personalDataSchema) as unknown, // ✅ Type assertion necesario
   });
 
   const handlePhotoSelect = (file: File) => {
