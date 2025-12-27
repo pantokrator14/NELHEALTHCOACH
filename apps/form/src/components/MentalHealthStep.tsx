@@ -12,7 +12,17 @@ interface MentalHealthStepProps {
 }
 
 const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm<Record<string, unknown>>({
+  interface FormData {
+    medications?: string;
+    supplements?: string;
+    currentPastConditions?: string;
+    additionalMedicalHistory?: string;
+    employmentHistory?: string;
+    mainComplaint: string;
+    // Add other fields as necessary based on your schema
+  }
+
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
