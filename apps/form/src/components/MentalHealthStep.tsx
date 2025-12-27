@@ -6,8 +6,8 @@ import { medicalDataSchema } from '../lib/validation';
 import Image from 'next/image';
 
 interface MentalHealthStepProps {
-  data: any;
-  onSubmit: (data: any) => void;
+  data: unknown
+  onSubmit: (data: unknown) => void;
   onBack: () => void;
 }
 
