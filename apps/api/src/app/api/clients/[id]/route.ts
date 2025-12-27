@@ -338,16 +338,18 @@ export async function PUT(
 
       const data = await request.json();
       
+      const evaluationFields = arrayFields.map(field => ({
+        field,
+        value: data.medicalData?.[field],
+        type: typeof data.medicalData?.[field],
+        isArray: Array.isArray(data.medicalData?.[field])
+      }));
+      
       logger.debug('CLIENTS', 'Datos recibidos para actualización', {
         clientId: id,
         personalDataKeys: Object.keys(data.personalData || {}),
         medicalDataKeys: Object.keys(data.medicalData || {}),
-        evaluationFields: arrayFields.map(field => ({
-          field,
-          value: data.medicalData?.[field],
-          type: typeof data.medicalData?.[field],
-          isArray: Array.isArray(data.medicalData?.[field])
-        }))
+        evaluationFields: evaluationFields as any
       });
 
       const healthForms = await getHealthFormsCollection();
@@ -455,7 +457,7 @@ export async function PUT(
 
       // ✅ Procesar documents para encriptación (usando encryptFileObject en cada documento)
       if (processedMedicalData.documents && Array.isArray(processedMedicalData.documents)) {
-        processedMedicalData.documents = processedMedicalData.documents.map(doc => 
+        processedMedicalData.documents = processedMedicalData.documents.map((doc: any) => 
           encryptFileObject(doc)
         );
         logger.debug('CLIENTS', 'Documents procesado y encriptado', {
