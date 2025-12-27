@@ -572,6 +572,24 @@ async function processDocumentWithTextract(clientId: string, fileKey: string, fi
     const healthForms = await getHealthFormsCollection();
     
     // Crear objeto de documento procesado (campos encriptados individualmente)
+    // Determinar pageCount de forma segura (analysis.extractedData puede ser objeto o string JSON)
+    let pageCount = 1;
+    try {
+      const ed = analysis.extractedData;
+      if (ed && typeof ed === 'object' && 'pages' in ed) {
+        pageCount = (ed as any).pages || 1;
+      } else if (typeof ed === 'string') {
+        try {
+          const parsed = JSON.parse(ed);
+          pageCount = parsed?.pages || 1;
+        } catch {
+          pageCount = 1;
+        }
+      }
+    } catch {
+      pageCount = 1;
+    }
+
     const processedDoc: any = {
       id: `proc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       originalName: encrypt(fileName),
@@ -582,7 +600,7 @@ async function processDocumentWithTextract(clientId: string, fileKey: string, fi
       processedBy: 'textract',
       confidence: analysis.status === 'completed' ? analysis.confidence : 0,
       metadata: {
-        pageCount: analysis.extractedData?.pages || 1,
+        pageCount,
         language: 'es', // Podrías detectar el idioma
         documentType: analysis.documentType,
         extractionStatus: analysis.status,
@@ -600,7 +618,8 @@ async function processDocumentWithTextract(clientId: string, fileKey: string, fi
 
     // Si processedDocuments no existe, crearlo
     const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
-    if (!client.medicalData?.processedDocuments) {
+    // Asegurarse de que `client` no sea null antes de acceder a sus propiedades
+    if (!client || !client.medicalData?.processedDocuments) {
       updateData.$set['medicalData.processedDocuments'] = [processedDoc];
     } else {
       updateData.$push = {
@@ -647,7 +666,7 @@ async function updateOriginalDocumentWithReference(clientId: string, fileKey: st
     const healthForms = await getHealthFormsCollection();
     const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
     
-    if (!client.medicalData?.documents) return;
+    if (!client || !client.medicalData?.documents) return;
     
     const documents = client.medicalData.documents;
     const updatedDocuments = documents.map((doc: any) => {
