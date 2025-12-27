@@ -3,6 +3,25 @@ type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
 type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'FRONTEND' | 'EMAIL' | 'REPAIR' | 'AI_REGEN';
 
+// ✅ INTERFAZ ACTUALIZADA: Permite propiedades dinámicas
+interface LogMetadata {
+  // Propiedades base
+  requestId?: string;
+  userId?: string;
+  clientId?: string;
+  endpoint?: string;
+  method?: string;
+  duration?: number;
+  
+  // Propiedades específicas
+  aiInfo?: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number };
+  textractInfo?: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number };
+  fileInfo?: { fileName?: string; fileSize?: number; fileType?: string; fileCategory?: 'profile' | 'document'; s3Key?: string };
+  
+  // ✅ ESTA ES LA CLAVE: Permite cualquier propiedad adicional
+  [key: string]: any;
+}
+
 interface LogEntry {
   timestamp: string;
   level: LogLevel;
@@ -10,14 +29,12 @@ interface LogEntry {
   message: string;
   data?: any;
   
-  // Contexto de la solicitud
+  // Ahora hereda de LogMetadata
   requestId?: string;
   userId?: string;
   clientId?: string;
   endpoint?: string;
   method?: string;
-  
-  // Métricas
   duration?: number;
   
   // Errores
@@ -29,31 +46,8 @@ interface LogEntry {
     details?: any;
   };
   
-  // Información de archivos
-  fileInfo?: {
-    fileName?: string;
-    fileSize?: number;
-    fileType?: string;
-    fileCategory?: 'profile' | 'document';
-    s3Key?: string;
-  };
-  
-  // Información específica de IA
-  aiInfo?: {
-    model?: string;
-    tokenCount?: number;
-    temperature?: number;
-    sessionId?: string;
-    monthNumber?: number;
-  };
-  
-  // Información específica de Textract
-  textractInfo?: {
-    documentType?: string;
-    s3Key?: string;
-    confidence?: number;
-    textLength?: number;
-  };
+  // Otras propiedades dinámicas
+  [key: string]: any;
 }
 
 class Logger {
@@ -103,39 +97,32 @@ class Logger {
   }
 
   private extractStructuredData(entry: LogEntry): any {
-    const { data, error, fileInfo, aiInfo, textractInfo, ...baseEntry } = entry;
+    const { timestamp, level, context, message, requestId, userId, clientId, endpoint, method, duration, ...rest } = entry;
     
     const structured: any = {};
     
-    if (data) structured.data = data;
-    if (error) structured.error = error;
-    if (fileInfo) structured.fileInfo = fileInfo;
-    if (aiInfo) structured.aiInfo = aiInfo;
-    if (textractInfo) structured.textractInfo = textractInfo;
+    // Extraer propiedades conocidas
+    if (rest.data) structured.data = rest.data;
+    if (rest.error) structured.error = rest.error;
+    if (rest.fileInfo) structured.fileInfo = rest.fileInfo;
+    if (rest.aiInfo) structured.aiInfo = rest.aiInfo;
+    if (rest.textractInfo) structured.textractInfo = rest.textractInfo;
     
-    // Incluir información adicional si existe
-    if (Object.keys(structured).length > 0) {
-      return structured;
+    // Extraer propiedades dinámicas restantes
+    const { data, error, fileInfo, aiInfo, textractInfo, ...dynamicProps } = rest;
+    if (Object.keys(dynamicProps).length > 0) {
+      structured.extra = dynamicProps;
     }
     
-    return undefined;
+    return Object.keys(structured).length > 0 ? structured : undefined;
   }
 
-  // Métodos públicos mejorados
+  // ✅ MÉTODOS ACTUALIZADOS: Usan LogMetadata en lugar de objetos fijos
   info(
     context: LogContext, 
     message: string, 
     data?: any, 
-    metadata?: {
-      requestId?: string;
-      userId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-      aiInfo?: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number };
-      textractInfo?: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number };
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
       timestamp: this.getTimestamp(),
@@ -147,20 +134,11 @@ class Logger {
     });
   }
 
-  
   warn(
     context: LogContext, 
     message: string, 
     data?: any, 
-    metadata?: {
-      requestId?: string;
-      userId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-      [key: string]: any; // ✅ Permite propiedades adicionales
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
       timestamp: this.getTimestamp(),
@@ -173,65 +151,36 @@ class Logger {
   }
 
   error(
-      context: LogContext, 
-      message: string, 
-      errorOrData?: Error | any, 
-      dataOrMetadata?: any, 
-      metadata?: {
-        requestId?: string;
-        userId?: string;
-        clientId?: string;
-        endpoint?: string;
-        method?: string;
-        duration?: number;
-        aiInfo?: { model?: string; tokenCount?: number; sessionId?: string };
-      }
+    context: LogContext, 
+    message: string, 
+    error?: Error | any, 
+    data?: any, 
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
-      let errorObj: any = undefined;
-      let data: any = undefined;
-      let meta: any = metadata;
+    const errorObj = error ? {
+      name: error.name || 'UnknownError',
+      message: error.message || String(error),
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      code: error.code || error.statusCode,
+      details: error.details || error.response?.data
+    } : undefined;
 
-      // ✅ NUEVO: Determinar si errorOrData es un Error o datos personalizados
-      if (errorOrData instanceof Error) {
-          errorObj = errorOrData;
-          data = dataOrMetadata;
-      } else {
-          // Si no es un Error, entonces es data personalizada
-          data = errorOrData;
-          meta = dataOrMetadata;
-      }
-
-      const errorObjFormatted = errorObj ? {
-        name: errorObj.name || 'UnknownError',
-        message: errorObj.message || String(errorObj),
-        stack: process.env.NODE_ENV === 'development' ? errorObj.stack : undefined,
-        code: errorObj.code || errorObj.statusCode,
-        details: errorObj.details || errorObj.response?.data
-      } : undefined;
-
-      this.logToConsole({
-        timestamp: this.getTimestamp(),
-        level: 'ERROR',
-        context,
-        message,
-        data,  // ✅ Ahora data puede venir de errorOrData o dataOrMetadata
-        error: errorObjFormatted,
-        ...meta
-      });
+    this.logToConsole({
+      timestamp: this.getTimestamp(),
+      level: 'ERROR',
+      context,
+      message,
+      data,
+      error: errorObj,
+      ...metadata
+    });
   }
 
   debug(
     context: LogContext, 
     message: string, 
     data?: any, 
-    metadata?: {
-      requestId?: string;
-      userId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
       timestamp: this.getTimestamp(),
@@ -248,13 +197,7 @@ class Logger {
     context: LogContext,
     message: string,
     aiInfo: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number },
-    metadata?: {
-      requestId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
       timestamp: this.getTimestamp(),
@@ -270,13 +213,7 @@ class Logger {
   textract(
     message: string,
     textractInfo: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number },
-    metadata?: {
-      requestId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
       timestamp: this.getTimestamp(),
@@ -293,13 +230,7 @@ class Logger {
     context: LogContext, 
     operation: string, 
     fn: () => Promise<T>, 
-    metadata?: {
-      requestId?: string;
-      userId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-    }
+    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ): Promise<T> {
     const requestId = metadata?.requestId || this.generateRequestId();
     const start = Date.now();
@@ -334,13 +265,7 @@ class Logger {
   }
 
   // Método para crear un logger con contexto específico
-  withContext(metadata: {
-    requestId?: string;
-    clientId?: string;
-    userId?: string;
-    endpoint?: string;
-    method?: string;
-  }) {
+  withContext(metadata: LogMetadata) {
     return {
       info: (context: LogContext, message: string, data?: any) => 
         this.info(context, message, data, metadata),
