@@ -1,4 +1,4 @@
-// apps/api/src/app/api/clients/[id]/ai/routes.ts
+// apps/api/src/app/api/clients/[id]/ai/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
@@ -112,7 +112,10 @@ function decryptAISessionCompletely(session: any): any {
     return decrypted;
   } catch (error) {
     console.error('❌ Error desencriptando sesión completa:', error);
-    logger.error('AI', 'Error desencriptando sesión completa', error as Error);
+    
+    // Corrección: Crear error correctamente
+    const errorObj = new Error('Error desencriptando sesión completa');
+    logger.error('AI', 'Error desencriptando sesión completa', errorObj);
     
     // Fallback: intentar desencriptar lo básico
     return {
@@ -205,10 +208,8 @@ export async function GET(
       });
 
     } catch (error: any) {
-      loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', error, {
-        errorType: error.constructor.name,
-        errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
+      // Corrección: Usar error directamente
+      loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', error);
       
       return NextResponse.json(
         { 
@@ -415,10 +416,7 @@ export async function POST(
       });
 
     } catch (error: any) {
-      loggerWithContext.error('AI', 'Error generando recomendaciones IA', error, {
-        errorMessage: error.message,
-        errorType: error.constructor.name
-      });
+      loggerWithContext.error('AI', 'Error generando recomendaciones IA', error);
       
       return NextResponse.json(
         { 
@@ -481,7 +479,6 @@ export async function PUT(
         );
       }
 
-      // ⚠️ CAMBIO: Usar diferentes nombres de variables para cada caso
       let operationResult: any;
       let message = '';
 
@@ -513,15 +510,17 @@ export async function PUT(
             operationResult = await approveSession(id, sessionId, requestId);
             
             if (!operationResult) {
-              // ❌ Dar un mensaje más específico
-              loggerWithContext.error('AI', 'Falló la aprobación de sesión', {
-                sessionId,
-                possibleReasons: [
-                  'Sesión no encontrada',
-                  'Sesión no está en estado draft', 
-                  'Cliente no encontrado'
-                ]
-              });
+              // ✅ CORRECCIÓN: Crear un error correctamente
+              const error = new Error('Falló la aprobación de sesión');
+              // Agregar propiedades adicionales usando 'as any'
+              (error as any).sessionId = sessionId;
+              (error as any).possibleReasons = [
+                'Sesión no encontrada',
+                'Sesión no está en estado draft', 
+                'Cliente no encontrado'
+              ];
+              
+              loggerWithContext.error('AI', 'Falló la aprobación de sesión', error);
               
               return NextResponse.json(
                 { 
@@ -573,10 +572,7 @@ export async function PUT(
 
       // ⚠️ CORRECCIÓN: Usar la variable correcta `operationResult`
       if (!operationResult) {
-        loggerWithContext.error('AI', 'No se pudo realizar la actualización', {
-          action,
-          sessionId
-        });
+        loggerWithContext.error('AI', 'No se pudo realizar la actualización');
         return NextResponse.json(
           { success: false, message: 'No se pudo realizar la actualización' },
           { status: 500 }
@@ -593,11 +589,7 @@ export async function PUT(
     } catch (error: any) {
       console.error('💥 ERROR en endpoint PUT:', error.message);
       
-      loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error, {
-        action: requestBody?.action || 'unknown',
-        errorType: error.constructor.name,
-        errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
+      loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error);
       
       return NextResponse.json(
         { 
@@ -613,6 +605,7 @@ export async function PUT(
     }
   });
 }
+
 // Funciones auxiliares
 async function prepareAIInput(client: any, requestId: string): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
@@ -1122,11 +1115,7 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
     }
     
   } catch (error: any) {
-    loggerWithContext.error('AI', '❌ Error aprobando sesión', error, {
-      clientId,
-      sessionId,
-      errorMessage: error.message
-    });
+    loggerWithContext.error('AI', '❌ Error aprobando sesión', error);
     return false;
   }
 }
@@ -1188,10 +1177,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
         clientName = safeDecrypt(client.personalData.name);
       }
     } catch (error) {
-      loggerWithContext.warn('AI', 'Error desencriptando datos personales', error as Error, {
-        hasEmail: !!client.personalData?.email,
-        hasName: !!client.personalData?.name
-      });
+      loggerWithContext.warn('AI', 'Error desencriptando datos personales', error as Error);
       
       // Intentar usar datos sin desencriptar si falla
       clientEmail = client.personalData?.email || '';
@@ -1255,11 +1241,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       
     } catch (err: any) {
       emailError = err;
-      loggerWithContext.error('EMAIL', 'Error enviando email', err, {
-        clientEmail,
-        clientName,
-        monthNumber: session.monthNumber
-      });
+      loggerWithContext.error('EMAIL', 'Error enviando email', err);
     }
 
     // 8. Determinar el estado final basado en el éxito del email
@@ -1309,10 +1291,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
     }
     
   } catch (error: any) {
-    loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', error, {
-      clientId,
-      sessionId
-    });
+    loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', error);
     return false;
   }
 }
@@ -1502,12 +1481,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     }
     
   } catch (error: any) {
-    loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', error, {
-      sessionId,
-      clientId,
-      errorMessage: error.message,
-      errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', error);
     
     // Enviar error específico si es por estado incorrecto
     if (error.message.includes("estado 'draft'")) {
@@ -1542,7 +1516,7 @@ async function debugSessionStatus(clientId: string, targetSessionId: string): Pr
         updatedAt: s.updatedAt
       }))
     };
-  } catch (error) {
+  } catch (error: any) {
     return { error: error.message };
   }
 }
