@@ -1,13 +1,18 @@
+// apps/form/src/components/PersonalDataStep.tsx
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, FieldValues } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema } from '../lib/validation';
 import FileUpload from './FileUpload';
+import * as yup from 'yup';
+
+// ✅ Extraer el tipo DIRECTAMENTE del esquema Yup
+type PersonalDataFormValues = yup.InferType<typeof personalDataSchema>;
 
 interface PersonalDataStepProps {
-  data: any;
-  onSubmit: (data: any) => void;
+  data?: Partial<PersonalDataFormValues>;
+  onSubmit: (data: PersonalDataFormValues) => void;
   onBack: () => void;
 }
 
@@ -15,9 +20,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
-    defaultValues: data,
-    resolver: yupResolver(personalDataSchema),
+  // ✅ Usar FieldValues como genérico para useForm
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<FieldValues>({
+    defaultValues: data as FieldValues,
+    resolver: yupResolver(personalDataSchema) as any, // ✅ Type assertion necesario
   });
 
   const handlePhotoSelect = (file: File) => {
@@ -31,20 +37,20 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
   const handlePhotoRemove = () => {
     setProfilePhoto(null);
-    setValue('profilePhoto', null);
+    setValue('profilePhoto', undefined);
     setPreviewUrl(null);
   };
 
-  const onSubmitWithPhoto = (formData: any) => {
+  const onSubmitWithPhoto = (formData: FieldValues) => {
     console.log('📸 Datos personales con foto:', {
       nombre: formData.name,
       tieneFoto: !!profilePhoto,
       nombreFoto: profilePhoto?.name
     });
-    onSubmit({ 
-      ...formData, 
-      profilePhoto 
-    });
+    
+    // ✅ Convertir FieldValues al tipo esperado
+    const typedData = formData as PersonalDataFormValues;
+    onSubmit(typedData);
   };
 
   return (

@@ -6,8 +6,8 @@ import { documentsSchema } from '../lib/validation'; // NUEVO ESQUEMA
 import FileUpload from './FileUpload';
 
 interface DocumentsStepProps {
-  data: any;
-  onSubmit: (data: any) => void;
+  data: unknown;
+  onSubmit: (data: unknown) => void;
   onBack: () => void;
   loading?: boolean;
 }

@@ -40,13 +40,13 @@ interface MedicalData {
   housingHistory: string;
   
   // Campos de HealthEvaluationsStep
-  carbohydrateAddiction: any;
-  leptinResistance: any;
-  circadianRhythms: any;
-  sleepHygiene: any;
-  electrosmogExposure: any;
-  generalToxicity: any;
-  microbiotaHealth: any;
+  carbohydrateAddiction: unknown;
+  leptinResistance: unknown;
+  circadianRhythms: unknown;
+  sleepHygiene: unknown;
+  electrosmogExposure: unknown;
+  generalToxicity: unknown;
+  microbiotaHealth: unknown;
   
   // Campos de MentalHealthStep
   mentalHealthEmotionIdentification: string;
@@ -83,8 +83,8 @@ const FormPage: React.FC = () => {
   const nextStep = () => setStep(step + 1);
   const prevStep = () => setStep(step - 1);
 
-  const updateFormData = (newData: any) => {
-    setFormData({ ...formData, ...newData });
+  const updateFormData = (newData: Partial<HealthFormData>) => {
+    setFormData(prev => ({ ...prev, ...newData }));
   };
 
   const handleContractAccept = () => {
@@ -102,7 +102,7 @@ const FormPage: React.FC = () => {
   };
 
   // NUEVO: Manejar envío de datos médicos básicos
-  const handleBasicMedicalSubmit = (data: any) => {
+  const handleBasicMedicalSubmit = (data: unknown) => {
     updateFormData({ 
       medicalData: {
         ...formData.medicalData,

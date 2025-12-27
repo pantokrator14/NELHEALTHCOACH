@@ -1,26 +1,44 @@
+// apps/form/src/lib/validation.ts
 import * as yup from 'yup';
 
-// Esquema para validar archivos
-const fileSchema = yup.mixed().test('fileSize', 'El archivo es demasiado grande (máximo 5MB)', (value) => {
-  if (!value) return true;
-  return value.size <= 5 * 1024 * 1024;
-});
+// ✅ Definir tipos para archivos que pueden venir como File o como string (en preview)
+type FileInput = File | string;
 
-const imageFileSchema = fileSchema.test('fileType', 'Formato de imagen no válido', (value) => {
-  if (!value) return true;
-  return ['image/jpeg', 'image/png', 'image/webp'].includes(value.type);
-});
+// ✅ Esquema para validar archivos CON TIPADO
+const fileSchema = yup.mixed<FileInput>()
+  .test('fileSize', 'El archivo es demasiado grande (máximo 5MB)', (value) => {
+    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
+    if (value instanceof File) {
+      return value.size <= 5 * 1024 * 1024;
+    }
+    return true;
+  });
 
-const documentFileSchema = fileSchema.test('fileType', 'Formato de documento no válido', (value) => {
-  if (!value) return true;
-  return [
-    'image/jpeg', 'image/png', 'image/webp',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ].includes(value.type);
-});
+const imageFileSchema = fileSchema
+  .test('fileType', 'Formato de imagen no válido', (value) => {
+    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
+    if (value instanceof File) {
+      return ['image/jpeg', 'image/png', 'image/webp'].includes(value.type);
+    }
+    return true;
+  })
+  .required('La foto de rostro es requerida');
 
+const documentFileSchema = fileSchema
+  .test('fileType', 'Formato de documento no válido', (value) => {
+    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
+    if (value instanceof File) {
+      return [
+        'image/jpeg', 'image/png', 'image/webp',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ].includes(value.type);
+    }
+    return true;
+  });
+
+// ✅ Esquemas principales
 export const personalDataSchema = yup.object({
   name: yup.string().required('El nombre es requerido'),
   email: yup.string().email('Email inválido').required('El email es requerido'),
@@ -34,9 +52,8 @@ export const personalDataSchema = yup.object({
   maritalStatus: yup.string().required('El estado civil es requerido'),
   education: yup.string().required('La educación es requerida'),
   occupation: yup.string().required('La ocupación es requerida'),
-  profilePhoto: imageFileSchema, // NUEVO
+  profilePhoto: imageFileSchema,
 });
-
 
 export const medicalDataSchema = yup.object({
   mainComplaint: yup.string().required('La queja principal es requerida'),
@@ -81,3 +98,9 @@ export const contractSchema = yup.object({
 export const documentsSchema = yup.object({
   documents: yup.array().of(documentFileSchema),
 });
+
+// ✅ Tipos inferidos para usar en los componentes
+export type PersonalDataFormValues = yup.InferType<typeof personalDataSchema>;
+export type MedicalDataFormValues = yup.InferType<typeof medicalDataSchema>;
+export type ContractFormValues = yup.InferType<typeof contractSchema>;
+export type DocumentsFormValues = yup.InferType<typeof documentsSchema>;
