@@ -19,7 +19,7 @@ export function requestLogger(request: NextRequest) {
     method,
     clientId: extractClientIdFromPath(url),
     userAgent: request.headers.get('user-agent'),
-    ip: request.headers.get('x-forwarded-for') || request.ip
+    ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined
   });
 
   reqLogger.info('API', `Incoming ${method} request to ${url}`);
@@ -32,7 +32,7 @@ export function requestLogger(request: NextRequest) {
 
   // Loggear respuesta
   const duration = Date.now() - start;
-  reqLogger.info('API', `Request completed`, undefined, { duration });
+  reqLogger.info('API', `Request completed`, { duration });
 
   return response;
 }
