@@ -2,6 +2,67 @@ import { ChecklistItem } from '../../../../packages/types/src/healthForm';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  // Agregar otros campos según sea necesario
+}
+
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  success: boolean;
+  message?: string;
+}
+
+interface UploadRequest {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileCategory: 'profile' | 'document';
+}
+
+interface UploadResponse {
+  uploadURL: string;
+  fileKey: string;
+}
+
+interface AIRecommendationRequest {
+  monthNumber: number;
+  reprocessDocuments: boolean;
+  coachNotes: string;
+}
+
+interface AIProgressResponse {
+  success: boolean;
+  data: {
+    hasAIProgress: boolean;
+    aiProgress: {
+      sessions?: Array<{
+        sessionId: string;
+        summary?: string;
+        vision?: string;
+        weeks?: Array<{
+          habits?: {
+            checklistItems?: ChecklistItem[];
+          };
+        }>;
+      }>;
+    };
+  };
+}
+
+interface AIActionRequest {
+  action: string;
+  sessionId: string;
+  data?: {
+    checklistItems?: ChecklistItem[];
+    coachNotes?: string;
+  };
+}
+
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (typeof window !== 'undefined') {
@@ -61,7 +122,7 @@ export const apiClient = {
     return response.json();
   },
 
-  async updateClient(id: string, data: unknown) {
+  async updateClient(id: string, data: Partial<Client>): Promise<ApiResponse<Client>> {
     console.log('🔄 Enviando actualización para cliente:', id, data);
     
     try {
@@ -79,11 +140,14 @@ export const apiClient = {
       }
       
       console.log('✅ Actualización exitosa:', responseData);
-      return responseData;
+      return responseData as ApiResponse<Client>;
       
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('❌ Error en updateClient:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al actualizar cliente');
     }
   },
 
@@ -122,7 +186,7 @@ export const apiClient = {
     fileType: string, 
     fileSize: number, 
     fileCategory: 'profile' | 'document'
-  ) {
+  ): Promise<UploadResponse> {
     const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -138,7 +202,7 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error generando URL de upload');
     }
-    return response.json();
+    return response.json() as Promise<UploadResponse>;
   },
 
   async confirmUpload(
@@ -149,7 +213,7 @@ export const apiClient = {
     fileSize: number,
     fileCategory: 'profile' | 'document',
     fileURL: string
-  ) {
+  ): Promise<ApiResponse<unknown>> {
     console.log('🔵 Confirmando upload:', { clientId, fileName, fileKey });
     
     try {
@@ -173,15 +237,18 @@ export const apiClient = {
         throw new Error(responseData.message || `Error ${response.status} confirmando upload`);
       }
       
-      return responseData;
+      return responseData as ApiResponse<unknown>;
       
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('❌ Error en confirmUpload:', error);
-      throw new Error(error.message || 'Error confirmando upload');
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error confirmando upload');
     }
   },
 
-  async deleteDocument(clientId: string, fileKey: string) {
+  async deleteDocument(clientId: string, fileKey: string): Promise<ApiResponse<unknown>> {
     console.log('🗑️ Eliminando documento:', { clientId, fileKey });
     
     try {
@@ -198,8 +265,8 @@ export const apiClient = {
         throw new Error(responseData.message || `Error ${response.status} eliminando documento`);
       }
       
-      return responseData;
-    } catch (error: unknown) {
+      return responseData as ApiResponse<unknown>;
+    } catch (error) {
       console.error('❌ Error en deleteDocument:', error);
       throw error;
     }
@@ -211,7 +278,7 @@ export const apiClient = {
     monthNumber: number = 1, 
     reprocessDocuments: boolean = false,
     coachNotes: string = ''
-  ) {
+  ): Promise<ApiResponse<unknown>> {
     console.log('🚀 generateAIRecommendations llamado:', {
       clientId,
       monthNumber,
@@ -227,7 +294,7 @@ export const apiClient = {
           monthNumber,
           reprocessDocuments,
           coachNotes
-        }),
+        } as AIRecommendationRequest),
       });
       
       console.log('📡 Response status:', response.status);
@@ -236,7 +303,7 @@ export const apiClient = {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Error response:', errorText);
-        let errorData;
+        let errorData: { message?: string };
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -247,15 +314,18 @@ export const apiClient = {
       
       const data = await response.json();
       console.log('✅ Response data:', data);
-      return data;
+      return data as ApiResponse<unknown>;
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('💥 Error en generateAIRecommendations:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al generar recomendaciones de IA');
     }
   },
 
-  async getAIProgress(clientId: string) {
+  async getAIProgress(clientId: string): Promise<AIProgressResponse> {
     console.log('🔍 getAIProgress llamado para cliente:', clientId);
     
     try {
@@ -291,11 +361,14 @@ export const apiClient = {
       });
       
       // ✅ IMPORTANTE: Devuelve el objeto completo que incluye `success` y `data`
-      return result;
+      return result as AIProgressResponse;
       
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('💥 Error en getAIProgress:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al cargar progreso de IA');
     }
   },
 
@@ -303,7 +376,7 @@ export const apiClient = {
     clientId: string, 
     sessionId: string, 
     checklistItems: ChecklistItem[]
-  ) => {
+  ): Promise<ApiResponse<unknown>> => {
     console.log('📝 Enviando checklist al backend...');
     
     try {
@@ -314,7 +387,7 @@ export const apiClient = {
           action: 'update_checklist',
           sessionId,
           data: { checklistItems }
-        }),
+        } as AIActionRequest),
       });
 
       const responseData = await response.json();
@@ -324,53 +397,56 @@ export const apiClient = {
         throw new Error(responseData.message || `Error ${response.status}`);
       }
       
-      return responseData;
+      return responseData as ApiResponse<unknown>;
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('💥 Error en updateAIChecklist:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al actualizar checklist de IA');
     }
   },
 
-  async approveAISession(clientId: string, sessionId: string) {
+  async approveAISession(clientId: string, sessionId: string): Promise<ApiResponse<unknown>> {
     const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({
         action: 'approve_session',
         sessionId
-      }),
+      } as AIActionRequest),
     });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error aprobando sesión');
     }
-    return response.json();
+    return response.json() as Promise<ApiResponse<unknown>>;
   },
 
-  async sendAISessionToClient(clientId: string, sessionId: string) {
+  async sendAISessionToClient(clientId: string, sessionId: string): Promise<ApiResponse<unknown>> {
     const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({
         action: 'send_to_client',
         sessionId
-      }),
+      } as AIActionRequest),
     });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error enviando sesión al cliente');
     }
-    return response.json();
+    return response.json() as Promise<ApiResponse<unknown>>;
   },
 
   async regenerateAISession(
     clientId: string, 
     sessionId: string, 
     coachNotes: string = ''
-  ) {
+  ): Promise<ApiResponse<unknown>> {
     console.log('🔄 regenerateAISession llamado:', {
       clientId,
       sessionId,
@@ -387,7 +463,7 @@ export const apiClient = {
           data: { 
             coachNotes: coachNotes || ''
           }
-        }),
+        } as AIActionRequest),
       });
       
       console.log('📡 Response status:', response.status);
@@ -395,7 +471,7 @@ export const apiClient = {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Error response:', errorText);
-        let errorData;
+        let errorData: { message?: string };
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -406,11 +482,14 @@ export const apiClient = {
       
       const data = await response.json();
       console.log('✅ Regeneración exitosa:', data);
-      return data;
+      return data as ApiResponse<unknown>;
       
-    } catch (error: any) {
+    } catch (error) {
       console.error('💥 Error en regenerateAISession:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al regenerar sesión de IA');
     }
   },
 };
