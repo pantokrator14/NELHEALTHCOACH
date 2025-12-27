@@ -1,6 +1,6 @@
 // apps/form/src/components/MentalHealthStep.tsx
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema } from '../lib/validation';
 import Image from 'next/image';
@@ -11,26 +11,69 @@ interface MentalHealthStepProps {
   onBack: () => void;
 }
 
-const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
-  interface FormData {
-    medications?: string;
-    supplements?: string;
-    currentPastConditions?: string;
-    additionalMedicalHistory?: string;
-    employmentHistory?: string;
-    mainComplaint: string;
-    // Add other fields as necessary based on your schema
-  }
+// Definir los tipos para las preguntas de salud mental
+type MentalHealthMultipleChoiceField =
+  | 'mentalHealthEmotionIdentification'
+  | 'mentalHealthEmotionIntensity'
+  | 'mentalHealthUncomfortableEmotion'
+  | 'mentalHealthInternalDialogue'
+  | 'mentalHealthStressStrategies'
+  | 'mentalHealthSayingNo'
+  | 'mentalHealthRelationships'
+  | 'mentalHealthExpressThoughts'
+  | 'mentalHealthEmotionalDependence'
+  | 'mentalHealthPurpose'
+  | 'mentalHealthFailureReaction'
+  | 'mentalHealthSelfConnection';
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    defaultValues: data,
+type MentalHealthOpenEndedField =
+  | 'mentalHealthSelfRelationship'
+  | 'mentalHealthLimitingBeliefs'
+  | 'mentalHealthIdealBalance';
+
+type MentalHealthField = MentalHealthMultipleChoiceField | MentalHealthOpenEndedField;
+
+interface FormData {
+  medications?: string;
+  supplements?: string;
+  currentPastConditions?: string;
+  additionalMedicalHistory?: string;
+  employmentHistory?: string;
+  mainComplaint: string;
+  // Campos de salud mental - opción múltiple
+  mentalHealthEmotionIdentification?: string;
+  mentalHealthEmotionIntensity?: string;
+  mentalHealthUncomfortableEmotion?: string;
+  mentalHealthInternalDialogue?: string;
+  mentalHealthStressStrategies?: string;
+  mentalHealthSayingNo?: string;
+  mentalHealthRelationships?: string;
+  mentalHealthExpressThoughts?: string;
+  mentalHealthEmotionalDependence?: string;
+  mentalHealthPurpose?: string;
+  mentalHealthFailureReaction?: string;
+  mentalHealthSelfConnection?: string;
+  // Campos de salud mental - preguntas abiertas
+  mentalHealthSelfRelationship?: string;
+  mentalHealthLimitingBeliefs?: string;
+  mentalHealthIdealBalance?: string;
+}
+
+const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
+  const { register, handleSubmit } = useForm<FormData>({
+    defaultValues: data as FormData,
     resolver: yupResolver(medicalDataSchema),
   });
+
+  // Función para manejar el envío del formulario
+  const handleFormSubmit: SubmitHandler<FormData> = (formData) => {
+    onSubmit(formData);
+  };
 
   // Preguntas de salud mental - opción múltiple (EXACTAMENTE como en el formulario original)
   const mentalHealthMultipleChoice = [
     {
-      field: 'mentalHealthEmotionIdentification',
+      field: 'mentalHealthEmotionIdentification' as const,
       question: '¿Puedes identificar con facilidad qué emoción estás sintiendo en momentos clave de tu día (ej. enojo, tristeza, ansiedad, alegría)?',
       options: [
         { value: 'a', label: 'Casi siempre' },
@@ -39,7 +82,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthEmotionIntensity',
+      field: 'mentalHealthEmotionIntensity' as const,
       question: '¿Cómo de intensas suelen ser tus emociones?',
       options: [
         { value: 'a', label: 'Muy intensas, a veces me desbordan' },
@@ -48,7 +91,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthUncomfortableEmotion',
+      field: 'mentalHealthUncomfortableEmotion' as const,
       question: '¿Qué haces cuando sientes una emoción incómoda?',
       options: [
         { value: 'a', label: 'La evito o la reprimo' },
@@ -57,7 +100,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthInternalDialogue',
+      field: 'mentalHealthInternalDialogue' as const,
       question: 'Cuando algo sale mal, ¿cuál es tu diálogo interno más frecuente?',
       options: [
         { value: 'a', label: '"Siempre me pasa a mí", "No sirvo para esto"' },
@@ -66,7 +109,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthStressStrategies',
+      field: 'mentalHealthStressStrategies' as const,
       question: 'Ante una situación estresante, ¿qué estrategias sueles utilizar?',
       options: [
         { value: 'a', label: 'Comer, fumar, distraerme con pantallas' },
@@ -75,7 +118,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthSayingNo',
+      field: 'mentalHealthSayingNo' as const,
       question: '¿Te resulta difícil decir "no" por miedo a decepcionar a los demás?',
       options: [
         { value: 'a', label: 'Sí, casi siempre' },
@@ -84,7 +127,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthRelationships',
+      field: 'mentalHealthRelationships' as const,
       question: 'En tus relaciones, ¿sueles sentir que das más de lo que recibes?',
       options: [
         { value: 'a', label: 'Sí, con frecuencia' },
@@ -93,7 +136,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthExpressThoughts',
+      field: 'mentalHealthExpressThoughts' as const,
       question: '¿Expresas abiertamente lo que piensas y sientes, incluso cuando es incómodo?',
       options: [
         { value: 'a', label: 'Casi nunca' },
@@ -102,7 +145,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthEmotionalDependence',
+      field: 'mentalHealthEmotionalDependence' as const,
       question: '¿Alguna relación actual o pasada te genera malestar o dependencia emocional?',
       options: [
         { value: 'a', label: 'Sí' },
@@ -111,7 +154,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthPurpose',
+      field: 'mentalHealthPurpose' as const,
       question: '¿Sientes que tienes un propósito o metas que te motivan?',
       options: [
         { value: 'a', label: 'Sí, claramente' },
@@ -120,7 +163,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthFailureReaction',
+      field: 'mentalHealthFailureReaction' as const,
       question: 'Cuando enfrentas un fracaso, ¿cómo reaccionas?',
       options: [
         { value: 'a', label: 'Me hundo y tardo en recuperarme' },
@@ -129,7 +172,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       ]
     },
     {
-      field: 'mentalHealthSelfConnection',
+      field: 'mentalHealthSelfConnection' as const,
       question: '¿Practicas alguna rutina que te ayude a conectar contigo mismo/a (meditación, escritura, naturaleza, etc.)?',
       options: [
         { value: 'a', label: 'Sí, regularmente' },
@@ -142,17 +185,17 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
   // Preguntas de salud mental - texto abierto (EXACTAMENTE como en el formulario original)
   const mentalHealthOpenEnded = [
     {
-      field: 'mentalHealthSelfRelationship',
+      field: 'mentalHealthSelfRelationship' as const,
       question: 'Si tuvieras que describir tu relación contigo mismo/a en tres palabras, ¿cuáles serían?',
       placeholder: 'Escribe tres palabras que describan tu relación contigo mismo/a...'
     },
     {
-      field: 'mentalHealthLimitingBeliefs',
+      field: 'mentalHealthLimitingBeliefs' as const,
       question: '¿Hay alguna creencia o pensamiento recurrente que sientas que te limita en tu vida actual?',
       placeholder: 'Describe las creencias o pensamientos que sientes que te limitan...'
     },
     {
-      field: 'mentalHealthIdealBalance',
+      field: 'mentalHealthIdealBalance' as const,
       question: 'Imagina que has alcanzado un equilibrio emocional ideal. ¿Qué cambiaría en tu día a día?',
       placeholder: 'Describe cómo sería tu día a día con un equilibrio emocional ideal...'
     }
@@ -179,7 +222,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
             Bienestar Emocional
           </h2>
           
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8">
             {/* NUEVA SECCIÓN: Salud Mental - Opción Múltiple */}
             <div className="border border-purple-200 rounded-lg p-6 bg-purple-50">
               <h3 className="text-2xl font-semibold text-purple-600 mb-6 text-center">
