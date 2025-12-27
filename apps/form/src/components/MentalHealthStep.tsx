@@ -6,13 +6,13 @@ import { medicalDataSchema } from '../lib/validation';
 import Image from 'next/image';
 
 interface MentalHealthStepProps {
-  data: unknown
-  onSubmit: (data: unknown) => void;
+  data?: Record<string, unknown>;
+  onSubmit: (data: Record<string, unknown>) => void;
   onBack: () => void;
 }
 
 const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm<Record<string, unknown>>({
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
