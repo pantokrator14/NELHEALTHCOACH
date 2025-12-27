@@ -1,6 +1,6 @@
 // apps/form/src/components/PersonalDataStep.tsx
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, UseFormSetValue } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema, PersonalDataFormValues } from '../lib/validation';
@@ -15,21 +15,26 @@ interface PersonalDataStepProps {
 const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onBack }) => {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
-  // ✅ Usar PersonalDataFormValues directamente como genérico
   const { 
     register, 
     handleSubmit, 
     formState: { errors }, 
-    setValue 
+    setValue,
+    trigger
   } = useForm<PersonalDataFormValues>({
-    defaultValues: data,
-    resolver: yupResolver(personalDataSchema), // ✅ Ya no necesita type assertion
+    defaultValues: {
+      ...data,
+      profilePhoto: data?.profilePhoto as File | string | undefined
+    },
+    resolver: yupResolver(personalDataSchema),
   });
 
   const handlePhotoSelect = (file: File) => {
     setProfilePhoto(file);
-    setValue('profilePhoto', file);
+    setPhotoError(null);
+    setValue('profilePhoto', file, { shouldValidate: true });
     
     // Crear preview URL
     const url = URL.createObjectURL(file);
@@ -38,15 +43,21 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
   const handlePhotoRemove = () => {
     setProfilePhoto(null);
-    setValue('profilePhoto', undefined);
+    setPhotoError('La foto de rostro es requerida');
     setPreviewUrl(null);
+    // No establecer el valor en el formulario, dejará que el esquema falle la validación
   };
 
-  // ✅ Función de envío ya tiene el tipo correcto
-  const onSubmitWithPhoto = (formData: PersonalDataFormValues) => {
+  const onSubmitWithPhoto = async (formData: PersonalDataFormValues) => {
+    // Validar manualmente que haya una foto
+    if (!formData.profilePhoto || (!(formData.profilePhoto instanceof File) && typeof formData.profilePhoto !== 'string')) {
+      setPhotoError('La foto de rostro es requerida');
+      return;
+    }
+
     console.log('📸 Datos personales con foto:', {
       nombre: formData.name,
-      tieneFoto: !!profilePhoto,
+      tieneFoto: !!formData.profilePhoto,
       nombreFoto: profilePhoto?.name
     });
     
@@ -281,6 +292,9 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   description="Foto clara de tu rostro, sin accesorios como anteojos oscuros. Formatos: JPEG, PNG, WebP. Máximo 5MB."
                   previewUrl={previewUrl}
                 />
+                {photoError && (
+                  <p className="text-red-500 text-sm mt-1">{photoError}</p>
+                )}
                 {errors.profilePhoto?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.profilePhoto.message)}</p>
                 )}
