@@ -762,8 +762,8 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
       if (session.checklist && Array.isArray(session.checklist)) {
         // Filtrar solo items completados para mostrar progreso
         const completedItems = session.checklist
-        .filter(item => item.completed)
-        .map(item => ({
+        .filter((item: { completed: any; }) => item.completed)
+        .map((item: { description: any; completedDate: any; }) => ({
           description: safeDecrypt(item.description || ''),
           completed: true,
           completedDate: item.completedDate
@@ -892,7 +892,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
             'medicalData.lastDocumentProcessed': new Date(),
             updatedAt: new Date()
           }
-        }
+        } as any
       );
       
       loggerWithContext.info('TEXTRACT', 'Documentos reprocesados en estructura separada', {
@@ -1009,7 +1009,7 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
     const decryptedSession = decryptAISessionCompletely(updatedSession);
 
     // Calcular progreso
-    const completedItems = decryptedSession.checklist?.filter(item => item.completed).length || 0;
+    const completedItems = decryptedSession.checklist?.filter((item: { completed: any; }) => item.completed).length || 0;
     const totalItems = decryptedSession.checklist?.length || 0;
     const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
