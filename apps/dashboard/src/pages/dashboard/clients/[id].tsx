@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
@@ -31,7 +31,7 @@ interface Client {
     maritalStatus: string
     education: string
     occupation: string
-    profilePhoto?: UploadedFile;  // ✅ NUEVO: Foto de perfil
+    profilePhoto?: UploadedFile;
   }
   medicalData: {
     mainComplaint: string
@@ -44,9 +44,9 @@ interface Client {
     allergies: string
     surgeries: string
     housingHistory: string
-    documents?: UploadedFile[];   // ✅ NUEVO: Documentos médicos
+    documents?: UploadedFile[];
     
-    // Evaluaciones (arrays JSON)
+    // Evaluaciones
     carbohydrateAddiction: boolean[]
     leptinResistance: boolean[]
     circadianRhythms: boolean[]
@@ -80,7 +80,7 @@ interface Client {
 }
 
 // Mapeo de opciones para salud mental
-const mentalHealthOptions: { [key: string]: { [key: string]: string } } = {
+const mentalHealthOptions: Record<string, Record<string, string>> = {
   mentalHealthEmotionIdentification: {
     a: 'Casi siempre',
     b: 'A veces',
@@ -143,8 +143,8 @@ const mentalHealthOptions: { [key: string]: { [key: string]: string } } = {
   }
 }
 
-// Preguntas para las evaluaciones SÍ/NO (las mismas que en MedicalDataStep.tsx)
-const evaluationQuestions = {
+// Preguntas para las evaluaciones SÍ/NO
+const evaluationQuestions: Record<string, { title: string; questions: string[] }> = {
   carbohydrateAddiction: {
     title: 'Adicción a los carbohidratos',
     questions: [
@@ -158,7 +158,7 @@ const evaluationQuestions = {
       '¿Te da dolor de cabeza si pasas más de 4 horas sin comer?',
       '¿Piensas constantemente en alimentos con azúcar?',
       '¿Crees que debes terminar la comida con un alimento dulce?',
-      '¿Sientes que no tienes control en lo que comes?'
+      '¿Sientes que no tienes control en lo que eats?'
     ]
   },
   leptinResistance: {
@@ -256,7 +256,7 @@ export default function ClientProfile() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('personal')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [expandedEvaluations, setExpandedEvaluations] = useState<{[key: string]: boolean}>({})
+  const [expandedEvaluations, setExpandedEvaluations] = useState<Record<string, boolean>>({})
   const router = useRouter()
   const { id } = router.query
   const [selectedDocument, setSelectedDocument] = useState<UploadedFile | null>(null)
@@ -265,22 +265,12 @@ export default function ClientProfile() {
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  
   // Asegurar que el id es string
-  const clientId = Array.isArray(id) ? id[0] : id;
+  const clientId = Array.isArray(id) ? id[0] : id || '';
 
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push('/login')
-      return
-    }
-
-    if (clientId) {
-      fetchClient()
-    }
-  }, [clientId, router])
-
-  const fetchClient = async () => {
+  const fetchClient = useCallback(async () => {
     try {
       if (!clientId) return;
       
@@ -292,7 +282,19 @@ export default function ClientProfile() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [clientId]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      router.push('/login')
+      return
+    }
+
+    if (clientId) {
+      fetchClient()
+    }
+  }, [clientId, router, fetchClient])
 
   const handleDelete = async () => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}? Esta acción no se puede deshacer.`)) {
@@ -332,7 +334,7 @@ export default function ClientProfile() {
   }
 
   // Función para obtener las respuestas de una evaluación específica
-  const getEvaluationAnswers = (evaluationData: any): boolean[] => {
+  const getEvaluationAnswers = (evaluationData: unknown): boolean[] => {
     if (Array.isArray(evaluationData)) {
       return evaluationData;
     }
@@ -342,14 +344,15 @@ export default function ClientProfile() {
       try {
         const parsed = JSON.parse(evaluationData);
         return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
+      } catch {
         return [];
       }
     }
     
     return [];
   };
-  // Función para cambiar la foto de perfil (CORREGIDA)
+
+  // Función para cambiar la foto de perfil
   const handleProfilePhotoChange = async (file: File) => {
     if (!clientId) return;
     
@@ -365,7 +368,7 @@ export default function ClientProfile() {
       );
 
       // 2. Subir archivo a S3
-      await fetch(uploadResponse.data.uploadURL, {
+      await fetch(uploadResponse.uploadURL, {
         method: 'PUT',
         body: file,
         headers: {
@@ -376,12 +379,12 @@ export default function ClientProfile() {
       // 3. Confirmar upload y actualizar en base de datos
       await apiClient.confirmUpload(
         clientId,
-        uploadResponse.data.fileKey,
+        uploadResponse.fileKey,
         file.name,
         file.type,
         file.size,
         'profile',
-        uploadResponse.data.fileURL
+        uploadResponse.uploadURL // Usar uploadURL ya que fileURL no existe en la respuesta
       );
 
       // 4. Recargar datos del cliente
@@ -391,13 +394,14 @@ export default function ClientProfile() {
       setIsProfilePhotoModalOpen(false);
     } catch (error) {
       console.error('Error actualizando foto de perfil:', error);
-      alert('Error al actualizar la foto de perfil: ' + (error as Error).message);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert('Error al actualizar la foto de perfil: ' + errorMessage);
     } finally {
       setUploading(false);
     }
   };
 
-  // Función para eliminar un documento (USANDO API CLIENT CORREGIDO)
+  // Función para eliminar un documento
   const handleDeleteDocument = async (document: UploadedFile) => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar el documento "${document.name}"?`)) {
       return;
@@ -409,13 +413,12 @@ export default function ClientProfile() {
       alert('Documento eliminado exitosamente');
     } catch (error) {
       console.error('Error eliminando documento:', error);
-      alert('Error al eliminar el documento: ' + (error as Error).message);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert('Error al eliminar el documento: ' + errorMessage);
     }
   };
 
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-
-  // Función para subir nuevos documentos (USANDO API CLIENT CORREGIDO)
+  // Función para subir nuevos documentos
   const handleUploadDocuments = async () => {
     if (!clientId || selectedFiles.length === 0) return;
     
@@ -433,7 +436,7 @@ export default function ClientProfile() {
         );
 
         // 2. Subir archivo a S3
-        await fetch(uploadResponse.data.uploadURL, {
+        await fetch(uploadResponse.uploadURL, {
           method: 'PUT',
           body: file,
           headers: {
@@ -444,12 +447,12 @@ export default function ClientProfile() {
         // 3. Confirmar upload
         await apiClient.confirmUpload(
           clientId,
-          uploadResponse.data.fileKey,
+          uploadResponse.fileKey,
           file.name,
           file.type,
           file.size,
           'document',
-          uploadResponse.data.fileURL
+          uploadResponse.uploadURL // Usar uploadURL ya que fileURL no existe en la respuesta
         );
 
         return { success: true, fileName: file.name };
@@ -475,7 +478,8 @@ export default function ClientProfile() {
       setIsDocumentsModalOpen(false);
     } catch (error) {
       console.error('Error subiendo documentos:', error);
-      alert('Error al subir los documentos: ' + (error as Error).message);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert('Error al subir los documentos: ' + errorMessage);
     } finally {
       setUploading(false);
     }
@@ -775,7 +779,7 @@ export default function ClientProfile() {
                     </div>
 
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Te resulta difícil decir "no" por miedo a decepcionar a los demás?</label>
+                      <label className="text-sm font-medium text-purple-700 mb-1">¿Te resulta difícil decir &quot;no&quot; por miedo a decepcionar a los demás?</label>
                       <p className="text-gray-800 font-medium">
                         {getMentalHealthLabel('mentalHealthSayingNo', client.medicalData.mentalHealthSayingNo)}
                       </p>
@@ -851,7 +855,7 @@ export default function ClientProfile() {
 
           {/* Tarjetas informativas - 70% */}
           <div className="w-full lg:w-2/3 space-y-6">
-            {/* Tarjeta 1: Resumen de Vida (amarilla como mencionaste) */}
+            {/* Tarjeta 1: Resumen de Vida */}
             <div className="bg-yellow-50 rounded-xl shadow-md border border-yellow-100 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
@@ -1185,6 +1189,8 @@ export default function ClientProfile() {
                     <Image
                       src={selectedDocument.url} 
                       alt={selectedDocument.name}
+                      width={800}
+                      height={600}
                       className="max-w-full max-h-full object-contain"
                     />
                   </div>
@@ -1389,7 +1395,7 @@ export default function ClientProfile() {
           </div>
         )}
         {/* Modal de IA */}
-        {isAIModalOpen && (
+        {isAIModalOpen && clientId && (
           <AIRecommendationsModal
             clientId={clientId}
             clientName={client.personalData.name}

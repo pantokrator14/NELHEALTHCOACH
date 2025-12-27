@@ -1,12 +1,62 @@
 // apps/dashboard/src/components/dashboard/HealthFormCard.tsx
 import { useState } from 'react'
 
+interface PersonalData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  birthDate: string;
+  occupation?: string;
+}
+
+interface HealthForm {
+  personalData: PersonalData;
+  submissionDate: string;
+  // Agregar otros campos del formulario según sea necesario
+}
+
 interface HealthFormCardProps {
-  form: any
+  form: HealthForm;
 }
 
 export default function HealthFormCard({ form }: HealthFormCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Función para calcular la edad de forma segura
+  const calculateAge = (birthDate: string): string => {
+    try {
+      const birth = new Date(birthDate);
+      if (isNaN(birth.getTime())) {
+        return 'Fecha inválida';
+      }
+      
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      
+      return `${age} años`;
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
+
+  // Función para formatear la fecha de forma segura
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Fecha inválida';
+      }
+      return date.toLocaleDateString('es-ES');
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -20,12 +70,13 @@ export default function HealthFormCard({ form }: HealthFormCardProps) {
               {form.personalData.email}
             </p>
             <p className="text-sm text-gray-500">
-              {new Date(form.submissionDate).toLocaleDateString('es-ES')}
+              {formatDate(form.submissionDate)}
             </p>
           </div>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="ml-4 bg-gray-100 hover:bg-gray-200 rounded-md p-2"
+            aria-label={isExpanded ? "Contraer detalles" : "Expandir detalles"}
           >
             <svg
               className={`h-5 w-5 text-gray-600 transform transition-transform ${
@@ -35,7 +86,12 @@ export default function HealthFormCard({ form }: HealthFormCardProps) {
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M19 9l-7 7-7-7" 
+              />
             </svg>
           </button>
         </div>
@@ -45,25 +101,29 @@ export default function HealthFormCard({ form }: HealthFormCardProps) {
             <div>
               <h4 className="text-sm font-medium text-gray-900">Información Personal</h4>
               <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs text-gray-500">Teléfono</dt>
-                  <dd className="text-sm text-gray-900">{form.personalData.phone}</dd>
-                </div>
+                {form.personalData.phone && (
+                  <div>
+                    <dt className="text-xs text-gray-500">Teléfono</dt>
+                    <dd className="text-sm text-gray-900">{form.personalData.phone}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-xs text-gray-500">Edad</dt>
                   <dd className="text-sm text-gray-900">
-                    {new Date().getFullYear() - new Date(form.personalData.birthDate).getFullYear()} años
+                    {calculateAge(form.personalData.birthDate)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-gray-500">Ocupación</dt>
-                  <dd className="text-sm text-gray-900">{form.personalData.occupation}</dd>
-                </div>
+                {form.personalData.occupation && (
+                  <div>
+                    <dt className="text-xs text-gray-500">Ocupación</dt>
+                    <dd className="text-sm text-gray-900">{form.personalData.occupation}</dd>
+                  </div>
+                )}
               </dl>
             </div>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

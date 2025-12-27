@@ -1,50 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 
-// ===== FUNCIONES AUXILIARES =====
-/**
- * Verifica si un texto está encriptado (formato AES-256)
- */
-const isEncrypted = (text: string): boolean => {
-  return !!text && typeof text === 'string' && text.startsWith('U2FsdGVkX1');
-};
+// ===== TIPOS Y INTERFACES =====
 
-/**
- * Limpia texto encriptado temporalmente para mostrar placeholder
- */
-const cleanEncryptedText = (text: string): string => {
-  if (isEncrypted(text)) {
-    return '[Datos encriptados - Cargando...]';
-  }
-  return text;
-};
-
-/**
- * Procesa datos recursivamente para mostrar texto limpio
- */
-const processDataForDisplay = (data: any): any => {
-  if (!data) return data;
-  
-  if (typeof data === 'string') {
-    return cleanEncryptedText(data);
-  }
-  
-  if (Array.isArray(data)) {
-    return data.map(item => processDataForDisplay(item));
-  }
-  
-  if (typeof data === 'object' && data !== null) {
-    const result: any = {};
-    for (const key in data) {
-      result[key] = processDataForDisplay(data[key]);
-    }
-    return result;
-  }
-  
-  return data;
-};
-
-// ===== INTERFACES =====
 interface ChecklistItem {
   id: string;
   description: string;
@@ -64,6 +22,13 @@ interface ChecklistItem {
     duration?: string;
     equipment?: string[];
   };
+  updatedAt?: Date;
+}
+
+interface ShoppingListItem {
+  item: string;
+  quantity: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 interface AIRecommendationWeek {
@@ -71,7 +36,7 @@ interface AIRecommendationWeek {
   nutrition: {
     focus: string;
     checklistItems: ChecklistItem[];
-    shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
+    shoppingList: ShoppingListItem[];
   };
   exercise: {
     focus: string;
@@ -85,6 +50,20 @@ interface AIRecommendationWeek {
   };
 }
 
+interface BaselineMetrics {
+  currentWeight?: number;
+  targetWeight?: number;
+  currentLifestyle: string[];
+  targetLifestyle: string[];
+}
+
+interface RegenerationHistoryItem {
+  timestamp: Date;
+  previousSessionId: string;
+  coachNotes?: string;
+  triggeredBy: 'coach' | 'system';
+}
+
 interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
@@ -93,12 +72,7 @@ interface AIRecommendationSession {
   status: 'draft' | 'approved' | 'sent';
   summary: string;
   vision: string;
-  baselineMetrics: {
-    currentWeight?: number;
-    targetWeight?: number;
-    currentLifestyle: string[];
-    targetLifestyle: string[];
-  };
+  baselineMetrics: BaselineMetrics;
   weeks: AIRecommendationWeek[];
   checklist: ChecklistItem[];
   coachNotes?: string;
@@ -106,16 +80,20 @@ interface AIRecommendationSession {
   sentAt?: Date;
   previousSessionId?: string;
   regenerationCount?: number;
-  regenerationHistory?: Array<{
-    timestamp: Date;
-    previousSessionId: string;
-    coachNotes?: string;
-    triggeredBy: 'coach' | 'system';
-  }>;
+  regenerationHistory?: RegenerationHistoryItem[];
   lastCoachNotes?: string;
   regeneratedAt?: Date;
   emailSent?: boolean;
   emailError?: string;
+}
+
+interface AIProgressMetrics {
+  nutritionAdherence: number;
+  exerciseConsistency: number;
+  habitFormation: number;
+  weightProgress?: number;
+  energyLevel?: number;
+  sleepQuality?: number;
 }
 
 interface ClientAIProgress {
@@ -125,14 +103,35 @@ interface ClientAIProgress {
   overallProgress: number;
   lastEvaluation?: Date;
   nextEvaluation?: Date;
-  metrics: {
-    nutritionAdherence: number;
-    exerciseConsistency: number;
-    habitFormation: number;
-    weightProgress?: number;
-    energyLevel?: number;
-    sleepQuality?: number;
+  metrics: AIProgressMetrics;
+}
+
+interface ApiAIProgressData {
+  sessions?: Array<{
+    sessionId: string;
+    monthNumber?: number;
+    summary?: string;
+    vision?: string;
+    weeks?: unknown[];
+    checklist?: ChecklistItem[];
+    status?: 'draft' | 'approved' | 'sent';
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
+  }>;
+  clientId?: string;
+  overallProgress?: number;
+  metrics?: AIProgressMetrics;
+  currentSessionId?: string;
+  lastEvaluation?: string | Date;
+  nextEvaluation?: string | Date;
+}
+
+interface ApiAIProgressResponse {
+  success: boolean;
+  data?: {
+    aiProgress: ApiAIProgressData;
   };
+  message?: string;
 }
 
 interface AIRecommendationsModalProps {
@@ -140,6 +139,15 @@ interface AIRecommendationsModalProps {
   clientName: string;
   onClose: () => void;
   onRecommendationsGenerated?: () => void;
+}
+
+interface EditingField {
+  sessionId: string;
+  type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week';
+  itemId?: string;
+  weekIndex?: number;
+  category?: 'nutrition' | 'exercise' | 'habit';
+  currentValue: string | ChecklistItem[] | AIRecommendationWeek;
 }
 
 // ===== COMPONENTE PRINCIPAL =====
@@ -157,8 +165,7 @@ export default function AIRecommendationsModal({
   
   // ===== ESTADOS DE NAVEGACIÓN =====
   const [activeMonthTab, setActiveMonthTab] = useState<number>(1);
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]); // Semana 1 expandida por defecto
-  const [forceRefresh, setForceRefresh] = useState(0);
+  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]);
   
   // ===== ESTADOS DE FORMULARIOS =====
   const [showNewEvaluationForm, setShowNewEvaluationForm] = useState(false);
@@ -167,73 +174,56 @@ export default function AIRecommendationsModal({
   
   // ===== ESTADOS DE EDICIÓN =====
   const [editMode, setEditMode] = useState(false);
-  const [editingField, setEditingField] = useState<{
-    sessionId: string;
-    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week';
-    itemId?: string;
-    weekIndex?: number;
-    category?: 'nutrition' | 'exercise' | 'habit';
-    currentValue: any;
-  } | null>(null);
+  const [editingField, setEditingField] = useState<EditingField | null>(null);
   const [editText, setEditText] = useState('');
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   
   // ===== ESTADOS DE DETALLES EXPANDIDOS =====
-  const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
   const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
   
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
 
-  // ===== EFECTOS =====
-  /**
-   * Efecto principal: Cargar datos cuando se abre el modal o se fuerza refresco
-   */
-  useEffect(() => {
-    console.log('🚀 Modal activado, cargando datos...');
-    loadAIProgress();
-  }, [forceRefresh]);
-
-  /**
-   * Efecto secundario: Sincronizar activeSessionId con activeMonthTab
-   */
-  useEffect(() => {
-    if (aiProgress?.sessions && activeMonthTab) {
-      const sessionForMonth = aiProgress.sessions.find(s => s.monthNumber === activeMonthTab);
-      if (sessionForMonth && sessionForMonth.sessionId !== activeSessionId) {
-        console.log('🔄 Sincronizando activeSessionId con mes activo:', sessionForMonth.sessionId);
-        setActiveSessionId(sessionForMonth.sessionId);
-      }
-    }
-  }, [aiProgress, activeMonthTab]);
-
-  /**
-   * Efecto de depuración: Monitorear cambios en estados clave
-   */
-  useEffect(() => {
-    console.log('🔍 MONITOR DE ESTADOS:', {
-      hasAiProgress: !!aiProgress,
-      sessionsCount: aiProgress?.sessions?.length || 0,
-      activeSessionId,
-      activeMonthTab,
-      activeSession: aiProgress?.sessions?.find(s => s.sessionId === activeSessionId),
-      editMode,
-      editingFieldType: editingField?.type
-    });
-  }, [aiProgress, activeSessionId, editMode, editingField]);
-
   // ===== FUNCIONES AUXILIARES =====
   /**
    * Convierte estructura antigua de semanas a la nueva estructura
    */
-  const convertToNewStructure = (weeks: any[]): AIRecommendationWeek[] => {
+  const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
     if (!weeks || !Array.isArray(weeks)) return [];
     
-    return weeks.map((week, weekIndex) => {
+    return weeks.map((week: unknown, weekIndex: number) => {
       // Verificar si ya tiene la nueva estructura
-      if (week.nutrition?.checklistItems && Array.isArray(week.nutrition.checklistItems)) {
-        return week;
+      const typedWeek = week as Partial<AIRecommendationWeek>;
+      if (typedWeek.nutrition?.checklistItems && Array.isArray(typedWeek.nutrition.checklistItems)) {
+        return week as AIRecommendationWeek;
       }
+      
+      const oldWeek = week as {
+        weekNumber?: number;
+        nutrition?: {
+          focus?: string;
+          meals?: string[];
+          recipes?: Array<{
+            ingredients: Array<{name: string; quantity: string; notes?: string}>;
+            preparation: string;
+            tips?: string;
+          }>;
+          shoppingList?: ShoppingListItem[];
+        };
+        exercise?: {
+          focus?: string;
+          routine?: string;
+          frequency?: string;
+          duration?: string;
+          equipment?: string[];
+          adaptations?: string[];
+        };
+        habits?: {
+          toAdopt?: string[];
+          toEliminate?: string[];
+          trackingMethod?: string;
+          motivationTip?: string;
+        };
+      };
       
       // Convertir estructura antigua a nueva
       const nutritionChecklistItems: ChecklistItem[] = [];
@@ -241,46 +231,46 @@ export default function AIRecommendationsModal({
       const habitsChecklistItems: ChecklistItem[] = [];
       
       // Convertir meals a checklistItems
-      if (week.nutrition?.meals && Array.isArray(week.nutrition.meals)) {
-        week.nutrition.meals.forEach((meal: string, index: number) => {
+      if (oldWeek.nutrition?.meals && Array.isArray(oldWeek.nutrition.meals)) {
+        oldWeek.nutrition.meals.forEach((meal: string, index: number) => {
           nutritionChecklistItems.push({
             id: `nutrition_${weekIndex}_${index}_${Date.now()}`,
             description: meal,
             completed: false,
-            weekNumber: week.weekNumber || (weekIndex + 1),
+            weekNumber: oldWeek.weekNumber || (weekIndex + 1),
             category: 'nutrition',
             type: index === 0 ? 'breakfast' : index === 1 ? 'lunch' : 'dinner',
-            details: week.nutrition?.recipes?.[index] ? {
-              recipe: week.nutrition.recipes[index]
+            details: oldWeek.nutrition?.recipes?.[index] ? {
+              recipe: oldWeek.nutrition.recipes[index]
             } : undefined
           });
         });
       }
       
       // Convertir exercise routine a checklistItems
-      if (week.exercise?.routine) {
+      if (oldWeek.exercise?.routine) {
         exerciseChecklistItems.push({
           id: `exercise_${weekIndex}_0_${Date.now()}`,
-          description: week.exercise.routine,
+          description: oldWeek.exercise.routine,
           completed: false,
-          weekNumber: week.weekNumber || (weekIndex + 1),
+          weekNumber: oldWeek.weekNumber || (weekIndex + 1),
           category: 'exercise',
           details: {
-            frequency: week.exercise.frequency,
-            duration: week.exercise.duration,
-            equipment: week.exercise.equipment
+            frequency: oldWeek.exercise.frequency,
+            duration: oldWeek.exercise.duration,
+            equipment: oldWeek.exercise.equipment
           }
         });
       }
       
       // Convertir adaptations a checklistItems
-      if (week.exercise?.adaptations && Array.isArray(week.exercise.adaptations)) {
-        week.exercise.adaptations.forEach((adaptation: string, index: number) => {
+      if (oldWeek.exercise?.adaptations && Array.isArray(oldWeek.exercise.adaptations)) {
+        oldWeek.exercise.adaptations.forEach((adaptation: string, index: number) => {
           exerciseChecklistItems.push({
             id: `exercise_adapt_${weekIndex}_${index}_${Date.now()}`,
             description: adaptation,
             completed: false,
-            weekNumber: week.weekNumber || (weekIndex + 1),
+            weekNumber: oldWeek.weekNumber || (weekIndex + 1),
             category: 'exercise',
             type: 'adaptation'
           });
@@ -288,26 +278,26 @@ export default function AIRecommendationsModal({
       }
       
       // Convertir hábitos
-      if (week.habits?.toAdopt && Array.isArray(week.habits.toAdopt)) {
-        week.habits.toAdopt.forEach((habit: string, index: number) => {
+      if (oldWeek.habits?.toAdopt && Array.isArray(oldWeek.habits.toAdopt)) {
+        oldWeek.habits.toAdopt.forEach((habit: string, index: number) => {
           habitsChecklistItems.push({
             id: `habit_adopt_${weekIndex}_${index}_${Date.now()}`,
             description: habit,
             completed: false,
-            weekNumber: week.weekNumber || (weekIndex + 1),
+            weekNumber: oldWeek.weekNumber || (weekIndex + 1),
             category: 'habit',
             type: 'toAdopt'
           });
         });
       }
       
-      if (week.habits?.toEliminate && Array.isArray(week.habits.toEliminate)) {
-        week.habits.toEliminate.forEach((habit: string, index: number) => {
+      if (oldWeek.habits?.toEliminate && Array.isArray(oldWeek.habits.toEliminate)) {
+        oldWeek.habits.toEliminate.forEach((habit: string, index: number) => {
           habitsChecklistItems.push({
             id: `habit_eliminate_${weekIndex}_${index}_${Date.now()}`,
             description: habit,
             completed: false,
-            weekNumber: week.weekNumber || (weekIndex + 1),
+            weekNumber: oldWeek.weekNumber || (weekIndex + 1),
             category: 'habit',
             type: 'toEliminate'
           });
@@ -315,63 +305,96 @@ export default function AIRecommendationsModal({
       }
       
       return {
-        weekNumber: (week.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
+        weekNumber: (oldWeek.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
         nutrition: {
-          focus: week.nutrition?.focus || 'Nutrición keto',
+          focus: oldWeek.nutrition?.focus || 'Nutrición keto',
           checklistItems: nutritionChecklistItems,
-          shoppingList: week.nutrition?.shoppingList || []
+          shoppingList: oldWeek.nutrition?.shoppingList || []
         },
         exercise: {
-          focus: week.exercise?.focus || week.exercise?.routine || 'Ejercicio adaptado',
+          focus: oldWeek.exercise?.focus || oldWeek.exercise?.routine || 'Ejercicio adaptado',
           checklistItems: exerciseChecklistItems,
-          equipment: week.exercise?.equipment || []
+          equipment: oldWeek.exercise?.equipment || []
         },
         habits: {
           checklistItems: habitsChecklistItems,
-          trackingMethod: week.habits?.trackingMethod,
-          motivationTip: week.habits?.motivationTip
+          trackingMethod: oldWeek.habits?.trackingMethod,
+          motivationTip: oldWeek.habits?.motivationTip
         }
       };
     });
-  };
+  }, []);
 
   /**
-   * Sincroniza el estado de un item entre sesiones
+   * Convierte datos de API a ClientAIProgress
    */
-  const syncItemState = (itemId: string, sessions: any[]): ChecklistItem | null => {
-    for (const session of sessions) {
-      // Buscar en checklist global
-      const globalItem = session.checklist.find((i: ChecklistItem) => i.id === itemId);
-      if (globalItem) return globalItem;
-      
-      // Buscar en semanas
-      for (const week of session.weeks) {
-        const nutritionItem = week.nutrition.checklistItems.find((i: ChecklistItem) => i.id === itemId);
-        if (nutritionItem) return nutritionItem;
-        
-        const exerciseItem = week.exercise.checklistItems.find((i: ChecklistItem) => i.id === itemId);
-        if (exerciseItem) return exerciseItem;
-        
-        const habitItem = week.habits.checklistItems.find((i: ChecklistItem) => i.id === itemId);
-        if (habitItem) return habitItem;
-      }
-    }
-    return null;
-  };
+  const convertApiDataToClientAIProgress = useCallback((apiData: ApiAIProgressData): ClientAIProgress | null => {
+    if (!apiData.sessions || apiData.sessions.length === 0) return null;
+
+    const sessions: AIRecommendationSession[] = apiData.sessions.map(session => {
+      // Convertir fechas string a Date
+      const createdAt = session.createdAt 
+        ? new Date(session.createdAt)
+        : new Date();
+      const updatedAt = session.updatedAt
+        ? new Date(session.updatedAt)
+        : createdAt;
+
+      // Procesar semanas
+      const weeks = session.weeks 
+        ? convertToNewStructure(session.weeks)
+        : [];
+
+      return {
+        sessionId: session.sessionId,
+        monthNumber: session.monthNumber || 1,
+        createdAt,
+        updatedAt,
+        status: session.status || 'draft',
+        summary: session.summary || '',
+        vision: session.vision || '',
+        baselineMetrics: {
+          currentLifestyle: [],
+          targetLifestyle: []
+        },
+        weeks,
+        checklist: session.checklist || [],
+        emailSent: false
+      };
+    });
+
+    return {
+      clientId: apiData.clientId || clientId,
+      sessions,
+      overallProgress: apiData.overallProgress || 0,
+      metrics: apiData.metrics || {
+        nutritionAdherence: 0,
+        exerciseConsistency: 0,
+        habitFormation: 0
+      },
+      currentSessionId: apiData.currentSessionId,
+      lastEvaluation: apiData.lastEvaluation 
+        ? new Date(apiData.lastEvaluation)
+        : undefined,
+      nextEvaluation: apiData.nextEvaluation
+        ? new Date(apiData.nextEvaluation)
+        : undefined
+    };
+  }, [clientId, convertToNewStructure]);
 
   // ===== CÁLCULOS Y MEMOS =====
   /**
    * Calcula el progreso acumulado de todos los meses
    */
-  const calculateCumulativeProgress = (): number => {
-    if (!aiProgress || !aiProgress.sessions.length) return 0;
+  const calculateCumulativeProgress = useCallback((): number => {
+    if (!aiProgress || !aiProgress.sessions || aiProgress.sessions.length === 0) return 0;
     
     const allChecklistItems = aiProgress.sessions.flatMap(session => session.checklist);
     const completedItems = allChecklistItems.filter(item => item.completed).length;
     const totalItems = allChecklistItems.length;
     
     return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-  };
+  }, [aiProgress]);
 
   /**
    * Obtiene la sesión activa basada en activeSessionId
@@ -379,7 +402,7 @@ export default function AIRecommendationsModal({
   const activeSession = useMemo(() => {
     if (!aiProgress?.sessions || !activeSessionId) {
       // Si no hay sesión activa, intentar usar la primera sesión
-      if (aiProgress?.sessions?.length > 0) {
+      if (aiProgress?.sessions && aiProgress.sessions.length > 0) {
         const firstSession = aiProgress.sessions[0];
         if (!activeSessionId) {
           setActiveSessionId(firstSession.sessionId);
@@ -406,58 +429,66 @@ export default function AIRecommendationsModal({
   /**
    * Carga el progreso de IA desde el backend
    */
-  const loadAIProgress = async () => {
+  const loadAIProgress = useCallback(async () => {
     try {
       console.log('🔄 Cargando IA Progress para cliente:', clientId);
       setLoading(true);
       
-      const response = await apiClient.getAIProgress(clientId);
+      const response = await apiClient.getAIProgress(clientId) as ApiAIProgressResponse;
       
       if (response.success && response.data?.aiProgress) {
-        const progress = response.data.aiProgress;
-        console.log('📥 Datos recibidos:', {
-          sessions: progress.sessions?.length || 0,
-          currentSessionId: progress.currentSessionId,
-          overallProgress: progress.overallProgress
+        const apiData = response.data.aiProgress;
+        console.log('📥 Datos recibidos de API:', {
+          sessions: apiData.sessions?.length || 0,
+          currentSessionId: apiData.currentSessionId,
+          overallProgress: apiData.overallProgress
         });
         
-        setAiProgress(progress);
+        // Convertir datos de API a ClientAIProgress
+        const progress = convertApiDataToClientAIProgress(apiData);
         
-        // Establecer sesión activa si no hay una
-        if (progress.sessions?.length > 0) {
-          if (!activeSessionId && progress.currentSessionId) {
-            console.log('🎯 Estableciendo currentSessionId del backend:', progress.currentSessionId);
-            setActiveSessionId(progress.currentSessionId);
-            
-            // Encontrar el mes correspondiente
-            const session = progress.sessions.find(s => s.sessionId === progress.currentSessionId);
-            if (session) {
-              setActiveMonthTab(session.monthNumber);
+        if (progress) {
+          setAiProgress(progress);
+          
+          // Establecer sesión activa si no hay una
+          if (progress.sessions && progress.sessions.length > 0) {
+            if (!activeSessionId && progress.currentSessionId) {
+              console.log('🎯 Estableciendo currentSessionId del backend:', progress.currentSessionId);
+              setActiveSessionId(progress.currentSessionId);
+              
+              // Encontrar el mes correspondiente
+              const session = progress.sessions.find(s => s.sessionId === progress.currentSessionId);
+              if (session) {
+                setActiveMonthTab(session.monthNumber);
+              }
+            } else if (!activeSessionId) {
+              // Usar la primera sesión
+              const firstSession = progress.sessions[0];
+              console.log('🎯 Estableciendo primera sesión como activa:', firstSession.sessionId);
+              setActiveSessionId(firstSession.sessionId);
+              setActiveMonthTab(firstSession.monthNumber);
             }
-          } else if (!activeSessionId) {
-            // Usar la primera sesión
-            const firstSession = progress.sessions[0];
-            console.log('🎯 Estableciendo primera sesión como activa:', firstSession.sessionId);
-            setActiveSessionId(firstSession.sessionId);
-            setActiveMonthTab(firstSession.monthNumber);
           }
+        } else {
+          console.warn('⚠️ No se pudieron convertir los datos de API');
+          setAiProgress(null);
         }
       } else {
         console.warn('⚠️ No se encontró progreso de IA:', response.message);
         setAiProgress(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error cargando IA Progress:', error);
-      alert('Error al cargar recomendaciones: ' + error.message);
+      alert('Error al cargar recomendaciones: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId, activeSessionId, convertApiDataToClientAIProgress]);
 
   /**
    * Genera nuevas recomendaciones de IA
    */
-  const handleGenerateRecommendations = async (monthNumber: number = 1) => {
+  const handleGenerateRecommendations = useCallback(async (monthNumber: number = 1) => {
     try {
       console.log('🚀 Generando recomendaciones para mes:', monthNumber);
       setGenerating(true);
@@ -484,19 +515,41 @@ export default function AIRecommendationsModal({
       } else {
         throw new Error(response.message || 'Error generando recomendaciones');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error generando recomendaciones:', error);
-      alert('Error al generar recomendaciones: ' + error.message);
+      alert('Error al generar recomendaciones: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setGenerating(false);
     }
-  };
+  }, [clientId, reprocessDocuments, coachNotes, loadAIProgress, onRecommendationsGenerated]);
+
+  // ===== EFECTOS =====
+  /**
+   * Efecto principal: Cargar datos cuando se abre el modal o se fuerza refresco
+   */
+  useEffect(() => {
+    console.log('🚀 Modal activado, cargando datos...');
+    loadAIProgress();
+  }, [loadAIProgress]);
+
+  /**
+   * Efecto secundario: Sincronizar activeSessionId con activeMonthTab
+   */
+  useEffect(() => {
+    if (aiProgress?.sessions && activeMonthTab) {
+      const sessionForMonth = aiProgress.sessions.find(s => s.monthNumber === activeMonthTab);
+      if (sessionForMonth && sessionForMonth.sessionId !== activeSessionId) {
+        console.log('🔄 Sincronizando activeSessionId con mes activo:', sessionForMonth.sessionId);
+        setActiveSessionId(sessionForMonth.sessionId);
+      }
+    }
+  }, [aiProgress, activeMonthTab, activeSessionId]);
 
   // ===== MANEJADORES DE CHECKLIST =====
   /**
    * Maneja cambios en los checkboxes del checklist
    */
-  const handleChecklistChange = async (
+  const handleChecklistChange = useCallback(async (
     sessionId: string,
     itemId: string,
     completed: boolean
@@ -508,7 +561,7 @@ export default function AIRecommendationsModal({
     try {
       // 1. Encontrar la sesión
       const sessionIndex = aiProgress.sessions.findIndex(
-        (s: any) => s.sessionId === sessionId
+        (s) => s.sessionId === sessionId
       );
       
       if (sessionIndex === -1) {
@@ -519,7 +572,7 @@ export default function AIRecommendationsModal({
       const session = aiProgress.sessions[sessionIndex];
       
       // 2. Actualizar localmente para feedback inmediato
-      const updatedChecklist = session.checklist.map((item: any) => 
+      const updatedChecklist = session.checklist.map((item) => 
         item.id === itemId 
           ? { 
               ...item, 
@@ -584,16 +637,16 @@ export default function AIRecommendationsModal({
       
       console.log('✅ Checkbox actualizado y sincronizado con backend');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error actualizando checkbox:', error);
       alert('Error al actualizar. Recarga la página.');
     }
-  };
+  }, [aiProgress, clientId]);
 
   /**
    * Maneja la edición de un item del checklist
    */
-  const handleEditChecklistItem = async (
+  const handleEditChecklistItem = useCallback(async (
     sessionId: string,
     itemId: string,
     newDescription: string
@@ -611,7 +664,7 @@ export default function AIRecommendationsModal({
 
     try {
       // 1. Crear copia del checklist actualizado
-      const updatedChecklist = activeSession.checklist.map((item: any) =>
+      const updatedChecklist = activeSession.checklist.map((item) =>
         item.id === itemId
           ? { ...item, description: newDescription, updatedAt: new Date() }
           : item
@@ -643,7 +696,7 @@ export default function AIRecommendationsModal({
       });
 
       // 3. Actualizar estado local
-      const updatedSessions = aiProgress.sessions.map((s: any) =>
+      const updatedSessions = aiProgress.sessions.map((s) =>
         s.sessionId === sessionId 
           ? { 
               ...s, 
@@ -672,7 +725,7 @@ export default function AIRecommendationsModal({
       } else {
         throw new Error(response.message || 'Error del backend');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error editando item:', error);
       
       // Recargar datos para sincronizar
@@ -680,16 +733,16 @@ export default function AIRecommendationsModal({
       
       throw error;
     }
-  };
+  }, [aiProgress, activeSession, clientId, loadAIProgress]);
 
   // ===== MANEJADORES DE EDICIÓN =====
   /**
    * Inicia el modo de edición para un campo específico
    */
-  const handleStartEdit = (
+  const handleStartEdit = useCallback((
     sessionId: string,
     type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week',
-    currentValue: any,
+    currentValue: string | ChecklistItem[] | AIRecommendationWeek,
     itemId?: string,
     weekIndex?: number,
     category?: 'nutrition' | 'exercise' | 'habit'
@@ -715,20 +768,20 @@ export default function AIRecommendationsModal({
     // Determinar qué valor mostrar en el editor
     if (type === 'checklistItem' && itemId) {
       // Buscar el item específico en el checklist
-      const item = activeSession?.checklist?.find((item: any) => item.id === itemId);
-      setEditText(item?.description || currentValue || '');
+      const item = activeSession?.checklist?.find((item) => item.id === itemId);
+      setEditText(item?.description || (typeof currentValue === 'string' ? currentValue : ''));
     } else if (type === 'checklist') {
       // Para edición masiva del checklist
       setEditText('');
     } else {
       setEditText(typeof currentValue === 'string' ? currentValue : JSON.stringify(currentValue, null, 2));
     }
-  };
+  }, [activeSession]);
 
   /**
    * Guarda los cambios de edición
    */
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editMode || !editingField || !aiProgress) {
       console.error('❌ No hay nada que guardar');
       return;
@@ -765,16 +818,16 @@ export default function AIRecommendationsModal({
       
       console.log('✅ Edición guardada exitosamente');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error guardando edición:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
-  };
+  }, [editMode, editingField, aiProgress, editText, handleEditChecklistItem]);
 
   /**
    * Cancela la edición sin guardar cambios
    */
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     console.log('❌ Cancelando edición');
     setEditMode(false);
     setEditingField(null);
@@ -782,28 +835,28 @@ export default function AIRecommendationsModal({
     
     // Recargar datos para restaurar estado original
     loadAIProgress();
-  };
+  }, [loadAIProgress]);
 
   // ===== MANEJADORES DE ACCIONES =====
   /**
    * Aprueba una sesión de recomendaciones
    */
-  const handleApproveSession = async (sessionId: string) => {
+  const handleApproveSession = useCallback(async (sessionId: string) => {
     try {
       console.log('✅ Aprobando sesión:', sessionId);
       await apiClient.approveAISession(clientId, sessionId);
       await loadAIProgress();
       console.log('✅ Sesión aprobada exitosamente');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error aprobando sesión:', error);
-      alert('Error al aprobar sesión: ' + error.message);
+      alert('Error al aprobar sesión: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
-  };
+  }, [clientId, loadAIProgress]);
 
   /**
    * Regenera una sesión con IA
    */
-  const handleRegenerate = async () => {
+  const handleRegenerate = useCallback(async () => {
     try {
       if (!activeSession) {
         console.error('❌ No hay sesión activa para regenerar');
@@ -814,7 +867,7 @@ export default function AIRecommendationsModal({
       console.log('🔄 Iniciando regeneración de sesión:', activeSession.sessionId);
       
       // Solicitar notas opcionales al coach
-      const coachNotes = prompt(
+      const regenerationNotes = prompt(
         '¿Deseas agregar alguna nota o instrucción específica para la regeneración?\n\n' +
         'Ejemplos:\n' +
         '- "Enfocarse más en ejercicios para espalda"\n' +
@@ -824,42 +877,43 @@ export default function AIRecommendationsModal({
         ''
       );
       
-      console.log('📝 Notas del coach para regeneración:', coachNotes);
+      console.log('📝 Notas del coach para regeneración:', regenerationNotes);
       
       const response = await apiClient.regenerateAISession(
         clientId,
         activeSession.sessionId,
-        coachNotes || ''
+        regenerationNotes || ''
       );
       
       if (response.success) {
         console.log('✅ Recomendaciones regeneradas exitosamente');
         await loadAIProgress();
         
-        if (coachNotes && coachNotes.trim().length > 0) {
+        if (regenerationNotes && regenerationNotes.trim().length > 0) {
           console.log('📝 Notas del coach incluidas en la regeneración');
         }
       } else {
         throw new Error(response.message || 'Error al regenerar recomendaciones');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error regenerando recomendaciones:', error);
       
       // Manejar error específico de estado
-      if (error.message.includes("estado 'draft'")) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      if (errorMessage.includes("estado 'draft'")) {
         alert('❌ Solo se pueden regenerar recomendaciones en estado "Borrador". Aprueba o envía las actuales primero.');
       } else {
-        alert(`❌ Error: ${error.message}`);
+        alert(`❌ Error: ${errorMessage}`);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSession, clientId, loadAIProgress]);
 
   /**
    * Envía las recomendaciones al cliente
    */
-  const handleSendToClient = async (sessionId: string) => {
+  const handleSendToClient = useCallback(async (sessionId: string) => {
     try {
       console.log('📤 Enviando recomendaciones al cliente...');
       
@@ -874,17 +928,17 @@ export default function AIRecommendationsModal({
       } else {
         throw new Error(response.message || 'Error enviando al cliente');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error enviando al cliente:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
-  };
+  }, [clientId, loadAIProgress]);
 
   // ===== MANEJADORES DE UI =====
   /**
    * Cambia la pestaña de mes activo
    */
-  const handleChangeMonthTab = (monthNumber: number) => {
+  const handleChangeMonthTab = useCallback((monthNumber: number) => {
     console.log('📅 Cambiando mes activo a:', monthNumber);
     setActiveMonthTab(monthNumber);
     
@@ -896,35 +950,35 @@ export default function AIRecommendationsModal({
       console.log('🎯 Estableciendo sesión activa:', sessionForMonth.sessionId);
       setActiveSessionId(sessionForMonth.sessionId);
     }
-  };
+  }, [aiProgress?.sessions]);
 
   /**
    * Expande o contrae una semana
    */
-  const toggleWeekExpansion = (weekIndex: number) => {
+  const toggleWeekExpansion = useCallback((weekIndex: number) => {
     setExpandedWeeks(prev => 
       prev.includes(weekIndex) 
         ? prev.filter(w => w !== weekIndex)
         : [...prev, weekIndex]
     );
-  };
+  }, []);
 
   /**
    * Expande o contrae todas las semanas
    */
-  const toggleAllWeeks = () => {
+  const toggleAllWeeks = useCallback(() => {
     if (expandedWeeks.length === 4) {
       setExpandedWeeks([]);
     } else {
       setExpandedWeeks([0, 1, 2, 3]);
     }
-  };
+  }, [expandedWeeks.length]);
 
   // ===== RENDERIZADORES =====
   /**
    * Renderiza un item del checklist con checkbox
    */
-  const renderChecklistItem = (item: ChecklistItem, sessionId: string) => {
+  const renderChecklistItem = useCallback((item: ChecklistItem, sessionId: string) => {
     // Determinar si el item está marcado
     const isChecked = item.completed;
     
@@ -988,12 +1042,12 @@ export default function AIRecommendationsModal({
         </div>
       </div>
     );
-  };
+  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, handleStartEdit]);
 
   /**
    * Renderiza una semana completa con sus secciones
    */
-  const renderWeek = (week: any, weekIndex: number, sessionId: string) => {
+  const renderWeek = useCallback((week: AIRecommendationWeek, weekIndex: number, sessionId: string) => {
     // Asegurar estructura correcta
     const processedWeek = week.nutrition?.checklistItems ? week : convertToNewStructure([week])[0];
     
@@ -1061,7 +1115,7 @@ export default function AIRecommendationsModal({
                 <div className="mt-4 ml-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                   <h5 className="font-medium text-blue-700 mb-3">🛒 Lista de Compras Semana {week.weekNumber}:</h5>
                   <div className="grid grid-cols-2 gap-2">
-                    {week.nutrition.shoppingList.map((shopItem: any, idx: number) => (
+                    {week.nutrition.shoppingList.map((shopItem: ShoppingListItem, idx: number) => (
                       <div key={idx} className={`p-2 rounded ${shopItem.priority === 'high' ? 'bg-red-50 border border-red-100' : shopItem.priority === 'medium' ? 'bg-yellow-50 border border-yellow-100' : 'bg-gray-50 border border-gray-100'}`}>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-700">{shopItem.item}</span>
@@ -1116,7 +1170,7 @@ export default function AIRecommendationsModal({
         )}
       </div>
     );
-  };
+  }, [expandedWeeks, activeSession?.checklist, expandedShoppingLists, toggleWeekExpansion, convertToNewStructure, renderChecklistItem]);
 
   // ===== RENDERIZADO CONDICIONAL =====
   if (loading) {
