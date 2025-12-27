@@ -223,8 +223,7 @@ export class AIService {
             checklistItemCount: session.checklist.length,
             model: this.config.model,
             isRegeneration: metadata?.isRegeneration || false
-          }, 
-          metadata
+          }
         );
 
         return session;
@@ -236,11 +235,11 @@ export class AIService {
         loggerWithContext.error('AI_SERVICE', 'Error generando recomendaciones', error, {
           monthNumber,
           hasDocuments: input.documents?.length || 0
-        }, metadata);
+        });
         
         return this.getFallbackRecommendations(input, monthNumber, metadata);
       }
-    }, metadata);
+    });
   }
 
   /**
@@ -530,11 +529,12 @@ ${responseSchema}
       }
     }
     
-    if (medicalData.carbohydrateAddiction === true) {
+    // ✅ CORRECCIÓN: Usar método helper para evaluar valores booleanos/strings
+    if (this.getBooleanValue(medicalData.carbohydrateAddiction)) {
       improvements.push('Control de carbohidratos');
     }
     
-    if (medicalData.leptinResistance === true) {
+    if (this.getBooleanValue(medicalData.leptinResistance)) {
       improvements.push('Sensibilidad hormonal');
     }
     
@@ -544,6 +544,24 @@ ${responseSchema}
     }
     
     return improvements;
+  }
+
+  /**
+   * Helper para obtener valor booleano de campos que pueden ser boolean o string
+   */
+  private static getBooleanValue(value: any): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      try {
+        const decrypted = this.safeDecryptString(value);
+        return decrypted.toLowerCase() === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1207,11 +1225,12 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       }
     }
     
-    if (data.carbohydrateAddiction === true) {
+    // ✅ CORRECCIÓN: Usar método helper para evaluar valores booleanos/strings
+    if (this.getBooleanValue(data.carbohydrateAddiction)) {
       criticalInfo.push('🍩 Adicción a carbohidratos: SÍ');
     }
     
-    if (data.leptinResistance === true) {
+    if (this.getBooleanValue(data.leptinResistance)) {
       criticalInfo.push('⚖️ Resistencia a leptina: SÍ');
     }
     
@@ -1345,11 +1364,16 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
    * Probar conexión con DeepSeek
    */
   static async testDeepSeekConnection(): Promise<boolean> {
+    // ✅ CORRECCIÓN: Usar AbortController en lugar de AbortSignal.timeout() que no existe en Node.js
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     try {
       console.log('🧪 Probando conexión con DeepSeek API...');
       
       if (!this.config.apiKey) {
         console.error('❌ ERROR: No hay API key configurada');
+        clearTimeout(timeoutId);
         return false;
       }
 
@@ -1359,8 +1383,10 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
           'Authorization': `Bearer ${this.config.apiKey}`,
           'Accept': 'application/json',
         },
-        signal: AbortSignal.timeout(10000)
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       console.log('📡 Status de prueba:', response.status, response.statusText);
       
@@ -1374,6 +1400,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         return false;
       }
     } catch (error: any) {
+      clearTimeout(timeoutId);
       console.error('💥 Error de conexión:', error.message);
       return false;
     }

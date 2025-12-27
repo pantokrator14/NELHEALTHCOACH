@@ -96,7 +96,8 @@ export class TextractService {
           })),
           documentType,
           extractedAt: new Date(),
-          status: 'completed'
+          status: 'completed',
+          confidence: result.confidence
         };
 
         return analysis;
@@ -116,6 +117,7 @@ export class TextractService {
           documentType,
           extractedAt: new Date(),
           status: 'failed',
+          confidence: 0,
           error: error.message || 'Error desconocido en Textract'
         };
       }
@@ -242,7 +244,7 @@ export class TextractService {
     const wordIds = cell.Relationships.flatMap((rel: any) => rel.Ids || []);
     const words = wordIds
       .map((id: string) => allBlocks.find(b => b.Id === id))
-      .filter(block => block && block.BlockType === 'WORD')
+      .filter((block: { BlockType: string; }) => block && block.BlockType === 'WORD')
       .map((word: any) => word.Text)
       .join(' ');
     
@@ -304,7 +306,7 @@ export class TextractService {
     
     const words = wordIds
       .map((id: string) => blockMap.get(id))
-      .filter(word => word && word.BlockType === 'WORD')
+      .filter((word: { BlockType: string; }) => word && word.BlockType === 'WORD')
       .map((word: any) => word.Text)
       .join(' ');
     
