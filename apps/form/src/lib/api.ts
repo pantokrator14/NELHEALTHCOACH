@@ -12,7 +12,7 @@ type MedicalData = {
   [key: string]: unknown;
 };
 
-type FormPayload = {
+export type FormPayload = {
   personalData: PersonalData;
   medicalData: MedicalData;
   contractAccepted?: boolean;
