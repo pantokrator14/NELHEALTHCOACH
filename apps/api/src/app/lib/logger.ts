@@ -147,6 +147,7 @@ class Logger {
     });
   }
 
+  
   warn(
     context: LogContext, 
     message: string, 
@@ -158,6 +159,7 @@ class Logger {
       endpoint?: string;
       method?: string;
       duration?: number;
+      [key: string]: any; // ✅ Permite propiedades adicionales
     }
   ) {
     this.logToConsole({
@@ -171,37 +173,51 @@ class Logger {
   }
 
   error(
-    context: LogContext, 
-    message: string, 
-    error?: Error | any, 
-    data?: any, 
-    metadata?: {
-      requestId?: string;
-      userId?: string;
-      clientId?: string;
-      endpoint?: string;
-      method?: string;
-      duration?: number;
-      aiInfo?: { model?: string; tokenCount?: number; sessionId?: string };
-    }
+      context: LogContext, 
+      message: string, 
+      errorOrData?: Error | any, 
+      dataOrMetadata?: any, 
+      metadata?: {
+        requestId?: string;
+        userId?: string;
+        clientId?: string;
+        endpoint?: string;
+        method?: string;
+        duration?: number;
+        aiInfo?: { model?: string; tokenCount?: number; sessionId?: string };
+      }
   ) {
-    const errorObj = error ? {
-      name: error.name || 'UnknownError',
-      message: error.message || String(error),
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      code: error.code || error.statusCode,
-      details: error.details || error.response?.data
-    } : undefined;
+      let errorObj: any = undefined;
+      let data: any = undefined;
+      let meta: any = metadata;
 
-    this.logToConsole({
-      timestamp: this.getTimestamp(),
-      level: 'ERROR',
-      context,
-      message,
-      data,
-      error: errorObj,
-      ...metadata
-    });
+      // ✅ NUEVO: Determinar si errorOrData es un Error o datos personalizados
+      if (errorOrData instanceof Error) {
+          errorObj = errorOrData;
+          data = dataOrMetadata;
+      } else {
+          // Si no es un Error, entonces es data personalizada
+          data = errorOrData;
+          meta = dataOrMetadata;
+      }
+
+      const errorObjFormatted = errorObj ? {
+        name: errorObj.name || 'UnknownError',
+        message: errorObj.message || String(errorObj),
+        stack: process.env.NODE_ENV === 'development' ? errorObj.stack : undefined,
+        code: errorObj.code || errorObj.statusCode,
+        details: errorObj.details || errorObj.response?.data
+      } : undefined;
+
+      this.logToConsole({
+        timestamp: this.getTimestamp(),
+        level: 'ERROR',
+        context,
+        message,
+        data,  // ✅ Ahora data puede venir de errorOrData o dataOrMetadata
+        error: errorObjFormatted,
+        ...meta
+      });
   }
 
   debug(
