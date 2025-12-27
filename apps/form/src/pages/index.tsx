@@ -7,39 +7,26 @@ import HealthEvaluationsStep from '@/components/HealthEvaluationsStep';
 import MentalHealthStep from '@/components/MentalHealthStep';
 import DocumentsStep from '@/components/DocumentsStep';
 import SuccessStep from '@/components/SuccessStep';
-import { apiClient, FormPayload } from '@/lib/api'; // Importar FormPayload desde api
+import { apiClient, FormPayload } from '@/lib/api';
+import { PersonalDataFormValues, MedicalDataFormValues } from '@/lib/validation';
 
-// Definición de tipos actualizados para aceptar valores parciales durante el flujo
-interface PersonalData {
-  name?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  birthDate?: string;
-  gender?: string;
-  age?: string;
-  weight?: string;
-  height?: string;
-  maritalStatus?: string;
-  education?: string;
-  occupation?: string;
-  profilePhoto?: File | string;
+// Interfaz para los datos completos del formulario
+interface CompleteHealthFormData {
+  contractAccepted: boolean;
+  personalData: PersonalDataFormValues;
+  medicalData: MedicalDataFormValues;
 }
 
-interface MedicalData {
-  // Campos de BasicMedicalStep
-  mainComplaint?: string;
-  medications?: string;
-  supplements?: string;
-  currentPastConditions?: string;
-  additionalMedicalHistory?: string;
-  employmentHistory?: string;
-  hobbies?: string;
-  allergies?: string;
-  surgeries?: string;
-  housingHistory?: string;
-  
-  // Campos de HealthEvaluationsStep
+// Interfaz para el estado del formulario (valores parciales)
+interface HealthFormData {
+  contractAccepted?: boolean;
+  personalData?: Partial<PersonalDataFormValues>;
+  medicalData?: Partial<MedicalDataFormValues>;
+}
+
+// Interfaz para los datos que espera HealthEvaluationsStep
+interface HealthEvaluationsStepData {
+  mainComplaint: string;
   carbohydrateAddiction?: unknown;
   leptinResistance?: unknown;
   circadianRhythms?: unknown;
@@ -47,88 +34,45 @@ interface MedicalData {
   electrosmogExposure?: unknown;
   generalToxicity?: unknown;
   microbiotaHealth?: unknown;
+  // Otros campos que pueda necesitar
+  [key: string]: unknown;
+}
+
+// Helper function para convertir PersonalDataFormValues al tipo que espera la API
+const convertPersonalDataForApi = (data: PersonalDataFormValues): FormPayload['personalData'] => {
+  const result: FormPayload['personalData'] = {};
   
-  // Campos de MentalHealthStep
-  mentalHealthEmotionIdentification?: string;
-  mentalHealthEmotionIntensity?: string;
-  mentalHealthUncomfortableEmotion?: string;
-  mentalHealthInternalDialogue?: string;
-  mentalHealthStressStrategies?: string;
-  mentalHealthSayingNo?: string;
-  mentalHealthRelationships?: string;
-  mentalHealthExpressThoughts?: string;
-  mentalHealthEmotionalDependence?: string;
-  mentalHealthPurpose?: string;
-  mentalHealthFailureReaction?: string;
-  mentalHealthSelfConnection?: string;
-  mentalHealthSelfRelationship?: string;
-  mentalHealthLimitingBeliefs?: string;
-  mentalHealthIdealBalance?: string;
+  // Copiar todos los campos de data a result
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      result[key] = value;
+    }
+  });
   
-  documents?: (File | string)[];
-}
+  return result;
+};
 
-// Interfaz para los datos completos del formulario
-interface CompleteHealthFormData {
-  contractAccepted: boolean;
-  personalData: Required<Omit<PersonalData, 'profilePhoto'>> & { profilePhoto?: File | string };
-  medicalData: Required<Omit<MedicalData, 'documents'>> & { documents?: (File | string)[] };
-}
-
-// Interfaz para el estado del formulario (valores parciales)
-interface HealthFormData {
-  contractAccepted?: boolean;
-  personalData?: PersonalData;
-  medicalData?: MedicalData;
-}
-
-// Tipos para los datos que esperan los componentes
-interface BasicMedicalStepData {
-  mainComplaint: string;
-  medications?: string;
-  supplements?: string;
-  currentPastConditions?: string;
-  additionalMedicalHistory?: string;
-  employmentHistory?: string;
-  hobbies?: string;
-  allergies?: string;
-  surgeries?: string;
-  housingHistory?: string;
-  documents?: (string | File | undefined)[];
-  [key: string]: unknown;
-}
-
-interface HealthEvaluationsStepData {
-  carbohydrateAddiction: unknown;
-  leptinResistance: unknown;
-  circadianRhythms: unknown;
-  sleepHygiene: unknown;
-  electrosmogExposure: unknown;
-  generalToxicity: unknown;
-  microbiotaHealth: unknown;
-  documents?: (string | File | undefined)[];
-  [key: string]: unknown;
-}
-
-interface MentalHealthStepData {
-  mentalHealthEmotionIdentification: string;
-  mentalHealthEmotionIntensity: string;
-  mentalHealthUncomfortableEmotion: string;
-  mentalHealthInternalDialogue: string;
-  mentalHealthStressStrategies: string;
-  mentalHealthSayingNo: string;
-  mentalHealthRelationships: string;
-  mentalHealthExpressThoughts: string;
-  mentalHealthEmotionalDependence: string;
-  mentalHealthPurpose: string;
-  mentalHealthFailureReaction: string;
-  mentalHealthSelfConnection: string;
-  mentalHealthSelfRelationship: string;
-  mentalHealthLimitingBeliefs: string;
-  mentalHealthIdealBalance: string;
-  documents?: (string | File | undefined)[];
-  [key: string]: unknown;
-}
+// Helper function para convertir MedicalDataFormValues al tipo que espera la API
+const convertMedicalDataForApi = (data: MedicalDataFormValues): FormPayload['medicalData'] => {
+  const result: FormPayload['medicalData'] = {};
+  
+  // Copiar todos los campos de data a result
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      // Convertir documentos a File[] si están presentes
+      if (key === 'documents' && Array.isArray(value)) {
+        const files = value.filter((item): item is File => item instanceof File);
+        if (files.length > 0) {
+          result[key] = files;
+        }
+      } else {
+        result[key] = value;
+      }
+    }
+  });
+  
+  return result;
+};
 
 const FormPage: React.FC = () => {
   const [step, setStep] = useState(0);
@@ -152,25 +96,25 @@ const FormPage: React.FC = () => {
     window.location.href = '/thank-you?status=rejected';
   };
 
-  const handlePersonalDataSubmit = (data: PersonalData) => {
+  const handlePersonalDataSubmit = (data: PersonalDataFormValues) => {
     updateFormData({ personalData: data });
     nextStep();
   };
 
-  const handleBasicMedicalSubmit = (data: BasicMedicalStepData) => {
+  const handleBasicMedicalSubmit = (data: Record<string, unknown>) => {
     updateFormData({ 
       medicalData: {
         ...formData.medicalData,
-        mainComplaint: data.mainComplaint,
-        medications: data.medications,
-        supplements: data.supplements,
-        currentPastConditions: data.currentPastConditions,
-        additionalMedicalHistory: data.additionalMedicalHistory,
-        employmentHistory: data.employmentHistory,
-        hobbies: data.hobbies,
-        allergies: data.allergies,
-        surgeries: data.surgeries,
-        housingHistory: data.housingHistory
+        mainComplaint: data.mainComplaint as string,
+        medications: data.medications as string,
+        supplements: data.supplements as string,
+        currentPastConditions: data.currentPastConditions as string,
+        additionalMedicalHistory: data.additionalMedicalHistory as string,
+        employmentHistory: data.employmentHistory as string,
+        hobbies: data.hobbies as string,
+        allergies: data.allergies as string,
+        surgeries: data.surgeries as string,
+        housingHistory: data.housingHistory as string
       }
     });
     nextStep();
@@ -186,31 +130,33 @@ const FormPage: React.FC = () => {
         sleepHygiene: data.sleepHygiene,
         electrosmogExposure: data.electrosmogExposure,
         generalToxicity: data.generalToxicity,
-        microbiotaHealth: data.microbiotaHealth
+        microbiotaHealth: data.microbiotaHealth,
+        // Asegurarnos de mantener mainComplaint
+        mainComplaint: data.mainComplaint || formData.medicalData?.mainComplaint
       }
     });
     nextStep();
   };
 
-  const handleMentalHealthSubmit = (data: MentalHealthStepData) => {
+  const handleMentalHealthSubmit = (data: Record<string, unknown>) => {
     updateFormData({ 
       medicalData: {
         ...formData.medicalData,
-        mentalHealthEmotionIdentification: data.mentalHealthEmotionIdentification,
-        mentalHealthEmotionIntensity: data.mentalHealthEmotionIntensity,
-        mentalHealthUncomfortableEmotion: data.mentalHealthUncomfortableEmotion,
-        mentalHealthInternalDialogue: data.mentalHealthInternalDialogue,
-        mentalHealthStressStrategies: data.mentalHealthStressStrategies,
-        mentalHealthSayingNo: data.mentalHealthSayingNo,
-        mentalHealthRelationships: data.mentalHealthRelationships,
-        mentalHealthExpressThoughts: data.mentalHealthExpressThoughts,
-        mentalHealthEmotionalDependence: data.mentalHealthEmotionalDependence,
-        mentalHealthPurpose: data.mentalHealthPurpose,
-        mentalHealthFailureReaction: data.mentalHealthFailureReaction,
-        mentalHealthSelfConnection: data.mentalHealthSelfConnection,
-        mentalHealthSelfRelationship: data.mentalHealthSelfRelationship,
-        mentalHealthLimitingBeliefs: data.mentalHealthLimitingBeliefs,
-        mentalHealthIdealBalance: data.mentalHealthIdealBalance
+        mentalHealthEmotionIdentification: data.mentalHealthEmotionIdentification as string,
+        mentalHealthEmotionIntensity: data.mentalHealthEmotionIntensity as string,
+        mentalHealthUncomfortableEmotion: data.mentalHealthUncomfortableEmotion as string,
+        mentalHealthInternalDialogue: data.mentalHealthInternalDialogue as string,
+        mentalHealthStressStrategies: data.mentalHealthStressStrategies as string,
+        mentalHealthSayingNo: data.mentalHealthSayingNo as string,
+        mentalHealthRelationships: data.mentalHealthRelationships as string,
+        mentalHealthExpressThoughts: data.mentalHealthExpressThoughts as string,
+        mentalHealthEmotionalDependence: data.mentalHealthEmotionalDependence as string,
+        mentalHealthPurpose: data.mentalHealthPurpose as string,
+        mentalHealthFailureReaction: data.mentalHealthFailureReaction as string,
+        mentalHealthSelfConnection: data.mentalHealthSelfConnection as string,
+        mentalHealthSelfRelationship: data.mentalHealthSelfRelationship as string,
+        mentalHealthLimitingBeliefs: data.mentalHealthLimitingBeliefs as string,
+        mentalHealthIdealBalance: data.mentalHealthIdealBalance as string
       }
     });
     nextStep();
@@ -238,7 +184,7 @@ const FormPage: React.FC = () => {
     ];
 
     for (const field of requiredPersonalFields) {
-      if (!personalData[field as keyof PersonalData]) {
+      if (!personalData[field as keyof PersonalDataFormValues]) {
         setError(`El campo ${field} es requerido`);
         return null;
       }
@@ -258,7 +204,7 @@ const FormPage: React.FC = () => {
     ];
 
     for (const field of requiredMedicalFields) {
-      if (medicalData[field as keyof MedicalData] === undefined || medicalData[field as keyof MedicalData] === '') {
+      if (medicalData[field as keyof MedicalDataFormValues] === undefined || medicalData[field as keyof MedicalDataFormValues] === '') {
         setError(`El campo médico ${field} es requerido`);
         return null;
       }
@@ -271,7 +217,7 @@ const FormPage: React.FC = () => {
     ];
 
     for (const field of requiredHealthEvaluationFields) {
-      if (medicalData[field as keyof MedicalData] === undefined) {
+      if (medicalData[field as keyof MedicalDataFormValues] === undefined) {
         setError(`La evaluación de salud ${field} es requerida`);
         return null;
       }
@@ -290,71 +236,17 @@ const FormPage: React.FC = () => {
     ];
 
     for (const field of requiredMentalHealthFields) {
-      if (!medicalData[field as keyof MedicalData]) {
+      if (!medicalData[field as keyof MedicalDataFormValues]) {
         setError(`El campo de bienestar emocional ${field} es requerido`);
         return null;
       }
     }
 
-    // Construir objeto completo con tipos correctos
+    // Construir objeto completo
     return {
       contractAccepted: formData.contractAccepted,
-      personalData: {
-        ...personalData,
-        name: personalData.name!,
-        email: personalData.email!,
-        phone: personalData.phone!,
-        address: personalData.address!,
-        birthDate: personalData.birthDate!,
-        gender: personalData.gender!,
-        age: personalData.age!,
-        weight: personalData.weight!,
-        height: personalData.height!,
-        maritalStatus: personalData.maritalStatus!,
-        education: personalData.education!,
-        occupation: personalData.occupation!,
-        profilePhoto: personalData.profilePhoto
-      },
-      medicalData: {
-        ...medicalData,
-        // Campos básicos
-        mainComplaint: medicalData.mainComplaint!,
-        medications: medicalData.medications!,
-        supplements: medicalData.supplements!,
-        currentPastConditions: medicalData.currentPastConditions!,
-        additionalMedicalHistory: medicalData.additionalMedicalHistory!,
-        employmentHistory: medicalData.employmentHistory!,
-        hobbies: medicalData.hobbies!,
-        allergies: medicalData.allergies!,
-        surgeries: medicalData.surgeries!,
-        housingHistory: medicalData.housingHistory!,
-        // Evaluaciones de salud
-        carbohydrateAddiction: medicalData.carbohydrateAddiction!,
-        leptinResistance: medicalData.leptinResistance!,
-        circadianRhythms: medicalData.circadianRhythms!,
-        sleepHygiene: medicalData.sleepHygiene!,
-        electrosmogExposure: medicalData.electrosmogExposure!,
-        generalToxicity: medicalData.generalToxicity!,
-        microbiotaHealth: medicalData.microbiotaHealth!,
-        // Bienestar emocional
-        mentalHealthEmotionIdentification: medicalData.mentalHealthEmotionIdentification!,
-        mentalHealthEmotionIntensity: medicalData.mentalHealthEmotionIntensity!,
-        mentalHealthUncomfortableEmotion: medicalData.mentalHealthUncomfortableEmotion!,
-        mentalHealthInternalDialogue: medicalData.mentalHealthInternalDialogue!,
-        mentalHealthStressStrategies: medicalData.mentalHealthStressStrategies!,
-        mentalHealthSayingNo: medicalData.mentalHealthSayingNo!,
-        mentalHealthRelationships: medicalData.mentalHealthRelationships!,
-        mentalHealthExpressThoughts: medicalData.mentalHealthExpressThoughts!,
-        mentalHealthEmotionalDependence: medicalData.mentalHealthEmotionalDependence!,
-        mentalHealthPurpose: medicalData.mentalHealthPurpose!,
-        mentalHealthFailureReaction: medicalData.mentalHealthFailureReaction!,
-        mentalHealthSelfConnection: medicalData.mentalHealthSelfConnection!,
-        mentalHealthSelfRelationship: medicalData.mentalHealthSelfRelationship!,
-        mentalHealthLimitingBeliefs: medicalData.mentalHealthLimitingBeliefs!,
-        mentalHealthIdealBalance: medicalData.mentalHealthIdealBalance!,
-        // Documentos (opcional)
-        documents: medicalData.documents
-      }
+      personalData: personalData as PersonalDataFormValues,
+      medicalData: medicalData as MedicalDataFormValues
     };
   };
 
@@ -379,7 +271,6 @@ const FormPage: React.FC = () => {
       const completeData = validateCompleteFormData();
       
       if (!completeData) {
-        // El error ya fue establecido en validateCompleteFormData
         setLoading(false);
         return;
       }
@@ -394,8 +285,8 @@ const FormPage: React.FC = () => {
       // Convertir a FormPayload para la API
       const formPayload: FormPayload = {
         contractAccepted: completeData.contractAccepted,
-        personalData: completeData.personalData,
-        medicalData: completeData.medicalData
+        personalData: convertPersonalDataForApi(completeData.personalData),
+        medicalData: convertMedicalDataForApi(completeData.medicalData)
       };
 
       const result = await apiClient.submitForm(formPayload);
@@ -415,9 +306,9 @@ const FormPage: React.FC = () => {
   };
 
   // Preparar datos para cada componente
-  const getBasicMedicalStepData = (): BasicMedicalStepData => {
+  const getBasicMedicalStepData = (): Record<string, unknown> => {
     const baseData = formData.medicalData || {};
-    return {
+    const result: Record<string, unknown> = {
       mainComplaint: baseData.mainComplaint || '',
       medications: baseData.medications || '',
       supplements: baseData.supplements || '',
@@ -427,28 +318,36 @@ const FormPage: React.FC = () => {
       hobbies: baseData.hobbies || '',
       allergies: baseData.allergies || '',
       surgeries: baseData.surgeries || '',
-      housingHistory: baseData.housingHistory || '',
-      documents: baseData.documents || []
+      housingHistory: baseData.housingHistory || ''
     };
+    
+    // Incluir otros campos que puedan ser necesarios
+    Object.entries(baseData).forEach(([key, value]) => {
+      if (!result[key] && value !== undefined) {
+        result[key] = value;
+      }
+    });
+    
+    return result;
   };
 
   const getHealthEvaluationsStepData = (): HealthEvaluationsStepData => {
     const baseData = formData.medicalData || {};
     return {
-      carbohydrateAddiction: baseData.carbohydrateAddiction || null,
-      leptinResistance: baseData.leptinResistance || null,
-      circadianRhythms: baseData.circadianRhythms || null,
-      sleepHygiene: baseData.sleepHygiene || null,
-      electrosmogExposure: baseData.electrosmogExposure || null,
-      generalToxicity: baseData.generalToxicity || null,
-      microbiotaHealth: baseData.microbiotaHealth || null,
-      documents: baseData.documents || []
+      mainComplaint: baseData.mainComplaint || '',
+      carbohydrateAddiction: baseData.carbohydrateAddiction,
+      leptinResistance: baseData.leptinResistance,
+      circadianRhythms: baseData.circadianRhythms,
+      sleepHygiene: baseData.sleepHygiene,
+      electrosmogExposure: baseData.electrosmogExposure,
+      generalToxicity: baseData.generalToxicity,
+      microbiotaHealth: baseData.microbiotaHealth
     };
   };
 
-  const getMentalHealthStepData = (): MentalHealthStepData => {
+  const getMentalHealthStepData = (): Record<string, unknown> => {
     const baseData = formData.medicalData || {};
-    return {
+    const result: Record<string, unknown> = {
       mentalHealthEmotionIdentification: baseData.mentalHealthEmotionIdentification || '',
       mentalHealthEmotionIntensity: baseData.mentalHealthEmotionIntensity || '',
       mentalHealthUncomfortableEmotion: baseData.mentalHealthUncomfortableEmotion || '',
@@ -463,9 +362,15 @@ const FormPage: React.FC = () => {
       mentalHealthSelfConnection: baseData.mentalHealthSelfConnection || '',
       mentalHealthSelfRelationship: baseData.mentalHealthSelfRelationship || '',
       mentalHealthLimitingBeliefs: baseData.mentalHealthLimitingBeliefs || '',
-      mentalHealthIdealBalance: baseData.mentalHealthIdealBalance || '',
-      documents: baseData.documents || []
+      mentalHealthIdealBalance: baseData.mentalHealthIdealBalance || ''
     };
+    
+    // Incluir mainComplaint requerido por el esquema
+    if (baseData.mainComplaint) {
+      result.mainComplaint = baseData.mainComplaint;
+    }
+    
+    return result;
   };
 
   // NUEVO FLUJO: 7 pasos
