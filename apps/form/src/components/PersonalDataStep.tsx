@@ -1,14 +1,10 @@
 // apps/form/src/components/PersonalDataStep.tsx
 import React, { useState } from 'react';
-import { useForm, FieldValues } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { personalDataSchema } from '../lib/validation';
+import { personalDataSchema, PersonalDataFormValues } from '../lib/validation';
 import FileUpload from './FileUpload';
-import * as yup from 'yup';
-
-// ✅ Extraer el tipo DIRECTAMENTE del esquema Yup
-type PersonalDataFormValues = yup.InferType<typeof personalDataSchema>;
 
 interface PersonalDataStepProps {
   data?: Partial<PersonalDataFormValues>;
@@ -20,10 +16,15 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // ✅ Usar FieldValues como genérico para useForm
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<FieldValues>({
-    defaultValues: data as FieldValues,
-    resolver: yupResolver(personalDataSchema) as unknown, // ✅ Type assertion necesario
+  // ✅ Usar PersonalDataFormValues directamente como genérico
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors }, 
+    setValue 
+  } = useForm<PersonalDataFormValues>({
+    defaultValues: data,
+    resolver: yupResolver(personalDataSchema), // ✅ Ya no necesita type assertion
   });
 
   const handlePhotoSelect = (file: File) => {
@@ -41,16 +42,15 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
     setPreviewUrl(null);
   };
 
-  const onSubmitWithPhoto = (formData: FieldValues) => {
+  // ✅ Función de envío ya tiene el tipo correcto
+  const onSubmitWithPhoto = (formData: PersonalDataFormValues) => {
     console.log('📸 Datos personales con foto:', {
       nombre: formData.name,
       tieneFoto: !!profilePhoto,
       nombreFoto: profilePhoto?.name
     });
     
-    // ✅ Convertir FieldValues al tipo esperado
-    const typedData = formData as PersonalDataFormValues;
-    onSubmit(typedData);
+    onSubmit(formData);
   };
 
   return (
