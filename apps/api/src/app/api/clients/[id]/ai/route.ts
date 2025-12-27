@@ -1186,7 +1186,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     // 6. Validar que el cliente tenga email
     if (!clientEmail || !clientEmail.includes('@')) {
-      loggerWithContext.error('AI', 'Email del cliente inválido o no encontrado', {
+      loggerWithContext.error('AI', 'Email del cliente inválido o no encontrado', undefined, {
         clientEmail,
         clientId,
         sessionId
@@ -1317,7 +1317,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     });
 
     if (!client || !client.aiProgress) {
-      loggerWithContext.error('AI_REGEN', 'Cliente o progreso de IA no encontrado', {
+      loggerWithContext.error('AI_REGEN', 'Cliente o progreso de IA no encontrado', undefined, {
         clientId,
         hasClient: !!client,
         hasAIProgress: !!client?.aiProgress
@@ -1331,7 +1331,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     );
 
     if (sessionIndex === -1) {
-      loggerWithContext.error('AI_REGEN', 'Sesión no encontrada', { sessionId });
+      loggerWithContext.error('AI_REGEN', 'Sesión no encontrada', undefined, { sessionId });
       return false;
     }
 
@@ -1345,7 +1345,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     });
     
     if (existingSession.status !== 'draft') {
-      loggerWithContext.error('AI_REGEN', '❌ No se puede regenerar - sesión no está en estado draft', {
+      loggerWithContext.error('AI_REGEN', '❌ No se puede regenerar - sesión no está en estado draft', undefined, {
         sessionId,
         currentStatus: existingSession.status,
         allowedStatuses: ['draft']
@@ -1473,7 +1473,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       });
       return true;
     } else {
-      loggerWithContext.error('AI_REGEN', '❌ No se modificó ningún documento', {
+      loggerWithContext.error('AI_REGEN', '❌ No se modificó ningún documento', undefined, {
         sessionId,
         matchedCount: result.matchedCount
       });
