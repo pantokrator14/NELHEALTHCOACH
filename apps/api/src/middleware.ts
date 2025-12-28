@@ -10,6 +10,7 @@ export function middleware(request: NextRequest) {
     'http://localhost:3000',
     'http://localhost:3001',
     'https://app.nelhealthcoach.com',
+    'https://form.nelhealthcoach.com',
   ];
   
   const origin = request.headers.get('origin');
