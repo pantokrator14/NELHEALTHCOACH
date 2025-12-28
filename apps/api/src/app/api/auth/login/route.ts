@@ -14,7 +14,13 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: 'Email y contraseña son requeridos' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://app.nelhealthcoach.com',
+            'Access-Control-Allow-Credentials': 'true',
+          }
+        }
       );
     }
 
@@ -30,22 +36,42 @@ export async function POST(request: NextRequest) {
     if (email === VALID_CREDENTIALS.email && password === VALID_CREDENTIALS.password) {
       const token = generateToken({ email });
       
+      // ✅ AGREGAR HEADERS CORS AQUÍ TAMBIÉN
       return NextResponse.json({ 
         success: true,
         message: 'Login exitoso',
         token 
+      }, {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': 'https://app.nelhealthcoach.com',
+          'Access-Control-Allow-Credentials': 'true',
+          'Content-Type': 'application/json',
+        }
       });
     } else {
       return NextResponse.json(
         { success: false, message: 'Credenciales inválidas' },
-        { status: 401 }
+        { 
+          status: 401,
+          headers: {
+            'Access-Control-Allow-Origin': 'https://app.nelhealthcoach.com',
+            'Access-Control-Allow-Credentials': 'true',
+          }
+        }
       );
     }
   } catch (error) {
     console.error('❌ Error en login:', error);
     return NextResponse.json(
       { success: false, message: 'Error interno del servidor' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': 'https://app.nelhealthcoach.com',
+          'Access-Control-Allow-Credentials': 'true',
+        }
+      }
     );
   }
 }
