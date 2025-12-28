@@ -76,21 +76,41 @@ const getAuthHeaders = (): Record<string, string> => {
 
 export const apiClient = {
   async login(credentials: { email: string; password: string }) {
-    console.log('🔍 DEBUG URL:', {
-      API_BASE_URL,
-      fullUrl: `${API_BASE_URL}/api/auth/login`,
-      env: process.env.NEXT_PUBLIC_API_URL,
-    });
+    console.log('🔍 Iniciando login...');
+    console.log('URL:', `${API_BASE_URL}/api/auth/login`);
     
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Origin': 'https://app.nelhealthcoach.com'
+      },
       body: JSON.stringify(credentials),
     });
 
+    console.log('📊 Response status:', response.status);
+    console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+    
+    // Verificar si hay CORS headers
+    console.log('🔍 CORS Headers:', {
+      allowOrigin: response.headers.get('Access-Control-Allow-Origin'),
+      allowCredentials: response.headers.get('Access-Control-Allow-Credentials')
+    });
+    
+    const responseText = await response.text();
+    console.log('📦 Response body (text):', responseText);
+    
+    if (responseText) {
+      try {
+        const data = JSON.parse(responseText);
+        console.log('📦 Response body (parsed):', data);
+      } catch (e) {
+        console.log('❌ No es JSON válido');
+      }
+    }
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error en el login');
+      throw new Error('Error en el login');
     }
 
     return response.json();
