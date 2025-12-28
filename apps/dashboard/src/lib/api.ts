@@ -76,6 +76,12 @@ const getAuthHeaders = (): Record<string, string> => {
 
 export const apiClient = {
   async login(credentials: { email: string; password: string }) {
+    console.log('🔍 DEBUG URL:', {
+      API_BASE_URL,
+      fullUrl: `${API_BASE_URL}/api/auth/login`,
+      env: process.env.NEXT_PUBLIC_API_URL,
+    });
+    
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
