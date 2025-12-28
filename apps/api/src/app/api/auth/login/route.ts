@@ -49,3 +49,25 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get('origin');
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://app.nelhealthcoach.com',
+  ];
+  
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': origin && allowedOrigins.includes(origin) 
+        ? origin 
+        : allowedOrigins[0],
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
