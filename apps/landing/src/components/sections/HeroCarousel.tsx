@@ -10,13 +10,18 @@ const HeroCarousel: React.FC = () => {
     },
     {
       id: 2,
-      title: "Sabiduría ancestral para solucionar problemas actuales",
+      title: "Que tu alimento sea tu medicina y que tu medicina sea tu alimento",
       image: "/images/hero/hero2.jpg"
     },
     {
       id: 3,
-      title: "Prepárate para tener de nuevo el control de tu vida",
+      title: "Tu cuerpo manda, tú decides",
       image: "/images/hero/hero3.jpg"
+    },
+    {
+      id: 4,
+      title: "Elige una meta y te acompañamos paso a paso",
+      image: "/images/hero/hero4.jpg"
     }
   ];
 
@@ -25,7 +30,7 @@ const HeroCarousel: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide(prev => (prev === slides.length - 1 ? 0 : prev + 1));
-    }, 5000);
+    }, 10000);
     
     return () => clearInterval(interval);
   }, [slides.length]);
@@ -51,8 +56,8 @@ const HeroCarousel: React.FC = () => {
             />
           </div>
 
-          {/* Overlay azul con opacidad */}
-          <div className="absolute inset-0 bg-gray-900/70"></div>
+          {/* Overlay con opacidad */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-700/40 to-gray-700/20"></div>
 
           {/* Contenido del slide */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-20 px-4">

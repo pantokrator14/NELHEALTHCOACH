@@ -29,13 +29,20 @@ const AboutSection: React.FC = () => {
           <div className="lg:w-1/2 w-full">
             <h3 className="text-2xl font-bold mb-4">Mi nombre es Manuel Martínez.</h3>
             <p className="mb-4">
-              Soy un hombre cuya vida dio un giro radical tras comprender la manipulación en la alimentación y la medicina moderna.
+              Durante la pandemia comprendí que <strong>muchos alimentos enferman y que la medicina convencional a menudo solo alivia síntomas, sin abordar la causa de raíz.</strong>
             </p>
             <p className="mb-4">
-              En mi recorrido por este camino que es la vida, así como el gusto por ella, además de mi aprendizaje diario, he comprendido que en todo nos han manipulado, he aprendido y he tenido experiencias familiares que me han llevado hacia un cambio. 
+              Decidí escuchar a mi cuerpo y mi vida cambió por completo: <strong>descubrí que la mejor medicina es la alimentación ancestral.</strong>
             </p>
             <p className="mb-6">
-              Esta experiencia me impulsó a obtener una CERTIFICACIÓN EN NUTRICIÓN MODERNA para fortalecer a las mujeres, a quienes considero el pilar de la sociedad. Mi misión es ayudar a las familias a liberarse de la dependencia de productos procesados y de la desinformación, promoviendo la alimentación como medicina y la importancia de escuchar al propio cuerpo para prevenir y revertir enfermedades.
+              Un claro ejemplo es mi hija, quien tomó medicamentos para la tiroides durante diez años sin mejorar. Al cambiar su alimentación, recuperó su salud de forma natural.
+            </p>
+            <p className="mb-6">
+              Estas experiencias me impulsaron a formarme con <strong>dos certificaciones en nutrición</strong> para acompañar y empoderar a otras personas a liberarse de esa dependencia.
+Esta es mi historia… y podría ser la tuya.
+            </p>
+            <p className="mb-6">
+              <strong>La alimentación es tu mejor medicina.</strong>
             </p>
             
             <div className="flex flex-wrap gap-3">
