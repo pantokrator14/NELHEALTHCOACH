@@ -12,11 +12,11 @@ const MethodSection: React.FC = () => {
       id: 1,
       title: "Dieta Personalizada",
       icon: "🥗",
-      description: "Plan nutricional keto adaptado a tus necesidades y objetivos específicos"
+      description: "Plan keto adaptado a tus necesidades y objetivos específicos para una nutrición ancestral."
     },
     {
       id: 2,
-      title: "Ejercicio Guiado",
+      title: "Ejercicio estructurado y progresivo",
       icon: "💪",
       description: "Rutinas de ejercicio efectivas para complementar tu transformación"
     },
@@ -24,13 +24,13 @@ const MethodSection: React.FC = () => {
       id: 3,
       title: "Hábitos Saludables",
       icon: "🔄",
-      description: "Desarrollo de rutinas que promueven un estilo de vida sostenible"
+      description: "Desarrollo de rutinas que promueven un estilo de vida sostenible y longevo."
     },
     {
       id: 4,
       title: "Mentalidad Fuerte",
       icon: "🧠",
-      description: "Coaching para fortalecer tu mente y mantener la motivación"
+      description: "Coaching para fortalecer tu mente y mantener la motivación. Tu cuerpo manda, tú decides."
     }
   ];
 
