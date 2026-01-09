@@ -175,9 +175,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                           <input
                             type="radio"
                             value="true"
-                            // ✅ SOLUCIÓN: Usar un objeto para name en lugar de register
-                            name={`${section.section}[${questionIndex}]`}
-                            ref={register as unknown as React.LegacyRef<HTMLInputElement>}
+                            {...register(`${section.section}.${questionIndex}`)}
                             className="mr-2 text-pink-700 focus:ring-pink-500"
                           />
                           <span className="text-sm font-semibold text-pink-700">SÍ</span>
@@ -186,9 +184,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                           <input
                             type="radio"
                             value="false"
-                            // ✅ SOLUCIÓN: Usar un objeto para name en lugar de register
-                            name={`${section.section}[${questionIndex}]`}
-                            ref={register as unknown as React.LegacyRef<HTMLInputElement>}
+                            {...register(`${section.section}.${questionIndex}`)}
                             className="mr-2 text-pink-700 focus:ring-pink-500"
                           />
                           <span className="text-sm font-semibold text-pink-700">NO</span>

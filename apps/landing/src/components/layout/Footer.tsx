@@ -46,8 +46,9 @@ const Footer: React.FC = () => {
             <h4 className="text-lg font-semibold mb-4">Contacto</h4>
             <address className="not-italic text-gray-400">
               <p className="mb-2">contacto@nelhealthcoach.com</p>
-              <p className="mb-2">+34 123 456 789</p>
-              <p>Palm Beach, CA.</p>
+              <p className="mb-2">+1 (442) 342-5050 - Asistencia en español</p>
+              <p className="mb-2">+1 (760) 980-5880 - Asistencia en inglés</p>
+              <p>33450 shifting Sands Trail, cathedral city, CA, 92234 (USA)</p>
             </address>
           </div>
         </div>
@@ -57,10 +58,10 @@ const Footer: React.FC = () => {
             © {new Date().getFullYear()} NELHEALTHCOACH. Todos los derechos reservados.
           </p>
           <div className="flex space-x-4">
-            {['facebook', 'instagram', 'youtube', 'linkedin'].map((social) => (
+            {['facebook', 'instagram', 'youtube'].map((social) => (
               <a 
                 key={social}
-                href={`https://${social}.com/nelhealthcoach`}
+                href={`https://${social}.com/NELHEALTHCOACH`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-white transition-colors"

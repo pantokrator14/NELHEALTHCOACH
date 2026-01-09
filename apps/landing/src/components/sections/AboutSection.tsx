@@ -49,7 +49,7 @@ Esta es mi historia… y podría ser la tuya.
               {[
                 "COACH CERTIFICADO EN NUTRICIÓN MODERNA", 
                 "+50 Clientes Transformados", 
-                "Especialista en Keto"
+                "Experiencia en nutrición humana evolutiva"
               ].map((badge, index) => (
                 <div 
                   key={index} 
