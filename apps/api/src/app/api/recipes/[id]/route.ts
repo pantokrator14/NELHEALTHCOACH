@@ -4,11 +4,15 @@ import Recipe from '../../../models/Recipe';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
-    const recipe = await Recipe.findById(params.id);
+    
+    // Desestructurar params después de await
+    const { id } = await params;
+    
+    const recipe = await Recipe.findById(id);
     
     if (!recipe) {
       return NextResponse.json(
@@ -33,14 +37,15 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
+    const { id } = await params;
     const data = await request.json();
     
     const recipe = await Recipe.findByIdAndUpdate(
-      params.id,
+      id,
       data,
       { new: true, runValidators: true }
     );
@@ -69,11 +74,13 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
-    const recipe = await Recipe.findByIdAndDelete(params.id);
+    const { id } = await params;
+    
+    const recipe = await Recipe.findByIdAndDelete(id);
     
     if (!recipe) {
       return NextResponse.json(

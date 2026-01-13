@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     
     // Validar datos requeridos
-    if (!data.title || !data.description || !data.image) {
+    if (!data.title || !data.description) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields' },
         { status: 400 }
