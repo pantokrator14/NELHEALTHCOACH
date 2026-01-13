@@ -36,7 +36,7 @@ const ContactFormSection: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                   </div>
-                  <span className="text-lg">Análisis inicial de tus objetivos</span>
+                  <span className="text-lg">Análisis inicial para establecer tu plan</span>
                 </li>
                 <li className="flex items-start">
                   <div className="bg-blue-500 rounded-full p-2 mr-3 mt-1">

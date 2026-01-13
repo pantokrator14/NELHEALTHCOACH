@@ -12,7 +12,7 @@ const MethodSection: React.FC = () => {
       id: 1,
       title: "Dieta Personalizada",
       icon: "🥗",
-      description: "Plan keto adaptado a tus necesidades y objetivos específicos para una nutrición ancestral."
+      description: "Planes adaptados a tus necesidades y objetivos específicos para una nutrición evolutiva."
     },
     {
       id: 2,
