@@ -1,4 +1,5 @@
 import { ChecklistItem } from '../../../../packages/types/src/healthForm';
+import { Recipe, RecipeFormData, RecipeImage } from '../../../../packages/types/src/recipe-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -7,7 +8,6 @@ interface Client {
   name: string;
   email: string;
   phone?: string;
-  // Agregar otros campos según sea necesario
 }
 
 interface ApiResponse<T> {
@@ -17,12 +17,7 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-interface UploadRequest {
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  fileCategory: 'profile' | 'document';
-}
+// Eliminada: interface UploadRequest no utilizada
 
 interface UploadResponse {
   uploadURL: string;
@@ -76,41 +71,15 @@ const getAuthHeaders = (): Record<string, string> => {
 
 export const apiClient = {
   async login(credentials: { email: string; password: string }) {
-    console.log('🔍 Iniciando login...');
-    console.log('URL:', `${API_BASE_URL}/api/auth/login`);
-    
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Origin': 'https://app.nelhealthcoach.com'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
     });
 
-    console.log('📊 Response status:', response.status);
-    console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
-    
-    // Verificar si hay CORS headers
-    console.log('🔍 CORS Headers:', {
-      allowOrigin: response.headers.get('Access-Control-Allow-Origin'),
-      allowCredentials: response.headers.get('Access-Control-Allow-Credentials')
-    });
-    
-    const responseText = await response.text();
-    console.log('📦 Response body (text):', responseText);
-    
-    if (responseText) {
-      try {
-        const data = JSON.parse(responseText);
-        console.log('📦 Response body (parsed):', data);
-      } catch (e) {
-        console.log('❌ No es JSON válido');
-      }
-    }
-
     if (!response.ok) {
-      throw new Error('Error en el login');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error en el login');
     }
 
     return response.json();
@@ -376,7 +345,6 @@ export const apiClient = {
         hasData: !!result.data,
         hasAIProgress: result.data?.hasAIProgress,
         sessions: result.data?.aiProgress?.sessions?.length || 0,
-        // Verificar estructura de la primera sesión
         firstSession: result.data?.aiProgress?.sessions?.[0] ? {
           sessionId: result.data.aiProgress.sessions[0].sessionId,
           summary: result.data.aiProgress.sessions[0].summary?.substring(0, 50),
@@ -386,7 +354,6 @@ export const apiClient = {
         } : null
       });
       
-      // ✅ IMPORTANTE: Devuelve el objeto completo que incluye `success` y `data`
       return result as AIProgressResponse;
       
     } catch (error) {
@@ -517,5 +484,148 @@ export const apiClient = {
       }
       throw new Error('Error desconocido al regenerar sesión de IA');
     }
+  },
+
+  // Métodos para Recetas - Tipos corregidos
+  async getRecipes(search?: string, category?: string): Promise<ApiResponse<Recipe[]>> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (category) params.append('category', category);
+    
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/recipes${query}`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al cargar recetas');
+    }
+    return response.json();
+  },
+
+  async getRecipe(id: string): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al cargar receta');
+    }
+    return response.json();
+  },
+
+  async createRecipe(data: RecipeFormData & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error creando receta');
+    }
+    return response.json();
+  },
+
+  async updateRecipe(id: string, data: Partial<RecipeFormData> & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando receta');
+    }
+    return response.json();
+  },
+
+  async deleteRecipe(id: string): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error eliminando receta');
+    }
+    return response.json();
+  },
+
+  async generateRecipeUploadURL(
+    recipeId: string, 
+    fileName: string, 
+    fileType: string, 
+    fileSize: number
+  ): Promise<UploadResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${recipeId}/upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        fileName,
+        fileType,
+        fileSize,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error generando URL de upload');
+    }
+    return response.json();
+  },
+
+  async confirmRecipeUpload(
+    recipeId: string,
+    fileKey: string,
+    fileName: string,
+    fileType: string,
+    fileSize: number,
+    fileURL: string
+  ): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${recipeId}/upload`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        fileKey,
+        fileName,
+        fileType,
+        fileSize,
+        fileURL
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error confirmando upload');
+    }
+    return response.json();
+  },
+
+  async deleteRecipeImage(recipeId: string, fileKey: string): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${recipeId}/upload`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fileKey }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error eliminando imagen');
+    }
+    return response.json();
   },
 };
