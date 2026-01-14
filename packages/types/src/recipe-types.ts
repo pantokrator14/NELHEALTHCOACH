@@ -42,6 +42,7 @@ export interface RecipeFormData {
   cookTime: number;
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string[];
+  image?: RecipeImage; // Agregar imagen como opcional
 }
 
 export interface RecipeUploadRequest {
