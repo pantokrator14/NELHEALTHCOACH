@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { connectToDatabase } from '@/app/lib/database';
+import { getRecipesCollection } from '@/app/lib/database';
 import { S3Service } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
-import { encrypt, encryptFileObject, decrypt } from '@/app/lib/encryption';
-import Recipe from '@/app/models/Recipe';
+import { encrypt, decrypt, encryptFileObject } from '@/app/lib/encryption';
 
 // POST: Obtener URLs para upload de imagen de receta
 export async function POST(
@@ -15,7 +14,7 @@ export async function POST(
     try {
       const { id } = await params;
       
-      console.log('🔑 Solicitando URL de upload para receta:', id);
+      logger.info('RECIPE_UPLOAD', 'Solicitando URL de upload para receta', { recipeId: id });
       
       // Validar que el recipeId es válido
       if (!id || id === 'undefined') {
@@ -60,7 +59,7 @@ export async function POST(
         );
       }
 
-      console.log('🔧 Llamando a S3Service.generateUploadURL...');
+      logger.debug('RECIPE_UPLOAD', 'Llamando a S3Service.generateUploadURL...');
       // Usamos 'recipe' como categoría para la carpeta en S3
       const { uploadURL, fileKey } = await S3Service.generateUploadURL(
         fileName,
@@ -108,8 +107,8 @@ export async function PUT(
       const { id } = await params;
       const { fileKey, fileName, fileType, fileSize, fileURL } = await request.json();
 
-      await connectToDatabase();
-      const recipe = await Recipe.findById(id);
+      const recipesCollection = await getRecipesCollection();
+      const recipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
 
       if (!recipe) {
         return NextResponse.json(
@@ -139,7 +138,7 @@ export async function PUT(
           
           // Verificar que no sea la misma imagen
           if (oldFileKey && oldFileKey !== fileKey) {
-            logger.info('RECIPE_UPLOAD', '🗑️ Eliminando imagen anterior de S3', {
+            logger.info('RECIPE_UPLOAD', 'Eliminando imagen anterior de S3', {
               recipeId: id,
               oldKey: oldFileKey,
               newKey: fileKey
@@ -147,25 +146,25 @@ export async function PUT(
             
             try {
               await S3Service.deleteFile(oldFileKey);
-              logger.info('RECIPE_UPLOAD', '✅ Imagen anterior eliminada de S3', {
+              logger.info('RECIPE_UPLOAD', 'Imagen anterior eliminada de S3', {
                 recipeId: id,
                 oldKey: oldFileKey
               });
             } catch (s3Error) {
-              logger.error('RECIPE_UPLOAD', '⚠️ Error eliminando imagen anterior de S3', s3Error as Error, {
+              logger.error('RECIPE_UPLOAD', 'Error eliminando imagen anterior de S3', s3Error as Error, {
                 recipeId: id,
                 oldKey: oldFileKey
               });
               // No fallar la operación principal
             }
           } else if (oldFileKey === fileKey) {
-            logger.debug('RECIPE_UPLOAD', '🖼️ Misma imagen, no es necesario eliminar', {
+            logger.debug('RECIPE_UPLOAD', 'Misma imagen, no es necesario eliminar', {
               recipeId: id,
               fileKey
             });
           }
         } catch (error) {
-          logger.error('RECIPE_UPLOAD', '❌ Error en proceso de eliminación de imagen anterior', error as Error, {
+          logger.error('RECIPE_UPLOAD', 'Error en proceso de eliminación de imagen anterior', error as Error, {
             recipeId: id
           });
           // No fallar la operación principal
@@ -176,10 +175,24 @@ export async function PUT(
       const encryptedImage = encryptFileObject(uploadedFile);
 
       // Actualizar la receta con la nueva imagen
-      recipe.image = encryptedImage;
-      await recipe.save();
+      const result = await recipesCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            image: encryptedImage,
+            updatedAt: new Date()
+          } 
+        }
+      );
 
-      logger.info('RECIPE_UPLOAD', '✅ Imagen guardada exitosamente en receta', {
+      if (result.modifiedCount === 0) {
+        return NextResponse.json(
+          { success: false, message: 'No se pudo actualizar la receta' },
+          { status: 500 }
+        );
+      }
+
+      logger.info('RECIPE_UPLOAD', 'Imagen guardada exitosamente en receta', {
         recipeId: id,
         fileName
       });
@@ -215,7 +228,7 @@ export async function DELETE(
       const { id } = await params;
       const { fileKey } = await request.json();
 
-      logger.info('RECIPE_UPLOAD', '🗑️ Iniciando eliminación de imagen de receta', {
+      logger.info('RECIPE_UPLOAD', 'Iniciando eliminación de imagen de receta', {
         recipeId: id,
         fileKey
       });
@@ -235,8 +248,8 @@ export async function DELETE(
         );
       }
 
-      await connectToDatabase();
-      const recipe = await Recipe.findById(id);
+      const recipesCollection = await getRecipesCollection();
+      const recipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
 
       if (!recipe) {
         logger.warn('RECIPE_UPLOAD', 'Receta no encontrada', undefined, { recipeId: id });
@@ -248,9 +261,13 @@ export async function DELETE(
 
       // Verificar que la imagen a eliminar sea la misma que está en la receta
       // Desencriptar la key de la imagen actual para comparar
-      let currentFileKey = recipe.image.key;
-      if (typeof currentFileKey === 'string' && currentFileKey.startsWith('U2FsdGVkX1')) {
-        currentFileKey = decrypt(currentFileKey);
+      let currentFileKey = recipe.image?.key || '';
+      if (currentFileKey && typeof currentFileKey === 'string' && currentFileKey.startsWith('U2FsdGVkX1')) {
+        try {
+          currentFileKey = decrypt(currentFileKey);
+        } catch (error) {
+          logger.error('RECIPE_UPLOAD', 'Error desencriptando currentFileKey', error as Error);
+        }
       }
 
       if (currentFileKey !== fileKey) {
@@ -262,11 +279,11 @@ export async function DELETE(
 
       // Eliminar de S3
       try {
-        logger.debug('RECIPE_UPLOAD', '☁️ Eliminando de S3...', { recipeId: id, fileKey });
+        logger.debug('RECIPE_UPLOAD', 'Eliminando de S3...', { recipeId: id, fileKey });
         await S3Service.deleteFile(fileKey);
-        logger.info('RECIPE_UPLOAD', '✅ Imagen eliminada de S3', { recipeId: id, fileKey });
+        logger.info('RECIPE_UPLOAD', 'Imagen eliminada de S3', { recipeId: id, fileKey });
       } catch (s3Error) {
-        logger.error('RECIPE_UPLOAD', '⚠️ Error eliminando de S3', s3Error as Error, {
+        logger.error('RECIPE_UPLOAD', 'Error eliminando de S3', s3Error as Error, {
           recipeId: id,
           fileKey
         });
@@ -274,17 +291,31 @@ export async function DELETE(
       }
 
       // Eliminar la referencia en la receta
-      recipe.image = {
-        url: '',
-        key: '',
-        name: '',
-        type: '',
-        size: 0,
-        uploadedAt: ''
-      };
-      await recipe.save();
+      const result = await recipesCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            image: {
+              url: '',
+              key: '',
+              name: '',
+              type: '',
+              size: 0,
+              uploadedAt: ''
+            },
+            updatedAt: new Date()
+          } 
+        }
+      );
 
-      logger.info('RECIPE_UPLOAD', '🎉 Imagen eliminada exitosamente de la receta', { recipeId: id, fileKey });
+      if (result.modifiedCount === 0) {
+        return NextResponse.json(
+          { success: false, message: 'No se pudo actualizar la receta' },
+          { status: 500 }
+        );
+      }
+
+      logger.info('RECIPE_UPLOAD', 'Imagen eliminada exitosamente de la receta', { recipeId: id, fileKey });
 
       return NextResponse.json({
         success: true,
@@ -293,7 +324,7 @@ export async function DELETE(
 
     } catch (error: any) {
       console.error('❌ Error en DELETE /recipes/[id]/upload:', error);
-      logger.error('RECIPE_UPLOAD', '💥 Error eliminando imagen de receta', error, undefined, {
+      logger.error('RECIPE_UPLOAD', 'Error eliminando imagen de receta', error, undefined, {
         recipeId: (await params).id
       });
       return NextResponse.json(
@@ -304,13 +335,43 @@ export async function DELETE(
   }, { endpoint: `/api/recipes/${(await params).id}/upload`, method: 'DELETE', recipeId: (await params).id });
 }
 
-// PATCH: Para futuras funcionalidades
+// PATCH: Para futuras funcionalidades (reparación, etc.)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return NextResponse.json(
-    { success: false, message: 'Método no implementado' },
-    { status: 405 }
-  );
+  try {
+    const { id } = await params;
+    const { action } = await request.json();
+    
+    if (action === 'repair_image') {
+      // Lógica para reparar imagen corrupta si es necesario
+      return NextResponse.json({
+        success: true,
+        message: 'Funcionalidad de reparación no implementada aún'
+      });
+    }
+    
+    return NextResponse.json(
+      { success: false, message: 'Acción no válida' },
+      { status: 400 }
+    );
+    
+  } catch (error) {
+    logger.error('RECIPE_UPLOAD', 'Error en endpoint PATCH', error as Error);
+    return NextResponse.json(
+      { success: false, message: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
+
+// Función auxiliar para obtener la URL completa de una imagen
+async function getFullImageUrl(fileKey: string): Promise<string> {
+  try {
+    return await S3Service.getFileURL(fileKey);
+  } catch (error) {
+    logger.error('RECIPE_UPLOAD', 'Error obteniendo URL de imagen', error as Error);
+    return '';
+  }
 }

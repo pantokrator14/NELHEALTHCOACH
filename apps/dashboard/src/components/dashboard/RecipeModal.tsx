@@ -509,7 +509,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 value={formData.title}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 border text-gray-700 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 placeholder="Nombre de la receta"
                 disabled={isSubmitting || isUploading}
               />
@@ -523,7 +523,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 name="difficulty"
                 value={formData.difficulty}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 border text-gray-700 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
                 required
               >
@@ -545,7 +545,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 min="1"
                 max="999"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
               />
             </div>
@@ -563,7 +563,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 max="1000"
                 step="0.1"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
               />
             </div>
@@ -580,7 +580,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
               onChange={handleInputChange}
               required
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
               placeholder="Describe brevemente la receta..."
               disabled={isSubmitting || isUploading}
             />
@@ -597,7 +597,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, handleAddCategory)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 placeholder="Ej: Mexicana, Keto, Vegana"
                 disabled={isSubmitting || isUploading}
               />
@@ -641,7 +641,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 value={newIngredient}
                 onChange={(e) => setNewIngredient(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 placeholder="Ej: 200g de pechuga de pollo"
                 disabled={isSubmitting || isUploading}
               />
@@ -657,8 +657,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
             <div className="space-y-2">
               {formData.ingredients.map((ing, index) => (
                 <div key={index} className="flex items-center gap-2">
-                  <span className="text-gray-600">•</span>
-                  <span className="flex-1">{ing}</span>
+                  <span className="text-gray-700">•</span>
+                  <span className="flex-1 text-gray-700">{ing}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveIngredient(index)}
@@ -683,7 +683,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
               <textarea
                 value={newInstruction}
                 onChange={(e) => setNewInstruction(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 placeholder="Describe un paso de la preparación..."
                 rows={2}
                 disabled={isSubmitting || isUploading}
@@ -735,7 +735,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 min="0"
                 max="1000"
                 step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
               />
             </div>
@@ -751,7 +751,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 min="0"
                 max="1000"
                 step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
               />
             </div>
@@ -766,7 +766,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 onChange={handleInputChange}
                 min="0"
                 max="10000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 disabled={isSubmitting || isUploading}
               />
             </div>
@@ -783,7 +783,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, handleAddTag)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg disabled:opacity-50"
                 placeholder="Ej: bajo en carbohidratos, vegano, rápido"
                 disabled={isSubmitting || isUploading}
               />

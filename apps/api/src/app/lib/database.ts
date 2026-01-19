@@ -130,3 +130,28 @@ export async function getHealthFormsCollection() {
     return db.collection('healthforms');
   });
 }
+
+export async function getRecipesCollection() {
+  const { db } = await connectToDatabase();
+  
+  return logger.time('DATABASE', 'Buscar colección recipes', async () => {
+    const possibleCollectionNames = [
+      'recipes', 'Recipes', 'recetas', 'Recetas'
+    ];
+    
+    for (const collectionName of possibleCollectionNames) {
+      const collection = db.collection(collectionName);
+      const count = await collection.countDocuments();
+      
+      if (count > 0) {
+        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
+        return collection;
+      }
+      
+      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
+    }
+    
+    logger.info('DATABASE', 'Creando nueva colección "recipes"');
+    return db.collection('recipes');
+  });
+}
