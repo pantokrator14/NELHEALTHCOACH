@@ -508,63 +508,6 @@ export const apiClient = {
     return response.json();
   },
 
-  async getRecipe(id: string): Promise<ApiResponse<Recipe>> {
-    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
-      headers: getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-      }
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error al cargar receta');
-    }
-    return response.json();
-  },
-
-  async createRecipe(data: RecipeFormData & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
-    const response = await fetch(`${API_BASE_URL}/api/recipes`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error creando receta');
-    }
-    return response.json();
-  },
-
-  async updateRecipe(id: string, data: Partial<RecipeFormData> & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
-    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error actualizando receta');
-    }
-    return response.json();
-  },
-
-  async deleteRecipe(id: string): Promise<ApiResponse<{ success: boolean }>> {
-    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error eliminando receta');
-    }
-    return response.json();
-  },
-
   async generateRecipeUploadURL(
     recipeId: string, 
     fileName: string, 
@@ -628,4 +571,79 @@ export const apiClient = {
     }
     return response.json();
   },
+
+  // Método para obtener receta individual
+  async getRecipe(id: string): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al cargar receta');
+    }
+    return response.json();
+  },
+
+  // Método actualizado para crear receta
+  async createRecipe(data: RecipeFormData & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error creando receta');
+    }
+    return response.json();
+  },
+
+  // Método actualizado para actualizar receta
+  async updateRecipe(id: string, data: Partial<RecipeFormData> & { image?: RecipeImage }): Promise<ApiResponse<Recipe>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando receta');
+    }
+    return response.json();
+  },
+
+  // Método para eliminar receta
+  async deleteRecipe(id: string): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error eliminando receta');
+    }
+    return response.json();
+  },
+
+  // Método para inicializar base de datos (para desarrollo)
+  async initializeRecipesDatabase(): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/recipes`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error inicializando base de datos');
+    }
+    return response.json();
+  }
 };

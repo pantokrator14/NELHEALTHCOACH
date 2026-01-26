@@ -45,7 +45,7 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">Contacto</h4>
             <address className="not-italic text-gray-400">
-              <p className="mb-2">contacto@nelhealthcoach.com</p>
+              <p className="mb-2">contact@nelhealthcoach.com</p>
               <p className="mb-2">+1 (442) 342-5050 - Asistencia en español</p>
               <p className="mb-2">+1 (760) 980-5880 - Asistencia en inglés</p>
               <p>33450 shifting Sands Trail, cathedral city, CA, 92234 (USA)</p>

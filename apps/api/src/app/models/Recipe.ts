@@ -21,7 +21,7 @@ export interface IRecipe extends Document {
     uploadedAt: string;
   };
   cookTime: number;
-  difficulty: 'fácil' | 'medio' | 'dificil';
+  difficulty: 'easy' | 'medium' | 'hard';
   author?: string; // Para cuando tengamos múltiples coaches
   isPublished: boolean;
   tags: string[];
@@ -52,7 +52,7 @@ const RecipeSchema: Schema = new Schema({
   cookTime: { type: Number, required: true }, // en minutos
   difficulty: { 
     type: String, 
-    enum: ['fácil', 'medio', 'dificil'], 
+    enum: ['easy', 'medium', 'hard'], 
     required: true 
   },
   author: { type: String, default: 'NelHealthCoach' },

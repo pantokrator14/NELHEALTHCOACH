@@ -1,20 +1,30 @@
 import React, { useState, useEffect, useCallback, useRef, ChangeEvent } from 'react';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../../packages/types/src/recipe-types';
-import Image from 'next/image'; // Para reemplazar <img>
+import AutocompleteInput from '../ui/AutocompleteInput';
+import DragDropList from '../ui/DragDropList';
+import { NutritionTooltip } from '../ui/Tooltip';
 
 interface RecipeModalProps {
   recipe: Recipe | null;
   onClose: () => void;
   onSave: (data: RecipeFormData) => Promise<void>;
+  existingCategories?: string[];
+  existingTags?: string[];
 }
 
-const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) => {
+const RecipeModal: React.FC<RecipeModalProps> = ({
+  recipe,
+  onClose,
+  onSave,
+  existingCategories = [],
+  existingTags = [],
+}) => {
   const [formData, setFormData] = useState<RecipeFormData>({
     title: '',
     description: '',
     category: [],
-    ingredients: [''],
-    instructions: [''],
+    ingredients: [],
+    instructions: [],
     nutrition: {
       protein: 0,
       carbs: 0,
@@ -36,6 +46,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
   const [newInstruction, setNewInstruction] = useState('');
   const [newTag, setNewTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Estados para manejar sugerencias dinámicas
+  const [availableCategories, setAvailableCategories] = useState<string[]>(existingCategories);
+  const [availableTags, setAvailableTags] = useState<string[]>(existingTags);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,31 +69,89 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
         tags: recipe.tags,
       });
       
-      // Si la receta ya tiene imagen, establecer preview
       if (recipe.image && recipe.image.url) {
         setImagePreview(recipe.image.url);
       }
+      
+      // Actualizar listas disponibles con las de esta receta
+      const allCategories = [...new Set([...existingCategories, ...recipe.category])];
+      const allTags = [...new Set([...existingTags, ...recipe.tags])];
+      setAvailableCategories(allCategories.sort());
+      setAvailableTags(allTags.sort());
+    } else {
+      // Para nueva receta, usar las existentes
+      setAvailableCategories(existingCategories);
+      setAvailableTags(existingTags);
     }
-  }, [recipe]);
+  }, [recipe, existingCategories, existingTags]);
+
+    // Función para crear nueva categoría desde AutocompleteInput
+  const handleCreateCategory = (category: string) => {
+    // Separar por comas o espacios
+    const categories = category.split(/[, ]+/).map(cat => cat.trim()).filter(cat => cat);
+    categories.forEach(cat => handleAddCategory(cat));
+    setNewCategory('');
+  };
+
+  // Función para eliminar categoría
+  const handleRemoveCategory = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      category: prev.category.filter((_, i) => i !== index),
+    }));
+  };
+
+  // Función para agregar nueva etiqueta (y actualizar lista)
+  const handleAddTag = (tag: string) => {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) return;
+    
+    // Verificar si ya existe en la lista
+    if (!formData.tags.includes(trimmedTag)) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, trimmedTag],
+      }));
+      
+      // Agregar a lista disponible si no existe
+      if (!availableTags.includes(trimmedTag)) {
+        setAvailableTags(prev => [...prev, trimmedTag].sort());
+      }
+    }
+  };
+
+  // Función para crear nueva etiqueta desde AutocompleteInput
+  const handleCreateTag = (tag: string) => {
+    // Separar por comas o espacios
+    const tags = tag.split(/[, ]+/).map(t => t.trim()).filter(t => t);
+    tags.forEach(t => handleAddTag(t));
+    setNewTag('');
+  };
+
+  // Función para eliminar etiqueta
+  const handleRemoveTag = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter((_, i) => i !== index),
+    }));
+  };
 
   // Manejar selección de archivo
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tipo de archivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
-        alert('Solo se permiten imágenes (JPEG, PNG, GIF, WebP)');
+        setErrors(prev => ({ ...prev, image: 'Solo se permiten imágenes (JPEG, PNG, GIF, WebP)' }));
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
         return;
       }
 
-      // Validar tamaño (10MB máximo)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        alert('La imagen es demasiado grande (máximo 10MB)');
+        setErrors(prev => ({ ...prev, image: 'La imagen es demasiado grande (máximo 10MB)' }));
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -86,16 +159,16 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
       }
 
       setImageFile(file);
+      setErrors(prev => ({ ...prev, image: '' }));
       
-      // Crear preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
       reader.onerror = () => {
-        console.error('Error al leer el archivo');
         setImagePreview(null);
         setImageFile(null);
+        setErrors(prev => ({ ...prev, image: 'Error al leer el archivo' }));
       };
       reader.readAsDataURL(file);
     }
@@ -107,7 +180,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     setUploadProgress(0);
     
     try {
-      // 1. Generar URL de upload
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No hay token de autenticación');
@@ -134,7 +206,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
       const { data } = await uploadResponse.json();
       const { uploadURL, fileKey, fileURL } = data;
 
-      // 2. Subir archivo directamente a S3
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         
@@ -148,7 +219,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
         xhr.addEventListener('load', async () => {
           if (xhr.status === 200) {
             try {
-              // 3. Confirmar upload en nuestra API
               const confirmResponse = await fetch(`/api/recipes/${recipeId}/upload`, {
                 method: 'PUT',
                 headers: {
@@ -201,23 +271,27 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     }
   }, []);
 
+  // Validar formulario
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.title.trim()) newErrors.title = 'El título es requerido';
+    if (!formData.description.trim()) newErrors.description = 'La descripción es requerida';
+    if (formData.category.length === 0) newErrors.category = 'Agrega al menos una categoría';
+    if (formData.ingredients.length === 0) newErrors.ingredients = 'Agrega al menos un ingrediente';
+    if (formData.instructions.length === 0) newErrors.instructions = 'Agrega al menos una instrucción';
+    if (formData.cookTime <= 0) newErrors.cookTime = 'El tiempo debe ser mayor a 0';
+    if (formData.nutrition.calories < 0) newErrors.calories = 'Las calorías no pueden ser negativas';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Manejar envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validaciones básicas
-    if (!formData.title.trim() || !formData.description.trim()) {
-      alert('El título y la descripción son requeridos');
-      return;
-    }
-
-    if (formData.ingredients.length === 0) {
-      alert('Debe agregar al menos un ingrediente');
-      return;
-    }
-
-    if (formData.instructions.length === 0) {
-      alert('Debe agregar al menos una instrucción');
+    if (!validateForm()) {
       return;
     }
 
@@ -226,15 +300,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     try {
       let recipeData: RecipeFormData = { ...formData };
       
-      // Si hay una nueva imagen y es una receta existente, subirla primero
       if (imageFile && recipe?.id) {
         try {
           const imageData = await uploadImageToS3(imageFile, recipe.id);
           recipeData = { ...recipeData, image: imageData };
         } catch (uploadError) {
           console.error('Error subiendo imagen:', uploadError);
-          alert('Error subiendo imagen. La receta se guardará sin imagen.');
-          // Continuamos sin la imagen
         }
       }
       
@@ -243,7 +314,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     } catch (error: unknown) {
       console.error('Error guardando receta:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error al guardar la receta';
-      alert(errorMessage);
+      setErrors(prev => ({ ...prev, form: errorMessage }));
     } finally {
       setIsSubmitting(false);
     }
@@ -261,34 +332,32 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
           [field]: parseFloat(value) || 0,
         },
       }));
+      setErrors(prev => ({ ...prev, [field]: '' }));
     } else if (name === 'cookTime' || name === 'difficulty') {
       setFormData(prev => ({
         ...prev,
         [name]: name === 'cookTime' ? parseInt(value, 10) || 0 : value,
       }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     } else {
       setFormData(prev => ({
         ...prev,
         [name]: value,
       }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  const handleAddCategory = () => {
-    if (newCategory.trim() && !formData.category.includes(newCategory.trim())) {
+  const handleAddCategory = (category?: string) => {
+    const catToAdd = category || newCategory.trim();
+    if (catToAdd && !formData.category.includes(catToAdd)) {
       setFormData(prev => ({
         ...prev,
-        category: [...prev.category, newCategory.trim()],
+        category: [...prev.category, catToAdd],
       }));
       setNewCategory('');
+      setErrors(prev => ({ ...prev, category: '' }));
     }
-  };
-
-  const handleRemoveCategory = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      category: prev.category.filter((_, i) => i !== index),
-    }));
   };
 
   const handleAddIngredient = () => {
@@ -298,6 +367,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
         ingredients: [...prev.ingredients, newIngredient.trim()],
       }));
       setNewIngredient('');
+      setErrors(prev => ({ ...prev, ingredients: '' }));
     }
   };
 
@@ -308,6 +378,13 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     }));
   };
 
+  const handleReorderIngredients = (reorderedItems: string[]) => {
+    setFormData(prev => ({
+      ...prev,
+      ingredients: reorderedItems,
+    }));
+  };
+
   const handleAddInstruction = () => {
     if (newInstruction.trim()) {
       setFormData(prev => ({
@@ -315,6 +392,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
         instructions: [...prev.instructions, newInstruction.trim()],
       }));
       setNewInstruction('');
+      setErrors(prev => ({ ...prev, instructions: '' }));
     }
   };
 
@@ -325,20 +403,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     }));
   };
 
-  const handleAddTag = () => {
-    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()],
-      }));
-      setNewTag('');
-    }
-  };
-
-  const handleRemoveTag = (index: number) => {
+  const handleReorderInstructions = (reorderedItems: string[]) => {
     setFormData(prev => ({
       ...prev,
-      tags: prev.tags.filter((_, i) => i !== index),
+      instructions: reorderedItems,
     }));
   };
 
@@ -350,18 +418,24 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
     }
   };
 
+  // Obtener sugerencias únicas de categorías y tags
+  const getUniqueSuggestions = (items: string[], existingItems: string[]) => {
+    const allItems = [...new Set([...items, ...existingItems])];
+    return allItems.filter(item => item.trim() !== '');
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl my-8">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl my-8 max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-xl">
+          <h2 className="text-2xl font-bold">
             {recipe ? 'Editar Receta' : 'Nueva Receta'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition"
+            className="p-2 hover:bg-blue-800 rounded-full transition"
             aria-label="Cerrar"
             disabled={isSubmitting || isUploading}
           >
@@ -372,22 +446,208 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
         </div>
 
         {/* Formulario */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Sección de Imagen */}
-          <div className="border rounded-lg p-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Imagen de la Receta
-            </label>
-            
-            <div className="flex flex-col md:flex-row gap-6">
-              {/* Preview de imagen */}
-              <div className="flex-1">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+          {/* Mensaje de error general */}
+          {errors.form && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-red-700">{errors.form}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Columna izquierda */}
+            <div className="space-y-6">
+              {/* Información básica */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Información Básica</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Título <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      value={formData.title}
+                      onChange={handleInputChange}
+                      required
+                      className={`w-full px-4 py-3 border text-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                        errors.title ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Nombre de la receta"
+                      disabled={isSubmitting || isUploading}
+                    />
+                    {errors.title && (
+                      <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Descripción <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      required
+                      rows={3}
+                      className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                        errors.description ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Describe brevemente la receta..."
+                      disabled={isSubmitting || isUploading}
+                    />
+                    {errors.description && (
+                      <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tiempo (min) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        name="cookTime"
+                        value={formData.cookTime}
+                        onChange={handleInputChange}
+                        min="1"
+                        max="999"
+                        required
+                        className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                          errors.cookTime ? 'border-red-300' : 'border-gray-300'
+                        }`}
+                        disabled={isSubmitting || isUploading}
+                      />
+                      {errors.cookTime && (
+                        <p className="mt-1 text-sm text-red-600">{errors.cookTime}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Dificultad <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="difficulty"
+                        value={formData.difficulty}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border text-gray-700 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                        disabled={isSubmitting || isUploading}
+                        required
+                      >
+                        <option value="easy">Fácil</option>
+                        <option value="medium">Media</option>
+                        <option value="hard">Difícil</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Información nutricional */}
+              <div className="bg-white rounded-lg border border-green-200 p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  Información Nutricional
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      Proteína (g) <NutritionTooltip term="protein" />
+                    </label>
+                    <input
+                      type="number"
+                      name="nutrition.protein"
+                      value={formData.nutrition.protein}
+                      onChange={handleInputChange}
+                      min="0"
+                      max="1000"
+                      step="0.1"
+                      className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                      disabled={isSubmitting || isUploading}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      Carbohidratos (g) <NutritionTooltip term="carbs" />
+                    </label>
+                    <input
+                      type="number"
+                      name="nutrition.carbs"
+                      value={formData.nutrition.carbs}
+                      onChange={handleInputChange}
+                      min="0"
+                      max="1000"
+                      step="0.1"
+                      className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                      disabled={isSubmitting || isUploading}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      Grasas (g) <NutritionTooltip term="fat" />
+                    </label>
+                    <input
+                      type="number"
+                      name="nutrition.fat"
+                      value={formData.nutrition.fat}
+                      onChange={handleInputChange}
+                      min="0"
+                      max="1000"
+                      step="0.1"
+                      className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                      disabled={isSubmitting || isUploading}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      Calorías <NutritionTooltip term="calories" />
+                    </label>
+                    <input
+                      type="number"
+                      name="nutrition.calories"
+                      value={formData.nutrition.calories}
+                      onChange={handleInputChange}
+                      min="0"
+                      max="10000"
+                      className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 ${
+                        errors.calories ? 'border-red-300' : 'border-green-300'
+                      }`}
+                      disabled={isSubmitting || isUploading}
+                    />
+                    {errors.calories && (
+                      <p className="mt-1 text-sm text-red-600">{errors.calories}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Imagen */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Imagen de la Receta</h3>
+                
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition bg-gray-50">
                   {imagePreview ? (
                     <div className="relative">
-                      {/* Usamos div con background-image en lugar de img para evitar advertencia */}
                       <div 
-                        className="w-full h-48 bg-cover bg-center rounded-lg"
+                        className="w-full h-48 bg-cover bg-center rounded-lg border border-gray-200 mb-4"
                         style={{ backgroundImage: `url(${imagePreview})` }}
                       />
                       <button
@@ -399,7 +659,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                             fileInputRef.current.value = '';
                           }
                         }}
-                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 shadow-sm"
                         disabled={isUploading}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -409,13 +669,15 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                     </div>
                   ) : (
                     <div className="py-8">
-                      <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="mt-2 text-sm text-gray-600">
+                      <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                        <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-700 font-medium mb-2">
                         Haz clic para subir una imagen
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 mb-4">
                         PNG, JPG, GIF, WebP hasta 10MB
                       </p>
                     </div>
@@ -432,20 +694,19 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                   />
                   <label
                     htmlFor="image-upload"
-                    className="mt-4 inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-block px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   >
                     {imagePreview ? 'Cambiar Imagen' : 'Seleccionar Imagen'}
                   </label>
                 </div>
                 
-                {/* Barra de progreso */}
                 {isUploading && (
                   <div className="mt-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-1">
-                      <span>Subiendo imagen...</span>
-                      <span>{uploadProgress}%</span>
+                    <div className="flex justify-between text-sm text-gray-700 mb-1">
+                      <span className="font-medium">Subiendo imagen...</span>
+                      <span className="font-bold">{uploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-blue-200 rounded-full h-2">
                       <div 
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                         style={{ width: `${uploadProgress}%` }}
@@ -454,386 +715,304 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose, onSave }) =>
                   </div>
                 )}
               </div>
-              
-              {/* Información de la imagen */}
-              <div className="flex-1">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900">Recomendaciones:</h4>
-                    <ul className="mt-2 text-sm text-gray-600 space-y-1">
-                      <li className="flex items-start">
-                        <svg className="w-4 h-4 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Imágenes claras y bien iluminadas
-                      </li>
-                      <li className="flex items-start">
-                        <svg className="w-4 h-4 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Resolución mínima: 800x600px
-                      </li>
-                      <li className="flex items-start">
-                        <svg className="w-4 h-4 text-green-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Formato recomendado: JPG o PNG
-                      </li>
-                    </ul>
+            </div>
+
+            {/* Columna derecha */}
+            <div className="space-y-6">
+              {/* Categorías con autocompletado */}
+              <div className="bg-white rounded-lg border border-indigo-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-lg font-semibold text-gray-900 flex items-center">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    Categorías <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    {formData.category.length} categorías
+                  </span>
+                </div>
+                
+                {errors.category && (
+                  <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.category}</p>
+                )}
+                
+                <div className="mb-4">
+                  <AutocompleteInput
+                    suggestions={availableCategories}
+                    value={newCategory}
+                    onChange={setNewCategory}
+                    onSelect={handleAddCategory}
+                    onItemCreate={handleCreateCategory}
+                    placeholder="Escribe categorías (usa comas o espacios para múltiples)..."
+                    disabled={isSubmitting || isUploading}
+                    maxSuggestions={5}
+                    className="border-indigo-300"
+                    allowCreate={true}
+                    separator="both"
+                  />
+                  <div className="text-xs text-gray-500 mt-2 flex items-center">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Escribe nuevas categorías o selecciona existentes. Separa con comas o espacios.
                   </div>
-                  
-                  {imageFile && !isUploading && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-800">
-                        <strong>Archivo seleccionado:</strong> {imageFile.name}
-                      </p>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Tamaño: {(imageFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {formData.category.map((cat, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200"
+                    >
+                      <span>{cat}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCategory(index)}
+                        className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                        disabled={isSubmitting || isUploading}
+                        aria-label={`Eliminar categoría ${cat}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ingredientes con drag & drop */}
+              <div className="bg-white rounded-lg border border-orange-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-lg font-semibold text-gray-900 flex items-center">
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    Ingredientes <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    {formData.ingredients.length} ingredientes
+                  </span>
+                </div>
+                
+                {errors.ingredients && (
+                  <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.ingredients}</p>
+                )}
+                
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={newIngredient}
+                    onChange={(e) => setNewIngredient(e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
+                    className="flex-1 px-4 py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white"
+                    placeholder="Ej: 200g de pechuga de pollo"
+                    disabled={isSubmitting || isUploading}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddIngredient}
+                    className="px-5 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm"
+                    disabled={isSubmitting || isUploading}
+                  >
+                    Agregar
+                  </button>
+                </div>
+                
+                {formData.ingredients.length > 0 && (
+                  <div className="mb-2 text-xs text-gray-500 flex items-center">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                    Arrastra para reordenar los ingredientes
+                  </div>
+                )}
+                
+                <DragDropList
+                  items={formData.ingredients}
+                  renderItem={(ingredient, index) => (
+                    <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="w-6 h-6 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <span className="flex-1 text-gray-700">{ingredient}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveIngredient(index)}
+                        className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                        disabled={isSubmitting || isUploading}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   )}
+                  onReorder={handleReorderIngredients}
+                  disabled={isSubmitting || isUploading}
+                  className="max-h-64 overflow-y-auto"
+                />
+              </div>
+
+              {/* Instrucciones con drag & drop */}
+              <div className="bg-white rounded-lg border border-purple-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-lg font-semibold text-gray-900 flex items-center">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    Instrucciones <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    {formData.instructions.length} pasos
+                  </span>
+                </div>
+                
+                {errors.instructions && (
+                  <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.instructions}</p>
+                )}
+                
+                <div className="flex gap-2 mb-4">
+                  <textarea
+                    value={newInstruction}
+                    onChange={(e) => setNewInstruction(e.target.value)}
+                    className="flex-1 px-4 py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white"
+                    placeholder="Describe un paso de la preparación..."
+                    rows={2}
+                    disabled={isSubmitting || isUploading}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddInstruction}
+                    className="px-5 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm"
+                    disabled={isSubmitting || isUploading}
+                  >
+                    Agregar
+                  </button>
+                </div>
+                
+                {formData.instructions.length > 0 && (
+                  <div className="mb-2 text-xs text-gray-500 flex items-center">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                    Arrastra para reordenar los pasos
+                  </div>
+                )}
+                
+                <DragDropList
+                  items={formData.instructions}
+                  renderItem={(instruction, index) => (
+                    <div className="flex gap-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 flex items-center justify-center bg-purple-100 text-purple-800 rounded-full font-bold border-2 border-purple-300">
+                          {index + 1}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-700">{instruction}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveInstruction(index)}
+                        className="flex-shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                        disabled={isSubmitting || isUploading}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  onReorder={handleReorderInstructions}
+                  disabled={isSubmitting || isUploading}
+                  className="max-h-64 overflow-y-auto"
+                />
+              </div>
+
+              {/* Tags con autocompletado */}
+              <div className="bg-white rounded-lg border border-pink-200 p-6 shadow-sm">
+                <label className="block text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </div>
+                  Etiquetas
+                </label>
+                
+                <div className="mb-4">
+                  <AutocompleteInput
+                    suggestions={availableTags}
+                    value={newTag}
+                    onChange={setNewTag}
+                    onSelect={handleAddTag}
+                    onItemCreate={handleCreateTag}
+                    placeholder="Escribe etiquetas (usa comas o espacios para múltiples)..."
+                    disabled={isSubmitting || isUploading}
+                    maxSuggestions={5}
+                    className="border-pink-300"
+                    allowCreate={true}
+                    separator="both"
+                  />
+                  <div className="text-xs text-gray-500 mt-2 flex items-center">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Escribe nuevas etiquetas o selecciona existentes. Separa con comas o espacios.
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {formData.tags.map((tag, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 px-4 py-2 bg-pink-100 text-pink-800 rounded-full border border-pink-200"
+                    >
+                      <span>#{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(index)}
+                        className="text-pink-600 hover:text-pink-800 disabled:opacity-50"
+                        disabled={isSubmitting || isUploading}
+                        aria-label={`Eliminar etiqueta ${tag}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Información básica */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Título *
-              </label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                placeholder="Nombre de la receta"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dificultad *
-              </label>
-              <select
-                name="difficulty"
-                value={formData.difficulty}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-                required
-              >
-                <option value="easy">Fácil</option>
-                <option value="medium">Media</option>
-                <option value="hard">Difícil</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tiempo de preparación (minutos) *
-              </label>
-              <input
-                type="number"
-                name="cookTime"
-                value={formData.cookTime}
-                onChange={handleInputChange}
-                min="1"
-                max="999"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Proteína (g) *
-              </label>
-              <input
-                type="number"
-                name="nutrition.protein"
-                value={formData.nutrition.protein}
-                onChange={handleInputChange}
-                min="0"
-                max="1000"
-                step="0.1"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-          </div>
-
-          {/* Descripción */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Descripción *
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              required
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-              placeholder="Describe brevemente la receta..."
-              disabled={isSubmitting || isUploading}
-            />
-          </div>
-
-          {/* Categorías */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Categorías
-            </label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, handleAddCategory)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                placeholder="Ej: Mexicana, Keto, Vegana"
-                disabled={isSubmitting || isUploading}
-              />
-              <button
-                type="button"
-                onClick={handleAddCategory}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              >
-                Agregar
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.category.map((cat, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full"
-                >
-                  <span>{cat}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveCategory(index)}
-                    className="ml-1 text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                    disabled={isSubmitting || isUploading}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Ingredientes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ingredientes *
-            </label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newIngredient}
-                onChange={(e) => setNewIngredient(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                placeholder="Ej: 200g de pechuga de pollo"
-                disabled={isSubmitting || isUploading}
-              />
-              <button
-                type="button"
-                onClick={handleAddIngredient}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              >
-                Agregar
-              </button>
-            </div>
-            <div className="space-y-2">
-              {formData.ingredients.map((ing, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className="text-gray-600">•</span>
-                  <span className="flex-1">{ing}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveIngredient(index)}
-                    className="text-red-500 hover:text-red-700 disabled:opacity-50"
-                    disabled={isSubmitting || isUploading}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Instrucciones */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Instrucciones *
-            </label>
-            <div className="flex gap-2 mb-3">
-              <textarea
-                value={newInstruction}
-                onChange={(e) => setNewInstruction(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                placeholder="Describe un paso de la preparación..."
-                rows={2}
-                disabled={isSubmitting || isUploading}
-              />
-              <button
-                type="button"
-                onClick={handleAddInstruction}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              >
-                Agregar
-              </button>
-            </div>
-            <div className="space-y-3">
-              {formData.instructions.map((inst, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-blue-100 text-blue-800 rounded-full font-bold">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-gray-700">{inst}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveInstruction(index)}
-                    className="flex-shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50"
-                    disabled={isSubmitting || isUploading}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Información nutricional adicional */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Carbohidratos (g)
-              </label>
-              <input
-                type="number"
-                name="nutrition.carbs"
-                value={formData.nutrition.carbs}
-                onChange={handleInputChange}
-                min="0"
-                max="1000"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Grasas (g)
-              </label>
-              <input
-                type="number"
-                name="nutrition.fat"
-                value={formData.nutrition.fat}
-                onChange={handleInputChange}
-                min="0"
-                max="1000"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Calorías
-              </label>
-              <input
-                type="number"
-                name="nutrition.calories"
-                value={formData.nutrition.calories}
-                onChange={handleInputChange}
-                min="0"
-                max="10000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              />
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Etiquetas
-            </label>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, handleAddTag)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50"
-                placeholder="Ej: bajo en carbohidratos, vegano, rápido"
-                disabled={isSubmitting || isUploading}
-              />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
-                disabled={isSubmitting || isUploading}
-              >
-                Agregar
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.tags.map((tag, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full"
-                >
-                  <span>{tag}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(index)}
-                    className="ml-1 text-green-600 hover:text-green-800 disabled:opacity-50"
-                    disabled={isSubmitting || isUploading}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Botones */}
-          <div className="flex justify-end gap-3 pt-6 border-t">
+          <div className="flex justify-end gap-3 pt-6 mt-6 border-t">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
               disabled={isSubmitting || isUploading}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
               disabled={isSubmitting || isUploading}
             >
               {isSubmitting || isUploading ? (
                 <span className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   {isUploading ? 'Subiendo imagen...' : 'Guardando...'}
                 </span>
               ) : recipe ? (
