@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRecipesCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { MongoClient, ObjectId } from 'mongodb';
+import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 
 // GET: Obtener recetas
 export async function GET(request: NextRequest) {
@@ -36,11 +37,43 @@ export async function GET(request: NextRequest) {
       
       logger.info('RECIPES', `Recetas obtenidas: ${recipes.length}`);
       
-      // Convertir ObjectId a string para el frontend
-      const formattedRecipes = recipes.map(recipe => ({
-        ...recipe,
-        id: recipe._id.toString()
-      }));
+      // ✅ DESENCRIPTAR CADA RECETA (campo por campo, sin funciones wrapper)
+      const formattedRecipes = recipes.map(recipe => {
+        const decrypted: any = {
+          ...recipe,
+          id: recipe._id.toString(),
+          title: safeDecrypt(recipe.title),
+          description: safeDecrypt(recipe.description),
+          category: Array.isArray(recipe.category) 
+            ? recipe.category.map((cat: string) => safeDecrypt(cat))
+            : [],
+          ingredients: Array.isArray(recipe.ingredients)
+            ? recipe.ingredients.map((ing: string) => safeDecrypt(ing))
+            : [],
+          instructions: Array.isArray(recipe.instructions)
+            ? recipe.instructions.map((inst: string) => safeDecrypt(inst))
+            : [],
+          nutrition: recipe.nutrition,
+          cookTime: recipe.cookTime,
+          difficulty: safeDecrypt(recipe.difficulty),
+          author: recipe.author ? safeDecrypt(recipe.author) : 'NelHealthCoach',
+          isPublished: recipe.isPublished,
+          tags: Array.isArray(recipe.tags)
+            ? recipe.tags.map((tag: string) => safeDecrypt(tag))
+            : [],
+          createdAt: recipe.createdAt,
+          updatedAt: recipe.updatedAt,
+        };
+
+        // ✅ DESENCRIPTAR IMAGEN SI EXISTE
+        if (recipe.image) {
+          decrypted.image = decryptFileObject(recipe.image);
+        } else {
+          decrypted.image = null;
+        }
+
+        return decrypted;
+      });
       
       return NextResponse.json({
         success: true,
@@ -64,7 +97,6 @@ export async function POST(request: NextRequest) {
       const recipesCollection = await getRecipesCollection();
       const data = await request.json();
       
-      // Validar datos requeridos
       if (!data.title || !data.description) {
         return NextResponse.json(
           { success: false, message: 'Faltan campos requeridos' },
@@ -72,36 +104,95 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // Añadir timestamps y valores por defecto
-      const recipeData = {
-        ...data,
+      // ✅ ENCRIPTAR DIRECTAMENTE CADA CAMPO (sin funciones wrapper)
+      const encryptedRecipeData: any = {
+        title: encrypt(data.title),
+        description: encrypt(data.description),
+        category: Array.isArray(data.category)
+          ? data.category.map((cat: string) => encrypt(cat))
+          : [],
+        ingredients: Array.isArray(data.ingredients)
+          ? data.ingredients.map((ing: string) => encrypt(ing))
+          : [],
+        instructions: Array.isArray(data.instructions)
+          ? data.instructions.map((inst: string) => encrypt(inst))
+          : [],
+        nutrition: data.nutrition || { protein: 0, carbs: 0, fat: 0, calories: 0 },
+        cookTime: data.cookTime || 0,
+        difficulty: encrypt(data.difficulty || 'easy'),
+        author: data.author ? encrypt(data.author) : encrypt('NelHealthCoach'),
+        isPublished: data.isPublished !== undefined ? data.isPublished : true,
+        tags: Array.isArray(data.tags)
+          ? data.tags.map((tag: string) => encrypt(tag))
+          : [],
         createdAt: new Date(),
         updatedAt: new Date(),
-        isPublished: data.isPublished !== undefined ? data.isPublished : true,
-        // Proporcionar un objeto image vacío si no se proporciona
-        image: data.image || {
+      };
+
+      // ✅ ENCRIPTAR IMAGEN SI EXISTE
+      if (data.image && typeof data.image === 'object') {
+        encryptedRecipeData.image = encryptFileObject(data.image);
+      } else {
+        encryptedRecipeData.image = {
           url: '',
           key: '',
           name: '',
           type: '',
           size: 0,
           uploadedAt: new Date().toISOString()
-        }
-      };
+        };
+      }
       
-      const result = await recipesCollection.insertOne(recipeData);
+      const result = await recipesCollection.insertOne(encryptedRecipeData);
       
       logger.info('RECIPES', 'Receta creada exitosamente', {
         insertedId: result.insertedId.toString()
       });
       
+      const insertedRecipe = await recipesCollection.findOne({ _id: result.insertedId });
+      
+      if (!insertedRecipe) {
+        throw new Error('No se pudo recuperar la receta recién creada');
+      }
+      
+      // ✅ DESENCRIPTAR PARA RESPONSE
+      const decryptedRecipe: any = {
+        ...insertedRecipe,
+        id: insertedRecipe._id.toString(),
+        title: safeDecrypt(insertedRecipe.title),
+        description: safeDecrypt(insertedRecipe.description),
+        category: Array.isArray(insertedRecipe.category) 
+          ? insertedRecipe.category.map((cat: string) => safeDecrypt(cat))
+          : [],
+        ingredients: Array.isArray(insertedRecipe.ingredients)
+          ? insertedRecipe.ingredients.map((ing: string) => safeDecrypt(ing))
+          : [],
+        instructions: Array.isArray(insertedRecipe.instructions)
+          ? insertedRecipe.instructions.map((inst: string) => safeDecrypt(inst))
+          : [],
+        nutrition: insertedRecipe.nutrition,
+        cookTime: insertedRecipe.cookTime,
+        difficulty: safeDecrypt(insertedRecipe.difficulty),
+        author: insertedRecipe.author ? safeDecrypt(insertedRecipe.author) : 'NelHealthCoach',
+        isPublished: insertedRecipe.isPublished,
+        tags: Array.isArray(insertedRecipe.tags)
+          ? insertedRecipe.tags.map((tag: string) => safeDecrypt(tag))
+          : [],
+        createdAt: insertedRecipe.createdAt,
+        updatedAt: insertedRecipe.updatedAt,
+      };
+
+      // ✅ DESENCRIPTAR IMAGEN SI EXISTE
+      if (insertedRecipe.image) {
+        decryptedRecipe.image = decryptFileObject(insertedRecipe.image);
+      } else {
+        decryptedRecipe.image = null;
+      }
+      
       return NextResponse.json({
         success: true,
         message: 'Receta creada exitosamente',
-        data: {
-          ...recipeData,
-          id: result.insertedId.toString()
-        },
+        data: decryptedRecipe,
       }, { status: 201 });
       
     } catch (error: any) {
@@ -113,7 +204,6 @@ export async function POST(request: NextRequest) {
     }
   }, { endpoint: '/api/recipes', method: 'POST' });
 }
-
 
 // OPTIONS: Para CORS
 export async function OPTIONS(request: Request) {
