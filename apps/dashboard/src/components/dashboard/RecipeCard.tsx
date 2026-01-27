@@ -1,6 +1,4 @@
-// apps/dashboard/src/components/dashboard/RecipeCard.tsx
 import React from 'react';
-import Image from 'next/image';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 
 interface RecipeCardProps {
@@ -39,24 +37,42 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
     return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
   };
 
+  // ✅ FUNCIÓN PARA OBTENER URL DE IMAGEN SEGURA
+  const getSafeImageUrl = (url: string | undefined): string => {
+    if (!url) return '';
+    
+    // Si la URL empieza con U2FsdGVkX1, está encriptada
+    if (url.startsWith('U2FsdGVkX1')) {
+      // Devolver un placeholder ya que no podemos desencriptar en el frontend
+      // El backend debería devolverla desencriptada
+      return '';
+    }
+    
+    return url;
+  };
+
+  const safeImageUrl = getSafeImageUrl(recipe.image?.url);
+
   return (
     <div
       onClick={onClick}
       className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-green-100 hover:border-green-300 p-4 group h-full flex flex-col"
     >
-      {/* Imagen de la receta */}
-      <div className="relative mb-4 overflow-hidden rounded-lg">
-        {recipe.image?.url ? (
-          <div className="aspect-w-16 aspect-h-9">
-            <Image
-              src={recipe.image.url}
-              alt={recipe.title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          </div>
+      {/* Imagen de la receta - CORREGIDO */}
+      <div className="relative mb-4 overflow-hidden rounded-lg h-48">
+        {safeImageUrl ? (
+          <div 
+            className="w-full h-full bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+            style={{ 
+              backgroundImage: `url(${safeImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
+            role="img"
+            aria-label={recipe.title}
+          />
         ) : (
-          <div className="w-full h-48 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
+          <div className="w-full h-full bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
             <svg className="w-16 h-16 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>

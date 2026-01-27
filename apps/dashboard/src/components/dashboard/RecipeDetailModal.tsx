@@ -39,7 +39,7 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Encabezado del modal */}
-        <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-xl">
+        <div className="p-6 border-b bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <svg className="w-6 h-6 mr-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +49,7 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-blue-800 rounded-full transition"
+              className="p-2 hover:bg-green-800 rounded-full transition"
               aria-label="Cerrar"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +121,7 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               {/* Información nutricional - COLOR VERDE */}
               <div className="bg-white rounded-lg border border-green-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                  <h3 className="text-lg font-bold text-green-700 flex items-center">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
                       <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -153,7 +153,7 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                    <h4 className="font-semibold text-gray-800 mb-2">Análisis Nutricional</h4>
+                    <h4 className="font-semibold text-green-700 mb-2">Análisis Nutricional</h4>
                     <p className="text-sm text-gray-700">
                       Esta receta es una opción{' '}
                       <span className="font-semibold text-green-800">
