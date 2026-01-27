@@ -22,6 +22,7 @@ interface ApiResponse<T> {
 interface UploadResponse {
   uploadURL: string;
   fileKey: string;
+  fileURL?: string;
 }
 
 interface AIRecommendationRequest {
@@ -528,7 +529,19 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error generando URL de upload');
     }
-    return response.json();
+    
+    const result = await response.json();
+    
+    // ✅ CORRECCIÓN: Extraer data de la respuesta del servidor
+    if (result.success && result.data) {
+      return {
+        uploadURL: result.data.uploadURL,
+        fileKey: result.data.fileKey,
+        fileURL: result.data.fileURL // Puede ser undefined
+      };
+    }
+    
+    throw new Error('Respuesta del servidor inválida');
   },
 
   async confirmRecipeUpload(

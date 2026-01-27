@@ -187,18 +187,17 @@ const RecipesPage = () => {
     try {
       if (selectedRecipe?.id) {
         await apiClient.updateRecipe(selectedRecipe.id, recipeData);
-        showToast('¡Receta actualizada exitosamente!', 'success');
+        // No mostrar toast aquí, se muestra en RecipeModal
       } else {
         await apiClient.createRecipe(recipeData);
-        showToast('¡Receta creada exitosamente!', 'success');
+        // No mostrar toast aquí, se muestra en RecipeModal
       }
-      await loadRecipes();
-      setIsEditModalOpen(false);
-      setSelectedRecipe(null);
+      await loadRecipes(); // Recargar lista de recetas
     } catch (err: unknown) {
       console.error('Error saving recipe:', err);
       const errorMessage = err instanceof Error ? err.message : 'Error al guardar receta';
       showToast(errorMessage, 'error');
+      throw err; // Relanzar error para que RecipeModal lo maneje
     }
   };
 
@@ -270,10 +269,10 @@ const RecipesPage = () => {
                 </svg>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">
+                <h1 className="text-3xl font-bold text-green-700">
                   Recetas Saludables
                 </h1>
-                <p className="text-gray-700 mt-1">Gestiona tu biblioteca de recetas para clientes</p>
+                <p className="text-green-600 mt-1">Gestiona tu biblioteca de recetas para clientes</p>
               </div>
             </div>
             
@@ -414,6 +413,7 @@ const RecipesPage = () => {
               setSelectedRecipe(null);
             }}
             onSave={handleSaveRecipe}
+            onSuccess={loadRecipes} // ← Agregar esto
             existingCategories={existingCategories}
             existingTags={existingTags}
           />
