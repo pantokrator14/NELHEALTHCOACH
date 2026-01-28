@@ -315,7 +315,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ MANEJAR ENVÍO DEL FORMULARIO - COMPLETAMENTE CORREGIDO
+  // ✅ FLUJO CORREGIDO PARA MANEJAR ENVÍO DEL FORMULARIO
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -332,6 +332,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         // ✅ CASO EDICIÓN: Receta existente
         if (imageFile) {
           try {
+            // Subir nueva imagen (esto eliminará automáticamente la anterior en el backend)
             const imageData = await uploadImageToS3(imageFile, recipe.id);
             recipeData = { ...recipeData, image: imageData };
           } catch (uploadError) {
@@ -340,47 +341,39 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           }
         }
         
-        // Llamar a onSave solo una vez
         await onSave(recipeData);
       } else {
         // ✅ CASO CREACIÓN: Nueva receta
-        // 1. Crear receta con o sin imagen
-        let imageToSave: RecipeImage | undefined = undefined;
+        // 1. Crear receta primero para obtener ID
+        const createResponse = await apiClient.createRecipe(recipeData);
         
-        if (imageFile) {
-          try {
-            // Primero creamos la receta sin imagen para obtener ID
-            const createResponse = await apiClient.createRecipe(recipeData);
-            
-            if (createResponse.success && createResponse.data.id) {
-              const createdRecipeId = createResponse.data.id;
-              
-              // Subir imagen después de crear la receta
+        if (createResponse.success && createResponse.data.id) {
+          const createdRecipeId = createResponse.data.id;
+          
+          // 2. Subir imagen si existe
+          if (imageFile) {
+            try {
               const uploadedImage = await uploadImageToS3(imageFile, createdRecipeId);
               
               if (uploadedImage) {
-                imageToSave = uploadedImage;
-                // Actualizar la receta creada con la imagen
+                // 3. Actualizar la receta con la imagen
                 await apiClient.updateRecipe(createdRecipeId, { 
                   ...recipeData, 
                   image: uploadedImage 
                 });
+                recipeData = { ...recipeData, image: uploadedImage };
               }
+            } catch (imageError) {
+              console.error('Error en proceso de imagen:', imageError);
+              showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
             }
-          } catch (imageError) {
-            console.error('Error en proceso de imagen:', imageError);
-            showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
           }
+          
+          // 4. Llamar a onSave con los datos completos
+          await onSave(recipeData);
+        } else {
+          throw new Error('Error creando receta: No se pudo obtener el ID');
         }
-        
-        // 2. Preparar datos finales (con imagen si se subió)
-        const finalRecipeData = {
-          ...recipeData,
-          ...(imageToSave && { image: imageToSave })
-        };
-        
-        // 3. Llamar a onSave solo UNA VEZ con los datos completos
-        await onSave(finalRecipeData);
       }
       
       // Llamar a onSuccess si existe (para recargar lista)

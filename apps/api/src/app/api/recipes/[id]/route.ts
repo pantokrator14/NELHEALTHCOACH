@@ -86,7 +86,7 @@ export async function PUT(
       
       logger.info('RECIPES', 'Solicitud PUT /api/recipes/[id] recibida', { id });
       
-      // ✅ 1. OBTENER RECETA ACTUAL PARA TENER LA IMAGEN ANTERIOR
+      // ✅ 1. OBTENER RECETA ACTUAL
       const currentRecipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
       
       if (!currentRecipe) {
@@ -96,68 +96,103 @@ export async function PUT(
         );
       }
       
-      // ✅ 2. PREPARAR DATOS ENCRIPTADOS
-      const updateData: any = { updatedAt: new Date() };
-      
-      // Encriptar cada campo si viene en la data
-      if (data.title !== undefined) updateData.title = encrypt(data.title);
-      if (data.description !== undefined) updateData.description = encrypt(data.description);
-      if (data.category !== undefined && Array.isArray(data.category)) {
-        updateData.category = data.category.map((cat: string) => encrypt(cat));
-      }
-      if (data.ingredients !== undefined && Array.isArray(data.ingredients)) {
-        updateData.ingredients = data.ingredients.map((ing: string) => encrypt(ing));
-      }
-      if (data.instructions !== undefined && Array.isArray(data.instructions)) {
-        updateData.instructions = data.instructions.map((inst: string) => encrypt(inst));
-      }
-      if (data.nutrition !== undefined) updateData.nutrition = data.nutrition;
-      if (data.cookTime !== undefined) updateData.cookTime = data.cookTime;
-      if (data.difficulty !== undefined) updateData.difficulty = encrypt(data.difficulty);
-      if (data.author !== undefined) updateData.author = encrypt(data.author);
-      if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
-      if (data.tags !== undefined && Array.isArray(data.tags)) {
-        updateData.tags = data.tags.map((tag: string) => encrypt(tag));
-      }
-      
-      // ✅ 3. MANEJAR IMAGEN - ELIMINAR IMAGEN ANTERIOR DE S3 SI SE CAMBIA
+      // ✅ 2. MANEJAR IMAGEN - APLICANDO LÓGICA DE CLIENTES
+      // Si se envía una imagen nueva o null, eliminar la anterior
       if (data.image !== undefined) {
-        if (data.image && typeof data.image === 'object') {
-          // ✅ ENCRIPTAR LA NUEVA IMAGEN
-          updateData.image = encryptFileObject(data.image);
-          
-          // ✅ ELIMINAR IMAGEN ANTERIOR DE S3 SI EXISTE Y ES DIFERENTE
+        // ✅ CASO A: Se envía una nueva imagen (objeto con key)
+        if (data.image && typeof data.image === 'object' && data.image.key) {
+          // ✅ ELIMINAR IMAGEN ANTERIOR SI EXISTE
           if (currentRecipe.image && currentRecipe.image.key) {
             try {
               let oldFileKey = currentRecipe.image.key;
               
               // Desencriptar la key si está encriptada
               if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
-                oldFileKey = decrypt(oldFileKey);
+                try {
+                  oldFileKey = decrypt(oldFileKey);
+                  logger.debug('RECIPES', 'Key de imagen anterior desencriptada', {
+                    recipeId: id,
+                    encryptedKey: currentRecipe.image.key.substring(0, 30) + '...',
+                    decryptedKey: oldFileKey
+                  });
+                } catch (decryptError) {
+                  console.error('❌ Error desencriptando oldFileKey:', decryptError);
+                  // Si no se puede desencriptar, intentar usar el valor original
+                }
               }
               
-              const newFileKey = data.image.key; // Ya viene desencriptada del frontend
+              const newFileKey = data.image.key;
               
-              // Solo eliminar si son diferentes keys
+              // ✅ VERIFICAR QUE NO SEA LA MISMA IMAGEN
               if (oldFileKey && oldFileKey !== newFileKey) {
-                logger.info('RECIPES', 'Eliminando imagen anterior de S3 en PUT', {
+                logger.info('RECIPES', '🗑️ Eliminando imagen anterior de S3', {
                   recipeId: id,
-                  oldKey: oldFileKey?.substring(0, 30) + '...',
-                  newKey: newFileKey?.substring(0, 30) + '...'
+                  oldKey: oldFileKey,
+                  newKey: newFileKey
                 });
                 
-                await S3Service.deleteFile(oldFileKey);
+                try {
+                  await S3Service.deleteFile(oldFileKey);
+                  logger.info('RECIPES', '✅ Imagen anterior eliminada de S3', {
+                    recipeId: id,
+                    oldKey: oldFileKey
+                  });
+                } catch (s3Error) {
+                  logger.error('RECIPES', '⚠️ Error eliminando imagen anterior de S3', s3Error as Error, {
+                    recipeId: id,
+                    oldKey: oldFileKey
+                  });
+                  // No fallar la operación principal
+                }
+              } else if (oldFileKey === newFileKey) {
+                logger.debug('RECIPES', '📸 Misma imagen, no es necesario eliminar', {
+                  recipeId: id,
+                  fileKey: newFileKey
+                });
               }
-            } catch (s3Error) {
-              logger.error('RECIPES', 'Error eliminando imagen anterior de S3 en PUT', s3Error as Error, {
+            } catch (error) {
+              logger.error('RECIPES', '❌ Error en proceso de eliminación de imagen anterior', error as Error, {
                 recipeId: id
               });
               // No fallar la operación principal
             }
           }
-        } else if (data.image === null || data.image === '') {
-          // ✅ SI SE ELIMINA LA IMAGEN, BORRAR DE S3
-          updateData.image = {
+          
+          // ✅ ENCRIPTAR LA NUEVA IMAGEN
+          data.image = encryptFileObject(data.image);
+          
+        } 
+        // ✅ CASO B: Se elimina la imagen (se envía null, vacío o sin key)
+        else if (data.image === null || data.image === '' || !data.image.key) {
+          // ✅ ELIMINAR IMAGEN ANTERIOR DE S3
+          if (currentRecipe.image && currentRecipe.image.key) {
+            try {
+              let oldFileKey = currentRecipe.image.key;
+              
+              if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+                try {
+                  oldFileKey = decrypt(oldFileKey);
+                } catch (decryptError) {
+                  console.error('❌ Error desencriptando oldFileKey para eliminación:', decryptError);
+                }
+              }
+              
+              if (oldFileKey && oldFileKey.trim() !== '') {
+                await S3Service.deleteFile(oldFileKey);
+                logger.info('RECIPES', '🗑️ Imagen eliminada de S3 (se quitó en edición)', {
+                  recipeId: id,
+                  oldKey: oldFileKey
+                });
+              }
+            } catch (s3Error) {
+              logger.error('RECIPES', '⚠️ Error eliminando imagen de S3', s3Error as Error, {
+                recipeId: id
+              });
+            }
+          }
+          
+          // ✅ ESTABLECER IMAGEN VACÍA
+          data.image = {
             url: '',
             key: '',
             name: '',
@@ -165,32 +200,38 @@ export async function PUT(
             size: 0,
             uploadedAt: ''
           };
-          
-          if (currentRecipe.image && currentRecipe.image.key) {
-            try {
-              let oldFileKey = currentRecipe.image.key;
-              
-              if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
-                oldFileKey = decrypt(oldFileKey);
-              }
-              
-              if (oldFileKey) {
-                await S3Service.deleteFile(oldFileKey);
-                logger.info('RECIPES', 'Imagen eliminada de S3 porque se quitó en PUT', {
-                  recipeId: id,
-                  oldKey: oldFileKey?.substring(0, 30) + '...'
-                });
-              }
-            } catch (s3Error) {
-              logger.error('RECIPES', 'Error eliminando imagen de S3 en PUT', s3Error as Error, {
-                recipeId: id
-              });
-            }
-          }
         }
       }
+      // Si data.image es undefined (no se envía), no tocamos la imagen
       
-      // ✅ 4. ACTUALIZAR EN MONGODB
+      // ✅ 3. PREPARAR DATOS ENCRIPTADOS (excluyendo la imagen ya manejada)
+      const updateData: any = { updatedAt: new Date() };
+      
+      // Copiar todos los campos excepto 'image' que ya manejamos
+      const fieldsToEncrypt = ['title', 'description', 'category', 'ingredients', 
+                               'instructions', 'difficulty', 'author', 'tags'];
+      
+      fieldsToEncrypt.forEach(field => {
+        if (data[field] !== undefined) {
+          if (Array.isArray(data[field])) {
+            updateData[field] = data[field].map((item: string) => encrypt(item));
+          } else if (typeof data[field] === 'string') {
+            updateData[field] = encrypt(data[field]);
+          }
+        }
+      });
+      
+      // Campos que no necesitan encriptación
+      if (data.nutrition !== undefined) updateData.nutrition = data.nutrition;
+      if (data.cookTime !== undefined) updateData.cookTime = data.cookTime;
+      if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
+      
+      // ✅ 4. AGREGAR IMAGEN MANEJADA PREVIAMENTE
+      if (data.image !== undefined) {
+        updateData.image = data.image;
+      }
+      
+      // ✅ 5. ACTUALIZAR EN MONGODB
       const result = await recipesCollection.findOneAndUpdate(
         { _id: new ObjectId(id) },
         { $set: updateData },
@@ -204,7 +245,7 @@ export async function PUT(
         );
       }
       
-      // ✅ 5. DESENCRIPTAR PARA RESPONSE
+      // ✅ 6. DESENCRIPTAR PARA RESPONSE
       const decryptedRecipe: any = {
         ...result,
         id: result._id.toString(),
