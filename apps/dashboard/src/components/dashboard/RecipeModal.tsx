@@ -9,8 +9,7 @@ import { useToast } from '../ui/Toast';
 interface RecipeModalProps {
   recipe: Recipe | null;
   onClose: () => void;
-  onSave: (data: RecipeFormData) => Promise<void>;
-  onSuccess?: () => void;
+  onSuccess?: () => void; // Solo para recargar lista en RecipesPage
   existingCategories?: string[];
   existingTags?: string[];
 }
@@ -18,7 +17,6 @@ interface RecipeModalProps {
 const RecipeModal: React.FC<RecipeModalProps> = ({
   recipe,
   onClose,
-  onSave,
   onSuccess,
   existingCategories = [],
   existingTags = [],
@@ -315,7 +313,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ FLUJO CORREGIDO PARA MANEJAR ENVÍO DEL FORMULARIO
+  // ✅ MANEJAR ENVÍO DEL FORMULARIO - VERSIÓN SIMPLIFICADA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -326,13 +324,13 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     setIsSubmitting(true);
     
     try {
-      let recipeData: RecipeFormData = { ...formData };
-      
       if (recipe?.id) {
         // ✅ CASO EDICIÓN: Receta existente
+        let recipeData: RecipeFormData = { ...formData };
+        
         if (imageFile) {
           try {
-            // Subir nueva imagen (esto eliminará automáticamente la anterior en el backend)
+            // Subir nueva imagen
             const imageData = await uploadImageToS3(imageFile, recipe.id);
             recipeData = { ...recipeData, image: imageData };
           } catch (uploadError) {
@@ -341,11 +339,16 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
           }
         }
         
-        await onSave(recipeData);
+        // Actualizar receta existente
+        await apiClient.updateRecipe(recipe.id, recipeData);
+        
       } else {
         // ✅ CASO CREACIÓN: Nueva receta
-        // 1. Crear receta primero para obtener ID
-        const createResponse = await apiClient.createRecipe(recipeData);
+        // 1. Crear receta sin imagen primero (para obtener ID)
+        const createResponse = await apiClient.createRecipe({
+          ...formData,
+          image: undefined // No enviar imagen todavía
+        });
         
         if (createResponse.success && createResponse.data.id) {
           const createdRecipeId = createResponse.data.id;
@@ -358,25 +361,21 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               if (uploadedImage) {
                 // 3. Actualizar la receta con la imagen
                 await apiClient.updateRecipe(createdRecipeId, { 
-                  ...recipeData, 
+                  ...formData, 
                   image: uploadedImage 
                 });
-                recipeData = { ...recipeData, image: uploadedImage };
               }
             } catch (imageError) {
               console.error('Error en proceso de imagen:', imageError);
               showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
             }
           }
-          
-          // 4. Llamar a onSave con los datos completos
-          await onSave(recipeData);
         } else {
           throw new Error('Error creando receta: No se pudo obtener el ID');
         }
       }
       
-      // Llamar a onSuccess si existe (para recargar lista)
+      // Llamar a onSuccess para recargar lista en RecipesPage
       if (onSuccess) {
         onSuccess();
       }
