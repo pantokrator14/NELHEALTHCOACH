@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHealthFormsCollection } from '../../lib/database';
+import { getHealthFormsCollection, getRecipesCollection } from '../../lib/database';
 import { requireAuth } from '../../lib/auth';
+import { asyncWrapProviders } from 'async_hooks';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,9 +10,12 @@ export async function GET(request: NextRequest) {
     requireAuth(token);
 
     const healthForms = await getHealthFormsCollection();
-    
+    const recipes = await getRecipesCollection();
+
+    // Obtener estadísticas principales
+
     const clientCount = await healthForms.countDocuments();
-    const recipeCount = 0; // Placeholder hasta implementar recetas
+    const recipeCount = await recipes.countDocuments();
     const nearGoalPercentage = Math.min(Math.floor((clientCount / 300) * 100), 100);
 
     // Estadísticas adicionales útiles
