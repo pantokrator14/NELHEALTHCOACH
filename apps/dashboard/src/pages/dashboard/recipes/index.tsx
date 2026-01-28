@@ -183,23 +183,10 @@ const RecipesPage = () => {
     }
   };
 
-  const handleSaveRecipe = async (recipeData: RecipeFormData) => {
-    try {
-      if (selectedRecipe?.id) {
-        await apiClient.updateRecipe(selectedRecipe.id, recipeData);
-        // No mostrar toast aquí, se muestra en RecipeModal
-      } else {
-        await apiClient.createRecipe(recipeData);
-        // No mostrar toast aquí, se muestra en RecipeModal
-      }
-      await loadRecipes(); // Recargar lista de recetas
-    } catch (err: unknown) {
-      console.error('Error saving recipe:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Error al guardar receta';
-      showToast(errorMessage, 'error');
-      throw err; // Relanzar error para que RecipeModal lo maneje
-    }
+  const handleRecipesReload = async () => {
+    await loadRecipes();
   };
+
 
   const handleDeleteRecipe = async () => {
     if (!selectedRecipe) return;
@@ -412,8 +399,7 @@ const RecipesPage = () => {
               setIsEditModalOpen(false);
               setSelectedRecipe(null);
             }}
-            onSave={handleSaveRecipe}
-            onSuccess={loadRecipes} // ← Agregar esto
+            onSuccess={loadRecipes}  // ✅ Solo recarga la lista
             existingCategories={existingCategories}
             existingTags={existingTags}
           />
