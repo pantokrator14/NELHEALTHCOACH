@@ -179,6 +179,8 @@ export default function AIRecommendationsModal({
   
   // ===== ESTADOS DE DETALLES EXPANDIDOS =====
   const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
+  const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
+  const [expandedExerciseDetails, setExpandedExerciseDetails] = useState<string[]>([]);
   
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
@@ -974,6 +976,28 @@ export default function AIRecommendationsModal({
     }
   }, [expandedWeeks.length]);
 
+  /**
+   * Expande o contrae una receta
+   */
+  const toggleRecipeExpansion = useCallback((itemId: string) => {
+    setExpandedRecipes(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  }, []);
+
+  /**
+   * Expande o contrae detalles de ejercicio
+   */
+  const toggleExerciseDetailsExpansion = useCallback((itemId: string) => {
+    setExpandedExerciseDetails(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  }, []);
+
   // ===== RENDERIZADORES =====
   /**
    * Renderiza un item del checklist con checkbox
@@ -981,6 +1005,8 @@ export default function AIRecommendationsModal({
   const renderChecklistItem = useCallback((item: ChecklistItem, sessionId: string) => {
     // Determinar si el item está marcado
     const isChecked = item.completed;
+    const isRecipeExpanded = expandedRecipes.includes(item.id);
+    const isExerciseDetailsExpanded = expandedExerciseDetails.includes(item.id);
     
     const handleCheckboxClick = async (e: React.MouseEvent) => {
       e.preventDefault();
@@ -1033,16 +1059,142 @@ export default function AIRecommendationsModal({
             </span>
           )}
           
-          {/* Mostrar detalles si existen */}
+          {/* Mostrar detalles de receta si existen */}
           {item.details?.recipe && (
-            <div className="mt-1 ml-2 pl-2 border-l-2 border-green-200">
-              <p className="text-xs text-gray-500">Receta disponible</p>
+            <div className="mt-2 ml-6 pl-2 border-l-2 border-green-200">
+              <button
+                onClick={() => toggleRecipeExpansion(item.id)}
+                className="text-sm text-green-600 hover:text-green-800 flex items-center mb-1"
+              >
+                {isRecipeExpanded ? (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                    Ocultar receta
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    Ver receta completa
+                  </>
+                )}
+              </button>
+              
+              {isRecipeExpanded && (
+                <div className="mt-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="mb-3">
+                    <h5 className="font-medium text-yellow-700 mb-2 flex items-center">
+                      <span className="mr-2">📝</span>
+                      Receta:
+                    </h5>
+                    
+                    {/* Ingredientes */}
+                    {item.details.recipe.ingredients && item.details.recipe.ingredients.length > 0 && (
+                      <div className="mb-3">
+                        <h6 className="text-sm font-medium text-gray-700 mb-1">Ingredientes:</h6>
+                        <ul className="space-y-1">
+                          {item.details.recipe.ingredients.map((ingredient, idx) => (
+                            <li key={idx} className="text-sm text-gray-600">
+                              <span className="font-medium">{ingredient.name}</span>: {ingredient.quantity}
+                              {ingredient.notes && (
+                                <span className="text-gray-500 text-xs ml-2">({ingredient.notes})</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Preparación */}
+                    {item.details.recipe.preparation && (
+                      <div className="mb-3">
+                        <h6 className="text-sm font-medium text-gray-700 mb-1">Preparación:</h6>
+                        <p className="text-sm text-gray-600 whitespace-pre-line">
+                          {item.details.recipe.preparation}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Consejos */}
+                    {item.details.recipe.tips && (
+                      <div>
+                        <h6 className="text-sm font-medium text-gray-700 mb-1">💡 Consejo:</h6>
+                        <p className="text-sm text-gray-600">{item.details.recipe.tips}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Mostrar detalles de ejercicio si existen */}
+          {item.category === 'exercise' && item.details && (
+            <div className="mt-2 ml-6 pl-2 border-l-2 border-blue-200">
+              <button
+                onClick={() => toggleExerciseDetailsExpansion(item.id)}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center mb-1"
+              >
+                {isExerciseDetailsExpanded ? (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                    Ocultar detalles
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    Ver detalles del ejercicio
+                  </>
+                )}
+              </button>
+              
+              {isExerciseDetailsExpanded && item.details && (
+                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="space-y-2">
+                    {item.details.frequency && (
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="mr-2">🕒</span>
+                        <span className="font-medium">Frecuencia:</span>
+                        <span className="ml-2">{item.details.frequency}</span>
+                      </div>
+                    )}
+                    
+                    {item.details.duration && (
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="mr-2">⏱️</span>
+                        <span className="font-medium">Duración:</span>
+                        <span className="ml-2">{item.details.duration}</span>
+                      </div>
+                    )}
+                    
+                    {item.details.equipment && item.details.equipment.length > 0 && (
+                      <div className="text-sm text-gray-700">
+                        <span className="font-medium">Equipo necesario:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.details.equipment.map((equipment, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-white rounded text-xs border border-blue-200">
+                              {equipment}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
     );
-  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, handleStartEdit]);
+  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, handleStartEdit, expandedRecipes, expandedExerciseDetails, toggleRecipeExpansion, toggleExerciseDetailsExpansion]);
 
   /**
    * Renderiza una semana completa con sus secciones
@@ -1113,19 +1265,50 @@ export default function AIRecommendationsModal({
               
               {expandedShoppingLists.includes(weekId) && week.nutrition.shoppingList?.length > 0 && (
                 <div className="mt-4 ml-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <h5 className="font-medium text-blue-700 mb-3">🛒 Lista de Compras Semana {week.weekNumber}:</h5>
-                  <div className="grid grid-cols-2 gap-2">
-                    {week.nutrition.shoppingList.map((shopItem: ShoppingListItem, idx: number) => (
-                      <div key={idx} className={`p-2 rounded ${shopItem.priority === 'high' ? 'bg-red-50 border border-red-100' : shopItem.priority === 'medium' ? 'bg-yellow-50 border border-yellow-100' : 'bg-gray-50 border border-gray-100'}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700">{shopItem.item}</span>
-                          <span className={`text-xs px-2 py-1 rounded ${shopItem.priority === 'high' ? 'bg-red-100 text-red-800' : shopItem.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'}`}>
-                            {shopItem.priority === 'high' ? 'Alta' : shopItem.priority === 'medium' ? 'Media' : 'Baja'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">{shopItem.quantity}</p>
-                      </div>
-                    ))}
+                  <h5 className="font-medium text-blue-700 mb-3 flex items-center">
+                    <span className="mr-2">🛒</span>
+                    Lista de Compras - Semana {week.weekNumber}
+                  </h5>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-blue-100">
+                          <th className="py-2 px-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider border-b border-blue-200">
+                            Producto
+                          </th>
+                          <th className="py-2 px-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider border-b border-blue-200">
+                            Cantidad
+                          </th>
+                          <th className="py-2 px-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider border-b border-blue-200">
+                            Prioridad
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {week.nutrition.shoppingList.map((shopItem: ShoppingListItem, idx: number) => (
+                          <tr key={idx} className="hover:bg-blue-50 transition-colors">
+                            <td className="py-2 px-3 border-b border-blue-100 text-sm text-gray-700">
+                              {shopItem.item}
+                            </td>
+                            <td className="py-2 px-3 border-b border-blue-100 text-sm text-gray-700">
+                              {shopItem.quantity}
+                            </td>
+                            <td className="py-2 px-3 border-b border-blue-100">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                shopItem.priority === 'high' 
+                                  ? 'bg-red-100 text-red-800' 
+                                  : shopItem.priority === 'medium' 
+                                  ? 'bg-yellow-100 text-yellow-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {shopItem.priority === 'high' ? 'Alta' : 
+                                shopItem.priority === 'medium' ? 'Media' : 'Baja'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -1190,39 +1373,57 @@ export default function AIRecommendationsModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl my-8 flex flex-col border border-green-200 max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-green-200 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <svg className="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-              <div>
-                <h2 className="text-2xl font-bold">Recomendaciones de IA</h2>
-                <p className="text-green-100">Cliente: {clientName}</p>
+        <div className="p-4 md:p-6 border-b border-green-200 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
+          <div className="flex justify-between items-start mb-4">
+            {/* Contenido principal (título, cliente, progreso) */}
+            <div className="flex-1 pr-4">
+              <div className="flex items-center mb-2">
+                <svg className="w-6 h-6 md:w-8 md:h-8 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <div className="flex-1">
+                  <h2 className="text-xl md:text-2xl font-bold">Recomendaciones de IA</h2>
+                  <p className="text-green-100 text-sm md:text-base mt-1">Cliente: {clientName}</p>
+                </div>
+              </div>
+              
+              {/* Progreso - en móvil debajo del título, en desktop a la derecha */}
+              <div className="md:hidden mt-3">
+                <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1 bg-green-800 bg-opacity-30 rounded-full h-3">
+                    <div 
+                      className="bg-white h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${cumulativeProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-white font-bold text-base min-w-[40px]">{cumulativeProgress}%</p>
+                </div>
               </div>
             </div>
             
-            <div className="flex items-center">
-              <div className="mr-6 text-right">
-                <p className="text-green-100 text-sm">Progreso Acumulado</p>
-                <div className="w-48 bg-green-800 bg-opacity-30 rounded-full h-4 mt-1">
-                  <div 
-                    className="bg-white h-4 rounded-full transition-all duration-500"
-                    style={{ width: `${cumulativeProgress}%` }}
-                  ></div>
-                </div>
-                <p className="text-white font-bold text-lg mt-1">{cumulativeProgress}%</p>
+            {/* Progreso en desktop (a la derecha) */}
+            <div className="hidden md:flex flex-col items-end min-w-[200px] ml-4">
+              <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
+              <div className="w-48 bg-green-800 bg-opacity-30 rounded-full h-4 mt-1">
+                <div 
+                  className="bg-white h-4 rounded-full transition-all duration-500"
+                  style={{ width: `${cumulativeProgress}%` }}
+                ></div>
               </div>
-              
-              <button
-                onClick={onClose}
-                className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <p className="text-white font-bold text-lg mt-1">{cumulativeProgress}%</p>
             </div>
+            
+            {/* Botón cerrar - SIEMPRE EN ESQUINA SUPERIOR DERECHA */}
+            <button
+              onClick={onClose}
+              className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0"
+              aria-label="Cerrar"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -1535,36 +1736,38 @@ export default function AIRecommendationsModal({
         </div>
 
         {/* Footer con botones de acción */}
-        <div className="p-6 border-t border-green-200 bg-white rounded-b-xl">
-          <div className="flex justify-between items-center">
+        <div className="p-4 md:p-6 border-t border-green-200 bg-white rounded-b-xl">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
             {/* Estado actual */}
-            <div>
+            <div className="w-full md:w-auto">
               {activeSession ? (
-                <>
-                  <span className="text-sm text-gray-500">Estado: </span>
-                  <span className={`font-medium px-3 py-1 rounded-full text-sm ${
-                    activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                    activeSession.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {activeSession.status === 'draft' ? 'Borrador' :
-                     activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
-                  </span>
-                  <span className="ml-4 text-sm text-gray-500">
+                <div className="flex flex-col space-y-2 md:space-y-0 md:flex-row md:items-center">
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-500">Estado: </span>
+                    <span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${
+                      activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                      activeSession.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {activeSession.status === 'draft' ? 'Borrador' :
+                      activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
+                    </span>
+                  </div>
+                  <span className="text-sm text-gray-500 md:ml-4">
                     Mes {activeSession.monthNumber} • {new Date(activeSession.createdAt).toLocaleDateString()}
                   </span>
-                </>
+                </div>
               ) : (
                 <span className="text-sm text-gray-500">Sin sesiones activas</span>
               )}
             </div>
             
             {/* Botones de acción */}
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-2 justify-end w-full md:w-auto">
               {!showNewEvaluationForm && (
                 <button
                   onClick={() => setShowNewEvaluationForm(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
                 >
                   Nueva Evaluación
                 </button>
@@ -1575,27 +1778,27 @@ export default function AIRecommendationsModal({
                   <button
                     onClick={handleRegenerate}
                     disabled={loading || activeSession.status !== 'draft'}
-                    className="flex items-center gap-2 px-3 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1 px-2 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base flex-1 md:flex-none"
                     title={activeSession.status !== 'draft' ? 'Solo se pueden regenerar recomendaciones en estado "Borrador"' : ''}
                   >
                     {loading ? (
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <svg className="h-3 w-3 md:h-4 md:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <circle cx="12" cy="12" r="10" strokeWidth="4" stroke="currentColor" strokeOpacity="0.25"></circle>
                         <path d="M22 12a10 10 0 00-10-10" strokeWidth="4" stroke="currentColor" strokeLinecap="round"></path>
                       </svg>
                     ) : (
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <svg className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 12a8 8 0 10-8 8" />
                         <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 4v6h-6" />
                       </svg>
                     )}
-                    Regenerar
+                    <span className="md:ml-1">Regenerar</span>
                   </button>
                   
                   {activeSession.status === 'draft' && (
                     <button
                       onClick={() => handleApproveSession(activeSession.sessionId)}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
                     >
                       Aprobar
                     </button>
@@ -1604,16 +1807,16 @@ export default function AIRecommendationsModal({
                   {activeSession.status === 'approved' && (
                     <button
                       onClick={() => handleSendToClient(activeSession.sessionId)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
                     >
                       Enviar al Cliente
                     </button>
                   )}
 
                   {activeSession.status === 'sent' && (
-                    <span className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">
+                    <div className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base flex-1 md:flex-none text-center">
                       ✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}
-                    </span>
+                    </div>
                   )}
                 </>
               )}
