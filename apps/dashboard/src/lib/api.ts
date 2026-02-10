@@ -1,5 +1,6 @@
 import { ChecklistItem } from '../../../../packages/types/src/healthForm';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../packages/types/src/recipe-types';
+import { NutritionAnalysisResult } from '../../../../packages/types/src/nutrition-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -658,5 +659,37 @@ export const apiClient = {
       throw new Error(errorData.message || 'Error inicializando base de datos');
     }
     return response.json();
-  }
+  }, 
+
+  // Agregar al objeto apiClient
+  analyzeRecipeNutrition: async (
+    ingredients: string[], 
+    servings: number = 1
+  ): Promise<{ 
+    success: boolean; 
+    data: NutritionAnalysisResult; 
+    source: 'ai' | 'local' | 'manual';
+    warning?: string;
+    timestamp: string;
+  }> => {
+    const response = await fetch('/api/recipes/analyze-nutrition', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ 
+        ingredients, 
+        servings,
+        timestamp: new Date().toISOString()
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error analizando nutrición');
+    }
+    
+    return response.json();
+  },
 };

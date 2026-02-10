@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, ChangeEvent } from 'react';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../../packages/types/src/recipe-types';
+import { NutritionAnalysisResult } from '@nelhealthcoach/types/src/nutrition-types';
 import AutocompleteInput from '../ui/AutocompleteInput';
 import DragDropList from '../ui/DragDropList';
 import { NutritionTooltip } from '../ui/Tooltip';
@@ -12,6 +13,41 @@ interface RecipeModalProps {
   onSuccess?: () => void; // Solo para recargar lista en RecipesPage
   existingCategories?: string[];
   existingTags?: string[];
+}
+
+interface NutritionDetails {
+  total: {
+    protein: number;
+    carbs: number;
+    fat: number;
+    calories: number;
+  };
+  perServing: {
+    protein: number;
+    carbs: number;
+    fat: number;
+    calories: number;
+  };
+  ingredients: Array<{
+    ingredient: string;
+    quantity: number;
+    unit: string;
+    contribution: {
+      protein: number;
+      carbs: number;
+      fat: number;
+      calories: number;
+      percentage: number;
+    };
+  }>;
+  servings: number;
+  ketoRatio?: {
+    fatPercentage: number;
+    proteinPercentage: number;
+    carbPercentage: number;
+    isKetoFriendly: boolean;
+  };
+  source?: 'ai' | 'local' | 'manual';
 }
 
 const RecipeModal: React.FC<RecipeModalProps> = ({
@@ -36,6 +72,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     cookTime: 30,
     difficulty: 'medium',
     tags: [],
+    servings: 1,
   });
   
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -53,6 +90,10 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   // Estados para manejar sugerencias dinámicas
   const [availableCategories, setAvailableCategories] = useState<string[]>(existingCategories);
   const [availableTags, setAvailableTags] = useState<string[]>(existingTags);
+
+  const [isCalculatingNutrition, setIsCalculatingNutrition] = useState(false);
+  const [nutritionSource, setNutritionSource] = useState<'manual' | 'ai' | 'local'>('manual');
+  const [nutritionDetails, setNutritionDetails] = useState<NutritionDetails | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast, ToastComponent } = useToast();
@@ -87,6 +128,63 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setAvailableTags(existingTags);
     }
   }, [recipe, existingCategories, existingTags]);
+
+  // Cerrar modal con tecla Esc (si no está enviando o subiendo)
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmitting && !isUploading) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [onClose, isSubmitting, isUploading]);
+
+  // Función para calcular nutrición automáticamente
+  const calculateNutritionAutomatically = async () => {
+    if (formData.ingredients.length === 0) {
+      showToast('Agrega ingredientes primero para calcular nutrición', 'warning');
+      return;
+    }
+    
+    setIsCalculatingNutrition(true);
+    try {
+      const response = await apiClient.analyzeRecipeNutrition(
+        formData.ingredients,
+        formData.servings || 1
+      );
+      
+      if (response.success && response.data) {
+        // Actualizar datos de nutrición
+        setFormData(prev => ({
+          ...prev,
+          nutrition: response.data.perServing,
+        }));
+        
+        // Guardar detalles para mostrar
+        setNutritionDetails({
+          ...response.data,
+          source: response.source
+        });
+        
+        setNutritionSource(response.source || 'ai');
+        
+        showToast(
+          `Nutrición calculada automáticamente (${response.source === 'ai' ? 'IA' : 'local'})`, 
+          'success'
+        );
+      }
+    } catch (error) {
+      console.error('Error calculando nutrición:', error);
+      showToast('Error calculando nutrición. Usa valores manuales.', 'error');
+    } finally {
+      setIsCalculatingNutrition(false);
+    }
+  };
 
   // Función para agregar nueva categoría (y actualizar lista)
   const handleAddCategory = (category: string) => {
@@ -479,8 +577,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     }));
   };
 
-  // Manejar tecla Enter en inputs
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, callback: () => void) => {
+  // Manejar tecla Enter en inputs y textareas
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, callback: () => void) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       callback();
@@ -495,48 +593,48 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl my-8 max-h-[95vh] flex flex-col">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl my-4 sm:my-8 max-h-[95vh] flex flex-col mx-2 sm:mx-4">
           {/* Header */}
-          <div className="flex justify-between items-center p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-xl">
-            <h2 className="text-2xl font-bold">
+          <div className="flex justify-between items-center p-4 sm:p-6 border-b bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl">
+            <h2 className="text-xl sm:text-2xl font-bold">
               {recipe ? 'Editar Receta' : 'Nueva Receta'}
             </h2>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 hover:bg-blue-800 rounded-full transition"
+              className="p-1.5 sm:p-2 hover:bg-blue-800 rounded-full transition"
               aria-label="Cerrar"
               disabled={isSubmitting || isUploading}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {/* Formulario */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
             {/* Mensaje de error general */}
             {errors.form && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-red-700">{errors.form}</span>
+                  <span className="text-sm sm:text-base text-red-700">{errors.form}</span>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
               {/* Columna izquierda */}
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Información básica */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Información Básica</h3>
+                <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">Información Básica</h3>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Título <span className="text-red-500">*</span>
@@ -547,7 +645,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         value={formData.title}
                         onChange={handleInputChange}
                         required
-                        className={`w-full px-4 py-3 border text-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                        className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border text-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
                           errors.title ? 'border-red-300' : 'border-gray-300'
                         }`}
                         placeholder="Nombre de la receta"
@@ -568,7 +666,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         onChange={handleInputChange}
                         required
                         rows={3}
-                        className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                        className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
                           errors.description ? 'border-red-300' : 'border-gray-300'
                         }`}
                         placeholder="Describe brevemente la receta..."
@@ -579,7 +677,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Tiempo (min) <span className="text-red-500">*</span>
@@ -592,7 +690,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                           min="1"
                           max="999"
                           required
-                          className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
+                          className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
                             errors.cookTime ? 'border-red-300' : 'border-gray-300'
                           }`}
                           disabled={isSubmitting || isUploading}
@@ -610,7 +708,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                           name="difficulty"
                           value={formData.difficulty}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 border text-gray-700 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border text-gray-700 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                           disabled={isSubmitting || isUploading}
                           required
                         >
@@ -624,17 +722,42 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 </div>
 
                 {/* Información nutricional */}
-                <div className="bg-white rounded-lg border border-green-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                    </div>
-                    Información Nutricional
-                  </h3>
+                <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+                  <div className="flex items-center justify-between mb-4 gap-3">
+                    <h3 className="text-base sm:text-lg font-semibold text-green-700 flex items-center">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      Información Nutricional
+                    </h3>
+                    
+                    <button
+                      type="button"
+                      onClick={calculateNutritionAutomatically}
+                      disabled={isCalculatingNutrition || formData.ingredients.length === 0 || isSubmitting || isUploading}
+                      className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition disabled:opacity-50 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      {isCalculatingNutrition ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
+                          Calculando...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {/* Ícono de calculadora mejorado */}
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          <span className="hidden xs:inline">Calcular</span>
+                          <span className="xs:hidden">Calcular con IA</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                         Proteína (g) <NutritionTooltip term="protein" />
@@ -647,7 +770,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         min="0"
                         max="1000"
                         step="0.1"
-                        className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
                         disabled={isSubmitting || isUploading}
                       />
                     </div>
@@ -664,7 +787,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         min="0"
                         max="1000"
                         step="0.1"
-                        className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
                         disabled={isSubmitting || isUploading}
                       />
                     </div>
@@ -681,7 +804,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         min="0"
                         max="1000"
                         step="0.1"
-                        className="w-full px-4 py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
                         disabled={isSubmitting || isUploading}
                       />
                     </div>
@@ -697,7 +820,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         onChange={handleInputChange}
                         min="0"
                         max="10000"
-                        className={`w-full px-4 py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 ${
+                        className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 ${
                           errors.calories ? 'border-red-300' : 'border-green-300'
                         }`}
                         disabled={isSubmitting || isUploading}
@@ -707,17 +830,43 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {nutritionSource !== 'manual' && nutritionDetails && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm font-medium text-blue-800">
+                            Calculado automáticamente (puedes editar manualmente)
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {nutritionDetails.ketoRatio && (
+                        <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                          <span className="text-xs text-gray-600">
+                            Porcentajes:
+                            Grasas: {nutritionDetails.ketoRatio.fatPercentage}% • 
+                            Proteínas: {nutritionDetails.ketoRatio.proteinPercentage}% • 
+                            Carbos: {nutritionDetails.ketoRatio.carbPercentage}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Imagen */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Imagen de la Receta</h3>
+                <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">Imagen de la Receta</h3>
                   
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition bg-gray-50">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-blue-500 transition bg-gray-50">
                     {imagePreview ? (
                       <div className="relative">
                         <div 
-                          className="w-full h-48 bg-cover bg-center rounded-lg border border-gray-200 mb-4"
+                          className="w-full h-32 sm:h-48 bg-cover bg-center rounded-lg border border-gray-200 mb-4"
                           style={{ backgroundImage: `url(${imagePreview})` }}
                         />
                         <button
@@ -729,25 +878,25 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                               fileInputRef.current.value = '';
                             }
                           }}
-                          className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 shadow-sm"
+                          className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-red-500 text-white p-1 sm:p-1.5 rounded-full hover:bg-red-600 shadow-sm"
                           disabled={isUploading}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       </div>
                     ) : (
-                      <div className="py-8">
-                        <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                          <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="py-4 sm:py-8">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </div>
-                        <p className="text-gray-700 font-medium mb-2">
+                        <p className="text-gray-700 font-medium mb-2 text-sm sm:text-base">
                           Haz clic para subir una imagen
                         </p>
-                        <p className="text-sm text-gray-500 mb-4">
+                        <p className="text-xs sm:text-sm text-gray-500 mb-4">
                           PNG, JPG, GIF, WebP hasta 10MB
                         </p>
                       </div>
@@ -764,7 +913,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     />
                     <label
                       htmlFor="image-upload"
-                      className="inline-block px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
                     >
                       {imagePreview ? 'Cambiar Imagen' : 'Seleccionar Imagen'}
                     </label>
@@ -788,25 +937,25 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               </div>
 
               {/* Columna derecha */}
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Categorías con autocompletado */}
-                <div className="bg-white rounded-lg border border-indigo-200 p-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-lg font-semibold text-gray-900 flex items-center">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
-                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg border border-indigo-200 p-4 sm:p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                    <label className="block text-base sm:text-lg font-semibold text-indigo-700 flex items-center">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
                       </div>
                       Categorías <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
                       {formData.category.length} categorías
                     </span>
                   </div>
                   
                   {errors.category && (
-                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.category}</p>
+                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.category}</p>
                   )}
                   
                   <div className="mb-4">
@@ -830,7 +979,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     {formData.category.map((cat, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200"
+                        className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-100 text-indigo-800 rounded-full border border-indigo-200 text-sm"
                       >
                         <span>{cat}</span>
                         <button
@@ -839,7 +988,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                           className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
                           disabled={isSubmitting || isUploading}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
@@ -849,39 +998,39 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                 </div>
 
                 {/* Ingredientes con drag & drop */}
-                <div className="bg-white rounded-lg border border-orange-200 p-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-lg font-semibold text-gray-900 flex items-center">
-                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                        <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg border border-orange-200 p-4 sm:p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                    <label className="block text-base sm:text-lg font-semibold text-orange-700 flex items-center">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
                       </div>
                       Ingredientes <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
                       {formData.ingredients.length} ingredientes
                     </span>
                   </div>
-                  
+                  1080
                   {errors.ingredients && (
-                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.ingredients}</p>
+                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.ingredients}</p>
                   )}
                   
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <input
                       type="text"
                       value={newIngredient}
                       onChange={(e) => setNewIngredient(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
-                      className="flex-1 px-4 py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white"
+                      className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
                       placeholder="Ej: 200g de pechuga de pollo"
                       disabled={isSubmitting || isUploading}
                     />
                     <button
                       type="button"
                       onClick={handleAddIngredient}
-                      className="px-5 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm"
+                      className="px-4 py-2.5 sm:px-5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
                       Agregar
@@ -890,7 +1039,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   
                   {formData.ingredients.length > 0 && (
                     <div className="mb-2 text-xs text-gray-500 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
                       Arrastra para reordenar los ingredientes
@@ -900,18 +1049,18 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   <DragDropList
                     items={formData.ingredients}
                     renderItem={(ingredient, index) => (
-                      <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <div className="w-6 h-6 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-sm font-bold">
+                      <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold">
                           {index + 1}
                         </div>
-                        <span className="flex-1 text-gray-700">{ingredient}</span>
+                        <span className="flex-1 text-gray-700 text-sm sm:text-base">{ingredient}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveIngredient(index)}
                           className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                           disabled={isSubmitting || isUploading}
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
@@ -919,35 +1068,36 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     )}
                     onReorder={handleReorderIngredients}
                     disabled={isSubmitting || isUploading}
-                    className="max-h-64 overflow-y-auto"
+                    className="max-h-48 sm:max-h-64 overflow-y-auto"
                   />
                 </div>
 
                 {/* Instrucciones con drag & drop */}
-                <div className="bg-white rounded-lg border border-purple-200 p-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-lg font-semibold text-gray-900 flex items-center">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg border border-purple-200 p-4 sm:p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                    <label className="block text-base sm:text-lg font-semibold text-purple-700 flex items-center">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                       </div>
                       Instrucciones <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
                       {formData.instructions.length} pasos
                     </span>
                   </div>
                   
                   {errors.instructions && (
-                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{errors.instructions}</p>
+                    <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.instructions}</p>
                   )}
                   
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <textarea
                       value={newInstruction}
                       onChange={(e) => setNewInstruction(e.target.value)}
-                      className="flex-1 px-4 py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white"
+                      onKeyDown={(e) => handleKeyDown(e, handleAddInstruction)}
+                      className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
                       placeholder="Describe un paso de la preparación..."
                       rows={2}
                       disabled={isSubmitting || isUploading}
@@ -955,7 +1105,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     <button
                       type="button"
                       onClick={handleAddInstruction}
-                      className="px-5 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm"
+                      className="px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
                       Agregar
@@ -964,7 +1114,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   
                   {formData.instructions.length > 0 && (
                     <div className="mb-2 text-xs text-gray-500 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
                       Arrastra para reordenar los pasos
@@ -974,14 +1124,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   <DragDropList
                     items={formData.instructions}
                     renderItem={(instruction, index) => (
-                      <div className="flex gap-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="flex gap-2 sm:gap-4 p-3 sm:p-4 bg-purple-50 rounded-lg border border-purple-200">
                         <div className="flex-shrink-0">
-                          <div className="w-8 h-8 flex items-center justify-center bg-purple-100 text-purple-800 rounded-full font-bold border-2 border-purple-300">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-purple-100 text-purple-800 rounded-full font-bold border-2 border-purple-300 text-xs sm:text-base">
                             {index + 1}
                           </div>
                         </div>
                         <div className="flex-1">
-                          <p className="text-gray-700">{instruction}</p>
+                          <p className="text-gray-700 text-sm sm:text-base">{instruction}</p>
                         </div>
                         <button
                           type="button"
@@ -989,7 +1139,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                           className="flex-shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                           disabled={isSubmitting || isUploading}
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
@@ -997,15 +1147,15 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     )}
                     onReorder={handleReorderInstructions}
                     disabled={isSubmitting || isUploading}
-                    className="max-h-64 overflow-y-auto"
+                    className="max-h-48 sm:max-h-64 overflow-y-auto"
                   />
                 </div>
 
                 {/* Tags con autocompletado */}
-                <div className="bg-white rounded-lg border border-pink-200 p-6 shadow-sm">
-                  <label className="block text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg border border-pink-200 p-4 sm:p-6 shadow-sm">
+                  <label className="block text-base sm:text-lg font-semibold text-pink-700 mb-3 sm:mb-4 flex items-center">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-pink-100 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
                     </div>
@@ -1033,7 +1183,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     {formData.tags.map((tag, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 px-4 py-2 bg-pink-100 text-pink-800 rounded-full border border-pink-200"
+                        className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-pink-100 text-pink-800 rounded-full border border-pink-200 text-sm"
                       >
                         <span>#{tag}</span>
                         <button
@@ -1042,7 +1192,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                           className="text-pink-600 hover:text-pink-800 disabled:opacity-50"
                           disabled={isSubmitting || isUploading}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
@@ -1054,23 +1204,23 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
             </div>
 
             {/* Botones */}
-            <div className="flex justify-end gap-3 pt-6 mt-6 border-t">
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 mt-6 border-t">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+                className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm text-sm sm:text-base"
                 disabled={isSubmitting || isUploading}
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+                className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm text-sm sm:text-base"
                 disabled={isSubmitting || isUploading}
               >
                 {isSubmitting || isUploading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
                     {isUploading ? 'Subiendo imagen...' : 'Guardando...'}
                   </span>
                 ) : recipe ? (

@@ -155,3 +155,8 @@ export async function getRecipesCollection() {
     return db.collection('recipes');
   });
 }
+
+export async function getNutritionCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('nutrition_data');
+}

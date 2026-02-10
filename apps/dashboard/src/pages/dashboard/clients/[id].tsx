@@ -909,24 +909,34 @@ export default function ClientProfile() {
             </div>
             {/* Tarjeta de Documentos Médicos */}
             <div className="bg-indigo-50 rounded-xl shadow-md border border-indigo-100 p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold text-indigo-700">
-                    Documentos Médicos
-                  </h2>
-                  <span className="ml-3 bg-indigo-100 text-indigo-800 text-sm px-2 py-1 rounded-full">
-                    {client.medicalData.documents?.length || 0} archivos
-                  </span>
+                  <div>
+                    <div className="flex items-center flex-wrap gap-2">
+                      <h2 className="text-xl sm:text-2xl font-bold text-indigo-700">
+                        Documentos Médicos
+                      </h2>
+                      <div className="flex items-center">
+                        <span className="bg-indigo-100 text-indigo-800 text-xs sm:text-sm px-3 py-1 rounded-full font-medium">
+                          {client.medicalData.documents?.length || 0} {client.medicalData.documents?.length === 1 ? 'archivo' : 'archivos'}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 text-sm mt-1">
+                      Documentos clínicos, análisis y estudios médicos
+                    </p>
+                  </div>
                 </div>
-                {/* Botón para agregar documentos */}
+                
+                {/* Botón para agregar documentos - MEJORADO */}
                 <button
                   onClick={() => setIsDocumentsModalOpen(true)}
-                  className="bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-200 flex items-center"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center w-full sm:w-auto shadow-sm"
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -938,11 +948,11 @@ export default function ClientProfile() {
               {client.medicalData.documents && client.medicalData.documents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {client.medicalData.documents.map((doc, index) => (
-                    <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow relative">
+                    <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow relative group">
                       {/* Botón de eliminar documento */}
                       <button
                         onClick={() => handleDeleteDocument(doc)}
-                        className="absolute -top-2 -right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition duration-200"
+                        className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
                         title="Eliminar documento"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -950,24 +960,30 @@ export default function ClientProfile() {
                         </svg>
                       </button>
                       
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center">
+                      <div className="flex items-start mb-3">
+                        <div className="mr-3 flex-shrink-0">
                           {doc.type.includes('image') ? (
-                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+                            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
                           ) : (
-                            <svg className="w-8 h-8 text-indigo-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
                           )}
-                          <div>
-                            <h3 className="font-semibold text-gray-800 text-sm truncate max-w-[200px]">
-                              {doc.name}
-                            </h3>
-                            <p className="text-xs text-gray-600">
-                              {Math.round(doc.size / 1024)} KB • {doc.type}
-                            </p>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-gray-800 text-sm truncate mb-1">
+                            {doc.name}
+                          </h3>
+                          <div className="flex items-center text-xs text-gray-500 space-x-2">
+                            <span>{Math.round(doc.size / 1024)} KB</span>
+                            <span>•</span>
+                            <span className="truncate">{doc.type.split('/').pop()?.toUpperCase() || doc.type}</span>
                           </div>
                         </div>
                       </div>
@@ -977,7 +993,7 @@ export default function ClientProfile() {
                             setSelectedDocument(doc);
                             setIsDocumentModalOpen(true);
                           }}
-                          className="flex-1 bg-indigo-600 text-white text-center py-2 px-3 rounded-lg hover:bg-indigo-700 transition duration-200 text-sm font-medium"
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-3 rounded-lg transition duration-200 text-sm font-medium"
                         >
                           Ver Documento
                         </button>
@@ -991,10 +1007,16 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="text-indigo-500 font-medium mb-2">No hay documentos cargados</p>
+                  <p className="text-gray-600 text-sm mb-4 max-w-md mx-auto">
+                    Puedes subir análisis clínicos, recetas, estudios médicos y otros documentos importantes.
+                  </p>
                   <button
                     onClick={() => setIsDocumentsModalOpen(true)}
-                    className="text-indigo-600 hover:text-indigo-800 font-medium"
+                    className="text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center"
                   >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
                     Agregar el primer documento
                   </button>
                 </div>
