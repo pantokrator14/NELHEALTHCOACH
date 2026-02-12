@@ -90,6 +90,7 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       src={recipe.image.url}
                       alt={recipe.title}
                       fill
+                      unoptimized={true}
                       className="object-cover"
                       sizes="(max-width: 1024px) 100vw, 50vw"
                     />

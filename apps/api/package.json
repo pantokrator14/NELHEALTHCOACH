@@ -6,8 +6,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "dev:auto": "PORT=${PORT:-3001} next dev",
-    "start:auto": "PORT=${PORT:-3001} next start",
-    "seed:nutrition": "tsx ./scripts/seedNutritionData.ts"
+    "start:auto": "PORT=${PORT:-3001} next start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.927.0",
