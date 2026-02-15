@@ -603,7 +603,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 sm:p-2 hover:bg-blue-800 rounded-full transition"
+              className="p-1.5 sm:p-2 hover:bg-green-800 rounded-full transition"
               aria-label="Cerrar"
               disabled={isSubmitting || isUploading}
             >
@@ -1012,7 +1012,6 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       {formData.ingredients.length} ingredientes
                     </span>
                   </div>
-                  1080
                   {errors.ingredients && (
                     <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.ingredients}</p>
                   )}
@@ -1023,14 +1022,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       value={newIngredient}
                       onChange={(e) => setNewIngredient(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
-                      className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
+                      className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
                       placeholder="Ej: 200g de pechuga de pollo"
                       disabled={isSubmitting || isUploading}
                     />
                     <button
                       type="button"
                       onClick={handleAddIngredient}
-                      className="px-4 py-2.5 sm:px-5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
                       Agregar
@@ -1097,7 +1096,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       value={newInstruction}
                       onChange={(e) => setNewInstruction(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddInstruction)}
-                      className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
+                      className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
                       placeholder="Describe un paso de la preparación..."
                       rows={2}
                       disabled={isSubmitting || isUploading}
@@ -1105,7 +1104,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                     <button
                       type="button"
                       onClick={handleAddInstruction}
-                      className="px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
                       Agregar
@@ -1215,7 +1214,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm text-sm sm:text-base"
+                className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm text-sm sm:text-base"
                 disabled={isSubmitting || isUploading}
               >
                 {isSubmitting || isUploading ? (
