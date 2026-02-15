@@ -181,6 +181,7 @@ export default function AIRecommendationsModal({
   const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
   const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
   const [expandedExerciseDetails, setExpandedExerciseDetails] = useState<string[]>([]);
+  const [footerExpanded, setFooterExpanded] = useState(false);
   
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
@@ -1133,53 +1134,54 @@ export default function AIRecommendationsModal({
           
           {/* Mostrar detalles de ejercicio si existen */}
           {item.category === 'exercise' && item.details && (
-            <div className="mt-2 ml-6 pl-2 border-l-2 border-blue-200">
+            <div className="mt-2 ml-4 md:ml-6 pl-3 border-l-2 border-blue-200">
               <button
                 onClick={() => toggleExerciseDetailsExpansion(item.id)}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center mb-1"
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center mb-2 font-medium"
               >
-                {isExerciseDetailsExpanded ? (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                    Ocultar detalles
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                    Ver detalles del ejercicio
-                  </>
-                )}
+                <svg 
+                  className={`w-4 h-4 mr-1 transition-transform ${isExerciseDetailsExpanded ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {isExerciseDetailsExpanded ? 'Ocultar detalles' : 'Ver detalles del ejercicio'}
               </button>
               
               {isExerciseDetailsExpanded && item.details && (
-                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="space-y-2">
+                <div className="mt-2 p-4 bg-blue-50 rounded-xl border border-blue-200 shadow-sm">
+                  <div className="space-y-3">
                     {item.details.frequency && (
-                      <div className="flex items-center text-sm text-gray-700">
-                        <span className="mr-2">🕒</span>
-                        <span className="font-medium">Frecuencia:</span>
-                        <span className="ml-2">{item.details.frequency}</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
+                        <span className="flex items-center font-medium text-blue-700 w-28">
+                          <span className="mr-2 text-base">🕒</span> Frecuencia:
+                        </span>
+                        <span className="sm:ml-2 mt-1 sm:mt-0">{item.details.frequency}</span>
                       </div>
                     )}
                     
                     {item.details.duration && (
-                      <div className="flex items-center text-sm text-gray-700">
-                        <span className="mr-2">⏱️</span>
-                        <span className="font-medium">Duración:</span>
-                        <span className="ml-2">{item.details.duration}</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
+                        <span className="flex items-center font-medium text-blue-700 w-28">
+                          <span className="mr-2 text-base">⏱️</span> Duración:
+                        </span>
+                        <span className="sm:ml-2 mt-1 sm:mt-0">{item.details.duration}</span>
                       </div>
                     )}
                     
                     {item.details.equipment && item.details.equipment.length > 0 && (
                       <div className="text-sm text-gray-700">
-                        <span className="font-medium">Equipo necesario:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <span className="flex items-center font-medium text-blue-700 mb-2">
+                          <span className="mr-2 text-base">🎽</span> Equipo necesario:
+                        </span>
+                        <div className="flex flex-wrap gap-2 ml-6 sm:ml-8">
                           {item.details.equipment.map((equipment, idx) => (
-                            <span key={idx} className="px-2 py-1 bg-white rounded text-xs border border-blue-200">
+                            <span 
+                              key={idx} 
+                              className="px-3 py-1.5 bg-white rounded-full text-xs sm:text-sm border border-blue-200 shadow-sm"
+                            >
                               {equipment}
                             </span>
                           ))}
@@ -1215,24 +1217,40 @@ export default function AIRecommendationsModal({
       <div key={weekIndex} className="bg-white rounded-xl border border-green-200 mb-4 overflow-hidden">
         {/* Encabezado de semana */}
         <div 
-          className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 cursor-pointer hover:from-green-100 transition-colors"
+          className="p-3 md:p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 cursor-pointer hover:from-green-100 transition-colors"
           onClick={() => toggleWeekExpansion(weekIndex)}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <h3 className="text-lg font-bold text-green-700">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base md:text-lg font-bold text-green-700">
                 Semana {week.weekNumber}
               </h3>
-              <div className="ml-4 w-32 bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${weekProgress}%` }}
-                ></div>
+              <div className="flex items-center gap-1">
+                <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${weekProgress}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs md:text-sm text-gray-600">{weekProgress}%</span>
               </div>
-              <span className="ml-2 text-sm text-gray-600">{weekProgress}%</span>
             </div>
-            <button className="text-green-600">
-              {isExpanded ? '▲ Contraer' : '▼ Expandir'}
+            <button 
+              className="text-green-600 p-1 hover:bg-green-200 rounded-full transition-colors"
+              aria-label={isExpanded ? 'Contraer semana' : 'Expandir semana'}
+              onClick={(e) => {
+                e.stopPropagation(); // Evita doble llamada si el botón está dentro del div clickeable
+                toggleWeekExpansion(weekIndex);
+              }}
+            >
+              <svg 
+                className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
           </div>
         </div>
@@ -1383,7 +1401,6 @@ export default function AIRecommendationsModal({
                 </svg>
                 <div className="flex-1">
                   <h2 className="text-xl md:text-2xl font-bold">Recomendaciones de IA</h2>
-                  <p className="text-green-100 text-sm md:text-base mt-1">Cliente: {clientName}</p>
                 </div>
               </div>
               
@@ -1417,7 +1434,7 @@ export default function AIRecommendationsModal({
             {/* Botón cerrar - SIEMPRE EN ESQUINA SUPERIOR DERECHA */}
             <button
               onClick={onClose}
-              className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0"
+              className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0"
               aria-label="Cerrar"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1614,46 +1631,36 @@ export default function AIRecommendationsModal({
               )}
 
               {/* Resumen y Visión */}
-              <div className="bg-white rounded-xl p-6 border border-green-200">
-                <div className="flex justify-between items-start mb-6">
-                  <h3 className="text-xl font-bold text-green-700">📊 Análisis y Visión</h3>
-                  {!editMode && activeSession.status === 'draft' && (
-                    <button
-                      onClick={() => handleStartEdit(
-                        activeSession.sessionId,
-                        'checklist',
-                        activeSession.checklist
-                      )}
-                      className="text-green-600 hover:text-green-800 flex items-center"
-                    >
-                      <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Editar Checklist
-                    </button>
-                  )}
+              <div className="bg-white rounded-xl p-4 md:p-6 border border-green-200">
+                <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4 md:mb-6">
+                  <h3 className="text-lg md:text-xl font-bold text-green-700">📊 Análisis y Visión</h3>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-6">
+                {/* Contenedor en columna para móvil, fila para desktop */}
+                <div className="flex flex-col md:flex-row gap-4 md:gap-6">
                   {/* Resumen */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-700 flex items-center">
+                  <div className="flex-1 space-y-2">
+                    <h4 className="font-semibold text-gray-700 flex items-center text-sm md:text-base">
                       <span className="mr-2">🔍</span>
                       Resumen del Estado Actual
                     </h4>
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <p className="text-gray-600 whitespace-pre-line">{activeSession.summary}</p>
+                    <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
+                        {activeSession.summary}
+                      </p>
                     </div>
                   </div>
                   
                   {/* Visión */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-700 flex items-center">
+                  <div className="flex-1 space-y-2">
+                    <h4 className="font-semibold text-gray-700 flex items-center text-sm md:text-base">
                       <span className="mr-2">🎯</span>
                       Visión para el siguiente mes
                     </h4>
-                    <div className="p-3 bg-green-50 rounded-lg">
-                      <p className="text-gray-600 whitespace-pre-line">{activeSession.vision}</p>
+                    <div className="p-3 md:p-4 bg-green-50 rounded-lg border border-green-100">
+                      <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
+                        {activeSession.vision}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1670,6 +1677,21 @@ export default function AIRecommendationsModal({
                     {expandedWeeks.length === 4 ? 'Contraer todas' : 'Expandir todas'}
                   </button>
                 </div>
+                {!editMode && activeSession.status === 'draft' && (
+                  <button
+                    onClick={() => handleStartEdit(
+                      activeSession.sessionId,
+                      'checklist',
+                      activeSession.checklist
+                    )}
+                    className="text-green-600 hover:text-green-800 flex items-center text-sm md:text-base"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Editar Checklist
+                  </button>
+                )}
                 
                 {activeSession.weeks.map((week, weekIndex) => 
                   renderWeek(week, weekIndex, activeSession.sessionId)
@@ -1738,10 +1760,10 @@ export default function AIRecommendationsModal({
         {/* Footer con botones de acción */}
         <div className="p-4 md:p-6 border-t border-green-200 bg-white rounded-b-xl">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-            {/* Estado actual */}
-            <div className="w-full md:w-auto">
+            {/* Parte siempre visible (estado + fecha) */}
+            <div className="w-full md:w-auto flex items-center justify-between md:justify-start">
               {activeSession ? (
-                <div className="flex flex-col space-y-2 md:space-y-0 md:flex-row md:items-center">
+                <div className="flex flex-col md:flex-row md:items-center">
                   <div className="flex items-center">
                     <span className="text-sm text-gray-500">Estado: </span>
                     <span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${
@@ -1760,14 +1782,30 @@ export default function AIRecommendationsModal({
               ) : (
                 <span className="text-sm text-gray-500">Sin sesiones activas</span>
               )}
+              
+              {/* Botón de expandir/contraer solo en móvil */}
+              <button
+                onClick={() => setFooterExpanded(!footerExpanded)}
+                className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors"
+                aria-label={footerExpanded ? 'Contraer acciones' : 'Expandir acciones'}
+              >
+                <svg
+                  className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
             </div>
-            
-            {/* Botones de acción */}
-            <div className="flex flex-wrap gap-2 justify-end w-full md:w-auto">
+
+            {/* Botones de acción - visibles en desktop siempre, en móvil solo si expandido */}
+            <div className={`${footerExpanded ? 'flex' : 'hidden'} md:flex flex-col md:flex-row gap-2 justify-end w-full md:w-auto transition-all`}>
               {!showNewEvaluationForm && (
                 <button
                   onClick={() => setShowNewEvaluationForm(true)}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
+                  className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base"
                 >
                   Nueva Evaluación
                 </button>
@@ -1778,7 +1816,7 @@ export default function AIRecommendationsModal({
                   <button
                     onClick={handleRegenerate}
                     disabled={loading || activeSession.status !== 'draft'}
-                    className="flex items-center gap-1 px-2 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base flex-1 md:flex-none"
+                    className="w-full md:w-auto flex items-center justify-center gap-1 px-3 py-2 md:px-4 md:py-2.5 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
                     title={activeSession.status !== 'draft' ? 'Solo se pueden regenerar recomendaciones en estado "Borrador"' : ''}
                   >
                     {loading ? (
@@ -1798,7 +1836,7 @@ export default function AIRecommendationsModal({
                   {activeSession.status === 'draft' && (
                     <button
                       onClick={() => handleApproveSession(activeSession.sessionId)}
-                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
+                      className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base"
                     >
                       Aprobar
                     </button>
@@ -1807,14 +1845,14 @@ export default function AIRecommendationsModal({
                   {activeSession.status === 'approved' && (
                     <button
                       onClick={() => handleSendToClient(activeSession.sessionId)}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base flex-1 md:flex-none"
+                      className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base"
                     >
                       Enviar al Cliente
                     </button>
                   )}
 
                   {activeSession.status === 'sent' && (
-                    <div className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base flex-1 md:flex-none text-center">
+                    <div className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base text-center">
                       ✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}
                     </div>
                   )}
