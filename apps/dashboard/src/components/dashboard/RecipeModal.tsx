@@ -10,7 +10,7 @@ import { useToast } from '../ui/Toast';
 interface RecipeModalProps {
   recipe: Recipe | null;
   onClose: () => void;
-  onSuccess?: () => void; // Solo para recargar lista en RecipesPage
+  onSuccess?: (updatedRecipe?: Recipe) => void; // Solo para recargar lista en RecipesPage
   existingCategories?: string[];
   existingTags?: string[];
 }
@@ -422,6 +422,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     setIsSubmitting(true);
     
     try {
+      let updatedRecipeData: Recipe | null = null;
+
       if (recipe?.id) {
         // ✅ CASO EDICIÓN: Receta existente
         let recipeData: RecipeFormData = { ...formData };
@@ -438,44 +440,55 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         }
         
         // Actualizar receta existente
-        await apiClient.updateRecipe(recipe.id, recipeData);
+        const response = await apiClient.updateRecipe(recipe.id, recipeData);
+        if (response.success && response.data) {
+          updatedRecipeData = response.data;
+        } else {
+          throw new Error('Error al actualizar la receta');
+        }
         
       } else {
         // ✅ CASO CREACIÓN: Nueva receta
         // 1. Crear receta sin imagen primero (para obtener ID)
         const createResponse = await apiClient.createRecipe({
           ...formData,
-          image: undefined // No enviar imagen todavía
+          image: undefined
         });
         
-        if (createResponse.success && createResponse.data.id) {
-          const createdRecipeId = createResponse.data.id;
-          
-          // 2. Subir imagen si existe
-          if (imageFile) {
-            try {
-              const uploadedImage = await uploadImageToS3(imageFile, createdRecipeId);
-              
-              if (uploadedImage) {
-                // 3. Actualizar la receta con la imagen
-                await apiClient.updateRecipe(createdRecipeId, { 
-                  ...formData, 
-                  image: uploadedImage 
-                });
-              }
-            } catch (imageError) {
-              console.error('Error en proceso de imagen:', imageError);
-              showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
-            }
-          }
-        } else {
+        if (!createResponse.success || !createResponse.data?.id) {
           throw new Error('Error creando receta: No se pudo obtener el ID');
+        }
+        
+        const createdRecipeId = createResponse.data.id;
+        updatedRecipeData = createResponse.data; // Receta inicial (sin imagen)
+
+        // 2. Subir imagen si existe
+        if (imageFile) {
+          try {
+            const uploadedImage = await uploadImageToS3(imageFile, createdRecipeId);
+            
+            // 3. Actualizar la receta con la imagen
+            const updateResponse = await apiClient.updateRecipe(createdRecipeId, { 
+              ...formData, 
+              image: uploadedImage 
+            });
+            
+            if (updateResponse.success && updateResponse.data) {
+              updatedRecipeData = updateResponse.data; // Receta final con imagen
+            } else {
+              showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
+              // Si falla, mantenemos la receta sin imagen
+            }
+          } catch (imageError) {
+            console.error('Error en proceso de imagen:', imageError);
+            showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
+          }
         }
       }
       
-      // Llamar a onSuccess para recargar lista en RecipesPage
+      // ✅ Llamar a onSuccess con la receta actualizada
       if (onSuccess) {
-        onSuccess();
+        onSuccess(updatedRecipeData || undefined);
       }
       
       showToast(
@@ -483,10 +496,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         'success'
       );
       
-      // Pequeño delay para mostrar el mensaje antes de cerrar
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      // ❌ Eliminado el cierre automático (ahora lo maneja el padre)
       
     } catch (error) {
       console.error('Error guardando receta:', error);

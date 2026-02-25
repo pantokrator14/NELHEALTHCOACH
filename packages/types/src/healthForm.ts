@@ -46,6 +46,9 @@ export interface ChecklistItem {
     duration?: string;
     equipment?: string[];
   };
+  recipeId?: string;          // ID de la receta en MongoDB (si viene de la BD)
+  frequency?: number;         // Veces por semana (para nutrición)
+  updatedAt?: Date;
 }
 
 export interface UploadedFile {

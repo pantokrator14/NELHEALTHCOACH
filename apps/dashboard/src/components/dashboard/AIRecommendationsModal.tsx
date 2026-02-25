@@ -1,28 +1,17 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
+import RecipeSearchModal from './RecipeSearchModal';
+import SimpleItemModal from './SimpleItemModal';
+import RecipeDetailModal from './RecipeDetailModal';
+import { ChecklistItem } from '../../../../../packages/types/src/healthForm';
+import { Recipe } from '../../../../../packages/types/src/recipe-types';
 
 // ===== TIPOS Y INTERFACES =====
 
-interface ChecklistItem {
-  id: string;
-  description: string;
-  completed: boolean;
-  completedDate?: Date;
-  notes?: string;
-  weekNumber: number;
-  category: 'nutrition' | 'exercise' | 'habit';
-  type?: string;
-  details?: {
-    recipe?: {
-      ingredients: Array<{name: string; quantity: string; notes?: string}>;
-      preparation: string;
-      tips?: string;
-    };
-    frequency?: string;
-    duration?: string;
-    equipment?: string[];
-  };
-  updatedAt?: Date;
+// Extendemos Recipe para incluir los campos que vienen de la API
+interface RecipeWithDetails extends Recipe {
+  ingredients: string[];
+  instructions: string[];
 }
 
 interface ShoppingListItem {
@@ -136,7 +125,7 @@ interface ApiAIProgressResponse {
 
 interface AIRecommendationsModalProps {
   clientId: string;
-  clientName: string;
+  _clientName: string; // Renombrado con guion bajo para indicar que no se usa
   onClose: () => void;
   onRecommendationsGenerated?: () => void;
 }
@@ -150,10 +139,41 @@ interface EditingField {
   currentValue: string | ChecklistItem[] | AIRecommendationWeek;
 }
 
+type NewNutritionItemData = {
+  description: string;
+  type: string;
+  frequency: number;
+  recipeId: string;
+  details: {
+    recipe: {
+      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
+      preparation: string;
+      tips?: string;
+    };
+  };
+};
+
+type NewExerciseItemData = {
+  description: string;
+  type: string;
+  details?: {
+    duration?: string;
+    frequency?: string;
+    equipment?: string[];
+  };
+};
+
+type NewHabitItemData = {
+  description: string;
+  type: 'toAdopt' | 'toEliminate';
+};
+
+type NewItemData = NewNutritionItemData | NewExerciseItemData | NewHabitItemData;
+
 // ===== COMPONENTE PRINCIPAL =====
 export default function AIRecommendationsModal({ 
   clientId, 
-  clientName, 
+  _clientName, 
   onClose, 
   onRecommendationsGenerated 
 }: AIRecommendationsModalProps) {
@@ -185,6 +205,20 @@ export default function AIRecommendationsModal({
   
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
+
+  // ===== BUSQUEDA DE RECETAS Y NUEVAS FUNCIONALIDADES DE EDICION DE ITEMS=====
+  const [showRecipeSearch, setShowRecipeSearch] = useState(false);
+  const [searchCategory, setSearchCategory] = useState<'nutrition' | 'exercise' | 'habit'>('nutrition');
+  const [searchWeek, setSearchWeek] = useState<number>(1);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [editingItem, setEditingItem] = useState<{
+    item: ChecklistItem;
+    weekNumber: number;
+    category: 'exercise' | 'habit';
+  } | null>(null);// Se usará en futuras implementaciones
+  const [showEditItemModal, setShowEditItemModal] = useState(false);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithDetails | null>(null);
+  const [showRecipeDetail, setShowRecipeDetail] = useState(false);
 
   // ===== FUNCIONES AUXILIARES =====
   /**
@@ -840,6 +874,93 @@ export default function AIRecommendationsModal({
     loadAIProgress();
   }, [loadAIProgress]);
 
+  const fetchRecipeAndOpenModal = useCallback(async (recipeId: string) => {
+    try {
+      const response = await apiClient.getRecipeById(recipeId);
+      if (response.success) {
+        setSelectedRecipe(response.data as RecipeWithDetails);
+        setShowRecipeDetail(true);
+      } else {
+        console.error('Error fetching recipe', response.message);
+      }
+    } catch (error) {
+      console.error('Error fetching recipe', error);
+    }
+  }, []);
+
+  const handleEditItemClick = useCallback((item: ChecklistItem) => {
+    if (item.category === 'nutrition' && item.recipeId) {
+      // Abrir modal de detalle de receta
+      fetchRecipeAndOpenModal(item.recipeId);
+    } else {
+      // Guardar el ítem completo para edición
+      setEditingItem({
+        item,
+        weekNumber: item.weekNumber,
+        category: item.category as 'exercise' | 'habit'
+      });
+      setShowEditItemModal(true);
+    }
+  }, [fetchRecipeAndOpenModal]);
+
+  const handleAddItem = useCallback((weekNumber: number, category: 'nutrition' | 'exercise' | 'habit') => {
+    setSearchWeek(weekNumber);
+    setSearchCategory(category);
+    if (category === 'nutrition') {
+      setShowRecipeSearch(true);
+    } else {
+      setShowEditItemModal(true); // Reutilizamos el mismo modal para ejercicio/hábito, pero con modo "crear"
+      // Podrías tener un estado para distinguir entre editar y crear
+    }
+  }, []);
+
+  const handleDeleteItem = useCallback(async (itemId: string) => {
+    if (!activeSession) return;
+    if (!confirm('¿Estás seguro de eliminar este ítem?')) return;
+    try {
+      await apiClient.deleteAIChecklistItem(clientId, activeSession.sessionId, itemId);
+      await loadAIProgress();
+    } catch (error) {
+      console.error('Error deleting item', error);
+      alert('Error al eliminar el ítem');
+    }
+  }, [activeSession, clientId, loadAIProgress]);
+
+  const handleSaveNewItem = useCallback(async (data: NewItemData) => {
+    if (!activeSession) return;
+    try {
+      await apiClient.createAIChecklistItem(clientId, activeSession.sessionId, {
+        weekNumber: searchWeek,
+        category: searchCategory,
+        data,
+      });
+      await loadAIProgress();
+      setShowRecipeSearch(false);
+      setShowEditItemModal(false);
+    } catch (error) {
+      console.error('Error creating item', error);
+      alert('Error al crear el ítem');
+    }
+  }, [activeSession, clientId, searchWeek, searchCategory, loadAIProgress]);
+
+  const handleUpdateItem = useCallback(async (
+    itemId: string,
+    data: NewExerciseItemData | NewHabitItemData,
+    weekNumber: number,
+    category: 'exercise' | 'habit'
+  ) => {
+    if (!activeSession) return;
+    try {
+      await apiClient.updateAIChecklistItem(clientId, activeSession.sessionId, itemId, data);
+      await loadAIProgress();
+      setShowEditItemModal(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error('Error updating item', error);
+      alert('Error al actualizar el ítem');
+    }
+  }, [activeSession, clientId, loadAIProgress]);
+
   // ===== MANEJADORES DE ACCIONES =====
   /**
    * Aprueba una sesión de recomendaciones
@@ -977,6 +1098,31 @@ export default function AIRecommendationsModal({
     }
   }, [expandedWeeks.length]);
 
+  const calculateShoppingList = useCallback((week: AIRecommendationWeek): ShoppingListItem[] => {
+    const items = week.nutrition.checklistItems;
+    const shoppingMap = new Map<string, { quantity: number; unit: string; priority: 'high' | 'medium' | 'low' }>();
+
+    items.forEach(item => {
+      if (!item.details?.recipe) return;
+      item.details.recipe.ingredients.forEach(ing => {
+        const key = ing.name;
+        // Extraer cantidad numérica del string quantity (ej. "2 unidades" -> 2)
+        const quantityMatch = ing.quantity.match(/^(\d+(?:\.\d+)?)/);
+        const quantity = quantityMatch ? parseFloat(quantityMatch[1]) : 1;
+        const unit = ing.quantity.replace(/^[\d\s]+/, '') || 'unidad';
+        const current = shoppingMap.get(key) || { quantity: 0, unit, priority: 'medium' };
+        current.quantity += quantity * (item.frequency || 1);
+        shoppingMap.set(key, current);
+      });
+    });
+
+    return Array.from(shoppingMap.entries()).map(([item, { quantity, unit, priority }]) => ({
+      item,
+      quantity: `${quantity.toFixed(1)} ${unit}`,
+      priority,
+    }));
+  }, []);
+
   /**
    * Expande o contrae una receta
    */
@@ -1018,7 +1164,7 @@ export default function AIRecommendationsModal({
     };
 
     return (
-      <div key={item.id} className="flex items-start py-2 border-b border-gray-100 last:border-0">
+      <div key={item.id} className="flex items-start py-2 border-b border-gray-100 last:border-0 group relative">
         <div 
           onClick={handleCheckboxClick}
           className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
@@ -1049,12 +1195,6 @@ export default function AIRecommendationsModal({
             <span 
               className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} cursor-pointer`}
               onClick={handleCheckboxClick}
-              onDoubleClick={() => handleStartEdit(
-                sessionId, 
-                'checklistItem', 
-                item.description, 
-                item.id
-              )}
             >
               {item.description}
             </span>
@@ -1194,22 +1334,49 @@ export default function AIRecommendationsModal({
             </div>
           )}
         </div>
+        {/* Iconos de acción */}
+        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white pl-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditItemClick(item); }}
+            className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+            title="Editar"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+            className="p-1 text-red-600 hover:bg-red-100 rounded"
+            title="Eliminar"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     );
-  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, handleStartEdit, expandedRecipes, expandedExerciseDetails, toggleRecipeExpansion, toggleExerciseDetailsExpansion]);
+  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, expandedRecipes, expandedExerciseDetails, toggleRecipeExpansion, toggleExerciseDetailsExpansion, handleEditItemClick, handleDeleteItem]);
 
   /**
    * Renderiza una semana completa con sus secciones
+   * Ahora recibe la sesión activa como parámetro para evitar null
    */
-  const renderWeek = useCallback((week: AIRecommendationWeek, weekIndex: number, sessionId: string) => {
+  const renderWeek = useCallback((
+    week: AIRecommendationWeek,
+    weekIndex: number,
+    sessionId: string,
+    session: AIRecommendationSession // Sesión activa no nula
+  ) => {
     // Asegurar estructura correcta
     const processedWeek = week.nutrition?.checklistItems ? week : convertToNewStructure([week])[0];
     
     const isExpanded = expandedWeeks.includes(weekIndex);
     const weekId = `${sessionId}_week_${weekIndex}`;
     
-    // Calcular progreso de la semana
-    const weekItems = activeSession?.checklist?.filter(item => item.weekNumber === processedWeek.weekNumber) || [];
+    // Calcular progreso de la semana usando la sesión pasada
+    const weekItems = session.checklist?.filter(item => item.weekNumber === processedWeek.weekNumber) || [];
     const completedWeekItems = weekItems.filter(item => item.completed).length;
     const weekProgress = weekItems.length > 0 ? Math.round((completedWeekItems / weekItems.length) * 100) : 0;
 
@@ -1239,7 +1406,7 @@ export default function AIRecommendationsModal({
               className="text-green-600 p-1 hover:bg-green-200 rounded-full transition-colors"
               aria-label={isExpanded ? 'Contraer semana' : 'Expandir semana'}
               onClick={(e) => {
-                e.stopPropagation(); // Evita doble llamada si el botón está dentro del div clickeable
+                e.stopPropagation();
                 toggleWeekExpansion(weekIndex);
               }}
             >
@@ -1280,8 +1447,19 @@ export default function AIRecommendationsModal({
               <div className="space-y-2">
                 {week.nutrition.checklistItems.map(item => renderChecklistItem(item, sessionId))}
               </div>
+              {/* Botón agregar */}
+              {!editMode && session.status === 'draft' && (
+                <div className="mt-2 text-center">
+                  <button
+                    onClick={() => handleAddItem(week.weekNumber, 'nutrition')}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    + Agregar nuevo ítem de nutrición
+                  </button>
+                </div>
+              )}
               
-              {expandedShoppingLists.includes(weekId) && week.nutrition.shoppingList?.length > 0 && (
+              {expandedShoppingLists.includes(weekId) && (
                 <div className="mt-4 ml-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                   <h5 className="font-medium text-blue-700 mb-3 flex items-center">
                     <span className="mr-2">🛒</span>
@@ -1303,7 +1481,7 @@ export default function AIRecommendationsModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {week.nutrition.shoppingList.map((shopItem: ShoppingListItem, idx: number) => (
+                        {calculateShoppingList(week).map((shopItem, idx) => (
                           <tr key={idx} className="hover:bg-blue-50 transition-colors">
                             <td className="py-2 px-3 border-b border-blue-100 text-sm text-gray-700">
                               {shopItem.item}
@@ -1341,6 +1519,17 @@ export default function AIRecommendationsModal({
               <div className="space-y-2">
                 {week.exercise.checklistItems.map(item => renderChecklistItem(item, sessionId))}
               </div>
+              {/* Botón agregar */}
+              {!editMode && session.status === 'draft' && (
+                <div className="mt-2 text-center">
+                  <button
+                    onClick={() => handleAddItem(week.weekNumber, 'exercise')}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    + Agregar nuevo ítem de ejercicio
+                  </button>
+                </div>
+              )}
             </div>
             
             {/* Hábitos */}
@@ -1352,6 +1541,17 @@ export default function AIRecommendationsModal({
               <div className="space-y-2">
                 {week.habits.checklistItems.map(item => renderChecklistItem(item, sessionId))}
               </div>
+              {/* Botón agregar */}
+              {!editMode && session.status === 'draft' && (
+                <div className="mt-2 text-center">
+                  <button
+                    onClick={() => handleAddItem(week.weekNumber, 'habit')}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    + Agregar nuevo ítem de hábitos
+                  </button>
+                </div>
+              )}
               
               {week.habits.motivationTip && (
                 <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
@@ -1371,7 +1571,7 @@ export default function AIRecommendationsModal({
         )}
       </div>
     );
-  }, [expandedWeeks, activeSession?.checklist, expandedShoppingLists, toggleWeekExpansion, convertToNewStructure, renderChecklistItem]);
+  }, [editMode, expandedWeeks, expandedShoppingLists, toggleWeekExpansion, convertToNewStructure, renderChecklistItem, handleAddItem, calculateShoppingList]);
 
   // ===== RENDERIZADO CONDICIONAL =====
   if (loading) {
@@ -1393,7 +1593,6 @@ export default function AIRecommendationsModal({
         {/* Header */}
         <div className="p-4 md:p-6 border-b border-green-200 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
           <div className="flex justify-between items-start mb-4">
-            {/* Contenido principal (título, cliente, progreso) */}
             <div className="flex-1 pr-4">
               <div className="flex items-center mb-2">
                 <svg className="w-6 h-6 md:w-8 md:h-8 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1404,7 +1603,6 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
               
-              {/* Progreso - en móvil debajo del título, en desktop a la derecha */}
               <div className="md:hidden mt-3">
                 <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
                 <div className="flex items-center space-x-2">
@@ -1419,7 +1617,6 @@ export default function AIRecommendationsModal({
               </div>
             </div>
             
-            {/* Progreso en desktop (a la derecha) */}
             <div className="hidden md:flex flex-col items-end min-w-[200px] ml-4">
               <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
               <div className="w-48 bg-green-800 bg-opacity-30 rounded-full h-4 mt-1">
@@ -1431,7 +1628,6 @@ export default function AIRecommendationsModal({
               <p className="text-white font-bold text-lg mt-1">{cumulativeProgress}%</p>
             </div>
             
-            {/* Botón cerrar - SIEMPRE EN ESQUINA SUPERIOR DERECHA */}
             <button
               onClick={onClose}
               className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0"
@@ -1516,7 +1712,7 @@ export default function AIRecommendationsModal({
               <p className="text-gray-600">No se encontró la sesión del mes {activeMonthTab}</p>
             </div>
           ) : (
-            // Contenido de la sesión activa
+            // Contenido de la sesión activa (activeSession no es null aquí)
             <div className="space-y-6">
               {/* Modo edición */}
               {editMode && editingField?.type === 'checklist' && (
@@ -1559,14 +1755,12 @@ export default function AIRecommendationsModal({
                           onChange={(e) => {
                             const newDescription = e.target.value;
                             
-                            // Actualizar checklist global
                             const updatedChecklist = activeSession.checklist.map((checklistItem, idx) => 
                               idx === index 
                                 ? { ...checklistItem, description: newDescription }
                                 : checklistItem
                             );
 
-                            // Actualizar también en las semanas
                             const updatedWeeks = activeSession.weeks.map(week => ({
                               ...week,
                               nutrition: {
@@ -1595,7 +1789,6 @@ export default function AIRecommendationsModal({
                               }
                             }));
 
-                            // Actualizar el estado completo
                             const updatedSessions = aiProgress?.sessions.map(s =>
                               s.sessionId === activeSession.sessionId
                                 ? { 
@@ -1636,7 +1829,6 @@ export default function AIRecommendationsModal({
                   <h3 className="text-lg md:text-xl font-bold text-green-700">📊 Análisis y Visión</h3>
                 </div>
                 
-                {/* Contenedor en columna para móvil, fila para desktop */}
                 <div className="flex flex-col md:flex-row gap-4 md:gap-6">
                   {/* Resumen */}
                   <div className="flex-1 space-y-2">
@@ -1644,10 +1836,33 @@ export default function AIRecommendationsModal({
                       <span className="mr-2">🔍</span>
                       Resumen del Estado Actual
                     </h4>
-                    <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-100">
-                      <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
-                        {activeSession.summary}
-                      </p>
+                    <div>
+                      <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        {editMode && editingField?.type === 'summary' ? (
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            onBlur={handleSaveEdit}
+                            className="w-full p-2 border border-green-300 rounded text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            rows={4}
+                            autoFocus
+                          />
+                        ) : (
+                          <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
+                            {activeSession.summary}
+                          </p>
+                        )}
+                      </div>
+                      {!editMode && activeSession.status === 'draft' && (
+                        <div className="text-center mt-2">
+                          <button
+                            onClick={() => handleStartEdit(activeSession.sessionId, 'summary', activeSession.summary)}
+                            className="text-sm text-green-600 hover:text-green-800"
+                          >
+                            ✎ Editar resumen
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -1657,10 +1872,33 @@ export default function AIRecommendationsModal({
                       <span className="mr-2">🎯</span>
                       Visión para el siguiente mes
                     </h4>
-                    <div className="p-3 md:p-4 bg-green-50 rounded-lg border border-green-100">
-                      <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
-                        {activeSession.vision}
-                      </p>
+                    <div>
+                      <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        {editMode && editingField?.type === 'vision' ? (
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            onBlur={handleSaveEdit}
+                            className="w-full p-2 border border-blue-300 rounded text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            rows={4}
+                            autoFocus
+                          />
+                        ) : (
+                          <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
+                            {activeSession.vision}
+                          </p>
+                        )}
+                      </div>
+                      {!editMode && activeSession.status === 'draft' && (
+                        <div className="text-center mt-2">
+                          <button
+                            onClick={() => handleStartEdit(activeSession.sessionId, 'vision', activeSession.vision)}
+                            className="text-sm text-green-600 hover:text-green-800"
+                          >
+                            ✎ Editar visión
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1694,7 +1932,7 @@ export default function AIRecommendationsModal({
                 )}
                 
                 {activeSession.weeks.map((week, weekIndex) => 
-                  renderWeek(week, weekIndex, activeSession.sessionId)
+                  renderWeek(week, weekIndex, activeSession.sessionId, activeSession)
                 )}
               </div>
             </div>
@@ -1760,7 +1998,6 @@ export default function AIRecommendationsModal({
         {/* Footer con botones de acción */}
         <div className="p-4 md:p-6 border-t border-green-200 bg-white rounded-b-xl">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-            {/* Parte siempre visible (estado + fecha) */}
             <div className="w-full md:w-auto flex items-center justify-between md:justify-start">
               {activeSession ? (
                 <div className="flex flex-col md:flex-row md:items-center">
@@ -1783,7 +2020,6 @@ export default function AIRecommendationsModal({
                 <span className="text-sm text-gray-500">Sin sesiones activas</span>
               )}
               
-              {/* Botón de expandir/contraer solo en móvil */}
               <button
                 onClick={() => setFooterExpanded(!footerExpanded)}
                 className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors"
@@ -1800,7 +2036,6 @@ export default function AIRecommendationsModal({
               </button>
             </div>
 
-            {/* Botones de acción - visibles en desktop siempre, en móvil solo si expandido */}
             <div className={`${footerExpanded ? 'flex' : 'hidden'} md:flex flex-col md:flex-row gap-2 justify-end w-full md:w-auto transition-all`}>
               {!showNewEvaluationForm && (
                 <button
@@ -1862,6 +2097,76 @@ export default function AIRecommendationsModal({
           </div>
         </div>
       </div>
+      {/* Modales */}
+      {showRecipeSearch && (
+        <RecipeSearchModal
+          onSelect={(recipe, frequency) => {
+            handleSaveNewItem({
+              description: recipe.title,
+              type: 'meal',
+              frequency,
+              recipeId: recipe.id,
+              details: {
+                recipe: {
+                  // Asumimos que recipe tiene ingredients e instructions
+                  ingredients: (recipe as RecipeWithDetails).ingredients.map((ing: string) => ({ name: ing, quantity: '', notes: '' })),
+                  preparation: (recipe as RecipeWithDetails).instructions?.join('\n') || '',
+                  tips: '',
+                },
+              },
+            });
+          }}
+          onClose={() => setShowRecipeSearch(false)}
+        />
+      )}
+
+      {showEditItemModal && (
+        <SimpleItemModal
+          category={editingItem ? editingItem.category : (searchCategory === 'nutrition' ? 'exercise' : searchCategory)}
+          onSave={(data) => {
+            if (editingItem) {
+              // Modo edición
+              handleUpdateItem(
+                editingItem.item.id,
+                data,
+                editingItem.weekNumber,
+                editingItem.category
+              );
+            } else {
+              // Modo creación
+              handleSaveNewItem(data);
+            }
+          }}
+          onClose={() => {
+            setShowEditItemModal(false);
+            setEditingItem(null);
+          }}
+          initialData={editingItem ? {
+            description: editingItem.item.description,
+            type: editingItem.item.type || (editingItem.category === 'exercise' ? 'cardio' : 'toAdopt'),
+            details: editingItem.item.details ? {
+              duration: editingItem.item.details.duration,
+              frequency: editingItem.item.details.frequency,
+              equipment: editingItem.item.details.equipment,
+            } : undefined,
+          } : undefined}
+        />
+      )}
+
+      {showRecipeDetail && selectedRecipe && (
+        <RecipeDetailModal
+          recipe={selectedRecipe}
+          onClose={() => setShowRecipeDetail(false)}
+          onEdit={() => {
+            setShowRecipeDetail(false);
+            loadAIProgress();
+          }}
+          onDelete={() => {
+            setShowRecipeDetail(false);
+            loadAIProgress();
+          }}
+        />
+      )}
     </div>
   );
 }

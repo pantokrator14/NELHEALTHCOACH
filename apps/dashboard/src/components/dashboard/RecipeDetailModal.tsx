@@ -7,13 +7,21 @@ interface RecipeDetailModalProps {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onPrevious?: () => void;        
+  onNext?: () => void;            
+  hasPrevious?: boolean;          
+  hasNext?: boolean;
 }
 
 const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({ 
   recipe, 
   onClose, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false 
 }) => {
 
   const [footerExpanded, setFooterExpanded] = useState(false);
@@ -38,15 +46,23 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
   };
 
-  // Cerrar modal con tecla Esc (si no está enviando o subiendo)
+  // Manejo con atajos de teclado para cerrar y navegar entre recetas
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
+      // Navegación con flechas
+      if (e.key === 'ArrowLeft' && hasPrevious && onPrevious) {
+        e.preventDefault();
+        onPrevious();
+      }
+      if (e.key === 'ArrowRight' && hasNext && onNext) {
+        e.preventDefault();
+        onNext();
+      }
     };
 
-    // Prevenir scroll del body cuando el modal está abierto
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeyDown);
 
@@ -54,11 +70,34 @@ const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       document.body.style.overflow = 'unset';
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, onPrevious, onNext, hasPrevious, hasNext]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col relative">
+        {/* Botones de navegación flotantes (solo visibles en desktop) */}
+        {hasPrevious && onPrevious && (
+          <button
+            onClick={onPrevious}
+            className="fixed left-4 top-1/2 transform -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
+            aria-label="Receta anterior"
+          >
+            <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
+        {hasNext && onNext && (
+          <button
+            onClick={onNext}
+            className="fixed right-4 top-1/2 transform -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
+            aria-label="Siguiente receta"
+          >
+            <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
         {/* Encabezado del modal */}
         <div className="p-4 md:p-6 border-b bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl">
           <div className="flex justify-between items-center">

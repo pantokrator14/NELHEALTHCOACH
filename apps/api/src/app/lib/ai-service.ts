@@ -1,6 +1,7 @@
 // apps/api/src/app/lib/ai-service.ts
 import { logger } from './logger';
-import { encrypt, safeDecrypt } from './encryption';
+import { decryptFileObject, encrypt, safeDecrypt } from './encryption';
+import { getRecipesCollection } from './database';
 import { 
   PersonalData, 
   MedicalData, 
@@ -10,25 +11,12 @@ import {
 } from '../../../../../packages/types/src/healthForm';
 
 // Interfaces para la respuesta de IA
-interface AIWeekResponse {
+interface AIResponseWeek {
   weekNumber: number;
   nutrition: {
     focus: string;
-    checklistItems: Array<{
-      description: string;
-      type?: string;
-      details?: {
-        recipe?: {
-          ingredients: Array<{name: string; quantity: string; notes?: string}>;
-          preparation: string;
-          tips?: string;
-        };
-        frequency?: string;
-        duration?: string;
-        equipment?: string[];
-      };
-    }>;
-    shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
+    checklistItems: AIResponseNutritionItem[];
+    shoppingList: Array<{item: string; quantity: string; priority: string}>;
   };
   exercise: {
     focus: string;
@@ -50,6 +38,16 @@ interface AIWeekResponse {
     trackingMethod?: string;
     motivationTip?: string;
   };
+}
+
+interface AIResponse {
+  summary: string;
+  vision: string;
+  baselineMetrics: {
+    currentLifestyle: string[];
+    targetLifestyle: string[];
+  };
+  weeks: AIResponseWeek[];
 }
 
 export interface AIConfig {
@@ -93,6 +91,51 @@ export interface AIAnalysisInput {
   }>;
 }
 
+// Interfaz para receta desencriptada (sin any)
+interface DecryptedRecipe {
+  _id: string;
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  nutrition: {
+    protein: number;
+    carbs: number;
+    fat: number;
+    calories: number;
+  };
+  cookTime: number;
+  difficulty: string;
+  image: {
+    url: string;
+    key: string;
+    name: string;
+    type: string;
+    size: number;
+    uploadedAt: string;
+  } | null;
+  category: string[];
+  tags: string[];
+}
+
+
+interface AIResponseNutritionItem {
+  description: string;
+  type?: string;
+  frequency?: number;
+  recipeId?: string;
+  details?: {
+    recipe?: {
+      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
+      preparation: string;
+      tips?: string;
+    };
+    frequency?: string;
+    duration?: string;
+    equipment?: string[];
+  };
+}
+
 export class AIService {
   private static config: AIConfig = {
     model: 'deepseek-chat',
@@ -101,6 +144,54 @@ export class AIService {
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
   };
+
+  // ===== MÉTODO AUXILIAR PARA BUSCAR RECETAS =====
+  private static async findBestMatchingRecipe(description: string): Promise<DecryptedRecipe | null> {
+    try {
+      const collection = await getRecipesCollection();
+
+      const results = await collection
+        .find(
+          { $text: { $search: description } },
+          { projection: { score: { $meta: "textScore" } } }
+        )
+        .sort({ score: { $meta: "textScore" } })
+        .limit(1)
+        .toArray();
+
+      if (results.length === 0) return null;
+
+      const bestMatch = results[0];
+      const score = bestMatch.score;
+
+      if (score < 1.5) return null;
+
+      return {
+        _id: bestMatch._id.toString(),
+        title: safeDecrypt(bestMatch.title),
+        description: safeDecrypt(bestMatch.description),
+        ingredients: Array.isArray(bestMatch.ingredients)
+          ? bestMatch.ingredients.map((ing: string) => safeDecrypt(ing))
+          : [],
+        instructions: Array.isArray(bestMatch.instructions)
+          ? bestMatch.instructions.map((inst: string) => safeDecrypt(inst))
+          : [],
+        nutrition: bestMatch.nutrition,
+        cookTime: bestMatch.cookTime,
+        difficulty: safeDecrypt(bestMatch.difficulty),
+        image: bestMatch.image ? decryptFileObject(bestMatch.image) : null,
+        category: Array.isArray(bestMatch.category)
+          ? bestMatch.category.map((cat: string) => safeDecrypt(cat))
+          : [],
+        tags: Array.isArray(bestMatch.tags)
+          ? bestMatch.tags.map((tag: string) => safeDecrypt(tag))
+          : [],
+      };
+    } catch (error) {
+      logger.error('AI_SERVICE', 'Error en búsqueda de recetas', error);
+      return null;
+    }
+  }
 
   /**
    * Analiza los datos del cliente y genera recomendaciones
@@ -177,6 +268,35 @@ export class AIService {
         }
 
         console.log('=== DEBUG: Convirtiendo y encriptando estructura ===');
+
+        // Buscar recetas en BD para cada ítem de nutrición
+        if (parsedResponse.weeks && Array.isArray(parsedResponse.weeks)) {
+          for (const week of parsedResponse.weeks) {
+            if (week.nutrition?.checklistItems && Array.isArray(week.nutrition.checklistItems)) {
+              for (const item of week.nutrition.checklistItems) {
+                const matchedRecipe = await this.findBestMatchingRecipe(item.description);
+                if (matchedRecipe) {
+                  // Asignar recipeId y actualizar descripción si se desea
+                  item.recipeId = matchedRecipe._id;
+                  item.description = matchedRecipe.title;
+                  // Si la IA no proporcionó detalles de receta, usar los de la BD
+                  if (!item.details?.recipe) {
+                    item.details = item.details || {};
+                    item.details.recipe = {
+                      ingredients: matchedRecipe.ingredients.map((ing) => ({
+                        name: ing,
+                        quantity: '',
+                        notes: ''
+                      })),
+                      preparation: matchedRecipe.instructions.join('\n'),
+                      tips: ''
+                    };
+                  }
+                }
+              }
+            }
+          }
+        }
         
         // Convertir respuesta a estructura encriptada
         const weeks: AIRecommendationWeek[] = this.convertAIResponseToWeeks(parsedResponse.weeks);
@@ -380,6 +500,7 @@ export class AIService {
             {
               "description": "Alimento/receta específica",
               "type": "breakfast/lunch/dinner/snack",
+              "frequency": 3,
               "details": {
                 "recipe": {
                   "ingredients": [
@@ -860,8 +981,8 @@ ${responseSchema}
 
       // Nutrición - checklist items encriptados
       const nutritionChecklistItems: ChecklistItem[] = [];
-      if (nutrition.checklistItems && Array.isArray(nutrition.checklistItems)) {
-        nutrition.checklistItems.forEach((item: any, itemIndex: number) => {
+      if (weekResp.nutrition?.checklistItems && Array.isArray(weekResp.nutrition.checklistItems)) {
+        (weekResp.nutrition.checklistItems as AIResponseNutritionItem[]).forEach((item, itemIndex) => {
           nutritionChecklistItems.push({
             id: `nutrition_${weekIndex}_${itemIndex}_${Date.now()}`,
             description: encrypt(item.description || ''),
@@ -869,6 +990,8 @@ ${responseSchema}
             weekNumber: weekResp.weekNumber || (weekIndex + 1),
             category: 'nutrition' as const,
             type: item.type || 'meal',
+            frequency: item.frequency || 1,      // ← aquí usas item.frequency
+            recipeId: item.recipeId,              // ← aquí usas item.recipeId
             details: item.details ? {
               recipe: item.details.recipe ? {
                 ingredients: (item.details.recipe.ingredients || []).map((ing: any) => ({
@@ -878,7 +1001,10 @@ ${responseSchema}
                 })),
                 preparation: encrypt(item.details.recipe.preparation || ''),
                 tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
-              } : undefined
+              } : undefined,
+              frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+              duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+              equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
             } : undefined
           });
         });
@@ -1405,4 +1531,10 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       return false;
     }
   }
+
+  
+}
+
+function findBestMatchingRecipe(description: any) {
+  throw new Error('Function not implemented.');
 }
