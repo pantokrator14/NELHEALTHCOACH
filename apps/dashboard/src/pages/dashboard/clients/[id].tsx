@@ -1420,7 +1420,7 @@ export default function ClientProfile() {
         {isAIModalOpen && clientId && (
           <AIRecommendationsModal
             clientId={clientId}
-            clientName={client.personalData.name}
+            _clientName={client.personalData.name}
             onClose={() => setIsAIModalOpen(false)}
             onRecommendationsGenerated={fetchClient}
           />
