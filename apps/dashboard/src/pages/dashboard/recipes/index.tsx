@@ -166,6 +166,27 @@ const RecipesPage = () => {
     return result;
   }, [recipes, filters]);
 
+  // Calcular índices para navegación
+  const currentIndex = useMemo(() => {
+    if (!selectedRecipe) return -1;
+    return filteredAndSortedRecipes.findIndex(r => r.id === selectedRecipe.id);
+  }, [selectedRecipe, filteredAndSortedRecipes]);
+
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < filteredAndSortedRecipes.length - 1;
+
+  const handlePrevious = useCallback(() => {
+    if (hasPrevious && currentIndex > 0) {
+      setSelectedRecipe(filteredAndSortedRecipes[currentIndex - 1]);
+    }
+  }, [hasPrevious, currentIndex, filteredAndSortedRecipes]);
+
+  const handleNext = useCallback(() => {
+    if (hasNext && currentIndex < filteredAndSortedRecipes.length - 1) {
+      setSelectedRecipe(filteredAndSortedRecipes[currentIndex + 1]);
+    }
+  }, [hasNext, currentIndex, filteredAndSortedRecipes]);
+
   const handleCardClick = (recipe: Recipe) => {
     setSelectedRecipe(recipe);
     setIsDetailModalOpen(true);
@@ -219,6 +240,25 @@ const RecipesPage = () => {
       sortOrder: 'desc',
     });
   };
+
+  const handleRecipeSuccess = useCallback((updatedRecipe?: Recipe) => {
+    // Recargar la lista para reflejar cambios
+    loadRecipes();
+
+    if (isEditModalOpen && updatedRecipe) {
+      // Venimos de edición: cerrar modal de edición y abrir detalle con la receta actualizada
+      setIsEditModalOpen(false);
+      setSelectedRecipe(updatedRecipe);
+      setIsDetailModalOpen(true);
+    } else if (!isEditModalOpen && updatedRecipe) {
+      // Venimos de creación: decidir qué hacer
+      // Opción A: abrir detalle de la receta creada
+      setSelectedRecipe(updatedRecipe);
+      setIsDetailModalOpen(true);
+      // Opción B: simplemente recargar (comportamiento actual)
+      // Si eliges esta, no hagas nada extra
+    }
+  }, [loadRecipes, isEditModalOpen]);
 
   if (loading) {
     return (
@@ -388,8 +428,12 @@ const RecipesPage = () => {
             }}
             onEdit={handleEditRecipe}
             onDelete={handleDeleteRecipe}
+            onPrevious={hasPrevious ? handlePrevious : undefined}
+            onNext={hasNext ? handleNext : undefined}
+            hasPrevious={hasPrevious}
+            hasNext={hasNext}
           />
-        )}
+       )}
 
         {/* Modal de creación/edición */}
         {isEditModalOpen && (
@@ -399,7 +443,7 @@ const RecipesPage = () => {
               setIsEditModalOpen(false);
               setSelectedRecipe(null);
             }}
-            onSuccess={loadRecipes}  // ✅ Solo recarga la lista
+            onSuccess={handleRecipeSuccess}  // ✅ Solo recarga la lista
             existingCategories={existingCategories}
             existingTags={existingTags}
           />

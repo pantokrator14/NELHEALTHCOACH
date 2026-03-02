@@ -29,16 +29,17 @@ export interface TextractAnalysis {
 
 export interface ChecklistItem {
   id: string;
+  groupId?: string;           // ← nuevo: identifica ítems del mismo concepto
   description: string;
   completed: boolean;
   completedDate?: Date;
   notes?: string;
   weekNumber: number;
   category: 'nutrition' | 'exercise' | 'habit';
-  type?: string; // 'breakfast', 'lunch', 'dinner', 'cardio', 'strength', 'toAdopt', 'toEliminate'
+  type?: string;
   details?: {
     recipe?: {
-      ingredients: Array<{name: string; quantity: string; notes?: string}>;
+      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
       preparation: string;
       tips?: string;
     };
@@ -46,6 +47,10 @@ export interface ChecklistItem {
     duration?: string;
     equipment?: string[];
   };
+  recipeId?: string;
+  frequency?: number;
+  updatedAt?: Date;
+  isRecurring?: boolean;      // ← nuevo: indica si se repite en semanas siguientes
 }
 
 export interface UploadedFile {
@@ -162,16 +167,13 @@ export interface AIRecommendationWeek {
   weekNumber: 1 | 2 | 3 | 4;
   nutrition: {
     focus: string;
-    checklistItems: ChecklistItem[];
     shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
   };
   exercise: {
     focus: string;
-    checklistItems: ChecklistItem[];
     equipment?: string[];
   };
   habits: {
-    checklistItems: ChecklistItem[];
     trackingMethod?: string;
     motivationTip?: string;
   };

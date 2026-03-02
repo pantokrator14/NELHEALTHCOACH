@@ -12,12 +12,6 @@ import { EmailService } from '@/app/lib/email-service';
 
 function decryptAISessionCompletely(session: any): any {
   try {
-    console.log('🔓 Iniciando desencriptación completa de sesión:', {
-      sessionId: session.sessionId,
-      hasChecklist: !!session.checklist,
-      checklistLength: session.checklist?.length || 0
-    });
-    
     const decrypted = {
       ...session,
       summary: safeDecrypt(session.summary),
@@ -26,26 +20,6 @@ function decryptAISessionCompletely(session: any): any {
         weekNumber: week.weekNumber,
         nutrition: {
           focus: safeDecrypt(week.nutrition.focus),
-          checklistItems: week.nutrition.checklistItems?.map((item: any) => ({
-            ...item,
-            description: safeDecrypt(item.description),
-            details: item.details ? {
-              ...item.details,
-              recipe: item.details.recipe ? {
-                ...item.details.recipe,
-                ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
-                  name: safeDecrypt(ing.name),
-                  quantity: safeDecrypt(ing.quantity),
-                  notes: ing.notes ? safeDecrypt(ing.notes) : undefined
-                })) || [],
-                preparation: safeDecrypt(item.details.recipe.preparation),
-                tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
-              } : undefined,
-              frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
-              duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
-              equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
-            } : undefined
-          })) || [],
           shoppingList: week.nutrition.shoppingList?.map((item: any) => ({
             item: safeDecrypt(item.item),
             quantity: safeDecrypt(item.quantity),
@@ -54,61 +28,34 @@ function decryptAISessionCompletely(session: any): any {
         },
         exercise: {
           focus: safeDecrypt(week.exercise.focus),
-          checklistItems: week.exercise.checklistItems?.map((item: any) => ({
-            ...item,
-            description: safeDecrypt(item.description),
-            details: item.details ? {
-              frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
-              duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
-              equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
-            } : undefined
-          })) || [],
           equipment: week.exercise.equipment?.map((eq: string) => safeDecrypt(eq)) || []
         },
         habits: {
-          checklistItems: week.habits.checklistItems?.map((item: any) => ({
-            ...item,
-            description: safeDecrypt(item.description)
-          })) || [],
           trackingMethod: week.habits.trackingMethod ? safeDecrypt(week.habits.trackingMethod) : undefined,
           motivationTip: week.habits.motivationTip ? safeDecrypt(week.habits.motivationTip) : undefined
         }
       })) || [],
-      checklist: session.checklist?.map((item: any, index: number) => {
-        console.log(`🔓 Desencriptando item ${index + 1} del checklist:`, {
-          id: item.id,
-          category: item.category
-        });
-        
-        return {
-          ...item,
-          description: safeDecrypt(item.description),
-          details: item.details ? {
-            ...item.details,
-            recipe: item.details.recipe ? {
-              ...item.details.recipe,
-              ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
-                name: safeDecrypt(ing.name),
-                quantity: safeDecrypt(ing.quantity),
-                notes: ing.notes ? safeDecrypt(ing.notes) : undefined
-              })) || [],
-              preparation: safeDecrypt(item.details.recipe.preparation),
-              tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
-            } : undefined,
-            frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
-            duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
-            equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
-          } : undefined
-        };
-      }) || []
+      checklist: session.checklist?.map((item: any) => ({
+        ...item,
+        description: safeDecrypt(item.description),
+        details: item.details ? {
+          ...item.details,
+          recipe: item.details.recipe ? {
+            ...item.details.recipe,
+            ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+              name: safeDecrypt(ing.name),
+              quantity: safeDecrypt(ing.quantity),
+              notes: ing.notes ? safeDecrypt(ing.notes) : undefined
+            })) || [],
+            preparation: safeDecrypt(item.details.recipe.preparation),
+            tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
+          } : undefined,
+          frequency: item.details.frequency ? safeDecrypt(item.details.frequency) : undefined,
+          duration: item.details.duration ? safeDecrypt(item.details.duration) : undefined,
+          equipment: item.details.equipment?.map((eq: string) => safeDecrypt(eq))
+        } : undefined
+      })) || []
     };
-
-    console.log('✅ Sesión completamente desencriptada:', {
-      sessionId: decrypted.sessionId,
-      checklistItems: decrypted.checklist?.length || 0,
-      weeks: decrypted.weeks?.length || 0
-    });
-
     return decrypted;
   } catch (error) {
     console.error('❌ Error desencriptando sesión completa:', error);
@@ -492,6 +439,15 @@ export async function PUT(
           // ✅ Directamente retornamos aquí, no necesitamos almacenar el resultado
           const updateChecklistResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
           return NextResponse.json(updateChecklistResult);
+        
+        case 'update_session_fields':
+          console.log('📝 UPDATE_SESSION_FIELDS: Iniciando...', {
+            sessionId,
+            fields: data?.fields ? Object.keys(data.fields) : []
+          });
+          operationResult = await updateSessionFields(id, sessionId, data?.fields || {}, requestId);
+          message = 'Campos de sesión actualizados';
+          break;
 
         case 'approve_session':
           console.log('✅ APPROVE_SESSION: Iniciando...', { sessionId });
@@ -906,20 +862,25 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
   }
 }
 
-async function updateChecklist(clientId: string, sessionId: string, checklistItems: ChecklistItem[], requestId: string): Promise<any> {
+async function updateChecklist(
+  clientId: string,
+  sessionId: string,
+  checklistItems: ChecklistItem[],
+  requestId: string
+): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
-  
-  loggerWithContext.info('AI', '🚀 Iniciando actualización de checklist', { 
+
+  loggerWithContext.info('AI', '🚀 Iniciando actualización de checklist', {
     sessionId,
     itemCount: checklistItems.length,
     completedCount: checklistItems.filter(item => item.completed).length
   });
-  
+
   try {
     const healthForms = await getHealthFormsCollection();
-    
-    // 1. Obtener el cliente actual
-    const client = await healthForms.findOne({ 
+
+    // 1. Obtener el cliente y la sesión actual
+    const client = await healthForms.findOne({
       _id: new ObjectId(clientId),
       'aiProgress.sessions.sessionId': sessionId
     });
@@ -936,43 +897,31 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
       throw new Error('Sesión no encontrada');
     }
 
-    // 2. ENCRIPTAR el checklist que viene del frontend
-    const encryptedChecklistItems: ChecklistItem[] = checklistItems.map((item) => {
-      // Verificar si ya está encriptado
-      let encryptedDescription = item.description;
-      if (item.description && !item.description.startsWith('U2FsdGVkX1')) {
-        encryptedDescription = encrypt(item.description);
-      }
+    // 2. Encriptar el checklist recibido (viene desencriptado del frontend)
+    const encryptedChecklistItems: ChecklistItem[] = checklistItems.map((item) => ({
+      ...item,
+      description: encrypt(item.description),
+      details: item.details ? {
+        ...item.details,
+        recipe: item.details.recipe ? {
+          ...item.details.recipe,
+          ingredients: item.details.recipe.ingredients.map(ing => ({
+            name: encrypt(ing.name),
+            quantity: encrypt(ing.quantity),
+            notes: ing.notes ? encrypt(ing.notes) : undefined
+          })),
+          preparation: encrypt(item.details.recipe.preparation),
+          tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
+        } : undefined,
+        frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+        duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+        equipment: item.details.equipment?.map(eq => encrypt(eq))
+      } : undefined
+    }));
 
-      // Encriptar detalles si existen
-      let encryptedDetails = item.details;
-      if (item.details) {
-        encryptedDetails = { ...item.details };
-        
-        if (item.details.recipe) {
-          encryptedDetails.recipe = {
-            ...item.details.recipe,
-            ingredients: item.details.recipe.ingredients?.map(ing => ({
-              name: encrypt(ing.name || ''),
-              quantity: encrypt(ing.quantity || ''),
-              notes: ing.notes ? encrypt(ing.notes) : undefined
-            })) || [],
-            preparation: encrypt(item.details.recipe.preparation || ''),
-            tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
-          };
-        }
-      }
-
-      return {
-        ...item,
-        description: encryptedDescription,
-        details: encryptedDetails
-      };
-    });
-
-    // 3. Actualizar en la base de datos
+    // 3. Actualizar SOLO el campo checklist de la sesión (NO weeks)
     const updateResult = await healthForms.updateOne(
-      { 
+      {
         _id: new ObjectId(clientId),
         'aiProgress.sessions.sessionId': sessionId
       },
@@ -990,8 +939,8 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
       throw new Error('No se pudo actualizar la base de datos');
     }
 
-    // 4. ✅ OBTENER EL DOCUMENTO ACTUALIZADO COMPLETO
-    const updatedClient = await healthForms.findOne({ 
+    // 4. Obtener el cliente actualizado y devolver la sesión desencriptada
+    const updatedClient = await healthForms.findOne({
       _id: new ObjectId(clientId)
     });
 
@@ -1004,22 +953,19 @@ async function updateChecklist(clientId: string, sessionId: string, checklistIte
     );
 
     const updatedSession = updatedClient.aiProgress.sessions[updatedSessionIndex];
-
-    // ✅ DESENCRIPTAR LA SESIÓN COMPLETA
     const decryptedSession = decryptAISessionCompletely(updatedSession);
 
-    // Calcular progreso
-    const completedItems = decryptedSession.checklist?.filter((item: { completed: any; }) => item.completed).length || 0;
+    const completedItems = decryptedSession.checklist?.filter((item: any) => item.completed).length || 0;
     const totalItems = decryptedSession.checklist?.length || 0;
     const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
     return {
       success: true,
       data: {
-        session: decryptedSession,  // ✅ SESIÓN COMPLETA DESENCRIPTADA
-        progress: progress,
-        completedItems: completedItems,
-        totalItems: totalItems
+        session: decryptedSession,
+        progress,
+        completedItems,
+        totalItems
       }
     };
 
@@ -1518,5 +1464,70 @@ async function debugSessionStatus(clientId: string, targetSessionId: string): Pr
     };
   } catch (error: any) {
     return { error: error.message };
+  }
+}
+
+async function updateSessionFields(
+  clientId: string,
+  sessionId: string,
+  fields: { summary?: string; vision?: string },
+  requestId: string
+): Promise<any> {
+  const loggerWithContext = logger.withContext({ requestId, clientId });
+
+  loggerWithContext.info('AI', 'Actualizando campos de sesión', { sessionId, fields });
+
+  try {
+    const healthForms = await getHealthFormsCollection();
+
+    // Construir objeto de actualización dinámico
+    const updateFields: any = {};
+    if (fields.summary !== undefined) {
+      updateFields['aiProgress.sessions.$.summary'] = encrypt(fields.summary);
+    }
+    if (fields.vision !== undefined) {
+      updateFields['aiProgress.sessions.$.vision'] = encrypt(fields.vision);
+    }
+    updateFields['aiProgress.sessions.$.updatedAt'] = new Date();
+    updateFields['aiProgress.updatedAt'] = new Date();
+    updateFields['updatedAt'] = new Date();
+
+    const result = await healthForms.updateOne(
+      {
+        _id: new ObjectId(clientId),
+        'aiProgress.sessions.sessionId': sessionId
+      },
+      { $set: updateFields }
+    );
+
+    if (result.modifiedCount === 0) {
+      throw new Error('No se pudo actualizar la sesión');
+    }
+
+    // Obtener la sesión actualizada para devolverla
+    const updatedClient = await healthForms.findOne({ _id: new ObjectId(clientId) });
+    const updatedSession = updatedClient?.aiProgress?.sessions?.find(
+      (s: any) => s.sessionId === sessionId
+    );
+
+    if (!updatedSession) {
+      throw new Error('Sesión no encontrada después de actualizar');
+    }
+
+    const decryptedSession = decryptAISessionCompletely(updatedSession);
+
+    return {
+      success: true,
+      data: {
+        session: decryptedSession
+      }
+    };
+
+  } catch (error: any) {
+    loggerWithContext.error('AI', 'Error actualizando campos de sesión', error);
+    return {
+      success: false,
+      message: error.message
+    };
   }
 }

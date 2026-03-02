@@ -6,89 +6,78 @@ import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } f
 
 // GET: Obtener recetas
 export async function GET(request: NextRequest) {
-  return logger.time('RECIPES', 'Obtener lista de recetas', async () => {
+  return logger.time('RECIPES', 'Obtener recetas', async () => {
     try {
-      logger.info('RECIPES', 'Solicitud GET /api/recipes recibida');
+      const searchParams = request.nextUrl.searchParams;
+      const query = searchParams.get('search') || '';
+      const mode = searchParams.get('mode') || 'full'; // 'search' o 'full'
+      const limitParam = searchParams.get('limit');
       
-      const recipesCollection = await getRecipesCollection();
-      
-      const { searchParams } = new URL(request.url);
-      const category = searchParams.get('category');
-      const search = searchParams.get('search');
-      
-      let query: any = { isPublished: true };
-      
-      if (category) {
-        query.category = { $in: [category] };
+      const collection = await getRecipesCollection();
+
+      // 1. Obtener todas las recetas (sin límite previo)
+      const recipes = await collection.find({}).toArray();
+
+      // 2. Desencriptar todas las recetas
+      const decryptedRecipes = recipes.map(recipe => ({
+        id: recipe._id.toString(),
+        title: safeDecrypt(recipe.title),
+        description: safeDecrypt(recipe.description),
+        category: recipe.category.map((cat: string) => safeDecrypt(cat)),
+        image: recipe.image ? decryptFileObject(recipe.image) : null,
+        cookTime: recipe.cookTime,
+        difficulty: safeDecrypt(recipe.difficulty),
+        nutrition: recipe.nutrition,
+        ingredients: recipe.ingredients.map((ing: string) => safeDecrypt(ing)),
+        instructions: recipe.instructions.map((inst: string) => safeDecrypt(inst)),
+        tags: recipe.tags.map((tag: string) => safeDecrypt(tag)),
+        author: safeDecrypt(recipe.author),
+        createdAt: recipe.createdAt,
+        updatedAt: recipe.updatedAt,
+      }));
+
+      let results = decryptedRecipes;
+
+      // 3. Filtrar por búsqueda si hay query
+      if (query) {
+        const searchLower = query.toLowerCase();
+        results = decryptedRecipes.filter(recipe => 
+          recipe.title.toLowerCase().includes(searchLower) ||
+          recipe.description.toLowerCase().includes(searchLower) ||
+          recipe.ingredients.some((ing: string) => ing.toLowerCase().includes(searchLower)) ||
+          recipe.category.some((cat: string) => cat.toLowerCase().includes(searchLower)) ||
+          recipe.tags.some((tag: string) => tag.toLowerCase().includes(searchLower)) ||
+          (recipe.author && recipe.author.toLowerCase().includes(searchLower))
+        );
+
+        // Aplicar límite SOLO si hay búsqueda y se especificó (por defecto 100)
+        const limit = limitParam ? parseInt(limitParam) : 100;
+        results = results.slice(0, limit);
       }
-      
-      if (search) {
-        query.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { tags: { $regex: search, $options: 'i' } },
-        ];
-      }
-      
-      const recipes = await recipesCollection
-        .find(query)
-        .sort({ createdAt: -1 })
-        .toArray();
-      
-      logger.info('RECIPES', `Recetas obtenidas: ${recipes.length}`);
-      
-      // ✅ DESENCRIPTAR CADA RECETA (campo por campo, sin funciones wrapper)
-      const formattedRecipes = recipes.map(recipe => {
-        const decrypted: any = {
-          ...recipe,
-          id: recipe._id.toString(),
-          title: safeDecrypt(recipe.title),
-          description: safeDecrypt(recipe.description),
-          category: Array.isArray(recipe.category) 
-            ? recipe.category.map((cat: string) => safeDecrypt(cat))
-            : [],
-          ingredients: Array.isArray(recipe.ingredients)
-            ? recipe.ingredients.map((ing: string) => safeDecrypt(ing))
-            : [],
-          instructions: Array.isArray(recipe.instructions)
-            ? recipe.instructions.map((inst: string) => safeDecrypt(inst))
-            : [],
-          nutrition: recipe.nutrition,
+
+      // 4. Si mode es 'search', devolver solo campos básicos (incluso si no hay búsqueda, pero normalmente se usa con búsqueda)
+      if (mode === 'search') {
+        const searchResults = results.map(recipe => ({
+          id: recipe.id,
+          title: recipe.title,
+          description: recipe.description,
+          image: recipe.image,
           cookTime: recipe.cookTime,
-          difficulty: safeDecrypt(recipe.difficulty),
-          author: recipe.author ? safeDecrypt(recipe.author) : 'NelHealthCoach',
-          isPublished: recipe.isPublished,
-          tags: Array.isArray(recipe.tags)
-            ? recipe.tags.map((tag: string) => safeDecrypt(tag))
-            : [],
-          createdAt: recipe.createdAt,
-          updatedAt: recipe.updatedAt,
-        };
+        }));
+        return NextResponse.json({ success: true, data: searchResults });
+      }
 
-        // ✅ DESENCRIPTAR IMAGEN SI EXISTE
-        if (recipe.image) {
-          decrypted.image = decryptFileObject(recipe.image);
-        } else {
-          decrypted.image = null;
-        }
+      // Modo 'full': devolver todos los campos (sin límite cuando no hay búsqueda)
+      return NextResponse.json({ success: true, data: results });
 
-        return decrypted;
-      });
-      
-      return NextResponse.json({
-        success: true,
-        data: formattedRecipes,
-        count: recipes.length,
-      });
-      
     } catch (error: any) {
-      logger.error('RECIPES', 'Error obteniendo recetas', error);
+      logger.error('RECIPES', 'Error en búsqueda', error);
       return NextResponse.json(
-        { success: false, message: 'Error obteniendo recetas' },
+        { success: false, message: error.message },
         { status: 500 }
       );
     }
-  }, { endpoint: '/api/recipes' });
+  });
 }
 
 export async function POST(request: NextRequest) {

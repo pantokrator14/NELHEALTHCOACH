@@ -1,8 +1,45 @@
-import { ChecklistItem } from '../../../../packages/types/src/healthForm';
+import { AIRecommendationSession, ChecklistItem } from '../../../../packages/types/src/healthForm';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../packages/types/src/recipe-types';
 import { NutritionAnalysisResult } from '../../../../packages/types/src/nutrition-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+interface CreateChecklistItemData {
+  weekNumber: number;
+  category: 'nutrition' | 'exercise' | 'habit';
+  data: {
+    description: string;
+    type?: string;
+    frequency?: number;
+    recipeId?: string;
+    details?: {
+      frequency?: string;
+      duration?: string;
+      equipment?: string[];
+      recipe?: {
+        ingredients: Array<{name: string; quantity: string; notes?: string}>;
+        preparation: string;
+        tips?: string;
+      };
+    };
+  };
+}
+
+interface UpdateChecklistItemData {
+  description?: string;
+  frequency?: number;
+  recipeId?: string;
+  details?: {
+    frequency?: string;
+    duration?: string;
+    equipment?: string[];
+    recipe?: {
+      ingredients: Array<{name: string; quantity: string; notes?: string}>;
+      preparation: string;
+      tips?: string;
+    };
+  };
+}
 
 interface Client {
   id: string;
@@ -692,4 +729,76 @@ export const apiClient = {
     
     return response.json();
   },
+
+  // Buscar recetas
+  async searchRecipes(query: string) {
+    const response = await fetch(`/api/recipes?search=${encodeURIComponent(query)}&mode=search`);
+    return response.json();
+  },
+
+  // Obtener receta por ID
+  async getRecipeById(id: string) {
+    const response = await fetch(`/api/recipes/${id}`);
+    return response.json();
+  },
+
+  // Actualizar campo de sesión (summary/vision)
+  async updateAISessionField(clientId: string, sessionId: string, field: string, value: string) {
+    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value }),
+    });
+    return response.json();
+  },
+
+  // Crear nuevo ítem en checklist
+  async createAIChecklistItem(clientId: string, sessionId: string, data: CreateChecklistItemData) {
+    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  // Actualizar ítem existente
+  async updateAIChecklistItem(clientId: string, sessionId: string, itemId: string, data: UpdateChecklistItemData) {
+  // Puedes tipar data según lo que acepte tu backend
+    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  // Eliminar ítem
+  async deleteAIChecklistItem(clientId: string, sessionId: string, itemId: string) {
+    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
+      method: 'DELETE',
+    });
+    return response.json();
+  },
+  async updateAISessionFields(
+    clientId: string,
+    sessionId: string,
+    fields: { summary?: string; vision?: string }
+  ): Promise<ApiResponse<{ session: AIRecommendationSession }>> {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'update_session_fields',
+        sessionId,
+        data: { fields }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando campos de sesión');
+    }
+    return response.json();
+  }
 };
