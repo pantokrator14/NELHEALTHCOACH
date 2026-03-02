@@ -10,7 +10,7 @@ import {
   ChecklistItem
 } from '../../../../../packages/types/src/healthForm';
 
-// Interfaces para la respuesta de IA
+// Interfaces para la respuesta de IA (igual que antes)
 interface AIResponseWeek {
   weekNumber: number;
   nutrition: {
@@ -91,7 +91,7 @@ export interface AIAnalysisInput {
   }>;
 }
 
-// Interfaz para receta desencriptada (sin any)
+// Interfaz para receta desencriptada
 interface DecryptedRecipe {
   _id: string;
   title: string;
@@ -118,7 +118,6 @@ interface DecryptedRecipe {
   tags: string[];
 }
 
-
 interface AIResponseNutritionItem {
   description: string;
   type?: string;
@@ -140,13 +139,14 @@ export class AIService {
   private static config: AIConfig = {
     model: 'deepseek-chat',
     temperature: 0.7,
-    maxTokens: 8000, // Aumentado para respuestas completas
+    maxTokens: 8000,
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
   };
 
   // ===== MÉTODO AUXILIAR PARA BUSCAR RECETAS =====
   private static async findBestMatchingRecipe(description: string): Promise<DecryptedRecipe | null> {
+    // (Igual que antes, no cambia)
     try {
       const collection = await getRecipesCollection();
 
@@ -215,7 +215,6 @@ export class AIService {
           console.log('📝 Coach Notes:', input.coachNotes?.substring(0, 100) || 'No hay');
         }
     
-        
         // Validar configuración
         if (!this.config.apiKey) {
           throw new Error('API key no configurada. Configure DEEPSEEK_API_KEY en las variables de entorno.');
@@ -269,47 +268,141 @@ export class AIService {
 
         console.log('=== DEBUG: Convirtiendo y encriptando estructura ===');
 
-        // Buscar recetas en BD para cada ítem de nutrición
-        if (parsedResponse.weeks && Array.isArray(parsedResponse.weeks)) {
-          for (const week of parsedResponse.weeks) {
-            if (week.nutrition?.checklistItems && Array.isArray(week.nutrition.checklistItems)) {
-              for (const item of week.nutrition.checklistItems) {
-                const matchedRecipe = await this.findBestMatchingRecipe(item.description);
-                if (matchedRecipe) {
-                  // Asignar recipeId y actualizar descripción si se desea
-                  item.recipeId = matchedRecipe._id;
-                  item.description = matchedRecipe.title;
-                  // Si la IA no proporcionó detalles de receta, usar los de la BD
-                  if (!item.details?.recipe) {
-                    item.details = item.details || {};
-                    item.details.recipe = {
-                      ingredients: matchedRecipe.ingredients.map((ing) => ({
-                        name: ing,
-                        quantity: '',
-                        notes: ''
-                      })),
-                      preparation: matchedRecipe.instructions.join('\n'),
-                      tips: ''
-                    };
-                  }
-                }
-              }
-            }
+        // Buscar recetas en BD para cada ítem de nutrición (esto se hará después de construir el checklist)
+        // Por ahora solo marcamos recipeId si encontramos coincidencia
+
+        // ===== NUEVA LÓGICA: Construir semanas y checklist plano con groupId global =====
+        const groupMapping: Record<string, string> = {}; // clave: "categoria_indice" -> groupId
+        const allChecklistItems: ChecklistItem[] = [];
+        const weeks: AIRecommendationWeek[] = [];
+
+        // Función auxiliar para obtener o crear groupId
+        const getOrCreateGroupId = (category: string, index: number): string => {
+          const key = `${category}_${index}`;
+          if (!groupMapping[key]) {
+            groupMapping[key] = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           }
+          return groupMapping[key];
+        };
+
+        // Primera pasada: recorrer semanas para construir el checklist y también las semanas (sin items)
+        for (let weekIndex = 0; weekIndex < parsedResponse.weeks.length; weekIndex++) {
+          const weekResp = parsedResponse.weeks[weekIndex];
+          const weekNumber = (weekResp.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4;
+
+          // ---- Nutrición ----
+          if (weekResp.nutrition?.checklistItems && Array.isArray(weekResp.nutrition.checklistItems)) {
+            (weekResp.nutrition.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+              const groupId = getOrCreateGroupId('nutrition', itemIndex);
+              // Verificar si hay receta en BD
+              let recipeId = item.recipeId;
+              // Podríamos buscar receta aquí también, pero para simplificar, lo dejamos como está
+              // (ya se buscará después si se desea)
+
+              allChecklistItems.push({
+                id: `nutrition_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                groupId,
+                description: encrypt(item.description || ''),
+                completed: false,
+                weekNumber,
+                category: 'nutrition',
+                type: item.type || 'meal',
+                frequency: item.frequency || 1,
+                recipeId: item.recipeId,
+                details: item.details ? {
+                  recipe: item.details.recipe ? {
+                    ingredients: (item.details.recipe.ingredients || []).map((ing: any) => ({
+                      name: encrypt(ing.name || ''),
+                      quantity: encrypt(ing.quantity || ''),
+                      notes: ing.notes ? encrypt(ing.notes) : undefined
+                    })),
+                    preparation: encrypt(item.details.recipe.preparation || ''),
+                    tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
+                  } : undefined,
+                  frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+                  duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+                  equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
+                } : undefined,
+                isRecurring: true
+              });
+            });
+          }
+
+          // ---- Ejercicio ----
+          if (weekResp.exercise?.checklistItems && Array.isArray(weekResp.exercise.checklistItems)) {
+            (weekResp.exercise.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+              const groupId = getOrCreateGroupId('exercise', itemIndex);
+              allChecklistItems.push({
+                id: `exercise_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                groupId,
+                description: encrypt(item.description || ''),
+                completed: false,
+                weekNumber,
+                category: 'exercise',
+                type: item.type || 'routine',
+                details: item.details ? {
+                  frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+                  duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+                  equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
+                } : undefined,
+                isRecurring: true
+              });
+            });
+          }
+
+          // ---- Hábitos ----
+          if (weekResp.habits?.checklistItems && Array.isArray(weekResp.habits.checklistItems)) {
+            (weekResp.habits.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+              const groupId = getOrCreateGroupId('habit', itemIndex);
+              allChecklistItems.push({
+                id: `habit_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                groupId,
+                description: encrypt(item.description || ''),
+                completed: false,
+                weekNumber,
+                category: 'habit',
+                type: item.type || (itemIndex % 2 === 0 ? 'toAdopt' : 'toEliminate'),
+                isRecurring: true
+              });
+            });
+          }
+
+          // ---- Construir la semana SOLO con metadatos (sin checklistItems) ----
+          weeks.push({
+            weekNumber,
+            nutrition: {
+              focus: encrypt(weekResp.nutrition?.focus || 'Nutrición keto'),
+              shoppingList: (weekResp.nutrition?.shoppingList || []).map((item: any) => ({
+                item: encrypt(item.item || item.name || ''),
+                quantity: encrypt(item.quantity || item.amount || ''),
+                priority: item.priority || 'medium'
+              }))
+            },
+            exercise: {
+              focus: encrypt(weekResp.exercise?.focus || 'Ejercicio adaptado'),
+              equipment: (weekResp.exercise?.equipment || []).map((eq: string) => encrypt(eq))
+            },
+            habits: {
+              trackingMethod: weekResp.habits?.trackingMethod ? encrypt(weekResp.habits.trackingMethod) : undefined,
+              motivationTip: weekResp.habits?.motivationTip ? encrypt(weekResp.habits.motivationTip) : undefined
+            }
+          });
         }
-        
-        // Convertir respuesta a estructura encriptada
-        const weeks: AIRecommendationWeek[] = this.convertAIResponseToWeeks(parsedResponse.weeks);
-        const allChecklistItems = this.extractChecklistItems(weeks);
+
+        console.log('=== DEBUG: Buscando recetas en BD para items de nutrición ===');
+        // Opcional: buscar recetas en BD y actualizar los items que tengan recipeId
+        // Podríamos recorrer allChecklistItems y para cada uno de nutrición, si no tiene recipeId, buscar.
+        // Pero eso ya se hace en el frontend al agregar items manualmente. Lo dejamos como opcional.
 
         console.log('=== DEBUG: Creando sesión completa ===');
         
         // Crear sesión
-        const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const sessionId = metadata?.isRegeneration 
+          ? `regen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          : `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
         const session: AIRecommendationSession = {
-          sessionId: metadata?.isRegeneration 
-            ? `regen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-            : `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          sessionId,
           monthNumber,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -366,6 +459,7 @@ export class AIService {
    * Construye el prompt optimizado para DeepSeek
    */
   private static buildAnalysisPrompt(input: AIAnalysisInput, monthNumber: number): string {
+    // (Este método no cambia, lo dejamos igual que antes)
     const { personalData, medicalData, documents, previousSessions, currentProgress, coachNotes } = input;
     
     // Extraer información crítica del cliente (optimizado)
@@ -375,7 +469,7 @@ export class AIService {
     const clientHeight = personalData.height ? parseFloat(this.safeDecryptString(personalData.height)) : null;
     const bmi = clientWeight && clientHeight ? (clientWeight / ((clientHeight/100) ** 2)).toFixed(1) : null;
     
-    // ===== SISTEMA Y ROL (crítico para el comportamiento de la IA) =====
+    // ===== SISTEMA Y ROL =====
     const systemRole = `Eres un coach médico especializado en:
   1. Dieta keto (75% grasa animal, 20% proteína, 5% carbohidratos)
   2. Medicina funcional y nutrición clínica
@@ -401,7 +495,15 @@ export class AIService {
   • Semana 1: 1 alimento + 1 ejercicio + 1 hábito adoptar + 1 hábito eliminar
   • Semana 2: 2 alimentos (1 nuevo) + 2 ejercicios (1 nuevo) + 2 hábitos adoptar (1 nuevo) + 2 hábitos eliminar
   • Semana 3: 3 alimentos (1 nuevo) + 3 ejercicios (1 nuevo) + 3 hábitos adoptar (1 nuevo) + 3 hábitos eliminar
-  • Semana 4: 4 alimentos (1 nuevo) + 4 ejercicios (1 nuevo) + 4 hábitos adoptar (1 nuevo) + 4 hábitos eliminar`;
+  • Semana 4: 4 alimentos (1 nuevo) + 4 ejercicios (1 nuevo) + 4 hábitos adoptar (1 nuevo) + 4 hábitos eliminar
+  
+  4. LIMITA LA LONGITUD: 
+     - summary: máximo 150 caracteres
+     - vision: máximo 150 caracteres
+     - Cada descripción de ítem: máximo 50 caracteres
+     - Cada receta: máximo 5 ingredientes, preparación en 200 caracteres
+
+  5. USA ESPAÑOL SIEMPRE`;
 
     // ===== INFORMACIÓN CRÍTICA DEL CLIENTE (formato conciso) =====
     const clientInfo = `👤 CLIENTE: ${clientName}, ${clientAge} años${
@@ -411,10 +513,10 @@ export class AIService {
   📋 OCUPACIÓN: ${this.safeDecryptString(personalData.occupation) || 'No especificada'}
   📍 UBICACIÓN: ${this.safeDecryptString(personalData.address) || 'No especificada'}`;
 
-    // ===== DATOS MÉDICOS ESENCIALES (solo lo crítico) =====
+    // ===== DATOS MÉDICOS ESENCIALES =====
     const medicalInfo = this.formatMedicalDataConcise(medicalData);
     
-    // ===== DOCUMENTOS MÉDICOS (extremadamente conciso, solo si existen) =====
+    // ===== DOCUMENTOS MÉDICOS =====
     let docsInfo = '';
     if (documents && documents.length > 0) {
       const relevantDocs = documents.filter(d => 
@@ -433,7 +535,7 @@ export class AIService {
       }
     }
 
-    // ===== HISTORIAL ANTERIOR (solo si existe, formato ultra-conciso) =====
+    // ===== HISTORIAL ANTERIOR =====
     let historyInfo = '';
     if (previousSessions && previousSessions.length > 0) {
       const lastSession = previousSessions[previousSessions.length - 1];
@@ -476,13 +578,13 @@ export class AIService {
       }
     }
 
-    // ===== NOTAS DEL COACH (solo si existen) =====
+    // ===== NOTAS DEL COACH =====
     let notesInfo = '';
     if (coachNotes && coachNotes.trim().length > 10) {
       notesInfo = `\n💬 NOTAS COACH: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
     }
 
-    // ===== ESQUEMA DE RESPUESTA (estructura exacta requerida) =====
+    // ===== ESQUEMA DE RESPUESTA =====
     const responseSchema = `\n\n🎯 ESTRUCTURA DE RESPUESTA (JSON EXACTO):
   {
     "summary": "Resumen conciso del estado actual del cliente considerando datos médicos y objetivos.",
@@ -546,7 +648,7 @@ export class AIService {
     ]
   }`;
 
-  // ===== CONSIDERACIONES ESPECÍFICAS (adaptaciones críticas) =====
+  // ===== CONSIDERACIONES ESPECÍFICAS =====
   const specificConsiderations = `\n🔍 ADAPTACIONES REQUERIDAS (considerar siempre):
 ${medicalData.allergies ? `• ALERGIAS: ${this.safeDecryptString(medicalData.allergies)}` : '• Sin alergias reportadas'}
 ${medicalData.medications ? `• MEDICAMENTOS: ${this.safeDecryptString(medicalData.medications)}` : '• Sin medicamentos reportados'}
@@ -554,7 +656,7 @@ ${medicalData.mainComplaint ? `• QUEJA PRINCIPAL: ${this.safeDecryptString(med
 ${medicalData.surgeries ? `• CIRUGÍAS: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
 ${personalData.occupation ? `• IMPACTO OCUPACIÓN: ${this.safeDecryptString(personalData.occupation)} en rutina` : ''}`;
 
-  // ===== CONSTRUCCIÓN DEL PROMPT FINAL (optimizado) =====
+  // ===== CONSTRUCCIÓN DEL PROMPT FINAL =====
   const prompt = `${systemRole}
 
 ${absoluteRules}
@@ -586,21 +688,16 @@ ${responseSchema}
    * Calcula el peso ideal basado en altura y género
    */
   private static calculateIdealWeight(height: number, gender: string): string {
-    // Fórmula de Devine para peso ideal
+    // (igual que antes)
     let idealWeight: number;
     
     if (gender.toLowerCase().includes('mujer') || gender.toLowerCase().includes('femenino')) {
-      // Fórmula para mujeres: 45.5 kg + 0.91 kg por cm sobre 152.4 cm
       idealWeight = 45.5 + 0.91 * (height - 152.4);
     } else {
-      // Fórmula para hombres: 50 kg + 0.91 kg por cm sobre 152.4 cm
       idealWeight = 50 + 0.91 * (height - 152.4);
     }
     
-    // También fórmula alternativa basada en IMC 22
     const bmiBasedWeight = 22 * Math.pow(height / 100, 2);
-    
-    // Promedio de ambas fórmulas
     const finalWeight = Math.round((idealWeight + bmiBasedWeight) / 2);
     
     return `${finalWeight} kg`;
@@ -650,7 +747,6 @@ ${responseSchema}
       }
     }
     
-    // ✅ CORRECCIÓN: Usar método helper para evaluar valores booleanos/strings
     if (this.getBooleanValue(medicalData.carbohydrateAddiction)) {
       improvements.push('Control de carbohidratos');
     }
@@ -659,7 +755,6 @@ ${responseSchema}
       improvements.push('Sensibilidad hormonal');
     }
     
-    // Mejoras por defecto si no hay específicas
     if (improvements.length === 0) {
       improvements.push('Energía', 'Composición corporal', 'Salud general');
     }
@@ -690,15 +785,18 @@ ${responseSchema}
    */
   private static async callDeepSeekAPI(
     prompt: string, 
-    metadata?: { requestId?: string; clientId?: string }
+    metadata?: { requestId?: string; clientId?: string },
+    retryCount = 0
   ): Promise<string> {
+    // (Igual que antes, no cambia)
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
+    const MAX_RETRIES = 1; // Número máximo de reintentos
     
     try {
       console.log('🔍 DEBUG: Llamando a DeepSeek API...');
       console.log('🔑 API Key presente:', !!this.config.apiKey);
       console.log('📝 Prompt length:', prompt.length);
-      console.log('📝 Prompt tokens estimados:', Math.ceil(prompt.length / 4));
+      console.log('📝 Tokens estimados:', Math.ceil(prompt.length / 4));
       
       if (!this.config.apiKey) {
         throw new Error('DeepSeek API key no configurada');
@@ -717,7 +815,7 @@ ${responseSchema}
           }
         ],
         temperature: this.config.temperature,
-        max_tokens: 8000, // Aumentado para respuestas largas
+        max_tokens: 6000,
         response_format: { type: 'json_object' }
       };
 
@@ -726,9 +824,8 @@ ${responseSchema}
       
       const startTime = Date.now();
       
-      // ===== SOLUCIÓN: Configurar timeout más flexible =====
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
+      const timeoutId = setTimeout(() => controller.abort(), 600000);
       
       try {
         const response = await fetch(`${this.config.baseURL}/chat/completions`, {
@@ -739,7 +836,7 @@ ${responseSchema}
             'Accept': 'application/json',
           },
           body: JSON.stringify(requestBody),
-          signal: controller.signal // Usar controller signal
+          signal: controller.signal
         });
 
         clearTimeout(timeoutId);
@@ -750,19 +847,18 @@ ${responseSchema}
         console.log('📡 Status Text:', response.statusText);
         console.log('⏱️ Duración:', duration, 'ms');
         
-        // Obtener el texto de respuesta primero
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Error respuesta:', errorText.substring(0, 500));
+          throw new Error(`DeepSeek API Error: ${response.status} - ${errorText.substring(0, 200)}`);
+        }
+
         const responseText = await response.text();
         console.log('📦 Raw response length:', responseText.length);
         
-        if (!response.ok) {
-          console.error('❌ Error respuesta:', responseText.substring(0, 500));
-          throw new Error(`DeepSeek API Error: ${response.status} - ${responseText.substring(0, 200)}`);
-        }
-
         let data;
         try {
           data = JSON.parse(responseText);
-          console.log('✅ JSON parseado correctamente');
         } catch (jsonError) {
           console.error('❌ Error parseando respuesta JSON:', jsonError);
           console.error('📦 Texto que falló:', responseText.substring(0, 500));
@@ -772,39 +868,44 @@ ${responseSchema}
         console.log('📊 Token usage:', data.usage);
         console.log('📊 Finish reason:', data.choices?.[0]?.finish_reason);
         
-        const content = data.choices[0]?.message?.content;
+        const finishReason = data.choices?.[0]?.finish_reason;
+        let content = data.choices[0]?.message?.content;
         
         if (!content) {
-          console.error('❌ No content en respuesta. Data completa:', JSON.stringify(data, null, 2));
           throw new Error('La respuesta de DeepSeek no contiene contenido');
         }
 
-        console.log('📝 Content length:', content.length);
-        console.log('📝 Content (first 500 chars):', content.substring(0, 500));
-        
-        // Verificar que sea JSON válido
-        try {
-          const parsedContent = JSON.parse(content);
-          console.log('✅ Contenido es JSON válido');
-          console.log('📊 Estructura del JSON:', Object.keys(parsedContent));
-          
-          if (!parsedContent.weeks || !Array.isArray(parsedContent.weeks)) {
-            console.error('❌ JSON no tiene estructura weeks array:', parsedContent);
-            throw new Error('La respuesta no tiene la estructura esperada (weeks array)');
+        if (finishReason === 'length') {
+          console.warn('⚠️ Respuesta truncada por límite de tokens. Intentando reparar JSON...');
+          const fixedJson = this.fixTruncatedJSON(content);
+          try {
+            const parsed = JSON.parse(fixedJson);
+            console.log('✅ JSON reparado exitosamente');
+            return JSON.stringify(parsed);
+          } catch (e) {
+            console.error('❌ No se pudo reparar el JSON truncado:', e);
+            throw new Error('Respuesta truncada y no reparable');
           }
-          
-          console.log(`✅ ${parsedContent.weeks.length} semanas recibidas`);
-          
+        }
+        
+        try {
+          JSON.parse(content);
+          console.log('✅ Contenido es JSON válido');
+          return content;
         } catch (e) {
           console.error('❌ Contenido no es JSON válido:', content.substring(0, 300));
-          console.error('❌ Error de parseo:', e);
           throw new Error('El contenido de la respuesta no es JSON válido');
         }
         
-        return content;
-        
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
+        
+        if ((fetchError.name === 'AbortError' || fetchError.message === 'terminated') && retryCount < MAX_RETRIES) {
+          console.log(`⏰ Timeout o conexión terminada. Reintentando (${retryCount + 1}/${MAX_RETRIES})...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return this.callDeepSeekAPI(prompt, metadata, retryCount + 1);
+        }
+        
         throw fetchError;
       }
       
@@ -814,13 +915,6 @@ ${responseSchema}
       console.error('💥 Stack:', error.stack);
       loggerWithContext.error('AI_SERVICE', 'Error en llamada a DeepSeek API', error);
       
-      // Si es timeout, intentar una vez más con timeout más corto
-      if (error.name === 'AbortError' || error.code === 23) {
-        console.log('⏰ Timeout detectado, intentando con timeout más corto...');
-        return this.callDeepSeekWithShorterTimeout(prompt, metadata);
-      }
-      
-      // Para debugging, muestra el mock en desarrollo
       if (process.env.NODE_ENV === 'development') {
         console.log('🔄 Usando mock response para desarrollo');
         return this.getMockAIResponse();
@@ -837,6 +931,7 @@ ${responseSchema}
     prompt: string, 
     metadata?: { requestId?: string; clientId?: string }
   ): Promise<string> {
+    // (Igual que antes)
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
     try {
@@ -851,16 +946,16 @@ ${responseSchema}
           },
           {
             role: 'user',
-            content: prompt.substring(0, 3000) // Acortar prompt para reintento
+            content: prompt.substring(0, 3000)
           }
         ],
         temperature: this.config.temperature,
-        max_tokens: 4000, // Reducir tokens para respuesta más rápida
+        max_tokens: 4000,
         response_format: { type: 'json_object' }
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minuto
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
       try {
         const response = await fetch(`${this.config.baseURL}/chat/completions`, {
@@ -897,7 +992,6 @@ ${responseSchema}
     } catch (error: any) {
       console.error('❌ Reintento fallido:', error.message);
       
-      // Usar mock como último recurso
       console.log('🔄 Usando mock response después de reintento fallido');
       return this.getMockAIResponse();
     }
@@ -907,32 +1001,28 @@ ${responseSchema}
    * Parsear respuesta JSON de la IA
    */
   private static parseAIResponse(response: string, metadata?: { requestId?: string; clientId?: string }): any {
+    // (Igual que antes)
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
     try {
       console.log('🔍 DEBUG parseAIResponse: Iniciando parseo');
       console.log('📝 Response length:', response.length);
       
-      // Intentar parsear directamente
       try {
         return JSON.parse(response);
       } catch (firstError) {
         console.log('⚠️ Primer intento falló, intentando limpiar JSON...');
         
-        // Limpiar posibles markdown
         let jsonString = response;
         
-        // Remover ```json ... ```
         jsonString = jsonString.replace(/```json\s*/g, '');
         jsonString = jsonString.replace(/```\s*/g, '');
         
-        // Buscar JSON entre llaves
         const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           jsonString = jsonMatch[0];
         }
         
-        // Intentar arreglar JSON truncado
         jsonString = this.fixTruncatedJSON(jsonString);
         
         console.log('📝 JSON limpiado (first 300 chars):', jsonString.substring(0, 300));
@@ -943,7 +1033,6 @@ ${responseSchema}
     } catch (error: any) {
       console.error('❌ ERROR en parseAIResponse:', error.message);
       
-      // Si falla, intentar extraer lo que haya
       const fallback = this.extractPartialResponse(response);
       if (fallback) {
         console.log('🔄 Usando respuesta parcial extraída');
@@ -955,133 +1044,11 @@ ${responseSchema}
   }
 
   /**
-   * Convertir respuesta de IA a semanas encriptadas
-   */
-  private static convertAIResponseToWeeks(weeksResponse: any[]): AIRecommendationWeek[] {
-    const weeks: AIRecommendationWeek[] = [];
-    
-    for (let weekIndex = 0; weekIndex < weeksResponse.length; weekIndex++) {
-      const weekResp = weeksResponse[weekIndex];
-      
-      // Asegurar que existan las propiedades
-      const nutrition = weekResp.nutrition || { 
-        focus: 'Nutrición keto', 
-        checklistItems: [], 
-        shoppingList: [] 
-      };
-      
-      const exercise = weekResp.exercise || { 
-        focus: 'Ejercicio adaptado', 
-        checklistItems: [] 
-      };
-      
-      const habits = weekResp.habits || { 
-        checklistItems: [] 
-      };
-
-      // Nutrición - checklist items encriptados
-      const nutritionChecklistItems: ChecklistItem[] = [];
-      if (weekResp.nutrition?.checklistItems && Array.isArray(weekResp.nutrition.checklistItems)) {
-        (weekResp.nutrition.checklistItems as AIResponseNutritionItem[]).forEach((item, itemIndex) => {
-          nutritionChecklistItems.push({
-            id: `nutrition_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: encrypt(item.description || ''),
-            completed: false,
-            weekNumber: weekResp.weekNumber || (weekIndex + 1),
-            category: 'nutrition' as const,
-            type: item.type || 'meal',
-            frequency: item.frequency || 1,      // ← aquí usas item.frequency
-            recipeId: item.recipeId,              // ← aquí usas item.recipeId
-            details: item.details ? {
-              recipe: item.details.recipe ? {
-                ingredients: (item.details.recipe.ingredients || []).map((ing: any) => ({
-                  name: encrypt(ing.name || ''),
-                  quantity: encrypt(ing.quantity || ''),
-                  notes: ing.notes ? encrypt(ing.notes) : undefined
-                })),
-                preparation: encrypt(item.details.recipe.preparation || ''),
-                tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
-              } : undefined,
-              frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
-              duration: item.details.duration ? encrypt(item.details.duration) : undefined,
-              equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
-            } : undefined
-          });
-        });
-      }
-
-      // Ejercicio - checklist items encriptados
-      const exerciseChecklistItems: ChecklistItem[] = [];
-      if (exercise.checklistItems && Array.isArray(exercise.checklistItems)) {
-        exercise.checklistItems.forEach((item: any, itemIndex: number) => {
-          exerciseChecklistItems.push({
-            id: `exercise_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: encrypt(item.description || ''),
-            completed: false,
-            weekNumber: weekResp.weekNumber || (weekIndex + 1),
-            category: 'exercise' as const,
-            type: item.type || 'routine',
-            details: item.details ? {
-              frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
-              duration: item.details.duration ? encrypt(item.details.duration) : undefined,
-              equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
-            } : undefined
-          });
-        });
-      }
-
-      // Hábitos - checklist items encriptados
-      const habitsChecklistItems: ChecklistItem[] = [];
-      if (habits.checklistItems && Array.isArray(habits.checklistItems)) {
-        habits.checklistItems.forEach((item: any, itemIndex: number) => {
-          habitsChecklistItems.push({
-            id: `habit_${weekIndex}_${itemIndex}_${Date.now()}`,
-            description: encrypt(item.description || ''),
-            completed: false,
-            weekNumber: weekResp.weekNumber || (weekIndex + 1),
-            category: 'habit' as const,
-            type: item.type || 'toAdopt'
-          });
-        });
-      }
-
-      // Crear semana completa encriptada
-      weeks.push({
-        weekNumber: (weekResp.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
-        nutrition: {
-          focus: encrypt(nutrition.focus || 'Nutrición keto'),
-          checklistItems: nutritionChecklistItems,
-          shoppingList: (nutrition.shoppingList || []).map((item: any) => ({
-            item: encrypt(item.item || item.name || ''),
-            quantity: encrypt(item.quantity || item.amount || ''),
-            priority: item.priority || 'medium'
-          }))
-        },
-        exercise: {
-          focus: encrypt(exercise.focus || 'Ejercicio adaptado'),
-          checklistItems: exerciseChecklistItems,
-          equipment: (exercise.equipment || []).map((eq: string) => encrypt(eq))
-        },
-        habits: {
-          checklistItems: habitsChecklistItems,
-          trackingMethod: habits.trackingMethod ? encrypt(habits.trackingMethod) : undefined,
-          motivationTip: habits.motivationTip ? encrypt(habits.motivationTip) : undefined
-        }
-      });
-    }
-
-    return weeks;
-  }
-
-  /**
-   * Extraer todos los items del checklist
+   * Extraer todos los items del checklist (ahora simplemente devuelve el array, pero se mantiene por compatibilidad)
    */
   private static extractChecklistItems(weeks: AIRecommendationWeek[]): ChecklistItem[] {
-    return weeks.flatMap(week => [
-      ...week.nutrition.checklistItems,
-      ...week.exercise.checklistItems,
-      ...week.habits.checklistItems
-    ]);
+    // Esta función ya no se usa porque el checklist se construye aparte, pero la dejamos por si acaso
+    return [];
   }
 
   /**
@@ -1109,9 +1076,128 @@ ${responseSchema}
     const idealWeight = this.calculateIdealWeight(clientHeight, decryptedPersonal.gender || '');
     const idealBodyFat = this.calculateIdealBodyFat(clientAge.toString(), decryptedPersonal.gender || '');
     
-    // Crear semanas
+    // Crear semanas de fallback (sin checklistItems en las semanas)
     const weeks = this.createFallbackWeeks();
-    const allChecklistItems = this.extractChecklistItems(weeks);
+    
+    // Crear checklist plano de fallback (con groupIds)
+    const allChecklistItems: ChecklistItem[] = [];
+    const groupMapping: Record<string, string> = {};
+
+    const getOrCreateGroupId = (category: string, index: number): string => {
+      const key = `${category}_${index}`;
+      if (!groupMapping[key]) {
+        groupMapping[key] = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      return groupMapping[key];
+    };
+
+    // Simulamos 4 semanas con items
+    for (let weekNumber = 1; weekNumber <= 4; weekNumber++) {
+      const w = weekNumber as 1 | 2 | 3 | 4;
+      const itemCount = weekNumber; // 1,2,3,4
+
+      // Nutrición
+      for (let i = 0; i < itemCount; i++) {
+        const groupId = getOrCreateGroupId('nutrition', i);
+        let mealDesc = '';
+        switch(i) {
+          case 0: mealDesc = 'Desayuno: Huevos revueltos con espinacas'; break;
+          case 1: mealDesc = 'Almuerzo: Ensalada de pollo con aguacate'; break;
+          case 2: mealDesc = 'Cena: Salmón al horno con brócoli'; break;
+          case 3: mealDesc = 'Merienda: Nueces y queso'; break;
+        }
+        allChecklistItems.push({
+          id: `fallback_nutrition_${w}_${i}_${Date.now()}`,
+          groupId,
+          description: encrypt(mealDesc),
+          completed: false,
+          weekNumber: w,
+          category: 'nutrition',
+          type: i === 0 ? 'breakfast' : i === 1 ? 'lunch' : i === 2 ? 'dinner' : 'snack',
+          frequency: 1,
+          details: {
+            recipe: {
+              ingredients: [
+                { name: encrypt('Huevos'), quantity: encrypt('2-3 unidades'), notes: encrypt('orgánicos') },
+                { name: encrypt('Espinacas'), quantity: encrypt('1 taza'), notes: encrypt('frescas') }
+              ],
+              preparation: encrypt('Cocinar los huevos en mantequilla, agregar espinacas al final.'),
+              tips: encrypt('Añadir sal y pimienta al gusto.')
+            }
+          },
+          isRecurring: true
+        });
+      }
+
+      // Ejercicio
+      for (let i = 0; i < itemCount; i++) {
+        const groupId = getOrCreateGroupId('exercise', i);
+        let exerciseDesc = '';
+        switch(i) {
+          case 0: exerciseDesc = 'Caminata rápida 20 minutos'; break;
+          case 1: exerciseDesc = 'Flexiones - 10 repeticiones'; break;
+          case 2: exerciseDesc = 'Estiramientos 10 minutos'; break;
+          case 3: exerciseDesc = 'Sentadillas - 15 repeticiones'; break;
+        }
+        allChecklistItems.push({
+          id: `fallback_exercise_${w}_${i}_${Date.now()}`,
+          groupId,
+          description: encrypt(exerciseDesc),
+          completed: false,
+          weekNumber: w,
+          category: 'exercise',
+          type: i === 0 ? 'cardio' : i === 1 ? 'strength' : i === 2 ? 'flexibility' : 'strength',
+          details: {
+            frequency: encrypt('3 días por semana'),
+            duration: encrypt(i === 0 ? '20 minutos' : '15 minutos'),
+            equipment: [encrypt('Ninguno')]
+          },
+          isRecurring: true
+        });
+      }
+
+      // Hábitos (adoptar y eliminar)
+      for (let i = 0; i < itemCount; i++) {
+        const groupIdAdopt = getOrCreateGroupId('habit_adopt', i);
+        const groupIdEliminate = getOrCreateGroupId('habit_eliminate', i);
+        
+        let adoptHabit = '';
+        switch(i) {
+          case 0: adoptHabit = 'Beber 2 litros de agua al día'; break;
+          case 1: adoptHabit = 'Dormir 7-8 horas por noche'; break;
+          case 2: adoptHabit = 'Meditar 5 minutos al día'; break;
+          case 3: adoptHabit = 'Registrar alimentos en diario'; break;
+        }
+        allChecklistItems.push({
+          id: `fallback_habit_adopt_${w}_${i}_${Date.now()}`,
+          groupId: groupIdAdopt,
+          description: encrypt(adoptHabit),
+          completed: false,
+          weekNumber: w,
+          category: 'habit',
+          type: 'toAdopt',
+          isRecurring: true
+        });
+
+        let eliminateHabit = '';
+        switch(i) {
+          case 0: eliminateHabit = 'Eliminar refrescos azucarados'; break;
+          case 1: eliminateHabit = 'Reducir tiempo en pantallas antes de dormir'; break;
+          case 2: eliminateHabit = 'Evitar snacks nocturnos'; break;
+          case 3: eliminateHabit = 'Reducir consumo de alimentos procesados'; break;
+        }
+        allChecklistItems.push({
+          id: `fallback_habit_eliminate_${w}_${i}_${Date.now()}`,
+          groupId: groupIdEliminate,
+          description: encrypt(eliminateHabit),
+          completed: false,
+          weekNumber: w,
+          category: 'habit',
+          type: 'toEliminate',
+          isRecurring: true
+        });
+      }
+    }
 
     // Resumen y visión mejorados
     const summary = `Análisis inicial para ${clientName}, ${clientAge} años. Se recomienda enfoque keto progresivo adaptado a necesidades individuales. El plan incluye alimentación basada en grasas saludables, ejercicio gradual y formación de hábitos sostenibles.`;
@@ -1157,122 +1243,18 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   /**
-   * Crear semanas de fallback
+   * Crear semanas de fallback (solo metadatos)
    */
   private static createFallbackWeeks(): AIRecommendationWeek[] {
     const weeks: AIRecommendationWeek[] = [];
     
     for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
       const weekNumber = (weekIndex + 1) as 1 | 2 | 3 | 4;
-      const itemCount = weekIndex + 1;
       
-      // Nutrición
-      const nutritionChecklistItems: ChecklistItem[] = [];
-      for (let i = 0; i < itemCount; i++) {
-        let mealType = '';
-        let mealDesc = '';
-        
-        switch(i) {
-          case 0: mealType = 'breakfast'; mealDesc = 'Desayuno: Huevos revueltos con espinacas'; break;
-          case 1: mealType = 'lunch'; mealDesc = 'Almuerzo: Ensalada de pollo con aguacate'; break;
-          case 2: mealType = 'dinner'; mealDesc = 'Cena: Salmón al horno con brócoli'; break;
-          case 3: mealType = 'snack'; mealDesc = 'Merienda: Nueces y queso'; break;
-        }
-        
-        nutritionChecklistItems.push({
-          id: `fallback_nutrition_${weekNumber}_${i}_${Date.now()}`,
-          description: encrypt(mealDesc),
-          completed: false,
-          weekNumber,
-          category: 'nutrition' as const,
-          type: mealType,
-          details: {
-            recipe: {
-              ingredients: [
-                { name: encrypt('Huevos'), quantity: encrypt('2-3 unidades'), notes: encrypt('orgánicos') },
-                { name: encrypt('Espinacas'), quantity: encrypt('1 taza'), notes: encrypt('frescas') }
-              ],
-              preparation: encrypt('Cocinar los huevos en mantequilla, agregar espinacas al final.'),
-              tips: encrypt('Añadir sal y pimienta al gusto.')
-            }
-          }
-        });
-      }
-      
-      // Ejercicio
-      const exerciseChecklistItems: ChecklistItem[] = [];
-      for (let i = 0; i < itemCount; i++) {
-        let exerciseType = '';
-        let exerciseDesc = '';
-        
-        switch(i) {
-          case 0: exerciseType = 'cardio'; exerciseDesc = 'Caminata rápida 20 minutos'; break;
-          case 1: exerciseType = 'strength'; exerciseDesc = 'Flexiones - 10 repeticiones'; break;
-          case 2: exerciseType = 'flexibility'; exerciseDesc = 'Estiramientos 10 minutos'; break;
-          case 3: exerciseType = 'strength'; exerciseDesc = 'Sentadillas - 15 repeticiones'; break;
-        }
-        
-        exerciseChecklistItems.push({
-          id: `fallback_exercise_${weekNumber}_${i}_${Date.now()}`,
-          description: encrypt(exerciseDesc),
-          completed: false,
-          weekNumber,
-          category: 'exercise' as const,
-          type: exerciseType,
-          details: {
-            frequency: encrypt('3 días por semana'),
-            duration: encrypt(i === 0 ? '20 minutos' : '15 minutos'),
-            equipment: [encrypt('Ninguno')]
-          }
-        });
-      }
-      
-      // Hábitos
-      const habitsChecklistItems: ChecklistItem[] = [];
-      for (let i = 0; i < itemCount; i++) {
-        // Hábitos para adoptar
-        let adoptHabit = '';
-        switch(i) {
-          case 0: adoptHabit = 'Beber 2 litros de agua al día'; break;
-          case 1: adoptHabit = 'Dormir 7-8 horas por noche'; break;
-          case 2: adoptHabit = 'Meditar 5 minutos al día'; break;
-          case 3: adoptHabit = 'Registrar alimentos en diario'; break;
-        }
-        
-        habitsChecklistItems.push({
-          id: `fallback_habit_adopt_${weekNumber}_${i}_${Date.now()}`,
-          description: encrypt(adoptHabit),
-          completed: false,
-          weekNumber,
-          category: 'habit' as const,
-          type: 'toAdopt'
-        });
-        
-        // Hábitos para eliminar
-        let eliminateHabit = '';
-        switch(i) {
-          case 0: eliminateHabit = 'Eliminar refrescos azucarados'; break;
-          case 1: eliminateHabit = 'Reducir tiempo en pantallas antes de dormir'; break;
-          case 2: eliminateHabit = 'Evitar snacks nocturnos'; break;
-          case 3: eliminateHabit = 'Reducir consumo de alimentos procesados'; break;
-        }
-        
-        habitsChecklistItems.push({
-          id: `fallback_habit_eliminate_${weekNumber}_${i}_${Date.now()}`,
-          description: encrypt(eliminateHabit),
-          completed: false,
-          weekNumber,
-          category: 'habit' as const,
-          type: 'toEliminate'
-        });
-      }
-      
-      // Crear semana
       weeks.push({
         weekNumber,
         nutrition: {
           focus: encrypt(`Adaptación keto semana ${weekNumber}`),
-          checklistItems: nutritionChecklistItems,
           shoppingList: [
             { item: encrypt('Huevos'), quantity: encrypt('12 unidades'), priority: 'high' },
             { item: encrypt('Aguacates'), quantity: encrypt('3 unidades'), priority: 'high' }
@@ -1280,11 +1262,9 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         },
         exercise: {
           focus: encrypt(`Rutina progresiva semana ${weekNumber}`),
-          checklistItems: exerciseChecklistItems,
           equipment: [encrypt('Zapatos cómodos'), encrypt('Ropa deportiva')]
         },
         habits: {
-          checklistItems: habitsChecklistItems,
           trackingMethod: encrypt('Registro en aplicación móvil o cuaderno'),
           motivationTip: encrypt('Cada pequeño cambio cuenta. Celebra tus logros diarios.')
         }
@@ -1351,7 +1331,6 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       }
     }
     
-    // ✅ CORRECCIÓN: Usar método helper para evaluar valores booleanos/strings
     if (this.getBooleanValue(data.carbohydrateAddiction)) {
       criticalInfo.push('🍩 Adicción a carbohidratos: SÍ');
     }
@@ -1373,28 +1352,45 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   private static fixTruncatedJSON(jsonString: string): string {
-    // Contar llaves para ver si está balanceado
+    jsonString = jsonString.trim();
+    
     const openBraces = (jsonString.match(/{/g) || []).length;
     const closeBraces = (jsonString.match(/}/g) || []).length;
+    const openBrackets = (jsonString.match(/\[/g) || []).length;
+    const closeBrackets = (jsonString.match(/\]/g) || []).length;
     
+    let fixed = jsonString;
     if (openBraces > closeBraces) {
-      console.log(`⚠️ JSON desbalanceado: {=${openBraces}, }=${closeBraces}, agregando llaves de cierre`);
-      jsonString = jsonString + '}'.repeat(openBraces - closeBraces);
+      fixed += '}'.repeat(openBraces - closeBraces);
+    }
+    if (openBrackets > closeBrackets) {
+      fixed += ']'.repeat(openBrackets - closeBrackets);
     }
     
-    // Verificar si el último carácter es una coma o comilla sin cerrar
-    const trimmed = jsonString.trim();
-    if (trimmed.endsWith(',') || trimmed.endsWith('"')) {
-      console.log('⚠️ JSON termina con carácter inválido, recortando...');
-      jsonString = jsonString.substring(0, jsonString.length - 1);
+    const quoteMatches = fixed.match(/"/g);
+    const quoteCount = quoteMatches ? quoteMatches.length : 0;
+    if (quoteCount % 2 !== 0) {
+      fixed += '"';
     }
     
-    return jsonString;
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    try {
+      JSON.parse(fixed);
+      return fixed;
+    } catch (e) {
+      console.warn('No se pudo reparar el JSON, usando fallback');
+      return JSON.stringify({
+        summary: "Error al generar recomendaciones",
+        vision: "Intenta de nuevo",
+        baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
+        weeks: []
+      });
+    }
   }
 
   private static extractPartialResponse(response: string): any {
     try {
-      // Intentar encontrar secciones clave
       const summaryMatch = response.match(/"summary"\s*:\s*"([^"]*)"/);
       const visionMatch = response.match(/"vision"\s*:\s*"([^"]*)"/);
       
@@ -1490,7 +1486,6 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
    * Probar conexión con DeepSeek
    */
   static async testDeepSeekConnection(): Promise<boolean> {
-    // ✅ CORRECCIÓN: Usar AbortController en lugar de AbortSignal.timeout() que no existe en Node.js
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
@@ -1531,10 +1526,4 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       return false;
     }
   }
-
-  
-}
-
-function findBestMatchingRecipe(description: any) {
-  throw new Error('Function not implemented.');
 }

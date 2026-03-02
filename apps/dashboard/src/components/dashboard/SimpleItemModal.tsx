@@ -8,6 +8,7 @@ interface SimpleItemOutput {
     frequency?: string;
     equipment?: string[];
   };
+  isRecurring?: boolean;
 }
 
 interface SimpleItemModalProps {
@@ -28,10 +29,11 @@ const SimpleItemModal: React.FC<SimpleItemModalProps> = ({
   const [duration, setDuration] = useState(initialData?.details?.duration || '');
   const [frequency, setFrequency] = useState(initialData?.details?.frequency || '');
   const [equipment, setEquipment] = useState(initialData?.details?.equipment?.join(', ') || '');
+  const [isRecurring, setIsRecurring] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data: SimpleItemOutput = { description, type };
+    const data: SimpleItemOutput = { description, type, isRecurring };
     if (category === 'exercise') {
       data.details = {
         duration,
@@ -39,6 +41,7 @@ const SimpleItemModal: React.FC<SimpleItemModalProps> = ({
         equipment: equipment.split(',').map(s => s.trim()).filter(Boolean),
       };
     }
+    console.log('Datos del item generado:', data);
     onSave(data);
   };
 

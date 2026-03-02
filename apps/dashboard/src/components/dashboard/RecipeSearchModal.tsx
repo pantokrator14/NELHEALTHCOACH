@@ -10,10 +10,11 @@ interface Recipe {
   cookTime: number;
   ingredients?: string[];
   instructions?: string[];
+  isRecurring?: boolean;
 }
 
 interface RecipeSearchModalProps {
-  onSelect: (recipe: Recipe, frequency: number) => void;
+  onSelect: (recipe: Recipe, frequency: number, isRecurring: boolean) => void;
   onClose: () => void;
 }
 
@@ -23,6 +24,7 @@ const RecipeSearchModal: React.FC<RecipeSearchModalProps> = ({ onSelect, onClose
   const [loading, setLoading] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [frequency, setFrequency] = useState(1);
+  const [isRecurring, setIsRecurring] = useState(false);
 
   const searchRecipes = useCallback(async () => {
     if (search.length < 2) {
@@ -52,7 +54,10 @@ const RecipeSearchModal: React.FC<RecipeSearchModalProps> = ({ onSelect, onClose
   const handleSelectRecipe = (recipe: Recipe) => setSelectedRecipe(recipe);
   const handleConfirm = () => {
     if (selectedRecipe) {
-      onSelect(selectedRecipe, frequency);
+      console.log('Receta seleccionada:', selectedRecipe);
+      console.log('Frecuencia:', frequency);
+      console.log('¿Es recurrente?', isRecurring);
+      onSelect(selectedRecipe, frequency, isRecurring);
       onClose();
     }
   };

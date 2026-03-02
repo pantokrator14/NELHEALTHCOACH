@@ -1,4 +1,4 @@
-import { ChecklistItem } from '../../../../packages/types/src/healthForm';
+import { AIRecommendationSession, ChecklistItem } from '../../../../packages/types/src/healthForm';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../packages/types/src/recipe-types';
 import { NutritionAnalysisResult } from '../../../../packages/types/src/nutrition-types';
 
@@ -732,7 +732,7 @@ export const apiClient = {
 
   // Buscar recetas
   async searchRecipes(query: string) {
-    const response = await fetch(`/api/recipes?search=${encodeURIComponent(query)}`);
+    const response = await fetch(`/api/recipes?search=${encodeURIComponent(query)}&mode=search`);
     return response.json();
   },
 
@@ -780,4 +780,25 @@ export const apiClient = {
     });
     return response.json();
   },
+  async updateAISessionFields(
+    clientId: string,
+    sessionId: string,
+    fields: { summary?: string; vision?: string }
+  ): Promise<ApiResponse<{ session: AIRecommendationSession }>> {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'update_session_fields',
+        sessionId,
+        data: { fields }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando campos de sesión');
+    }
+    return response.json();
+  }
 };
