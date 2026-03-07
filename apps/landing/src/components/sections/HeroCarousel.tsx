@@ -5,7 +5,7 @@ const HeroCarousel: React.FC = () => {
   const slides = [
     {
       id: 1,
-      title: "El momento de cambiar tu vida ha llegado",
+      title: "Llego el momento de escuchar a tu cuerpo",
       image: "/images/hero/hero1.jpg"
     },
     {
