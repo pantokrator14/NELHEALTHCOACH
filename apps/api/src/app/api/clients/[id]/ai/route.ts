@@ -517,6 +517,12 @@ export async function PUT(
           operationResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
           message = 'Sesión regenerada';
           break;
+        
+        case 'generate_shopping_list':
+          console.log('🛒 GENERATE_SHOPPING_LIST: Iniciando...', { sessionId, weekNumber: data?.weekNumber });
+          operationResult = await generateShoppingList(id, sessionId, data?.weekNumber, requestId);
+          message = 'Lista de compras actualizada';
+          break;
 
         default:
           loggerWithContext.warn('AI', 'Acción no válida', { action });
@@ -1529,5 +1535,73 @@ async function updateSessionFields(
       success: false,
       message: error.message
     };
+  }
+}
+
+async function generateShoppingList(
+  clientId: string,
+  sessionId: string,
+  weekNumber: number,
+  requestId: string
+): Promise<any> {
+  const loggerWithContext = logger.withContext({ requestId, clientId });
+
+  try {
+    const healthForms = await getHealthFormsCollection();
+    const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
+
+    if (!client || !client.aiProgress) {
+      throw new Error('Cliente no encontrado');
+    }
+
+    const sessionIndex = client.aiProgress.sessions.findIndex((s: any) => s.sessionId === sessionId);
+    if (sessionIndex === -1) throw new Error('Sesión no encontrada');
+
+    const session = client.aiProgress.sessions[sessionIndex];
+    const weekIndex = session.weeks.findIndex((w: any) => w.weekNumber === weekNumber);
+    if (weekIndex === -1) throw new Error('Semana no encontrada');
+
+    // Obtener items de nutrición de la semana y desencriptarlos
+    const nutritionItems = session.checklist
+      .filter((item: any) => item.weekNumber === weekNumber && item.category === 'nutrition')
+      .map((item: any) => ({
+        ...item,
+        description: safeDecrypt(item.description),
+        recipeId: item.recipeId,
+        frequency: item.frequency || 1,
+        details: item.details ? {
+          recipe: item.details.recipe ? {
+            ingredients: item.details.recipe.ingredients.map((ing: any) => ({
+              name: safeDecrypt(ing.name),
+              quantity: safeDecrypt(ing.quantity),
+              notes: ing.notes ? safeDecrypt(ing.notes) : undefined
+            })),
+            preparation: safeDecrypt(item.details.recipe.preparation),
+            tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined
+          } : undefined
+        } : undefined
+      }));
+
+    console.log('nutritionItems:', JSON.stringify(nutritionItems, null, 2));
+    // Llamar al servicio con los items completos
+    const shoppingList = await AIService.generateShoppingListFromItems(nutritionItems);
+    console.log('shoppingList generada:', shoppingList);
+
+    // Actualizar la semana con la nueva lista
+    const updatePath = `aiProgress.sessions.${sessionIndex}.weeks.${weekIndex}.nutrition.shoppingList`;
+    const result = await healthForms.updateOne(
+      { _id: new ObjectId(clientId) },
+      { $set: { [updatePath]: shoppingList } }
+    );
+    console.log('Resultado de update:', result);
+
+    if (result.matchedCount === 0) {
+      throw new Error('Cliente no encontrado');
+    }
+
+    return { success: true, shoppingList };
+  } catch (error: any) {
+    loggerWithContext.error('AI', 'Error generando lista de compras', error);
+    return { success: false, message: error.message };
   }
 }

@@ -12,7 +12,7 @@ const AboutSection: React.FC = () => {
   return (
     <section id="sobre-mi" className="bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 text-white min-h-screen py-16 px-4 flex items-center">
       <div className="container mx-auto max-w-6xl w-full">
-        <h2 className="text-3xl text-white md:text-4xl font-bold text-center mb-16">Pero... ¿Quién soy yo?</h2>
+        <h2 className="text-3xl text-white md:text-4xl font-bold text-center mb-16">¡Hola! soy Nel, te invito a conocer &quot;El Poder de tu Cuerpo.&quot;</h2>
         
         <div className="flex flex-col lg:flex-row items-center gap-10">
           <div>

@@ -15,7 +15,7 @@ const HeroCarousel: React.FC = () => {
     },
     {
       id: 3,
-      title: "Tu cuerpo manda, tú decides",
+      title: "Conoce El Poder de tu Cuerpo",
       image: "/images/hero/hero3.jpg"
     },
     {
