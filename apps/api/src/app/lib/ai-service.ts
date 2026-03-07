@@ -9,6 +9,7 @@ import {
   AIRecommendationWeek,
   ChecklistItem
 } from '../../../../../packages/types/src/healthForm';
+import { ObjectId } from 'mongodb';
 
 // Interfaces para la respuesta de IA (igual que antes)
 interface AIResponseWeek {
@@ -1525,5 +1526,308 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       console.error('💥 Error de conexión:', error.message);
       return false;
     }
+  }
+
+  /**
+   * Genera una lista de compras consolidada para una semana, usando IA para redondear a cantidades comerciales.
+   */
+  static async generateShoppingList(
+    recipesWithFrequency: Array<{ recipeId: string; frequency: number }>
+  ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
+    const loggerWithContext = logger.withContext({ method: 'generateShoppingList' });
+    
+    try {
+      // 1. Obtener todas las recetas de la BD (desencriptadas)
+      const recipes: Array<{ title: string; ingredients: string[]; frequency: number }> = [];
+      for (const { recipeId, frequency } of recipesWithFrequency) {
+        const recipe = await this.getRecipeById(recipeId);
+        if (recipe) {
+          recipes.push({
+            title: recipe.title,
+            ingredients: recipe.ingredients,
+            frequency
+          });
+        } else {
+          loggerWithContext.warn('generateShoppingList', `Receta no encontrada: ${recipeId}`);
+        }
+      }
+
+      if (recipes.length === 0) {
+        return [];
+      }
+
+      // 2. Construir el prompt para la IA
+      const prompt = this.buildShoppingListPrompt(recipes);
+
+      // 3. Llamar a DeepSeek
+      const aiResponse = await this.callDeepSeekAPI(prompt);
+
+      // 4. Parsear la respuesta JSON
+      const parsed = this.parseShoppingListResponse(aiResponse);
+      console.log('Lista generada por IA:', JSON.stringify(parsed, null, 2));
+      return parsed;
+
+    } catch (error: any) {
+      loggerWithContext.error('generateShoppingList', 'Error generando lista de compras con IA', error);
+      // Fallback: usar cálculo simple si la IA falla
+      return this.generateShoppingListFallback(recipesWithFrequency);
+    }
+  }
+
+  // Funciones auxiliares privadas
+
+  private static async getRecipeById(recipeId: string): Promise<DecryptedRecipe | null> {
+    try {
+      const collection = await getRecipesCollection();
+      const recipe = await collection.findOne({ _id: new ObjectId(recipeId) });
+      if (!recipe) return null;
+
+      return {
+        _id: recipe._id.toString(),
+        title: safeDecrypt(recipe.title),
+        description: safeDecrypt(recipe.description),
+        ingredients: Array.isArray(recipe.ingredients)
+          ? recipe.ingredients.map((ing: string) => safeDecrypt(ing))
+          : [],
+        instructions: Array.isArray(recipe.instructions)
+          ? recipe.instructions.map((inst: string) => safeDecrypt(inst))
+          : [],
+        nutrition: recipe.nutrition,
+        cookTime: recipe.cookTime,
+        difficulty: safeDecrypt(recipe.difficulty),
+        image: recipe.image ? decryptFileObject(recipe.image) : null,
+        category: Array.isArray(recipe.category)
+          ? recipe.category.map((cat: string) => safeDecrypt(cat))
+          : [],
+        tags: Array.isArray(recipe.tags)
+          ? recipe.tags.map((tag: string) => safeDecrypt(tag))
+          : [],
+      };
+    } catch (error) {
+      logger.error('getRecipeById', 'Error obteniendo receta', error);
+      return null;
+    }
+  }
+
+  private static buildShoppingListPrompt(recipes: Array<{ title: string; ingredients: string[]; frequency: number }>): string {
+    let recipesText = '';
+    recipes.forEach((r, idx) => {
+      recipesText += `\nReceta ${idx + 1}: "${r.title}" (se prepara ${r.frequency} veces en la semana)\nIngredientes:\n`;
+      r.ingredients.forEach(ing => {
+        recipesText += `- ${ing}\n`;
+      });
+    });
+
+    const prompt = `Eres un asistente que ayuda a crear listas de compras prácticas para el supermercado.
+  A continuación se listan las recetas que se cocinarán durante la semana, con la frecuencia de cada una.
+  Debes generar una lista de compras ÚNICA que consolide todos los ingredientes necesarios, teniendo en cuenta:
+
+  - Suma las cantidades de cada ingrediente multiplicando por la frecuencia.
+  - Redondea las cantidades a unidades de compra típicas (por ejemplo, si necesitas 350g de harina, escribe "1 kg"; si necesitas 3 cucharadas de mantequilla, escribe "1 barra (200-250g)"; si necesitas 6 huevos, escribe "6 unidades" o "media docena" según el contexto).
+  - Si un ingrediente no tiene cantidad (ej. "sal al gusto"), simplemente inclúyelo sin cantidad (ej. "Sal").
+  - Prioriza los productos en alta/media/baja según su importancia para las recetas (los básicos son alta prioridad, los complementarios media, los opcionales baja).
+
+  Devuelve SOLO un array JSON con la siguiente estructura:
+  [
+    { "item": "nombre del producto", "quantity": "cantidad con unidad (ej. 1 kg, 2 unidades, 1 barra)", "priority": "high/medium/low" },
+    ...
+  ]
+
+  No incluyas texto adicional, solo el JSON.`;
+
+    return prompt + recipesText;
+  }
+
+  private static parseShoppingListResponse(response: string): Array<{ item: string; quantity: string; priority: string }> {
+    try {
+      // Limpiar la respuesta (posibles markdown)
+      let jsonString = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const parsed = JSON.parse(jsonString);
+      if (Array.isArray(parsed)) {
+        return parsed.map(p => ({
+          item: p.item || '',
+          quantity: p.quantity || '',
+          priority: p.priority || 'medium'
+        }));
+      }
+      throw new Error('Respuesta no es un array');
+    } catch (error) {
+      logger.error('parseShoppingListResponse', 'Error parseando respuesta de IA', error);
+      return [];
+    }
+  }
+
+  private static async generateShoppingListFallback(
+    recipesWithFrequency: Array<{ recipeId: string; frequency: number }>
+  ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
+    // Implementación simple: suma ingredientes y redondea a entero (sin IA)
+    const shoppingMap = new Map<string, { total: number; unit: string }>();
+
+    for (const { recipeId, frequency } of recipesWithFrequency) {
+      const recipe = await this.getRecipeById(recipeId);
+      if (!recipe) continue;
+
+      for (const ing of recipe.ingredients) {
+        const { name, quantity, unit } = this.parseIngredientSimple(ing);
+        if (quantity === 0) continue;
+        const key = `${name}|${unit}`;
+        const current = shoppingMap.get(key) || { total: 0, unit };
+        shoppingMap.set(key, { total: current.total + quantity * frequency, unit });
+      }
+    }
+
+    const result = [];
+    for (const [key, value] of Array.from(shoppingMap.entries())) {
+      const [name] = key.split('|');
+      let total = value.total;
+      const unit = value.unit;
+
+      // Redondeo simple
+      if (unit === 'g' || unit === 'ml') {
+        total = Math.ceil(total / 100) * 100;
+      } else if (unit === 'kg') {
+        total = Math.ceil(total * 10) / 10;
+      } else {
+        total = Math.ceil(total);
+      }
+
+      result.push({
+        item: name,
+        quantity: `${total} ${unit}`.trim(),
+        priority: 'medium'
+      });
+    }
+
+    return result.sort((a, b) => a.item.localeCompare(b.item));
+  }
+
+  private static parseIngredientSimple(ingredientStr: string): { name: string; quantity: number; unit: string } {
+    const str = ingredientStr.trim().toLowerCase();
+    const match = str.match(/^(\d+(?:\.\d+)?|\d+\/\d+)?\s*([a-záéíóúñ]+)?\s*(?:de\s+)?(.*)$/i);
+    if (!match) return { name: ingredientStr, quantity: 0, unit: '' };
+    let quantity = 0;
+    if (match[1]) {
+      if (match[1].includes('/')) {
+        const [num, den] = match[1].split('/').map(Number);
+        quantity = num / den;
+      } else {
+        quantity = parseFloat(match[1]);
+      }
+    }
+    const unit = match[2] || '';
+    let name = match[3] || ingredientStr;
+    name = name.replace(/^de\s+/, '').trim();
+    return { name, quantity, unit };
+  }
+
+  static async generateShoppingListFromItems(
+    nutritionItems: any[] // Items ya desencriptados
+  ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
+    const loggerWithContext = logger.withContext({ method: 'generateShoppingListFromItems' });
+    
+    try {
+      const recipes: Array<{ title: string; ingredients: string[]; frequency: number }> = [];
+
+      for (const item of nutritionItems) {
+        const frequency = item.frequency || 1;
+
+        // Caso 1: Receta de base de datos (tiene recipeId)
+        if (item.recipeId) {
+          const recipe = await this.getRecipeById(item.recipeId);
+          if (recipe) {
+            recipes.push({
+              title: recipe.title,
+              ingredients: recipe.ingredients,
+              frequency
+            });
+          } else {
+            loggerWithContext.warn('generateShoppingList', `Receta no encontrada: ${item.recipeId}`);
+          }
+        }
+        // Caso 2: Receta generada por IA (incrustada en details.recipe)
+        else if (item.details?.recipe) {
+          const recipeDetails = item.details.recipe;
+          // Construir lista de ingredientes en formato legible
+          const ingredients = recipeDetails.ingredients.map((ing: any) => {
+            // ing.name y ing.quantity ya vienen desencriptados
+            return `${ing.name}: ${ing.quantity}`;
+          });
+          
+          recipes.push({
+            title: item.description || 'Receta personalizada',
+            ingredients,
+            frequency
+          });
+        }
+      }
+      console.log('Recipes para IA:', JSON.stringify(recipes, null, 2));
+      if (recipes.length === 0) {
+        return [];
+      }
+
+      // Construir prompt y llamar a IA
+      const prompt = this.buildShoppingListPrompt(recipes);
+      const aiResponse = await this.callDeepSeekAPI(prompt);
+      return this.parseShoppingListResponse(aiResponse);
+
+    } catch (error: any) {
+      loggerWithContext.error('generateShoppingListFromItems', 'Error generando lista de compras con IA', error);
+      // Fallback: usar cálculo simple si la IA falla
+      return this.generateShoppingListFallbackFromItems(nutritionItems);
+    }
+  }
+
+  private static async generateShoppingListFallbackFromItems(
+    nutritionItems: any[]
+  ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
+    const shoppingMap = new Map<string, { total: number; unit: string }>();
+
+    for (const item of nutritionItems) {
+      const frequency = item.frequency || 1;
+      let ingredientsList: string[] = [];
+
+      if (item.recipeId) {
+        const recipe = await this.getRecipeById(item.recipeId);
+        if (recipe) {
+          ingredientsList = recipe.ingredients;
+        }
+      } else if (item.details?.recipe) {
+        // Convertir ingredientes de la receta IA a strings
+        ingredientsList = item.details.recipe.ingredients.map((ing: any) => 
+          `${ing.name}: ${ing.quantity}`
+        );
+      }
+
+      for (const ingStr of ingredientsList) {
+        const { name, quantity, unit } = this.parseIngredientSimple(ingStr);
+        if (quantity === 0) continue;
+        const key = `${name}|${unit}`;
+        const current = shoppingMap.get(key) || { total: 0, unit };
+        shoppingMap.set(key, { total: current.total + quantity * frequency, unit });
+      }
+    }
+
+    const result = [];
+    for (const [key, value] of Array.from(shoppingMap.entries())) {
+      const [name] = key.split('|');
+      let total = value.total;
+      const unit = value.unit;
+
+      if (unit === 'g' || unit === 'ml') {
+        total = Math.ceil(total / 100) * 100;
+      } else if (unit === 'kg') {
+        total = Math.ceil(total * 10) / 10;
+      } else {
+        total = Math.ceil(total);
+      }
+
+      result.push({
+        item: name,
+        quantity: `${total} ${unit}`.trim(),
+        priority: 'medium'
+      });
+    }
+
+    return result.sort((a, b) => a.item.localeCompare(b.item));
   }
 }

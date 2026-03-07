@@ -246,6 +246,7 @@ export default function AIRecommendationsModal({
     weekNumber: number;
   } | null>(null);
   const [showAIRecipeEditModal, setShowAIRecipeEditModal] = useState(false);
+  const [loadingShoppingList, setLoadingShoppingList] = useState<Record<number, boolean>>({});
 
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
@@ -260,7 +261,7 @@ export default function AIRecommendationsModal({
           weekNumber: typedWeek.weekNumber || (weekIndex + 1) as 1 | 2 | 3 | 4,
           nutrition: {
             focus: typedWeek.nutrition?.focus || 'Nutrición keto',
-            shoppingList: [] // Ignoramos shoppingList legacy
+            shoppingList: typedWeek.nutrition?.shoppingList || [] // ¡Conservamos shoppingList!
           },
           exercise: {
             focus: typedWeek.exercise?.focus || 'Ejercicio adaptado',
@@ -275,12 +276,11 @@ export default function AIRecommendationsModal({
       
       // Caso 2: Estructura antigua, extraemos solo metadatos
       const oldWeek = week as OldWeekStructure;
-      
       return {
         weekNumber: (oldWeek.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
         nutrition: {
           focus: oldWeek.nutrition?.focus || 'Nutrición keto',
-          shoppingList: [] // Descartamos shoppingList antiguo
+          shoppingList: [] // Las viejas no tienen shoppingList
         },
         exercise: {
           focus: oldWeek.exercise?.focus || oldWeek.exercise?.routine || 'Ejercicio adaptado',
@@ -292,7 +292,7 @@ export default function AIRecommendationsModal({
         }
       };
     });
-  }, []);
+  }, []);;
 
   const convertApiDataToClientAIProgress = useCallback((apiData: ApiAIProgressData): ClientAIProgress | null => {
     if (!apiData.sessions || apiData.sessions.length === 0) return null;
@@ -481,29 +481,6 @@ export default function AIRecommendationsModal({
     }
   }, [aiProgress, clientId, loadAIProgress]);
 
-  const deleteItemViaFullChecklist = useCallback(async (updatedChecklist: ChecklistItem[]) => {
-    if (!activeSession || !aiProgress) return;
-
-    try {
-      const response = await apiClient.updateAIChecklist(clientId, activeSession.sessionId, updatedChecklist);
-      if (response.success && response.data && (response.data as { session?: AIRecommendationSession }).session) {
-        const sessionData = (response.data as { session: AIRecommendationSession }).session;
-        setAiProgress(prev => {
-          if (!prev) return prev;
-          const sessions = prev.sessions.map(s =>
-            s.sessionId === activeSession.sessionId ? sessionData : s
-          );
-          return { ...prev, sessions };
-        });
-      } else {
-        throw new Error(response.message || 'Error al eliminar');
-      }
-    } catch {
-      alert('Error al eliminar');
-      await loadAIProgress();
-    }
-  }, [activeSession, aiProgress, clientId, loadAIProgress]);
-
   // ===== MANEJADORES DE EDICIÓN =====
   const handleStartEdit = useCallback((
     sessionId: string,
@@ -606,10 +583,31 @@ export default function AIRecommendationsModal({
     loadAIProgress();
   }, [loadAIProgress]);
 
+  const handleUpdateShoppingList = useCallback(async (sessionId: string, weekNumber: number) => {
+    try {
+      setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: true }));
+
+      console.log('handleUpdateShoppingList llamada con', { sessionId, weekNumber });
+
+      const response = await apiClient.updateAIShoppingList(clientId, sessionId, weekNumber);
+      if (response.success) {
+        await loadAIProgress(); // Recarga toda la data (incluyendo la lista actualizada)
+      } else {
+        throw new Error(response.message);
+      }
+    } catch (error) {
+      console.error('Error actualizando lista de compras', error);
+      alert('Error al actualizar la lista de compras');
+    } finally {
+      setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
+    }
+  }, [clientId, loadAIProgress]);
+
   const fetchRecipeAndOpenModal = useCallback(async (recipeId: string) => {
     try {
       const response = await apiClient.getRecipeById(recipeId);
       if (response.success) {
+        // La respuesta ya viene desencriptada desde el backend
         setSelectedRecipe(response.data as RecipeWithDetails);
         setShowRecipeDetail(true);
       }
@@ -914,37 +912,33 @@ export default function AIRecommendationsModal({
     setExpandedWeeks(prev => prev.length === 4 ? [] : [0, 1, 2, 3]);
   }, []);
 
-  const calculateShoppingList = useCallback((nutritionItems: ChecklistItem[]): Array<{ item: string; quantity: string }> => {
-    const shoppingMap = new Map<string, number>();
+  const toggleShoppingList = useCallback(async (weekId: string, weekNumber: number, sessionId: string) => {
+    
+    const isExpanding = !expandedShoppingLists.includes(weekId);
 
-    nutritionItems.forEach(item => {
-      if (!item.details?.recipe) return;
-      item.details.recipe.ingredients.forEach(ing => {
-        const key = ing.name;
-        const quantityMatch = ing.quantity.match(/^(\d+(?:\.\d+)?)/);
-        let quantity = quantityMatch ? parseFloat(quantityMatch[1]) : 1;
-        if (Math.abs(quantity - Math.round(quantity)) < 0.01) {
-          quantity = Math.round(quantity);
-        }
-        const total = quantity * (item.frequency || 1);
-        const current = shoppingMap.get(key) || 0;
-        shoppingMap.set(key, current + total);
-      });
-    });
-
-    return Array.from(shoppingMap.entries())
-      .map(([item, quantity]) => ({
-        item,
-        quantity: Number.isInteger(quantity) ? quantity.toString() : quantity.toFixed(1),
-      }))
-      .sort((a, b) => a.item.localeCompare(b.item));
-  }, []);
-
-  const toggleShoppingList = useCallback((weekId: string) => {
+    console.log('toggleShoppingList', { weekId, weekNumber, sessionId, isExpanding: !expandedShoppingLists.includes(weekId) });
+    
+    // Actualizar el estado de expansión
     setExpandedShoppingLists(prev => 
       prev.includes(weekId) ? prev.filter(id => id !== weekId) : [...prev, weekId]
     );
-  }, []);
+
+    // Si se está expandiendo y la lista está vacía, generar automáticamente
+    if (isExpanding && activeSession) {
+      const week = activeSession.weeks.find(w => w.weekNumber === weekNumber);
+      if (week && week.nutrition.shoppingList.length === 0) {
+        try {
+          setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: true }));
+          await handleUpdateShoppingList(sessionId, weekNumber);
+        } catch (error) {
+          console.error('Error generando lista automática', error);
+          alert('No se pudo generar la lista de compras automáticamente');
+        } finally {
+          setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
+        }
+      }
+    }
+  }, [expandedShoppingLists, activeSession, handleUpdateShoppingList]);
 
   const toggleRecipeExpansion = useCallback((itemId: string) => {
     setExpandedRecipes(prev => prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]);
@@ -967,16 +961,16 @@ export default function AIRecommendationsModal({
 
     return (
       <div key={item.id} className="flex items-start py-2 border-b border-gray-100 last:border-0 group relative">
-        <div onClick={handleCheckboxClick} className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${isChecked ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300 hover:border-green-400'}`}>
+        <div onClick={handleCheckboxClick} className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all flex-shrink-0 ${isChecked ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300 hover:border-green-400'}`}>
           {isChecked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center flex-wrap gap-2 mb-1">
             {item.category === 'nutrition' && (
               <>
                 <OriginPin origin={item.recipeId ? 'db' : 'ai'} />
                 {item.frequency && (
-                  <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full whitespace-nowrap">
                     {item.frequency} {item.frequency === 1 ? 'vez' : 'veces'}/semana
                   </span>
                 )}
@@ -995,7 +989,7 @@ export default function AIRecommendationsModal({
             />
           ) : (
             <span
-              className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} cursor-pointer`}
+              className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} break-words`}
               onClick={handleCheckboxClick}
             >
               {item.description}
@@ -1021,7 +1015,10 @@ export default function AIRecommendationsModal({
                       <h6 className="text-sm font-medium text-gray-700 mb-1">Ingredientes:</h6>
                       <ul className="space-y-1">
                         {item.details.recipe.ingredients.map((ingredient, idx) => (
-                          <li key={idx} className="text-sm text-gray-600"><span className="font-medium">{ingredient.name}</span>: {ingredient.quantity}{ingredient.notes && <span className="text-gray-500 text-xs ml-2">({ingredient.notes})</span>}</li>
+                          <li key={idx} className="text-sm text-gray-600 break-words">
+                            <span className="font-medium">{ingredient.name}</span>: {ingredient.quantity}
+                            {ingredient.notes && <span className="text-gray-500 text-xs ml-2">({ingredient.notes})</span>}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1029,13 +1026,13 @@ export default function AIRecommendationsModal({
                   {item.details.recipe.preparation && (
                     <div className="mb-3">
                       <h6 className="text-sm font-medium text-gray-700 mb-1">Preparación:</h6>
-                      <p className="text-sm text-gray-600 whitespace-pre-line">{item.details.recipe.preparation}</p>
+                      <p className="text-sm text-gray-600 whitespace-pre-line break-words text-justify">{item.details.recipe.preparation}</p>
                     </div>
                   )}
                   {item.details.recipe.tips && (
                     <div>
                       <h6 className="text-sm font-medium text-gray-700 mb-1">💡 Consejo:</h6>
-                      <p className="text-sm text-gray-600">{item.details.recipe.tips}</p>
+                      <p className="text-sm text-gray-600 break-words text-justify">{item.details.recipe.tips}</p>
                     </div>
                   )}
                 </div>
@@ -1057,13 +1054,13 @@ export default function AIRecommendationsModal({
                     {item.details.frequency && (
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
                         <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">🕒</span> Frecuencia:</span>
-                        <span className="sm:ml-2 mt-1 sm:mt-0">{item.details.frequency}</span>
+                        <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.frequency}</span>
                       </div>
                     )}
                     {item.details.duration && (
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
                         <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">⏱️</span> Duración:</span>
-                        <span className="sm:ml-2 mt-1 sm:mt-0">{item.details.duration}</span>
+                        <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.duration}</span>
                       </div>
                     )}
                     {item.details.equipment && item.details.equipment.length > 0 && (
@@ -1071,7 +1068,9 @@ export default function AIRecommendationsModal({
                         <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🎽</span> Equipo necesario:</span>
                         <div className="flex flex-wrap gap-2 ml-6 sm:ml-8">
                           {item.details.equipment.map((equipment, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-white rounded-full text-xs sm:text-sm border border-blue-200 shadow-sm">{equipment}</span>
+                            <span key={idx} className="px-3 py-1.5 bg-white rounded-full text-xs sm:text-sm border border-blue-200 shadow-sm break-words">
+                              {equipment}
+                            </span>
                           ))}
                         </div>
                       </div>
@@ -1107,7 +1106,6 @@ export default function AIRecommendationsModal({
     const isExpanded = expandedWeeks.includes(weekIndex);
     const weekId = `${sessionId}_week_${weekIndex}`;
 
-    // Los items se obtienen del checklist plano de la sesión
     const nutritionItems = session.checklist.filter(
       item => item.weekNumber === weekNumber && item.category === 'nutrition'
     );
@@ -1118,7 +1116,6 @@ export default function AIRecommendationsModal({
       item => item.weekNumber === weekNumber && item.category === 'habit'
     );
 
-    // Calcular progreso semanal
     const totalWeekItems = nutritionItems.length + exerciseItems.length + habitItems.length;
     const completedWeekItems = 
       nutritionItems.filter(i => i.completed).length +
@@ -1133,34 +1130,52 @@ export default function AIRecommendationsModal({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base md:text-lg font-bold text-green-700">Semana {week.weekNumber}</h3>
               <div className="flex items-center gap-1">
-                <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2"><div className="bg-green-600 h-2 rounded-full transition-all duration-500" style={{ width: `${weekProgress}%` }}></div></div>
+                <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2">
+                  <div className="bg-green-600 h-2 rounded-full transition-all duration-500" style={{ width: `${weekProgress}%` }}></div>
+                </div>
                 <span className="text-xs md:text-sm text-gray-600">{weekProgress}%</span>
               </div>
             </div>
-            <button className="text-green-600 p-1 hover:bg-green-200 rounded-full transition-colors" aria-label={isExpanded ? 'Contraer semana' : 'Expandir semana'} onClick={(e) => { e.stopPropagation(); toggleWeekExpansion(weekIndex); }}>
-              <svg className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            <button className="text-green-600 p-1 hover:bg-green-200 rounded-full transition-colors" aria-label={isExpanded ? 'Contraer semana' : 'Expandir semana'}>
+              <svg className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
           </div>
         </div>
+
         {isExpanded && (
-          <div className="p-6 space-y-6">
+          <div className="p-4 md:p-6 space-y-6">
             {/* Nutrición */}
             <div className="space-y-3 p-4 bg-green-50 rounded-xl border border-green-200">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-green-700 flex items-center">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h4 className="font-bold text-green-700 flex items-center text-base md:text-lg">
                   <span className="mr-2">🍽️</span>
                   Nutrición: {week.nutrition.focus}
                 </h4>
                 <button
-                  onClick={() => toggleShoppingList(weekId)}
-                  className="text-xs text-green-600 hover:text-green-800 bg-white px-3 py-1 rounded-full shadow-sm"
+                  onClick={() => toggleShoppingList(weekId, week.weekNumber, session.sessionId)}
+                  className="text-xs text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-full shadow-sm w-full sm:w-auto text-center"
+                  disabled={loadingShoppingList[week.weekNumber]}
                 >
-                  {expandedShoppingLists.includes(weekId) ? '▲ Ocultar compras' : '▼ Ver lista de compras'}
+                  {loadingShoppingList[week.weekNumber] ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generando...
+                    </span>
+                  ) : (
+                    expandedShoppingLists.includes(weekId) ? '▲ Ocultar compras' : '▼ Ver lista de compras'
+                  )}
                 </button>
               </div>
+
               <div className="space-y-2">
                 {nutritionItems.map(item => renderChecklistItem(item, sessionId))}
               </div>
+
               {!editMode && session.status === 'draft' && (
                 <div className="mt-2">
                   <button
@@ -1174,29 +1189,54 @@ export default function AIRecommendationsModal({
                   </button>
                 </div>
               )}
+
               {expandedShoppingLists.includes(weekId) && (
-                <div className="mt-4 ml-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <h5 className="font-medium text-emerald-700 mb-3 flex items-center">
-                    <span className="mr-2">🛒</span>
-                    Lista de Compras - Semana {week.weekNumber}
-                  </h5>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {calculateShoppingList(nutritionItems).map((shopItem, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-lg border border-emerald-100">
-                        <span className="text-sm text-gray-700">{shopItem.item}</span>
-                        <span className="text-sm font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                          {shopItem.quantity}
-                        </span>
-                      </div>
-                    ))}
+                <div className="mt-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                    <h5 className="font-medium text-emerald-700 flex items-center text-base">
+                      <span className="mr-2">🛒</span>
+                      Lista de Compras - Semana {week.weekNumber}
+                    </h5>
+                    {session.status === 'draft' && (
+                      <button
+                        onClick={() => handleUpdateShoppingList(session.sessionId, week.weekNumber)}
+                        disabled={loadingShoppingList[week.weekNumber]}
+                        className={`text-xs px-3 py-2 rounded-full transition-colors w-full sm:w-auto ${
+                          loadingShoppingList[week.weekNumber]
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        }`}
+                      >
+                        {loadingShoppingList[week.weekNumber] ? 'Actualizando...' : 'Actualizar'}
+                      </button>
+                    )}
                   </div>
+
+                  {week.nutrition.shoppingList.length === 0 ? (
+                    <p className="text-gray-500 text-sm italic">
+                      {loadingShoppingList[week.weekNumber] 
+                        ? 'Generando lista...' 
+                        : 'No hay productos en la lista. Presiona "Actualizar" para generarla.'}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {week.nutrition.shoppingList.map((shopItem, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr,auto] items-start gap-1 p-2 bg-white rounded-lg border border-emerald-100">
+                          <span className="text-sm text-gray-700 break-words">{shopItem.item}</span>
+                          <span className="text-sm font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full text-left sm:text-right justify-self-start sm:justify-self-end break-words max-w-full">
+                            {shopItem.quantity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Ejercicio */}
             <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-              <h4 className="font-bold text-blue-700 flex items-center">
+              <h4 className="font-bold text-blue-700 flex items-center text-base md:text-lg">
                 <span className="mr-2">🏋️</span>
                 Ejercicio: {week.exercise.focus}
               </h4>
@@ -1220,7 +1260,7 @@ export default function AIRecommendationsModal({
 
             {/* Hábitos */}
             <div className="space-y-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
-              <h4 className="font-bold text-purple-700 flex items-center">
+              <h4 className="font-bold text-purple-700 flex items-center text-base md:text-lg">
                 <span className="mr-2">🌟</span>
                 Hábitos
               </h4>
@@ -1242,7 +1282,7 @@ export default function AIRecommendationsModal({
               )}
               {week.habits.motivationTip && (
                 <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                  <p className="text-sm text-purple-700"><span className="font-medium">💡 Consejo motivacional:</span> {week.habits.motivationTip}</p>
+                  <p className="text-sm text-purple-700 text-justify"><span className="font-medium">💡 Consejo motivacional:</span> {week.habits.motivationTip}</p>
                 </div>
               )}
               {week.habits.trackingMethod && (
@@ -1253,7 +1293,7 @@ export default function AIRecommendationsModal({
         )}
       </div>
     );
-  }, [editMode, expandedWeeks, expandedShoppingLists, toggleWeekExpansion, toggleShoppingList, renderChecklistItem, handleAddItem, calculateShoppingList]);
+  }, [expandedWeeks, expandedShoppingLists, loadingShoppingList, editMode, toggleWeekExpansion, toggleShoppingList, renderChecklistItem, handleAddItem, handleUpdateShoppingList]);
 
   // ===== RENDERIZADO CONDICIONAL =====
   if (loading) {
@@ -1324,31 +1364,6 @@ export default function AIRecommendationsModal({
             <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión del mes {activeMonthTab}</p></div>
           ) : (
             <div className="space-y-6">
-              {editMode && editingField?.type === 'checklist' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center"><svg className="w-6 h-6 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg><h3 className="text-lg font-bold text-yellow-700">Modo Edición - Checklist</h3></div>
-                    <div className="flex space-x-3"><button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium">Cancelar</button><button onClick={handleSaveEdit} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">Guardar Cambios</button></div>
-                  </div>
-                  <div className="space-y-4">
-                    {activeSession.checklist.map((item, index) => (
-                      <div key={item.id} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                        <input type="checkbox" checked={item.completed} onChange={(e) => handleChecklistChange(activeSession.sessionId, item.id, e.target.checked)} className="text-green-600" />
-                        <input type="text" value={item.description} onChange={(e) => {
-                          const newDescription = e.target.value;
-                          // Actualización local temporal para respuesta rápida
-                          const updatedChecklist = activeSession.checklist.map((ci, idx) => idx === index ? { ...ci, description: newDescription } : ci);
-                          const updatedSessions = aiProgress?.sessions.map(s => s.sessionId === activeSession.sessionId ? { ...s, checklist: updatedChecklist } : s);
-                          if (aiProgress && updatedSessions) setAiProgress({ ...aiProgress, sessions: updatedSessions });
-                        }} className="flex-1 px-3 py-2 text-gray-600 border border-gray-300 rounded-md" placeholder="Descripción del item..." />
-                        <span className={`text-xs px-2 py-1 rounded ${item.category === 'nutrition' ? 'bg-green-100 text-green-800' : item.category === 'exercise' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-                          {item.category === 'nutrition' ? 'Nutrición' : item.category === 'exercise' ? 'Ejercicio' : 'Hábito'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Resumen y Visión */}
               <div className="bg-white rounded-xl p-4 md:p-6 border border-green-200">
@@ -1461,12 +1476,6 @@ export default function AIRecommendationsModal({
               {/* Semanas */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><h3 className="text-xl font-bold text-green-700">📅 Plan Semanal</h3><button onClick={toggleAllWeeks} className="text-sm text-green-600 hover:text-green-800">{expandedWeeks.length === 4 ? 'Contraer todas' : 'Expandir todas'}</button></div>
-                {!editMode && activeSession.status === 'draft' && (
-                  <button onClick={() => handleStartEdit(activeSession.sessionId, 'checklist', activeSession.checklist)} className="text-green-600 hover:text-green-800 flex items-center text-sm md:text-base">
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    Editar Checklist
-                  </button>
-                )}
                 {activeSession.weeks.map((week, weekIndex) => renderWeek(week, weekIndex, activeSession.sessionId, activeSession))}
               </div>
             </div>

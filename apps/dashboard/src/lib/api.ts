@@ -800,5 +800,22 @@ export const apiClient = {
       throw new Error(errorData.message || 'Error actualizando campos de sesión');
     }
     return response.json();
+  },
+
+  async updateAIShoppingList(clientId: string, sessionId: string, weekNumber: number): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'generate_shopping_list',
+        sessionId,
+        data: { weekNumber }
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando lista de compras');
+    }
+    return response.json();
   }
 };
