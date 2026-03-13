@@ -283,6 +283,45 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 )}
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-blue-500 mb-2">
+                  Porcentaje de grasa corporal (opcional)
+                </label>
+                <input
+                  type="text"
+                  {...register('bodyFatPercentage')}
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  placeholder="Ej: 25%"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-500 mb-2">
+                  ¿Tu peso se ha mantenido estable en los últimos 6 meses?
+                </label>
+                <select
+                  {...register('weightVariation')}
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                >
+                  <option value="">Selecciona una opción</option>
+                  <option value="estable">Estable</option>
+                  <option value="bajo">Ha bajado</option>
+                  <option value="subido">Ha subido</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-blue-500 mb-2">
+                  ¿Hay algún tipo de alimento que NO estés dispuesto a comer o alguna actividad física que NO estés dispuesto a realizar?
+                </label>
+                <textarea
+                  {...register('dislikedFoodsActivities')}
+                  rows={3}
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  placeholder="Ej: No como pescado, odio correr"
+                />
+              </div>
+
               <div className="md:col-span-2">
                 <FileUpload
                   onFileSelect={handlePhotoSelect}
@@ -292,26 +331,25 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   description="Foto clara de tu rostro, sin accesorios como anteojos oscuros. Formatos: JPEG, PNG, WebP. Máximo 5MB."
                   previewUrl={previewUrl}
                 />
-                {photoError && (
-                  <p className="text-red-500 text-sm mt-1">{photoError}</p>
-                )}
+                {photoError && <p className="text-red-500 text-sm mt-1">{photoError}</p>}
                 {errors.profilePhoto?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.profilePhoto.message)}</p>
                 )}
               </div>
             </div>
 
-            <div className="flex justify-between pt-6">
+            {/* Botones */}
+            <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
               <button
                 type="button"
-                onClick={onBack}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                onClick={onBack} // Asegúrate de recibir onBack como prop
+                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold order-1 sm:order-2"
               >
                 Siguiente
               </button>

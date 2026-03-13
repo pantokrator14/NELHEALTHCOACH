@@ -32,6 +32,10 @@ interface Client {
     education: string
     occupation: string
     profilePhoto?: UploadedFile;
+    // Nuevos campos
+    bodyFatPercentage?: string;
+    weightVariation?: string;
+    dislikedFoodsActivities?: string;
   }
   medicalData: {
     mainComplaint: string
@@ -44,18 +48,23 @@ interface Client {
     allergies: string
     surgeries: string
     housingHistory: string
+    // Nuevos campos médicos
+    mainComplaintIntensity?: number;
+    mainComplaintImpact?: string;
+    appetiteChanges?: string;
+    
     documents?: UploadedFile[];
     
-    // Evaluaciones
-    carbohydrateAddiction: boolean[]
-    leptinResistance: boolean[]
-    circadianRhythms: boolean[]
-    sleepHygiene: boolean[]
-    electrosmogExposure: boolean[]
-    generalToxicity: boolean[]
-    microbiotaHealth: boolean[]
+    // Evaluaciones - ahora son arrays de strings (frecuencias)
+    carbohydrateAddiction: string[]
+    leptinResistance: string[]
+    circadianRhythms: string[]
+    sleepHygiene: string[]
+    electrosmogExposure: string[]
+    generalToxicity: string[]
+    microbiotaHealth: string[]
     
-    // Salud mental
+    // Salud mental - opción múltiple
     mentalHealthEmotionIdentification: string
     mentalHealthEmotionIntensity: string
     mentalHealthUncomfortableEmotion: string
@@ -69,6 +78,10 @@ interface Client {
     mentalHealthFailureReaction: string
     mentalHealthSelfConnection: string
     
+    // Nuevos campos salud mental
+    mentalHealthSupportNetwork?: 'si-tengo' | 'algunas' | 'no'
+    mentalHealthDailyStress?: 'bajo' | 'moderado' | 'alto' | 'muy-alto'
+    
     // Salud mental - texto abierto
     mentalHealthSelfRelationship: string
     mentalHealthLimitingBeliefs: string
@@ -79,7 +92,7 @@ interface Client {
   submissionDate: string
 }
 
-// Mapeo de opciones para salud mental
+// Mapeo de opciones para salud mental (incluyendo las nuevas)
 const mentalHealthOptions: Record<string, Record<string, string>> = {
   mentalHealthEmotionIdentification: {
     a: 'Casi siempre',
@@ -140,10 +153,41 @@ const mentalHealthOptions: Record<string, Record<string, string>> = {
     a: 'Sí, regularmente',
     b: 'Ocasionalmente',
     c: 'No'
+  },
+  // Nuevos
+  mentalHealthSupportNetwork: {
+    'si-tengo': 'Sí, tengo personas de confianza',
+    'algunas': 'Tengo algunas personas, pero no siempre me siento cómodo/a',
+    'no': 'No, me siento solo/a en este aspecto'
+  },
+  mentalHealthDailyStress: {
+    'bajo': 'Bajo',
+    'moderado': 'Moderado',
+    'alto': 'Alto',
+    'muy-alto': 'Muy Alto'
   }
-}
+};
 
-// Preguntas para las evaluaciones SÍ/NO
+// Mapeo de opciones de frecuencia y otros valores para evaluaciones
+const evaluationValueLabels: Record<string, string> = {
+  // Frecuencias
+  'nunca': 'Nunca',
+  'rara-vez': 'Rara vez',
+  'a-veces': 'A veces',
+  'casi-siempre': 'Casi siempre',
+  'siempre': 'Siempre',
+  // Sí/No
+  'si': 'Sí',
+  'no': 'No',
+  // Opciones especiales
+  'estable': 'Estable',
+  'bajo': 'Ha bajado',
+  'subido': 'Ha subido',
+  'mucho-hambre': 'Sí, mucha más hambre',
+  'mucha-sed': 'Sí, mucha más sed',
+};
+
+// Preguntas para las evaluaciones SÍ/NO (actualizadas con las nuevas)
 const evaluationQuestions: Record<string, { title: string; questions: string[] }> = {
   carbohydrateAddiction: {
     title: 'Adicción a los carbohidratos',
@@ -158,7 +202,7 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
       '¿Te da dolor de cabeza si pasas más de 4 horas sin comer?',
       '¿Piensas constantemente en alimentos con azúcar?',
       '¿Crees que debes terminar la comida con un alimento dulce?',
-      '¿Sientes que no tienes control en lo que eats?'
+      '¿Sientes que no tienes control en lo que comes?'
     ]
   },
   leptinResistance: {
@@ -178,7 +222,6 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
     title: 'Alteración de los ritmos circadianos / Exposición al sol',
     questions: [
       '¿Lo primero que ves al despertar es tu celular?',
-      '¿Entra luz artificial a tu habitación al momento de dormir?',
       '¿Estás expuesto a la luz artificial después del atardecer? (pantallas de computadoras, televisiones, celulares, tablets, focos de luz blanca o amarilla)',
       '¿Utilizas algún tipo de tecnología Wifi, 2G, 3G, 4G, 5G y/o luz artificial durante la noche?',
       '¿Exponerte al sol te hace daño (sufres quemaduras)?',
@@ -187,7 +230,8 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
       '¿Comes pocos pescados, moluscos y/o crustáceos (menos de 1 vez a la semana)?',
       '¿Comes cuando ya no hay luz del sol?',
       '¿Tu exposición al sol es de menos de 30 minutos al día?',
-      '¿Haces grounding (caminar descalzo sobre hierba, tierra, o arena) menos de 30 minutos al día?'
+      '¿Haces grounding (caminar descalzo sobre hierba, tierra, o arena) menos de 30 minutos al día?',
+      '¿Utilizas filtros de luz azul en tus dispositivos electrónicos (modo noche, aplicaciones) por la noche?'
     ]
   },
   sleepHygiene: {
@@ -203,7 +247,8 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
       'Cuando te despiertas ¿ya amaneció?',
       '¿Duermes menos de 4 horas?',
       '¿Haces cenas copiosas?',
-      '¿Te acuestas inmediatamente después de cenar?'
+      '¿Te acuestas inmediatamente después de cenar?',
+      '¿Tu horario de sueño es regular? (¿Te acuestas y levantas más o menos a la misma hora todos los días, incluidos fines de semana?)'
     ]
   },
   electrosmogExposure: {
@@ -231,7 +276,9 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
       '¿Tienes tú o algún miembro de tu familia inmediata antecedentes de cáncer?',
       '¿Tienes algún historial de enfermedad cardíaca, infarto de miocardio (ataque cardíaco) o de accidentes cerebrovasculares?',
       '¿Alguna vez te han diagnosticado trastorno bipolar, esquizofrenia o depresión?',
-      '¿Alguna vez te han diagnosticado diabetes o tiroiditis?'
+      '¿Alguna vez te han diagnosticado diabetes o tiroiditis?',
+      '¿Fumas o consumes algún tipo de vapeador?',
+      '¿Consumes alcohol? ¿Con qué frecuencia y cantidad?'
     ]
   },
   microbiotaHealth: {
@@ -246,10 +293,12 @@ const evaluationQuestions: Record<string, { title: string; questions: string[] }
       'Cuando consumes alcohol, ¿tienes confusión mental o una sensación tóxica incluso después de 1 porción?',
       '¿Has tomado antibióticos durante un período prolongado o con frecuencia (aún de niño)?',
       '¿Naciste por cesárea?',
-      '¿Tomaste leche de fórmula en lugar de ser amamantado?'
+      '¿Tomaste leche de fórmula en lugar de ser amamantado?',
+      '¿Consumes alimentos fermentados con regularidad (kéfir, chucrut, kombucha, yogur natural, kimchi)?',
+      'En tu opinión, ¿crees que consumes suficiente fibra de frutas, verduras y legumbres?'
     ]
   }
-}
+};
 
 export default function ClientProfile() {
   const [client, setClient] = useState<Client | null>(null)
@@ -267,7 +316,6 @@ export default function ClientProfile() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   
-  // Asegurar que el id es string
   const clientId = Array.isArray(id) ? id[0] : id || '';
 
   const fetchClient = useCallback(async () => {
@@ -310,13 +358,16 @@ export default function ClientProfile() {
     }
   }
 
-  // Función para obtener la etiqueta de la opción de salud mental
   const getMentalHealthLabel = (field: string, value: string): string => {
     if (!value) return 'No especificado'
     return mentalHealthOptions[field]?.[value] || value
   }
 
-  // Función para dividir el nombre completo en nombre y apellido
+  const getEvaluationLabel = (value: string): string => {
+    if (!value) return 'No especificado'
+    return evaluationValueLabels[value] || value
+  }
+
   const getNames = (fullName: string) => {
     const names = fullName.split(' ')
     return {
@@ -325,7 +376,6 @@ export default function ClientProfile() {
     }
   }
 
-  // Función para alternar acordeones de evaluaciones
   const toggleEvaluation = (evaluationKey: string) => {
     setExpandedEvaluations(prev => ({
       ...prev,
@@ -333,13 +383,10 @@ export default function ClientProfile() {
     }))
   }
 
-  // Función para obtener las respuestas de una evaluación específica
-  const getEvaluationAnswers = (evaluationData: unknown): boolean[] => {
+  const getEvaluationAnswers = (evaluationData: unknown): string[] => {
     if (Array.isArray(evaluationData)) {
       return evaluationData;
     }
-    
-    // Si por alguna razón viene como string, intentar parsear
     if (typeof evaluationData === 'string') {
       try {
         const parsed = JSON.parse(evaluationData);
@@ -348,17 +395,13 @@ export default function ClientProfile() {
         return [];
       }
     }
-    
     return [];
   };
 
-  // Función para cambiar la foto de perfil
   const handleProfilePhotoChange = async (file: File) => {
     if (!clientId) return;
-    
     setUploading(true);
     try {
-      // 1. Obtener URL de upload para la nueva foto
       const uploadResponse = await apiClient.generateUploadURL(
         clientId,
         file.name,
@@ -366,17 +409,11 @@ export default function ClientProfile() {
         file.size,
         'profile'
       );
-
-      // 2. Subir archivo a S3
       await fetch(uploadResponse.uploadURL, {
         method: 'PUT',
         body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
+        headers: { 'Content-Type': file.type },
       });
-
-      // 3. Confirmar upload y actualizar en base de datos
       await apiClient.confirmUpload(
         clientId,
         uploadResponse.fileKey,
@@ -384,49 +421,36 @@ export default function ClientProfile() {
         file.type,
         file.size,
         'profile',
-        uploadResponse.uploadURL // Usar uploadURL ya que fileURL no existe en la respuesta
+        uploadResponse.uploadURL
       );
-
-      // 4. Recargar datos del cliente
       await fetchClient();
-      
       alert('Foto de perfil actualizada exitosamente');
       setIsProfilePhotoModalOpen(false);
     } catch (error) {
       console.error('Error actualizando foto de perfil:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      alert('Error al actualizar la foto de perfil: ' + errorMessage);
+      alert('Error al actualizar la foto de perfil');
     } finally {
       setUploading(false);
     }
   };
 
-  // Función para eliminar un documento
   const handleDeleteDocument = async (document: UploadedFile) => {
-    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar el documento "${document.name}"?`)) {
-      return;
-    }
-
+    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar el documento "${document.name}"?`)) return;
     try {
       await apiClient.deleteDocument(clientId, document.key);
-      await fetchClient(); // Recargar datos
+      await fetchClient();
       alert('Documento eliminado exitosamente');
     } catch (error) {
       console.error('Error eliminando documento:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      alert('Error al eliminar el documento: ' + errorMessage);
+      alert('Error al eliminar el documento');
     }
   };
 
-  // Función para subir nuevos documentos
   const handleUploadDocuments = async () => {
     if (!clientId || selectedFiles.length === 0) return;
-    
     setUploading(true);
-    
     const uploadPromises = selectedFiles.map(async (file) => {
       try {
-        // 1. Obtener URL de upload
         const uploadResponse = await apiClient.generateUploadURL(
           clientId,
           file.name,
@@ -434,17 +458,11 @@ export default function ClientProfile() {
           file.size,
           'document'
         );
-
-        // 2. Subir archivo a S3
         await fetch(uploadResponse.uploadURL, {
           method: 'PUT',
           body: file,
-          headers: {
-            'Content-Type': file.type,
-          },
+          headers: { 'Content-Type': file.type },
         });
-
-        // 3. Confirmar upload
         await apiClient.confirmUpload(
           clientId,
           uploadResponse.fileKey,
@@ -452,13 +470,12 @@ export default function ClientProfile() {
           file.type,
           file.size,
           'document',
-          uploadResponse.uploadURL // Usar uploadURL ya que fileURL no existe en la respuesta
+          uploadResponse.uploadURL
         );
-
         return { success: true, fileName: file.name };
       } catch (error) {
         console.error(`Error subiendo ${file.name}:`, error);
-        return { success: false, fileName: file.name, error };
+        return { success: false, fileName: file.name };
       }
     });
 
@@ -466,36 +483,28 @@ export default function ClientProfile() {
       const results = await Promise.all(uploadPromises);
       const successful = results.filter(r => r.success).length;
       const failed = results.filter(r => !r.success).length;
-
       if (failed > 0) {
-        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron. Revisa la consola para más detalles.`);
+        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron.`);
       } else {
         alert('Todos los documentos se subieron exitosamente');
       }
-
-      await fetchClient(); // Recargar datos
+      await fetchClient();
       setSelectedFiles([]);
       setIsDocumentsModalOpen(false);
     } catch (error) {
       console.error('Error subiendo documentos:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      alert('Error al subir los documentos: ' + errorMessage);
+      alert('Error al subir los documentos');
     } finally {
       setUploading(false);
     }
   };
 
-  // Funciones para drag & drop
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return;
-    const fileArray = Array.from(files);
-    setSelectedFiles(prev => [...prev, ...fileArray]);
+    setSelectedFiles(prev => [...prev, ...Array.from(files)]);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     handleFileSelect(e.dataTransfer.files);
@@ -508,10 +517,8 @@ export default function ClientProfile() {
   if (loading) {
     return (
       <Layout>
-        <div className="p-8">
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          </div>
+        <div className="p-8 flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
       </Layout>
     )
@@ -520,17 +527,12 @@ export default function ClientProfile() {
   if (!client) {
     return (
       <Layout>
-        <div className="p-8">
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">❌</div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">Cliente no encontrado</h3>
-            <button 
-              onClick={() => router.push('/dashboard/clients')}
-              className="text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Volver a la lista de clientes
-            </button>
-          </div>
+        <div className="p-8 text-center">
+          <div className="text-gray-400 text-6xl mb-4">❌</div>
+          <h3 className="text-xl font-semibold text-gray-600 mb-2">Cliente no encontrado</h3>
+          <button onClick={() => router.push('/dashboard/clients')} className="text-blue-600 hover:text-blue-800 font-medium">
+            Volver a la lista de clientes
+          </button>
         </div>
       </Layout>
     )
@@ -545,97 +547,64 @@ export default function ClientProfile() {
       </Head>
       <Layout>
         <div className="p-8 flex flex-col lg:flex-row gap-8 min-h-full">
-          {/* Información del cliente - 30% */}
+          {/* Columna izquierda - 30% */}
           <div className="w-full lg:w-1/3">
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 sticky top-8 max-h-[calc(100vh-2rem)] overflow-y-auto">
               <div className="flex flex-col items-center text-center mb-6">
                 {client.personalData.profilePhoto ? (
-                <div className="relative mb-4">
-                  <Image 
-                    src={client.personalData.profilePhoto.url} 
-                    alt={`Foto de ${firstName} ${lastName}`}
-                    className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
-                    width={240}
-                    height={240}
-                  />
-                  {/* Botón circular azul para editar foto */}
-                  <button
-                    onClick={() => setIsProfilePhotoModalOpen(true)}
-                    className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition duration-200"
-                    title="Cambiar foto de perfil"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
-                </div>
-              ) : (
-                <div className="relative mb-4">
-                  <div className="w-60 h-60 bg-blue-500 rounded-full flex items-center justify-center shadow-lg border-4 border-blue-600">
-                    <span className="text-white font-bold text-4xl">
-                      {firstName.charAt(0)}{lastName.charAt(0)}
-                    </span>
+                  <div className="relative mb-4">
+                    <Image 
+                      src={client.personalData.profilePhoto.url} 
+                      alt={`Foto de ${firstName} ${lastName}`}
+                      className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                      width={240}
+                      height={240}
+                    />
+                    <button
+                      onClick={() => setIsProfilePhotoModalOpen(true)}
+                      className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
+                      title="Cambiar foto de perfil"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
                   </div>
-                  {/* Botón circular azul para agregar foto */}
-                  <button
-                    onClick={() => setIsProfilePhotoModalOpen(true)}
-                    className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition duration-200"
-                    title="Agregar foto de perfil"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-                
-                {/* Nombre debajo de la foto */}
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">
-                  {firstName} {lastName}
-                </h1>
-                
-                {/* Fecha debajo del nombre */}
+                ) : (
+                  <div className="relative mb-4">
+                    <div className="w-60 h-60 bg-blue-500 rounded-full flex items-center justify-center shadow-lg border-4 border-blue-600">
+                      <span className="text-white font-bold text-4xl">
+                        {firstName.charAt(0)}{lastName.charAt(0)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsProfilePhotoModalOpen(true)}
+                      className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
+                      title="Agregar foto de perfil"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">{firstName} {lastName}</h1>
                 <p className="text-gray-600 text-sm">
-                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
 
               {/* Navegación por pestañas */}
               <div className="mb-6">
                 <div className="flex space-x-1 bg-blue-50 p-1 rounded-lg">
-                  <button
-                    onClick={() => setActiveTab('personal')}
-                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                      activeTab === 'personal'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-blue-600 hover:text-blue-700 hover:bg-white'
-                    }`}
-                  >
+                  <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'personal' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-600 hover:text-blue-700 hover:bg-white'}`}>
                     Personal
                   </button>
-                  <button
-                    onClick={() => setActiveTab('medical')}
-                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                      activeTab === 'medical'
-                        ? 'bg-yellow-600 text-white shadow-sm'
-                        : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'
-                    }`}
-                  >
+                  <button onClick={() => setActiveTab('medical')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'medical' ? 'bg-yellow-600 text-white shadow-sm' : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'}`}>
                     Médico
                   </button>
-                  <button
-                    onClick={() => setActiveTab('mental')}
-                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                      activeTab === 'mental'
-                        ? 'bg-purple-600 text-white shadow-sm'
-                        : 'text-purple-600 hover:text-purple-900 hover:bg-white'
-                    }`}
-                  >
+                  <button onClick={() => setActiveTab('mental')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'mental' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-600 hover:text-purple-900 hover:bg-white'}`}>
                     Emocional
                   </button>
                 </div>
@@ -649,201 +618,144 @@ export default function ClientProfile() {
                       <label className="text-sm font-medium text-blue-700 mb-1">Email</label>
                       <p className="text-gray-800 font-medium">{client.personalData.email}</p>
                     </div>
-                    
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Teléfono</label>
                       <p className="text-gray-800 font-medium">{client.personalData.phone}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Dirección</label>
                       <p className="text-gray-800 font-medium">{client.personalData.address}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Fecha de nacimiento</label>
                       <p className="text-gray-800 font-medium">{new Date(client.personalData.birthDate).toLocaleDateString()}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Género</label>
                       <p className="text-gray-800 font-medium">{client.personalData.gender}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Edad</label>
                       <p className="text-gray-800 font-medium">{client.personalData.age} años</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Peso</label>
                       <p className="text-gray-800 font-medium">{client.personalData.weight} kg</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Altura</label>
                       <p className="text-gray-800 font-medium">{client.personalData.height} cm</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Estado civil</label>
                       <p className="text-gray-800 font-medium">{client.personalData.maritalStatus}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Nivel educativo</label>
                       <p className="text-gray-800 font-medium">{client.personalData.education || 'No especificado'}</p>
                     </div>
-
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Ocupación</label>
                       <p className="text-gray-800 font-medium">{client.personalData.occupation || 'No especificado'}</p>
                     </div>
+                    {/* Nuevos campos personales */}
+                    {client.personalData.bodyFatPercentage && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-blue-700 mb-1">% grasa corporal</label>
+                        <p className="text-gray-800 font-medium">{client.personalData.bodyFatPercentage}</p>
+                      </div>
+                    )}
+                    {client.personalData.weightVariation && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-blue-700 mb-1">Variación de peso (6 meses)</label>
+                        <p className="text-gray-800 font-medium">{getEvaluationLabel(client.personalData.weightVariation)}</p>
+                      </div>
+                    )}
+                    {client.personalData.dislikedFoodsActivities && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-blue-700 mb-1">Alimentos/actividades no deseadas</label>
+                        <p className="text-gray-800 font-medium">{client.personalData.dislikedFoodsActivities}</p>
+                      </div>
+                    )}
                   </>
                 )}
 
                 {activeTab === 'medical' && (
                   <>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Cuál es tu mayor queja? Por favor enlista todos los síntomas y cuándo comenzaron</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Mayor queja</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
                     </div>
-
+                    {client.medicalData.mainComplaintIntensity && (
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-yellow-700 mb-1">Intensidad (1-10)</label>
+                        <p className="text-gray-800 font-medium">{client.medicalData.mainComplaintIntensity}</p>
+                      </div>
+                    )}
+                    {client.medicalData.mainComplaintImpact && (
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-yellow-700 mb-1">Impacto en actividades</label>
+                        <p className="text-gray-800 font-medium">{client.medicalData.mainComplaintImpact}</p>
+                      </div>
+                    )}
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué medicamentos estás tomando?</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Medicamentos</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.medications || 'No especificado'}</p>
                     </div>
-
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Qué suplementos estás tomando? (vitaminas y/o minerales)</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Suplementos</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.supplements || 'No especificado'}</p>
                     </div>
-
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Indica tus condiciones de salud actuales y pasadas (por ejemplo: Diabetes Mellitus, Hipertensión, etc.)</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Condiciones actuales/pasadas</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || 'No especificado'}</p>
                     </div>
-                    
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Hay algo más en tu historial médico que debamos considerar? (incluso de tu niñez)</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Historial adicional</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.additionalMedicalHistory || 'No especificado'}</p>
                     </div>
-
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">¿Tienes alguna alergia? ¿Cuáles?</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Alergias</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.allergies || 'No especificado'}</p>
                     </div>
-
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Enlista las cirugías a las que te has sometido</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">Cirugías</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.surgeries || 'No especificado'}</p>
                     </div>
+                    {client.medicalData.appetiteChanges && (
+                      <div className="bg-yellow-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-yellow-700 mb-1">Cambios en apetito/sed</label>
+                        <p className="text-gray-800 font-medium">{getEvaluationLabel(client.medicalData.appetiteChanges)}</p>
+                      </div>
+                    )}
                   </>
                 )}
 
                 {activeTab === 'mental' && (
                   <>
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Puedes identificar con facilidad qué emoción estás sintiendo en momentos clave de tu día?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthEmotionIdentification', client.medicalData.mentalHealthEmotionIdentification)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Cómo de intensas suelen ser tus emociones?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthEmotionIntensity', client.medicalData.mentalHealthEmotionIntensity)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Qué haces cuando sientes una emoción incómoda?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthUncomfortableEmotion', client.medicalData.mentalHealthUncomfortableEmotion)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando algo sale mal, ¿cuál es tu diálogo interno más frecuente?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthInternalDialogue', client.medicalData.mentalHealthInternalDialogue)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Ante una situación estresante, ¿qué estrategias sueles utilizar?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthStressStrategies', client.medicalData.mentalHealthStressStrategies)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Te resulta difícil decir &quot;no&quot; por miedo a decepcionar a los demás?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthSayingNo', client.medicalData.mentalHealthSayingNo)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">En tus relaciones, ¿sueles sentir que das más de lo que recibes?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthRelationships', client.medicalData.mentalHealthRelationships)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Expresas abiertamente lo que piensas y sientes, incluso cuando es incómodo?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthExpressThoughts', client.medicalData.mentalHealthExpressThoughts)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Alguna relación actual o pasada te genera malestar o dependencia emocional?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthEmotionalDependence', client.medicalData.mentalHealthEmotionalDependence)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Sientes que tienes un propósito o metas que te motivan?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthPurpose', client.medicalData.mentalHealthPurpose)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">Cuando enfrentas un fracaso, ¿cómo reaccionas?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthFailureReaction', client.medicalData.mentalHealthFailureReaction)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-700 mb-1">¿Practicas alguna rutina que te ayude a conectar contigo mismo/a (meditación, escritura, naturaleza, etc.)?</label>
-                      <p className="text-gray-800 font-medium">
-                        {getMentalHealthLabel('mentalHealthSelfConnection', client.medicalData.mentalHealthSelfConnection)}
-                      </p>
-                    </div>
+                    {Object.entries(mentalHealthOptions).map(([field, options]) => {
+                      const value = client.medicalData[field as keyof Client['medicalData']] as string;
+                      if (!value) return null;
+                      return (
+                        <div key={field} className="bg-purple-50 p-3 rounded-lg">
+                          <label className="text-sm font-medium text-purple-700 mb-1">{field.replace(/([A-Z])/g, ' $1').toLowerCase()}</label>
+                          <p className="text-gray-800 font-medium">{getMentalHealthLabel(field, value)}</p>
+                        </div>
+                      );
+                    })}
                   </>
                 )}
               </div>
 
+              {/* Botones de acción */}
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <button 
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium flex items-center justify-center"
-                >
+                <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Editar Información
                 </button>
-                <button 
-                  onClick={handleDelete}
-                  className="w-full mt-2 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition duration-200 font-medium flex items-center justify-center"
-                >
+                <button onClick={handleDelete} className="w-full mt-2 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition font-medium flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -853,9 +765,9 @@ export default function ClientProfile() {
             </div>
           </div>
 
-          {/* Tarjetas informativas - 70% */}
+          {/* Columna derecha - 70% */}
           <div className="w-full lg:w-2/3 space-y-6">
-            {/* Tarjeta 1: Resumen de Vida */}
+            {/* Tarjeta Resumen de Vida */}
             <div className="bg-yellow-50 rounded-xl shadow-md border border-yellow-100 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
@@ -863,11 +775,8 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-yellow-700">
-                  Resumen de Vida
-                </h2>
+                <h2 className="text-2xl font-bold text-yellow-700">Resumen de Vida</h2>
               </div>
-              
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100">
                   <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
@@ -876,11 +785,8 @@ export default function ClientProfile() {
                     </svg>
                     Historial de empleos
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[80px]">
-                    {client.medicalData.employmentHistory || 'Información no disponible'}
-                  </p>
+                  <p className="text-gray-700 text-sm min-h-[80px]">{client.medicalData.employmentHistory || 'Información no disponible'}</p>
                 </div>
-                
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100">
                   <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
                     <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -888,11 +794,8 @@ export default function ClientProfile() {
                     </svg>
                     Historial de Vivienda
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[80px]">
-                    {client.medicalData.housingHistory || 'Información no disponible'}
-                  </p>
+                  <p className="text-gray-700 text-sm min-h-[80px]">{client.medicalData.housingHistory || 'Información no disponible'}</p>
                 </div>
-                
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100 lg:col-span-2">
                   <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
                     <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -901,13 +804,12 @@ export default function ClientProfile() {
                     </svg>
                     Hobbies e Intereses
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.hobbies || 'Información no disponible'}
-                  </p>
+                  <p className="text-gray-700 text-sm min-h-[60px]">{client.medicalData.hobbies || 'Información no disponible'}</p>
                 </div>
               </div>
             </div>
-            {/* Tarjeta de Documentos Médicos */}
+
+            {/* Tarjeta Documentos Médicos */}
             <div className="bg-indigo-50 rounded-xl shadow-md border border-indigo-100 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center">
@@ -918,48 +820,30 @@ export default function ClientProfile() {
                   </div>
                   <div>
                     <div className="flex items-center flex-wrap gap-2">
-                      <h2 className="text-xl sm:text-2xl font-bold text-indigo-700">
-                        Documentos Médicos
-                      </h2>
-                      <div className="flex items-center">
-                        <span className="bg-indigo-100 text-indigo-800 text-xs sm:text-sm px-3 py-1 rounded-full font-medium">
-                          {client.medicalData.documents?.length || 0} {client.medicalData.documents?.length === 1 ? 'archivo' : 'archivos'}
-                        </span>
-                      </div>
+                      <h2 className="text-xl sm:text-2xl font-bold text-indigo-700">Documentos Médicos</h2>
+                      <span className="bg-indigo-100 text-indigo-800 text-xs sm:text-sm px-3 py-1 rounded-full font-medium">
+                        {client.medicalData.documents?.length || 0} {client.medicalData.documents?.length === 1 ? 'archivo' : 'archivos'}
+                      </span>
                     </div>
-                    <p className="text-gray-600 text-sm mt-1">
-                      Documentos clínicos, análisis y estudios médicos
-                    </p>
+                    <p className="text-gray-600 text-sm mt-1">Documentos clínicos, análisis y estudios médicos</p>
                   </div>
                 </div>
-                
-                {/* Botón para agregar documentos - MEJORADO */}
-                <button
-                  onClick={() => setIsDocumentsModalOpen(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center w-full sm:w-auto shadow-sm"
-                >
+                <button onClick={() => setIsDocumentsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-lg transition flex items-center justify-center w-full sm:w-auto shadow-sm">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Agregar Documentos
                 </button>
               </div>
-              
               {client.medicalData.documents && client.medicalData.documents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {client.medicalData.documents.map((doc, index) => (
                     <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow relative group">
-                      {/* Botón de eliminar documento */}
-                      <button
-                        onClick={() => handleDeleteDocument(doc)}
-                        className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
-                        title="Eliminar documento"
-                      >
+                      <button onClick={() => handleDeleteDocument(doc)} className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition opacity-0 group-hover:opacity-100 focus:opacity-100 z-10" title="Eliminar documento">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
-                      
                       <div className="flex items-start mb-3">
                         <div className="mr-3 flex-shrink-0">
                           {doc.type.includes('image') ? (
@@ -977,9 +861,7 @@ export default function ClientProfile() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-semibold text-gray-800 text-sm truncate mb-1">
-                            {doc.name}
-                          </h3>
+                          <h3 className="font-semibold text-gray-800 text-sm truncate mb-1">{doc.name}</h3>
                           <div className="flex items-center text-xs text-gray-500 space-x-2">
                             <span>{Math.round(doc.size / 1024)} KB</span>
                             <span>•</span>
@@ -987,17 +869,9 @@ export default function ClientProfile() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedDocument(doc);
-                            setIsDocumentModalOpen(true);
-                          }}
-                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-3 rounded-lg transition duration-200 text-sm font-medium"
-                        >
-                          Ver Documento
-                        </button>
-                      </div>
+                      <button onClick={() => { setSelectedDocument(doc); setIsDocumentModalOpen(true); }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-3 rounded-lg transition text-sm font-medium">
+                        Ver Documento
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1007,13 +881,8 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="text-indigo-500 font-medium mb-2">No hay documentos cargados</p>
-                  <p className="text-gray-600 text-sm mb-4 max-w-md mx-auto">
-                    Puedes subir análisis clínicos, recetas, estudios médicos y otros documentos importantes.
-                  </p>
-                  <button
-                    onClick={() => setIsDocumentsModalOpen(true)}
-                    className="text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center"
-                  >
+                  <p className="text-gray-600 text-sm mb-4 max-w-md mx-auto">Puedes subir análisis clínicos, recetas, estudios médicos y otros documentos importantes.</p>
+                  <button onClick={() => setIsDocumentsModalOpen(true)} className="text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center">
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
@@ -1022,7 +891,8 @@ export default function ClientProfile() {
                 </div>
               )}
             </div>
-            {/* NUEVA TARJETA: Evaluaciones de Salud */}
+
+            {/* Tarjeta Evaluaciones de Salud */}
             <div className="bg-pink-50 rounded-xl shadow-md border border-blue-100 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center mr-3">
@@ -1030,68 +900,46 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-pink-700">
-                  Evaluaciones de Salud
-                </h2>
+                <h2 className="text-2xl font-bold text-pink-700">Evaluaciones de Salud</h2>
               </div>
-              
               <div className="space-y-4">
                 {Object.entries(evaluationQuestions).map(([key, evaluation]) => {
-                  const evaluationData = client.medicalData[key as keyof Client['medicalData']];
-                  const answers = getEvaluationAnswers(evaluationData); 
-                  const isExpanded = expandedEvaluations[key]
-                  
+                  const answers = getEvaluationAnswers(client.medicalData[key as keyof Client['medicalData']]);
+                  const isExpanded = expandedEvaluations[key];
                   return (
                     <div key={key} className="bg-white rounded-lg border border-pink-200 overflow-hidden">
-                      <button
-                        onClick={() => toggleEvaluation(key)}
-                        className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-pink-100 transition-colors"
-                      >
+                      <button onClick={() => toggleEvaluation(key)} className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-pink-100 transition-colors">
                         <div className="flex items-center">
                           <span className="font-semibold text-pink-700">{evaluation.title}</span>
                           <span className="ml-2 text-sm text-pink-500 bg-pink-100 px-2 py-1 rounded-full">
-                            {answers.filter(Boolean).length} de {evaluation.questions.length} positivos
+                            {answers.filter(a => a && a !== 'no' && a !== 'nunca').length} de {evaluation.questions.length} marcados
                           </span>
                         </div>
-                        <svg
-                          className={`w-5 h-5 text-pink-500 transform transition-transform ${
-                            isExpanded ? 'rotate-180' : ''
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
+                        <svg className={`w-5 h-5 text-pink-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
-                      
                       {isExpanded && (
                         <div className="px-4 py-3 border-t border-pink-100 bg-pink-100">
                           <div className="space-y-3">
                             {evaluation.questions.map((question, index) => (
                               <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-pink-100">
                                 <span className="flex-1 text-sm text-gray-700 pr-4">{question}</span>
-                                <div className="flex items-center">
-                                  <span className={`text-sm font-semibold px-2 py-1 rounded ${
-                                    answers[index] 
-                                      ? 'bg-green-100 text-green-700' 
-                                      : 'bg-red-100 text-red-700'
-                                  }`}>
-                                    {answers[index] ? 'SÍ' : 'NO'}
-                                  </span>
-                                </div>
+                                <span className={`text-sm font-semibold px-2 py-1 rounded ${answers[index] && answers[index] !== 'no' && answers[index] !== 'nunca' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {getEvaluationLabel(answers[index] || '')}
+                                </span>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
                     </div>
-                  )
+                  );
                 })}
               </div>
             </div>
 
-            {/* Tarjeta 2: Salud Mental y Emocional */}
+            {/* Tarjeta Salud Mental y Emocional */}
             <div className="bg-purple-50 rounded-xl shadow-md border border-purple-100 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
@@ -1099,34 +947,25 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-purple-700">
-                  Salud y Bienestar Emocional
-                </h2>
+                <h2 className="text-2xl font-bold text-purple-700">Salud y Bienestar Emocional</h2>
               </div>
-              
               <div className="space-y-4">
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Si tuvieras que describir tu relación contigo mismo/a en tres palabras, ¿cuáles serían?</h3>
-                  <p className="text-gray-700 text-sm">
-                    {client.medicalData.mentalHealthSelfRelationship || 'No especificado'}
-                  </p>
+                  <h3 className="font-semibold text-purple-700 mb-2">Relación contigo mismo (3 palabras)</h3>
+                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthSelfRelationship || 'No especificado'}</p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Hay alguna creencia o pensamiento recurrente que sientas que te limita en tu vida actual?</h3>
-                  <p className="text-gray-700 text-sm">
-                    {client.medicalData.mentalHealthLimitingBeliefs || 'No especificado'}
-                  </p>
+                  <h3 className="font-semibold text-purple-700 mb-2">Creencias limitantes</h3>
+                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthLimitingBeliefs || 'No especificado'}</p>
                 </div>
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Imagina que has alcanzado un equilibrio emocional ideal. ¿Qué cambiaría en tu día a día?</h3>
-                  <p className="text-gray-700 text-sm">
-                    {client.medicalData.mentalHealthIdealBalance || 'No especificado'}
-                  </p>
+                  <h3 className="font-semibold text-purple-700 mb-2">Equilibrio emocional ideal</h3>
+                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthIdealBalance || 'No especificado'}</p>
                 </div>
               </div>
             </div>
 
-            {/* Tarjeta 3: Recomendaciones */}
+            {/* Tarjeta Recomendaciones IA */}
             <div className="bg-green-50 rounded-xl shadow-md border border-green-100 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center mr-3">
@@ -1134,96 +973,54 @@ export default function ClientProfile() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-green-700">
-                  Recomendaciones de IA
-                </h2>
+                <h2 className="text-2xl font-bold text-green-700">Recomendaciones de IA</h2>
               </div>
-              
               <div className="text-center py-4">
-                <button
-                  onClick={() => setIsAIModalOpen(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 shadow-lg flex items-center justify-center mx-auto"
-                >
+                <button onClick={() => setIsAIModalOpen(true)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition shadow-lg flex items-center justify-center mx-auto">
                   <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
                   Ver Recomendaciones
                 </button>
-                <p className="text-gray-600 text-sm mt-3">
-                  Recomendaciones personalizadas generadas por IA avanzada
-                </p>
+                <p className="text-gray-600 text-sm mt-3">Recomendaciones personalizadas generadas por IA avanzada</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Modal de Edición */}
+        {/* Modales */}
         {isEditModalOpen && client && (
-          <EditClientModal 
-            client={client}
-            onClose={() => setIsEditModalOpen(false)}
-            onSave={fetchClient}
-          />
+          <EditClientModal client={client} onClose={() => setIsEditModalOpen(false)} onSave={fetchClient} />
         )}
-        {/* Modal para Visualización de Documentos */}
         {isDocumentModalOpen && selectedDocument && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
-              {/* Header del Modal */}
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <div>
                   <h3 className="text-xl font-bold text-gray-800">{selectedDocument.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}
-                  </p>
+                  <p className="text-sm text-gray-600">{Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}</p>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <a
-                    href={selectedDocument.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 font-medium flex items-center"
-                    download
-                  >
+                  <a href={selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center" download>
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Descargar
                   </a>
-                  <button
-                    onClick={() => {
-                      setIsDocumentModalOpen(false);
-                      setSelectedDocument(null);
-                    }}
-                    className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
-                  >
+                  <button onClick={() => { setIsDocumentModalOpen(false); setSelectedDocument(null); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               </div>
-
-              {/* Contenido del Modal */}
               <div className="flex-1 overflow-auto p-6">
                 {selectedDocument.type.includes('image') ? (
                   <div className="flex justify-center">
-                    <Image
-                      src={selectedDocument.url} 
-                      alt={selectedDocument.name}
-                      width={800}
-                      height={600}
-                      className="max-w-full max-h-full object-contain"
-                    />
+                    <Image src={selectedDocument.url} alt={selectedDocument.name} width={800} height={600} className="max-w-full max-h-full object-contain" />
                   </div>
                 ) : selectedDocument.name.includes('.pdf') ? (
-                  <div className="w-full h-full">
-                    <iframe
-                      src={selectedDocument.url}
-                      className="w-full h-[70vh] border-0"
-                      title={selectedDocument.name}
-                    />
-                  </div>
+                  <iframe src={selectedDocument.url} className="w-full h-[70vh] border-0" title={selectedDocument.name} />
                 ) : (
                   <div className="text-center py-12">
                     <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1232,16 +1029,8 @@ export default function ClientProfile() {
                       </svg>
                     </div>
                     <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
-                    <p className="text-gray-600 mb-6">
-                      Este tipo de archivo no se puede previsualizar en el navegador.
-                    </p>
-                    <a
-                      href={selectedDocument.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium inline-flex items-center"
-                      download
-                    >
+                    <p className="text-gray-600 mb-6">Este tipo de archivo no se puede previsualizar en el navegador.</p>
+                    <a href={selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium inline-flex items-center" download>
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
@@ -1253,47 +1042,29 @@ export default function ClientProfile() {
             </div>
           </div>
         )}
-        {/* Modal para cambiar foto de perfil */}
         {isProfilePhotoModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <h3 className="text-xl font-bold text-gray-800">Cambiar Foto de Perfil</h3>
-                <button
-                  onClick={() => setIsProfilePhotoModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
-                >
+                <button onClick={() => setIsProfilePhotoModalOpen(false)} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              
               <div className="p-6">
                 <div className="text-center mb-6">
                   <p className="text-gray-600 mb-4">Selecciona una nueva imagen para el perfil</p>
-                  
-                  <label className="block bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-200 font-medium cursor-pointer text-center">
+                  <label className="block bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium cursor-pointer text-center">
                     <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     Seleccionar Archivo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleProfilePhotoChange(file);
-                        }
-                      }}
-                    />
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleProfilePhotoChange(file); }} />
                   </label>
-                  
                   <p className="text-xs text-gray-500 mt-2">Formatos: JPG, PNG, GIF, WEBP (Máx. 5MB)</p>
                 </div>
-                
                 {uploading && (
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
@@ -1304,54 +1075,30 @@ export default function ClientProfile() {
             </div>
           </div>
         )}
-
-        {/* Modal para agregar documentos */}
         {isDocumentsModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <h3 className="text-xl font-bold text-gray-800">Agregar Documentos Médicos</h3>
-                <button
-                  onClick={() => {
-                    setIsDocumentsModalOpen(false);
-                    setSelectedFiles([]);
-                  }}
-                  className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
-                >
+                <button onClick={() => { setIsDocumentsModalOpen(false); setSelectedFiles([]); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              
               <div className="flex-1 overflow-auto p-6">
-                {/* Área de Drag & Drop */}
-                <div
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  className="border-2 border-dashed border-indigo-300 rounded-lg p-8 text-center hover:border-indigo-400 transition duration-200 mb-6"
-                >
+                <div onDragOver={handleDragOver} onDrop={handleDrop} className="border-2 border-dashed border-indigo-300 rounded-lg p-8 text-center hover:border-indigo-400 transition mb-6">
                   <svg className="w-12 h-12 text-indigo-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   <p className="text-indigo-600 font-medium mb-2">Arrastra y suelta archivos aquí</p>
                   <p className="text-gray-500 text-sm mb-4">o</p>
-                  <label className="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-200 font-medium cursor-pointer">
+                  <label className="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition font-medium cursor-pointer">
                     Seleccionar Archivos
-                    <input
-                      type="file"
-                      multiple
-                      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx"
-                      className="hidden"
-                      onChange={(e) => handleFileSelect(e.target.files)}
-                    />
+                    <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileSelect(e.target.files)} />
                   </label>
-                  <p className="text-xs text-gray-500 mt-3">
-                    Formatos: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX (Máx. 5MB por archivo)
-                  </p>
+                  <p className="text-xs text-gray-500 mt-3">Formatos: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX (Máx. 5MB por archivo)</p>
                 </div>
-
-                {/* Archivos seleccionados */}
                 {selectedFiles.length > 0 && (
                   <div className="mb-6">
                     <h4 className="font-semibold text-gray-800 mb-3">Archivos seleccionados:</h4>
@@ -1363,14 +1110,9 @@ export default function ClientProfile() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             <span className="text-sm text-gray-700 truncate max-w-[200px]">{file.name}</span>
-                            <span className="text-xs text-gray-500 ml-2">
-                              ({Math.round(file.size / 1024)} KB)
-                            </span>
+                            <span className="text-xs text-gray-500 ml-2">({Math.round(file.size / 1024)} KB)</span>
                           </div>
-                          <button
-                            onClick={() => removeSelectedFile(index)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
+                          <button onClick={() => removeSelectedFile(index)} className="text-red-500 hover:text-red-700 p-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -1381,23 +1123,11 @@ export default function ClientProfile() {
                   </div>
                 )}
               </div>
-
-              {/* Botones de acción */}
               <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
-                <button
-                  onClick={() => {
-                    setIsDocumentsModalOpen(false);
-                    setSelectedFiles([]);
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
-                >
+                <button onClick={() => { setIsDocumentsModalOpen(false); setSelectedFiles([]); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">
                   Cancelar
                 </button>
-                <button
-                  onClick={handleUploadDocuments}
-                  disabled={selectedFiles.length === 0 || uploading}
-                  className="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
+                <button onClick={handleUploadDocuments} disabled={selectedFiles.length === 0 || uploading} className="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
                   {uploading ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -1416,14 +1146,8 @@ export default function ClientProfile() {
             </div>
           </div>
         )}
-        {/* Modal de IA */}
         {isAIModalOpen && clientId && (
-          <AIRecommendationsModal
-            clientId={clientId}
-            _clientName={client.personalData.name}
-            onClose={() => setIsAIModalOpen(false)}
-            onRecommendationsGenerated={fetchClient}
-          />
+          <AIRecommendationsModal clientId={clientId} _clientName={client.personalData.name} onClose={() => setIsAIModalOpen(false)} onRecommendationsGenerated={fetchClient} />
         )}
       </Layout>
     </>

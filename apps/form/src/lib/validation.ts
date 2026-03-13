@@ -1,22 +1,18 @@
 // apps/form/src/lib/validation.ts
 import * as yup from 'yup';
 
-// ✅ Definir tipos para archivos que pueden venir como File o como string (en preview)
 type FileInput = File | string;
 
-// ✅ Esquema para validar archivos CON TIPADO
 const fileSchema = yup.mixed<FileInput>()
   .test('fileSize', 'El archivo es demasiado grande (máximo 5MB)', (value) => {
-    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
-    if (value instanceof File) {
-      return value.size <= 5 * 1024 * 1024;
-    }
+    if (!value || typeof value === 'string') return true;
+    if (value instanceof File) return value.size <= 5 * 1024 * 1024;
     return true;
   });
 
 const imageFileSchema = fileSchema
   .test('fileType', 'Formato de imagen no válido', (value) => {
-    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
+    if (!value || typeof value === 'string') return true;
     if (value instanceof File) {
       return ['image/jpeg', 'image/png', 'image/webp'].includes(value.type);
     }
@@ -26,7 +22,7 @@ const imageFileSchema = fileSchema
 
 const documentFileSchema = fileSchema
   .test('fileType', 'Formato de documento no válido', (value) => {
-    if (!value || typeof value === 'string') return true; // Si es string (preview URL), es válido
+    if (!value || typeof value === 'string') return true;
     if (value instanceof File) {
       return [
         'image/jpeg', 'image/png', 'image/webp',
@@ -38,7 +34,6 @@ const documentFileSchema = fileSchema
     return true;
   });
 
-// ✅ Esquemas principales
 export const personalDataSchema = yup.object({
   name: yup.string().required('El nombre es requerido'),
   email: yup.string().email('Email inválido').required('El email es requerido'),
@@ -53,26 +48,37 @@ export const personalDataSchema = yup.object({
   education: yup.string().required('La educación es requerida'),
   occupation: yup.string().required('La ocupación es requerida'),
   profilePhoto: imageFileSchema,
+  // Nuevos campos
+  bodyFatPercentage: yup.string().optional(),
+  weightVariation: yup.string().oneOf(['estable', 'bajo', 'subido'], 'Selecciona una opción').optional(),
+  dislikedFoodsActivities: yup.string().optional(),
 });
 
 export const medicalDataSchema = yup.object({
   mainComplaint: yup.string().required('La queja principal es requerida'),
+  mainComplaintIntensity: yup.number().min(1).max(10).optional(),
+  mainComplaintImpact: yup.string().optional(),
   medications: yup.string(),
   supplements: yup.string(),
   currentPastConditions: yup.string(),
   additionalMedicalHistory: yup.string(),
-  employmentHistory: yup.string(),
+  employmentHistory: yup.string(), // Ahora más específica
   hobbies: yup.string(),
   allergies: yup.string(),
   surgeries: yup.string(),
   housingHistory: yup.string(),
-  carbohydrateAddiction: yup.mixed(),
-  leptinResistance: yup.mixed(),
-  circadianRhythms: yup.mixed(),
-  sleepHygiene: yup.mixed(),
-  electrosmogExposure: yup.mixed(),
-  generalToxicity: yup.mixed(),
-  microbiotaHealth: yup.mixed(),
+  appetiteChanges: yup.string().oneOf(['mucho-hambre', 'mucha-sed', 'no']).optional(), // Nueva
+
+  // Evaluaciones - ahora serán arrays de strings (frecuencias)
+  carbohydrateAddiction: yup.array().of(yup.string()).optional(),
+  leptinResistance: yup.array().of(yup.string()).optional(),
+  circadianRhythms: yup.array().of(yup.string()).optional(),
+  sleepHygiene: yup.array().of(yup.string()).optional(),
+  electrosmogExposure: yup.array().of(yup.string()).optional(),
+  generalToxicity: yup.array().of(yup.string()).optional(),
+  microbiotaHealth: yup.array().of(yup.string()).optional(),
+
+  // Salud mental - opción múltiple (letras)
   mentalHealthEmotionIdentification: yup.string(),
   mentalHealthEmotionIntensity: yup.string(),
   mentalHealthUncomfortableEmotion: yup.string(),
@@ -85,9 +91,29 @@ export const medicalDataSchema = yup.object({
   mentalHealthPurpose: yup.string(),
   mentalHealthFailureReaction: yup.string(),
   mentalHealthSelfConnection: yup.string(),
+  // Nuevas preguntas de salud mental
+  mentalHealthSupportNetwork: yup.string().oneOf(['si-tengo', 'algunas', 'no']).optional(),
+  mentalHealthDailyStress: yup.string().oneOf(['bajo', 'moderado', 'alto', 'muy-alto']).optional(),
+
+  // Salud mental - texto abierto
   mentalHealthSelfRelationship: yup.string(),
   mentalHealthLimitingBeliefs: yup.string(),
   mentalHealthIdealBalance: yup.string(),
+
+  // NUEVOS CAMPOS - PASO 0 (Objetivos)
+  motivation: yup.array().of(yup.string()).optional(),
+  commitmentLevel: yup.number().min(1).max(10).optional(),
+  previousCoachExperience: yup.boolean().optional(),
+  previousCoachExperienceDetails: yup.string().optional(),
+  targetDate: yup.string().optional(),
+
+  // NUEVOS CAMPOS - PASO 5 (Contexto)
+  typicalWeekday: yup.string().optional(),
+  typicalWeekend: yup.string().optional(),
+  whoCooks: yup.string().optional(),
+  currentActivityLevel: yup.string().optional(),
+  physicalLimitations: yup.string().optional(),
+
   documents: yup.array().of(documentFileSchema),
 });
 
@@ -99,7 +125,6 @@ export const documentsSchema = yup.object({
   documents: yup.array().of(documentFileSchema),
 });
 
-// ✅ Tipos inferidos para usar en los componentes
 export type PersonalDataFormValues = yup.InferType<typeof personalDataSchema>;
 export type MedicalDataFormValues = yup.InferType<typeof medicalDataSchema>;
 export type ContractFormValues = yup.InferType<typeof contractSchema>;

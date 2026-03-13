@@ -30,3 +30,71 @@ body {
 section {
   scroll-margin-top: 80px; /* Ajuste para el navbar fijo */
 }
+
+/* Mejoras para móvil */
+@media (max-width: 640px) {
+  /* Selects más legibles */
+  select, input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="date"], textarea {
+    font-size: 16px !important; /* Evita zoom en iOS */
+  }
+
+  /* Radios y checkboxes más grandes */
+  input[type="radio"], input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  /* Botones en columna */
+  .button-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .button-group button {
+    width: 100%;
+  }
+}
+
+/* Estilos para input range personalizado */
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #4f46e5;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+input[type=range]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #4f46e5;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  background: #4338ca;
+}
+
+/* Mejora para selects */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
