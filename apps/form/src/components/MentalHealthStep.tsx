@@ -12,7 +12,11 @@ interface MentalHealthStepProps {
   onBack: () => void;
 }
 
-// Definir los tipos para las preguntas de salud mental
+// Tipos literales para los nuevos campos (según el esquema)
+type MentalHealthSupportNetwork = 'si-tengo' | 'algunas' | 'no' | undefined;
+type MentalHealthDailyStress = 'bajo' | 'moderado' | 'alto' | 'muy-alto' | undefined;
+
+// Definir los campos de opción múltiple (incluyendo los nuevos)
 type MentalHealthMultipleChoiceField =
   | 'mentalHealthEmotionIdentification'
   | 'mentalHealthEmotionIntensity'
@@ -25,13 +29,16 @@ type MentalHealthMultipleChoiceField =
   | 'mentalHealthEmotionalDependence'
   | 'mentalHealthPurpose'
   | 'mentalHealthFailureReaction'
-  | 'mentalHealthSelfConnection';
+  | 'mentalHealthSelfConnection'
+  | 'mentalHealthSupportNetwork'
+  | 'mentalHealthDailyStress';
 
 type MentalHealthOpenEndedField =
   | 'mentalHealthSelfRelationship'
   | 'mentalHealthLimitingBeliefs'
   | 'mentalHealthIdealBalance';
 
+// Interfaz del formulario alineada con el esquema
 interface FormData {
   medications?: string;
   supplements?: string;
@@ -39,7 +46,8 @@ interface FormData {
   additionalMedicalHistory?: string;
   employmentHistory?: string;
   mainComplaint?: string;
-  // Campos de salud mental - opción múltiple
+
+  // Opción múltiple (12 originales + 2 nuevas)
   mentalHealthEmotionIdentification?: string;
   mentalHealthEmotionIntensity?: string;
   mentalHealthUncomfortableEmotion?: string;
@@ -52,25 +60,24 @@ interface FormData {
   mentalHealthPurpose?: string;
   mentalHealthFailureReaction?: string;
   mentalHealthSelfConnection?: string;
-  // Campos de salud mental - preguntas abiertas
+  mentalHealthSupportNetwork?: MentalHealthSupportNetwork;
+  mentalHealthDailyStress?: MentalHealthDailyStress;
+
+  // Preguntas abiertas
   mentalHealthSelfRelationship?: string;
   mentalHealthLimitingBeliefs?: string;
   mentalHealthIdealBalance?: string;
 }
 
-// Crear un esquema específico para este paso que haga mainComplaint opcional
+// Esquema específico para este paso (mainComplaint opcional)
 const mentalHealthStepSchema = medicalDataSchema.shape({
   mainComplaint: yup.string().optional(),
 });
 
 const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
-  // Convertir los datos del formulario a FormData
   const getDefaultValues = (): FormData => {
     if (!data) return {};
-    
     const defaultValues: FormData = {};
-    
-    // Mapear campos del formulario
     const fields: Array<keyof FormData> = [
       'medications',
       'supplements',
@@ -90,17 +97,19 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
       'mentalHealthPurpose',
       'mentalHealthFailureReaction',
       'mentalHealthSelfConnection',
+      'mentalHealthSupportNetwork',
+      'mentalHealthDailyStress',
       'mentalHealthSelfRelationship',
       'mentalHealthLimitingBeliefs',
       'mentalHealthIdealBalance'
     ];
-    
     fields.forEach(field => {
-      if (data[field] !== undefined) {
-        defaultValues[field] = data[field] as string;
+      const value = data[field];
+      if (value !== undefined && value !== '') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (defaultValues[field] as any) = value;
       }
     });
-    
     return defaultValues;
   };
 
@@ -109,21 +118,17 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
     resolver: yupResolver(mentalHealthStepSchema),
   });
 
-  // Función para manejar el envío del formulario
   const handleFormSubmit: SubmitHandler<FormData> = (formData) => {
-    // Convertir FormData a Record<string, unknown>
     const formDataRecord: Record<string, unknown> = {};
-    
     Object.entries(formData).forEach(([key, value]) => {
       if (value !== undefined && value !== '') {
         formDataRecord[key] = value;
       }
     });
-    
     onSubmit(formDataRecord);
   };
 
-  // Preguntas de salud mental - opción múltiple (EXACTAMENTE como en el formulario original)
+  // Preguntas de opción múltiple (14 en total)
   const mentalHealthMultipleChoice: Array<{
     field: MentalHealthMultipleChoiceField;
     question: string;
@@ -236,10 +241,30 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
         { value: 'b', label: 'Ocasionalmente' },
         { value: 'c', label: 'No' }
       ]
+    },
+    // Nuevas preguntas con valores que coinciden con el esquema
+    {
+      field: 'mentalHealthSupportNetwork',
+      question: '¿Cuentas con una red de apoyo sólida (amigos, familia, pareja) con quien puedas hablar abiertamente?',
+      options: [
+        { value: 'si-tengo', label: 'Sí, tengo personas de confianza' },
+        { value: 'algunas', label: 'Tengo algunas personas, pero no siempre me siento cómodo/a' },
+        { value: 'no', label: 'No, me siento solo/a en este aspecto' }
+      ]
+    },
+    {
+      field: 'mentalHealthDailyStress',
+      question: 'En general, ¿cómo calificarías tu nivel de estrés diario?',
+      options: [
+        { value: 'bajo', label: 'Bajo' },
+        { value: 'moderado', label: 'Moderado' },
+        { value: 'alto', label: 'Alto' },
+        { value: 'muy-alto', label: 'Muy Alto' }
+      ]
     }
   ];
 
-  // Preguntas de salud mental - texto abierto (EXACTAMENTE como en el formulario original)
+  // Preguntas abiertas (sin cambios)
   const mentalHealthOpenEnded: Array<{
     field: MentalHealthOpenEndedField;
     question: string;
@@ -284,7 +309,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
           </h2>
           
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8">
-            {/* NUEVA SECCIÓN: Salud Mental - Opción Múltiple */}
+            {/* SECCIÓN: Opción Múltiple */}
             <div className="border border-purple-200 rounded-lg p-6 bg-purple-50">
               <h3 className="text-2xl font-semibold text-purple-600 mb-6 text-center">
                 Salud y Bienestar Emocional
@@ -313,7 +338,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
               </div>
             </div>
 
-            {/* NUEVA SECCIÓN: Salud Mental - Preguntas Abiertas */}
+            {/* SECCIÓN: Preguntas Abiertas */}
             <div className="border border-purple-200 rounded-lg p-6 bg-purple-50">
               <h3 className="text-2xl font-semibold text-purple-600 mb-6 text-center">
                 Reflexión Personal
@@ -335,17 +360,17 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
               </div>
             </div>
 
-            <div className="flex justify-between pt-6 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
               <button
                 type="button"
-                onClick={onBack}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                onClick={onBack} // Asegúrate de recibir onBack como prop
+                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                className="w-full sm:w-auto px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold order-1 sm:order-2"
               >
                 Siguiente
               </button>

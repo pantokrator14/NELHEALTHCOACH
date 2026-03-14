@@ -57,6 +57,34 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
               )}
             </div>
 
+            {/* Intensidad (1-10) */}
+            <div>
+              <label className="block text-sm font-medium text-yellow-600 mb-2">
+                En una escala del 1 al 10, ¿cómo calificarías la intensidad de esa queja? (1: leve, 10: insoportable)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                {...register('mainComplaintIntensity')}
+                className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
+                placeholder="Ej: 7"
+              />
+            </div>
+
+            {/* Impacto */}
+            <div>
+              <label className="block text-sm font-medium text-yellow-600 mb-2">
+                ¿Este síntoma te impide realizar alguna actividad específica en tu día a día?
+              </label>
+              <textarea
+                rows={3}
+                {...register('mainComplaintImpact')}
+                className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
+                placeholder="Ej: Hacer ejercicio, concentrarme en el trabajo..."
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Qué medicamentos estás tomando?
@@ -131,13 +159,13 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
 
             <div>
               <label className="block text-sm font-medium text-yellow-600 mb-2">
-                ¿Cuál es tu historial de empleos? Por favor incluye un breve detalle de cada uno
+                Describe brevemente tu trabajo ACTUAL. ¿Es principalmente sedentario, físicamente activo, o una mezcla? ¿Estás expuesto a estrés crónico, químicos, ruido o turnos rotativos?
               </label>
               <textarea
                 rows={3}
                 {...register('employmentHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Describe tu historial laboral..."
+                placeholder="Ej: Trabajo en oficina, sedentario, mucho estrés..."
               />
             </div>
 
@@ -165,17 +193,32 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
               />
             </div>
 
-            <div className="flex justify-between pt-6">
+            <div>
+              <label className="block text-sm font-medium text-yellow-600 mb-2">
+                ¿Has tenido cambios significativos en tu apetito o sed recientemente?
+              </label>
+              <select
+                {...register('appetiteChanges')}
+                className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
+              >
+                <option value="">Selecciona una opción</option>
+                <option value="mucho-hambre">Sí, mucha más hambre</option>
+                <option value="mucha-sed">Sí, mucha más sed</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
               <button
                 type="button"
-                onClick={onBack}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                onClick={onBack} // Asegúrate de recibir onBack como prop
+                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold"
+                className="w-full sm:w-auto px-8 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-semibold order-1 sm:order-2"
               >
                 Siguiente
               </button>

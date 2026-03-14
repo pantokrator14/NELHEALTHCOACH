@@ -161,19 +161,19 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
               </ul>
             </div>
 
-            <div className="flex justify-between pt-6 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row justify-between pt-6 border-t border-gray-200 gap-3 button-group">
               <button
                 type="button"
                 onClick={onBack}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold disabled:opacity-50"
+                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold disabled:opacity-50 order-2 sm:order-1"
                 disabled={loading}
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 flex items-center"
-                disabled={loading} // ← SOLO deshabilitar por loading, NO por falta de documentos
+                className="w-full sm:w-auto px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 flex items-center justify-center order-1 sm:order-2"
+                disabled={loading}
               >
                 {loading ? (
                   <>

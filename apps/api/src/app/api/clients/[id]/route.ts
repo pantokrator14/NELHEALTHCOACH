@@ -399,10 +399,12 @@ export async function PUT(
           return encrypt(JSON.stringify([]));
         }
 
+        // ✅ CORREGIDO: Mantener los strings originales, no convertir a booleano
         const cleanedArray = arrayData.map((value: any) => {
-          if (value === 'true') return true;
-          if (value === 'false') return false;
-          return Boolean(value);
+          if (typeof value === 'string') return value;
+          if (typeof value === 'boolean') return value ? 'si' : 'no';
+          if (typeof value === 'number') return value.toString();
+          return '';
         });
 
         // Asegurar longitud
@@ -413,7 +415,7 @@ export async function PUT(
             expectedLength
           });
           while (cleanedArray.length < expectedLength) {
-            cleanedArray.push(false);
+            cleanedArray.push('');
           }
         } else if (cleanedArray.length > expectedLength) {
           logger.debug('CLIENTS', `Recortando array ${field} a longitud esperada`, {

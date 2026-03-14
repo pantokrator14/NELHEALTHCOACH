@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     // Procesar arrays en medicalData
     const processedMedicalData = { ...data.medicalData };
-    
+
     const expectedLengths: Record<string, number> = {
       carbohydrateAddiction: 11,
       leptinResistance: 8,
@@ -259,16 +259,22 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      // ✅ CORREGIDO: Ya no convertimos a booleano, mantenemos los strings originales
       const cleanedArray = arrayData.map((value: any) => {
-        if (value === 'true') return true;
-        if (value === 'false') return false;
-        return Boolean(value);
+        // Si ya es string, lo dejamos como está
+        if (typeof value === 'string') return value;
+        // Si es booleano (por si acaso), lo convertimos a 'si'/'no'
+        if (typeof value === 'boolean') return value ? 'si' : 'no';
+        // Si es número, lo convertimos a string
+        if (typeof value === 'number') return value.toString();
+        // Por defecto, string vacío
+        return '';
       });
 
       // Asegurar longitud
       if (cleanedArray.length < expectedLength) {
         while (cleanedArray.length < expectedLength) {
-          cleanedArray.push(false);
+          cleanedArray.push('');
         }
       } else if (cleanedArray.length > expectedLength) {
         cleanedArray.length = expectedLength;
