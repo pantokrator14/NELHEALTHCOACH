@@ -26,9 +26,6 @@ const yesNoOptions = [
   { value: 'no', label: 'No' },
 ];
 
-// Opciones especiales para algunas preguntas (p.ej., tipo de agua, etc.) - las manejaremos como texto libre o select, pero por ahora dejamos frecuencia/sí.
-// Para simplificar, usaremos frecuencia o sí/no según corresponda.
-
 // Definición de secciones con preguntas y sus tipos
 const sections: {
   section: keyof Pick<MedicalDataFormValues, 
@@ -74,7 +71,6 @@ const sections: {
     title: 'Alteración de los ritmos circadianos / Exposición al sol',
     questions: [
       { text: '¿Lo primero que ves al despertar es tu celular?', type: 'frequency' },
-      // Eliminada la pregunta duplicada "¿Entra luz artificial a tu habitación al momento de dormir?"
       { text: '¿Estás expuesto a la luz artificial después del atardecer? (pantallas de computadoras, televisiones, celulares, tablets, focos de luz blanca o amarilla)', type: 'frequency' },
       { text: '¿Utilizas algún tipo de tecnología Wifi, 2G, 3G, 4G, 5G y/o luz artificial durante la noche?', type: 'frequency' },
       { text: '¿Exponerte al sol te hace daño (sufres quemadas)?', type: 'frequency' },
@@ -84,7 +80,6 @@ const sections: {
       { text: '¿Comes cuando ya no hay luz del sol?', type: 'frequency' },
       { text: '¿Tu exposición al sol es de menos de 30 minutos al día?', type: 'yesno' },
       { text: '¿Haces grounding (caminar descalzo sobre hierba, tierra, o arena) menos de 30 minutos al día?', type: 'frequency' },
-      // Nueva pregunta
       { text: '¿Utilizas filtros de luz azul en tus dispositivos electrónicos (modo noche, aplicaciones) por la noche?', type: 'frequency' },
     ],
   },
@@ -103,7 +98,6 @@ const sections: {
       { text: '¿Duermes menos de 4 horas?', type: 'frequency' },
       { text: '¿Haces cenas copiosas?', type: 'frequency' },
       { text: '¿Te acuestas inmediatamente después de cenar?', type: 'frequency' },
-      // Nueva pregunta
       { text: '¿Tu horario de sueño es regular? (¿Te acuestas y levantas más o menos a la misma hora todos los días, incluidos fines de semana?)', type: 'frequency' },
     ],
   },
@@ -135,9 +129,8 @@ const sections: {
       { text: '¿Tienes algún historial de enfermedad cardíaca, infarto de miocardio (ataque cardíaco) o de accidentes cerebrovasculares?', type: 'yesno' },
       { text: '¿Alguna vez te han diagnosticado trastorno bipolar, esquizofrenia o depresión?', type: 'yesno' },
       { text: '¿Alguna vez te han diagnosticado diabetes o tiroiditis?', type: 'yesno' },
-      // Nuevas preguntas
       { text: '¿Fumas o consumes algún tipo de vapeador?', type: 'frequency' },
-      { text: '¿Consumes alcohol? ¿Con qué frecuencia y cantidad?', type: 'frequency' }, // Esta es más compleja, pero la dejamos como frecuencia (el usuario puede poner 'si' o frecuencia)
+      { text: '¿Consumes alcohol? ¿Con qué frecuencia y cantidad?', type: 'frequency' }, // Esta es más compleja, pero la dejamos como frecuencia
     ],
   },
   {
@@ -154,7 +147,6 @@ const sections: {
       { text: '¿Has tomado antibióticos durante un período prolongado o con frecuencia (aún de niño)?', type: 'frequency' },
       { text: '¿Naciste por cesárea?', type: 'yesno' },
       { text: '¿Tomaste leche de fórmula en lugar de ser amamantado?', type: 'yesno' },
-      // Nuevas preguntas
       { text: '¿Consumes alimentos fermentados con regularidad (kéfir, chucrut, kombucha, yogur natural, kimchi)?', type: 'frequency' },
       { text: 'En tu opinión, ¿crees que consumes suficiente fibra de frutas, verduras y legumbres?', type: 'yesno' },
     ],
@@ -166,6 +158,12 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
+
+  // Función para manejar el submit y asegurar que los datos sean arrays de strings
+  const onSubmitHandler = (formData: MedicalDataFormValues) => {
+    console.log('HealthEvaluationsStep - datos antes de enviar:', formData);
+    onSubmit(formData);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-400 via-pink-500 to-pink-600 py-12 px-4">
@@ -188,12 +186,12 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
             Evaluaciones de Salud
           </h2>
           
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-8">
             {/* Instrucciones */}
             <div className="bg-pink-50 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-pink-700 mb-2">Instrucciones:</h3>
               <p className="text-sm text-pink-600">
-                Responde según la frecuencia con que ocurre cada situación. Si la pregunta requiere una respuesta de Sí/No, elige la opción correspondiente. Si no sabes, déjalo en blanco.
+                Responde según la frecuencia con que ocurre cada situación. Si la pregunta requiere una respuesta de Sí/No, elige la opción correspondiente.
               </p>
             </div>
 
@@ -203,7 +201,6 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                 <h3 className="text-xl font-semibold text-pink-700 mb-4">{section.title}</h3>
                 <div className="space-y-4">
                   {section.questions.map((question, questionIndex) => {
-                    // Determinar las opciones según el tipo
                     const options = question.type === 'frequency' ? frequencyOptions : yesNoOptions;
                     return (
                       <div key={questionIndex} className="flex flex-col md:flex-row md:items-start justify-between p-4 bg-white rounded-lg hover:bg-pink-100 transition-colors border border-pink-100">
@@ -228,17 +225,17 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
               </div>
             ))}
 
-            <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
+            <div className="flex justify-between pt-6">
               <button
                 type="button"
-                onClick={onBack} // Asegúrate de recibir onBack como prop
-                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
+                onClick={onBack}
+                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="w-full sm:w-auto px-8 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-semibold order-1 sm:order-2"
+                className="px-8 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-semibold"
               >
                 Siguiente
               </button>

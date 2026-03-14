@@ -69,3 +69,6 @@ input[type="checkbox"]:checked::after {
   text-decoration: line-through !important;
   text-decoration-thickness: 2px !important;
 }
+input, textarea, select {
+  color: #1f2937; /* gray-800 */
+}

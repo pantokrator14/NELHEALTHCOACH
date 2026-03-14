@@ -1,3 +1,4 @@
+// apps/dashboard/src/pages/dashboard/clients/[id].tsx
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
@@ -6,6 +7,15 @@ import EditClientModal from '../../../components/dashboard/EditClientModal'
 import { apiClient } from '@/lib/api';
 import Image from 'next/image'
 import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
+import {
+  valueLabels,
+  evaluationQuestions,
+  mentalHealthMultipleChoiceQuestions,
+  mentalHealthOptions,
+  mentalHealthOpenQuestions,
+  objectivesQuestions,
+  lifestyleQuestions,
+} from '../../../lib/formConstants';
 
 interface UploadedFile {
   url: string;
@@ -32,13 +42,15 @@ interface Client {
     education: string
     occupation: string
     profilePhoto?: UploadedFile;
-    // Nuevos campos
     bodyFatPercentage?: string;
     weightVariation?: string;
     dislikedFoodsActivities?: string;
   }
   medicalData: {
+    // Básicos
     mainComplaint: string
+    mainComplaintIntensity?: number
+    mainComplaintImpact?: string
     medications: string
     supplements: string
     currentPastConditions: string
@@ -48,14 +60,11 @@ interface Client {
     allergies: string
     surgeries: string
     housingHistory: string
-    // Nuevos campos médicos
-    mainComplaintIntensity?: number;
-    mainComplaintImpact?: string;
-    appetiteChanges?: string;
-    
+    appetiteChanges?: string
+
     documents?: UploadedFile[];
-    
-    // Evaluaciones - ahora son arrays de strings (frecuencias)
+
+    // Evaluaciones
     carbohydrateAddiction: string[]
     leptinResistance: string[]
     circadianRhythms: string[]
@@ -63,7 +72,7 @@ interface Client {
     electrosmogExposure: string[]
     generalToxicity: string[]
     microbiotaHealth: string[]
-    
+
     // Salud mental - opción múltiple
     mentalHealthEmotionIdentification: string
     mentalHealthEmotionIntensity: string
@@ -77,228 +86,32 @@ interface Client {
     mentalHealthPurpose: string
     mentalHealthFailureReaction: string
     mentalHealthSelfConnection: string
-    
-    // Nuevos campos salud mental
     mentalHealthSupportNetwork?: 'si-tengo' | 'algunas' | 'no'
     mentalHealthDailyStress?: 'bajo' | 'moderado' | 'alto' | 'muy-alto'
-    
+
     // Salud mental - texto abierto
     mentalHealthSelfRelationship: string
     mentalHealthLimitingBeliefs: string
     mentalHealthIdealBalance: string
+
+    // Objetivos
+    motivation?: string[] | string
+    commitmentLevel?: number
+    previousCoachExperience?: boolean
+    previousCoachExperienceDetails?: string
+    targetDate?: string
+
+    // Estilo de vida
+    typicalWeekday?: string
+    typicalWeekend?: string
+    whoCooks?: string
+    currentActivityLevel?: string
+    physicalLimitations?: string
   }
   contractAccepted: string
   ipAddress: string
   submissionDate: string
 }
-
-// Mapeo de opciones para salud mental (incluyendo las nuevas)
-const mentalHealthOptions: Record<string, Record<string, string>> = {
-  mentalHealthEmotionIdentification: {
-    a: 'Casi siempre',
-    b: 'A veces',
-    c: 'Rara vez'
-  },
-  mentalHealthEmotionIntensity: {
-    a: 'Muy intensas, a veces me desbordan',
-    b: 'Moderadas, las puedo manejar',
-    c: 'Poco intensas, casi no las noto'
-  },
-  mentalHealthUncomfortableEmotion: {
-    a: 'La evito o la reprimo',
-    b: 'Me dejo llevar por ella sin control',
-    c: 'La acepto y trato de entender su mensaje'
-  },
-  mentalHealthInternalDialogue: {
-    a: '"Siempre me pasa a mí", "No sirvo para esto"',
-    b: '"Es una oportunidad para aprender"',
-    c: '"No puedo hacer nada para cambiarlo"'
-  },
-  mentalHealthStressStrategies: {
-    a: 'Comer, fumar, distraerme con pantallas',
-    b: 'Hablar con alguien, respirar, hacer deporte',
-    c: 'Me bloqueo y no hago nada'
-  },
-  mentalHealthSayingNo: {
-    a: 'Sí, casi siempre',
-    b: 'Solo en algunas situaciones',
-    c: 'No, priorizo mis necesidades'
-  },
-  mentalHealthRelationships: {
-    a: 'Sí, con frecuencia',
-    b: 'A veces',
-    c: 'No, hay equilibrio'
-  },
-  mentalHealthExpressThoughts: {
-    a: 'Casi nunca',
-    b: 'Depende de la situación',
-    c: 'Sí, de manera asertiva'
-  },
-  mentalHealthEmotionalDependence: {
-    a: 'Sí',
-    b: 'No estoy seguro/a',
-    c: 'No'
-  },
-  mentalHealthPurpose: {
-    a: 'Sí, claramente',
-    b: 'Estoy en proceso de definirlas',
-    c: 'No, me siento perdido/a'
-  },
-  mentalHealthFailureReaction: {
-    a: 'Me hundo y tardo en recuperarme',
-    b: 'Me frustro, pero sigo adelante',
-    c: 'Lo veo como parte del aprendizaje'
-  },
-  mentalHealthSelfConnection: {
-    a: 'Sí, regularmente',
-    b: 'Ocasionalmente',
-    c: 'No'
-  },
-  // Nuevos
-  mentalHealthSupportNetwork: {
-    'si-tengo': 'Sí, tengo personas de confianza',
-    'algunas': 'Tengo algunas personas, pero no siempre me siento cómodo/a',
-    'no': 'No, me siento solo/a en este aspecto'
-  },
-  mentalHealthDailyStress: {
-    'bajo': 'Bajo',
-    'moderado': 'Moderado',
-    'alto': 'Alto',
-    'muy-alto': 'Muy Alto'
-  }
-};
-
-// Mapeo de opciones de frecuencia y otros valores para evaluaciones
-const evaluationValueLabels: Record<string, string> = {
-  // Frecuencias
-  'nunca': 'Nunca',
-  'rara-vez': 'Rara vez',
-  'a-veces': 'A veces',
-  'casi-siempre': 'Casi siempre',
-  'siempre': 'Siempre',
-  // Sí/No
-  'si': 'Sí',
-  'no': 'No',
-  // Opciones especiales
-  'estable': 'Estable',
-  'bajo': 'Ha bajado',
-  'subido': 'Ha subido',
-  'mucho-hambre': 'Sí, mucha más hambre',
-  'mucha-sed': 'Sí, mucha más sed',
-};
-
-// Preguntas para las evaluaciones SÍ/NO (actualizadas con las nuevas)
-const evaluationQuestions: Record<string, { title: string; questions: string[] }> = {
-  carbohydrateAddiction: {
-    title: 'Adicción a los carbohidratos',
-    questions: [
-      '¿El primer alimento que consumes en el día es de sabor dulce (azúcar o carbohidrato)?',
-      '¿Consumes alimentos procesados (los que tienen más de 5 ingredientes)?',
-      'Durante el último año ¿has comido más azúcar de lo que pretendías?',
-      '¿Alguna vez has dejado de hacer tus actividades cotidianas por comer alimentos con azúcar?',
-      '¿Sientes que necesitas o que deberías reducir tu consumo de azúcar?',
-      '¿Alguna vez has comido alimentos con azúcar para calmar una emoción (fatiga, tristeza, enojo, aburrimiento)?',
-      '¿Haces más de 5 comidas al día? ¿Comes cada 3-4 horas?',
-      '¿Te da dolor de cabeza si pasas más de 4 horas sin comer?',
-      '¿Piensas constantemente en alimentos con azúcar?',
-      '¿Crees que debes terminar la comida con un alimento dulce?',
-      '¿Sientes que no tienes control en lo que comes?'
-    ]
-  },
-  leptinResistance: {
-    title: 'Resistencia a la leptina',
-    questions: [
-      '¿Tienes sobrepeso u obesidad?',
-      '¿Tienes hambre constantemente?',
-      '¿Tienes antojos por carbohidratos, especialmente por las noches?',
-      '¿Tienes problemas para dormir? (insomnio)',
-      '¿Te sientes sin energía durante el día?',
-      '¿Sientes que al despertar no descansaste bien durante la noche?',
-      '¿Te ejercitas menos de 30 minutos al día?',
-      '¿Te saltas el desayuno?'
-    ]
-  },
-  circadianRhythms: {
-    title: 'Alteración de los ritmos circadianos / Exposición al sol',
-    questions: [
-      '¿Lo primero que ves al despertar es tu celular?',
-      '¿Estás expuesto a la luz artificial después del atardecer? (pantallas de computadoras, televisiones, celulares, tablets, focos de luz blanca o amarilla)',
-      '¿Utilizas algún tipo de tecnología Wifi, 2G, 3G, 4G, 5G y/o luz artificial durante la noche?',
-      '¿Exponerte al sol te hace daño (sufres quemaduras)?',
-      '¿Utilizas gafas/lentes solares?',
-      '¿Utilizas cremas o protectores solares?',
-      '¿Comes pocos pescados, moluscos y/o crustáceos (menos de 1 vez a la semana)?',
-      '¿Comes cuando ya no hay luz del sol?',
-      '¿Tu exposición al sol es de menos de 30 minutos al día?',
-      '¿Haces grounding (caminar descalzo sobre hierba, tierra, o arena) menos de 30 minutos al día?',
-      '¿Utilizas filtros de luz azul en tus dispositivos electrónicos (modo noche, aplicaciones) por la noche?'
-    ]
-  },
-  sleepHygiene: {
-    title: 'Alteración en la higiene del sueño',
-    questions: [
-      '¿Duermes con el celular encendido cerca de ti?',
-      '¿Te despiertas con la alarma del celular?',
-      '¿La temperatura de tu habitación es muy caliente o muy fría?',
-      '¿Entra luz artificial a tu habitación al momento de dormir?',
-      '¿La cabecera de tu cama está pegada a la pared?',
-      '¿Duermes con el wifi de tu casa encendido?',
-      '¿Te duermes después de las 11 pm?',
-      'Cuando te despiertas ¿ya amaneció?',
-      '¿Duermes menos de 4 horas?',
-      '¿Haces cenas copiosas?',
-      '¿Te acuestas inmediatamente después de cenar?',
-      '¿Tu horario de sueño es regular? (¿Te acuestas y levantas más o menos a la misma hora todos los días, incluidos fines de semana?)'
-    ]
-  },
-  electrosmogExposure: {
-    title: 'Exposición al electrosmog',
-    questions: [
-      'Al hacer llamadas por celular ¿te lo pegas a la oreja?',
-      '¿Llevas el celular cerca de tu cuerpo (por ejemplo: en el bolsillo del pantalón)?',
-      '¿Vives cerca de líneas de alta tensión?',
-      '¿Utilizas el microondas?',
-      '¿Presentas cansancio general durante el día? O ¿Duermes en exceso?',
-      '¿Tienes piel sensible o con erupciones?',
-      '¿Tienes taquicardia o arritmia?',
-      '¿Tienes problemas de presión arterial?',
-      '¿Tienes colon irritable?',
-      '¿Tienes pérdida auditiva, oyes un zumbido (tinitus) o te duelen los oídos?'
-    ]
-  },
-  generalToxicity: {
-    title: 'Toxicidad general',
-    questions: [
-      '¿Bebes agua embotellada?',
-      '¿Utilizas protector solar convencional?',
-      '¿Algún miembro de tu familia ha sido diagnosticado con fibromialgia, fatiga crónica o sensibilidades químicas múltiples?',
-      '¿Tienes algún historial de disfunción renal?',
-      '¿Tienes tú o algún miembro de tu familia inmediata antecedentes de cáncer?',
-      '¿Tienes algún historial de enfermedad cardíaca, infarto de miocardio (ataque cardíaco) o de accidentes cerebrovasculares?',
-      '¿Alguna vez te han diagnosticado trastorno bipolar, esquizofrenia o depresión?',
-      '¿Alguna vez te han diagnosticado diabetes o tiroiditis?',
-      '¿Fumas o consumes algún tipo de vapeador?',
-      '¿Consumes alcohol? ¿Con qué frecuencia y cantidad?'
-    ]
-  },
-  microbiotaHealth: {
-    title: 'Salud de la microbiota',
-    questions: [
-      '¿Sufres de estreñimiento o de diarrea?',
-      '¿Sientes distensión, hinchazón, sensación de saciedad y/o ruidos en el intestino después de comer carbohidratos como brócoli, coles de Bruselas u otras verduras?',
-      '¿Tienes a menudo gases con olor desagradable como a azufre?',
-      '¿Alguna vez has sido vegano o vegetariano durante algún tiempo?',
-      '¿Tienes intolerancia a la carne?',
-      '¿Has usado o utilizas antiácidos, inhibidores de la bomba de protones o cualquier otro medicamento que bloquee el ácido?',
-      'Cuando consumes alcohol, ¿tienes confusión mental o una sensación tóxica incluso después de 1 porción?',
-      '¿Has tomado antibióticos durante un período prolongado o con frecuencia (aún de niño)?',
-      '¿Naciste por cesárea?',
-      '¿Tomaste leche de fórmula en lugar de ser amamantado?',
-      '¿Consumes alimentos fermentados con regularidad (kéfir, chucrut, kombucha, yogur natural, kimchi)?',
-      'En tu opinión, ¿crees que consumes suficiente fibra de frutas, verduras y legumbres?'
-    ]
-  }
-};
 
 export default function ClientProfile() {
   const [client, setClient] = useState<Client | null>(null)
@@ -314,23 +127,36 @@ export default function ClientProfile() {
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  
-  const clientId = Array.isArray(id) ? id[0] : id || '';
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+
+  // Función auxiliar para parsear campos que pueden ser string JSON o array
+  const parseArrayField = (field: unknown): string[] => {
+    if (Array.isArray(field)) return field;
+    if (typeof field === 'string') {
+      try {
+        const parsed = JSON.parse(field);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const clientId = Array.isArray(id) ? id[0] : id || ''
 
   const fetchClient = useCallback(async () => {
     try {
-      if (!clientId) return;
-      
-      const result = await apiClient.getClient(clientId);
-      setClient(result.data);
+      if (!clientId) return
+      const result = await apiClient.getClient(clientId)
+      setClient(result.data)
     } catch (error) {
       console.error('Error fetching client:', error)
       alert('Error al cargar los datos del cliente')
     } finally {
       setLoading(false)
     }
-  }, [clientId]);
+  }, [clientId])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -338,19 +164,15 @@ export default function ClientProfile() {
       router.push('/login')
       return
     }
-
     if (clientId) {
       fetchClient()
     }
   }, [clientId, router, fetchClient])
 
   const handleDelete = async () => {
-    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}? Esta acción no se puede deshacer.`)) {
-      return
-    }
-
+    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
     try {
-      await apiClient.deleteClient(clientId);
+      await apiClient.deleteClient(clientId)
       router.push('/dashboard/clients')
     } catch (error) {
       console.error('Error deleting client:', error)
@@ -360,12 +182,12 @@ export default function ClientProfile() {
 
   const getMentalHealthLabel = (field: string, value: string): string => {
     if (!value) return 'No especificado'
-    return mentalHealthOptions[field]?.[value] || value
+    return mentalHealthOptions[field]?.[value] || valueLabels[value] || value
   }
 
-  const getEvaluationLabel = (value: string): string => {
+  const getEvaluationLabel = (value: string | undefined): string => {
     if (!value) return 'No especificado'
-    return evaluationValueLabels[value] || value
+    return valueLabels[value] || value
   }
 
   const getNames = (fullName: string) => {
@@ -383,24 +205,22 @@ export default function ClientProfile() {
     }))
   }
 
-  const getEvaluationAnswers = (evaluationData: unknown): string[] => {
-    if (Array.isArray(evaluationData)) {
-      return evaluationData;
-    }
-    if (typeof evaluationData === 'string') {
+  const getEvaluationAnswers = (data: unknown): string[] => {
+    if (Array.isArray(data)) return data
+    if (typeof data === 'string') {
       try {
-        const parsed = JSON.parse(evaluationData);
-        return Array.isArray(parsed) ? parsed : [];
+        const parsed = JSON.parse(data)
+        return Array.isArray(parsed) ? parsed : []
       } catch {
-        return [];
+        return []
       }
     }
-    return [];
-  };
+    return []
+  }
 
   const handleProfilePhotoChange = async (file: File) => {
-    if (!clientId) return;
-    setUploading(true);
+    if (!clientId) return
+    setUploading(true)
     try {
       const uploadResponse = await apiClient.generateUploadURL(
         clientId,
@@ -408,12 +228,12 @@ export default function ClientProfile() {
         file.type,
         file.size,
         'profile'
-      );
+      )
       await fetch(uploadResponse.uploadURL, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': file.type },
-      });
+      })
       await apiClient.confirmUpload(
         clientId,
         uploadResponse.fileKey,
@@ -422,33 +242,33 @@ export default function ClientProfile() {
         file.size,
         'profile',
         uploadResponse.uploadURL
-      );
-      await fetchClient();
-      alert('Foto de perfil actualizada exitosamente');
-      setIsProfilePhotoModalOpen(false);
+      )
+      await fetchClient()
+      alert('Foto de perfil actualizada exitosamente')
+      setIsProfilePhotoModalOpen(false)
     } catch (error) {
-      console.error('Error actualizando foto de perfil:', error);
-      alert('Error al actualizar la foto de perfil');
+      console.error('Error actualizando foto de perfil:', error)
+      alert('Error al actualizar la foto de perfil')
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  };
+  }
 
   const handleDeleteDocument = async (document: UploadedFile) => {
-    if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar el documento "${document.name}"?`)) return;
+    if (!clientId || !confirm(`¿Eliminar documento "${document.name}"?`)) return
     try {
-      await apiClient.deleteDocument(clientId, document.key);
-      await fetchClient();
-      alert('Documento eliminado exitosamente');
+      await apiClient.deleteDocument(clientId, document.key)
+      await fetchClient()
+      alert('Documento eliminado')
     } catch (error) {
-      console.error('Error eliminando documento:', error);
-      alert('Error al eliminar el documento');
+      console.error('Error eliminando documento:', error)
+      alert('Error al eliminar el documento')
     }
-  };
+  }
 
   const handleUploadDocuments = async () => {
-    if (!clientId || selectedFiles.length === 0) return;
-    setUploading(true);
+    if (!clientId || selectedFiles.length === 0) return
+    setUploading(true)
     const uploadPromises = selectedFiles.map(async (file) => {
       try {
         const uploadResponse = await apiClient.generateUploadURL(
@@ -457,12 +277,12 @@ export default function ClientProfile() {
           file.type,
           file.size,
           'document'
-        );
+        )
         await fetch(uploadResponse.uploadURL, {
           method: 'PUT',
           body: file,
           headers: { 'Content-Type': file.type },
-        });
+        })
         await apiClient.confirmUpload(
           clientId,
           uploadResponse.fileKey,
@@ -471,48 +291,48 @@ export default function ClientProfile() {
           file.size,
           'document',
           uploadResponse.uploadURL
-        );
-        return { success: true, fileName: file.name };
+        )
+        return { success: true, fileName: file.name }
       } catch (error) {
-        console.error(`Error subiendo ${file.name}:`, error);
-        return { success: false, fileName: file.name };
+        console.error(`Error subiendo ${file.name}:`, error)
+        return { success: false, fileName: file.name }
       }
-    });
+    })
 
     try {
-      const results = await Promise.all(uploadPromises);
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
+      const results = await Promise.all(uploadPromises)
+      const successful = results.filter(r => r.success).length
+      const failed = results.filter(r => !r.success).length
       if (failed > 0) {
-        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron.`);
+        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron.`)
       } else {
-        alert('Todos los documentos se subieron exitosamente');
+        alert('Todos los documentos se subieron exitosamente')
       }
-      await fetchClient();
-      setSelectedFiles([]);
-      setIsDocumentsModalOpen(false);
+      await fetchClient()
+      setSelectedFiles([])
+      setIsDocumentsModalOpen(false)
     } catch (error) {
-      console.error('Error subiendo documentos:', error);
-      alert('Error al subir los documentos');
+      console.error('Error subiendo documentos:', error)
+      alert('Error al subir los documentos')
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  };
+  }
 
   const handleFileSelect = (files: FileList | null) => {
-    if (!files) return;
-    setSelectedFiles(prev => [...prev, ...Array.from(files)]);
-  };
+    if (!files) return
+    setSelectedFiles(prev => [...prev, ...Array.from(files)])
+  }
 
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    handleFileSelect(e.dataTransfer.files);
-  };
+    e.preventDefault()
+    handleFileSelect(e.dataTransfer.files)
+  }
 
   const removeSelectedFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
 
   if (loading) {
     return (
@@ -531,7 +351,7 @@ export default function ClientProfile() {
           <div className="text-gray-400 text-6xl mb-4">❌</div>
           <h3 className="text-xl font-semibold text-gray-600 mb-2">Cliente no encontrado</h3>
           <button onClick={() => router.push('/dashboard/clients')} className="text-blue-600 hover:text-blue-800 font-medium">
-            Volver a la lista de clientes
+            Volver a la lista
           </button>
         </div>
       </Layout>
@@ -553,8 +373,8 @@ export default function ClientProfile() {
               <div className="flex flex-col items-center text-center mb-6">
                 {client.personalData.profilePhoto ? (
                   <div className="relative mb-4">
-                    <Image 
-                      src={client.personalData.profilePhoto.url} 
+                    <Image
+                      src={client.personalData.profilePhoto.url}
                       alt={`Foto de ${firstName} ${lastName}`}
                       className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
                       width={240}
@@ -563,7 +383,7 @@ export default function ClientProfile() {
                     <button
                       onClick={() => setIsProfilePhotoModalOpen(true)}
                       className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
-                      title="Cambiar foto de perfil"
+                      title="Cambiar foto"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -581,7 +401,7 @@ export default function ClientProfile() {
                     <button
                       onClick={() => setIsProfilePhotoModalOpen(true)}
                       className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
-                      title="Agregar foto de perfil"
+                      title="Agregar foto"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -591,13 +411,17 @@ export default function ClientProfile() {
                 )}
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">{firstName} {lastName}</h1>
                 <p className="text-gray-600 text-sm">
-                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
                 </p>
               </div>
 
-              {/* Navegación por pestañas */}
-              <div className="mb-6">
-                <div className="flex space-x-1 bg-blue-50 p-1 rounded-lg">
+              {/* Navegación de pestañas - SOLO Personal, Médico y Emocional */}
+              <div className="mb-6 overflow-x-auto">
+                <div className="flex space-x-1 bg-blue-50 p-1 rounded-lg min-w-max">
                   <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'personal' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-600 hover:text-blue-700 hover:bg-white'}`}>
                     Personal
                   </button>
@@ -651,14 +475,13 @@ export default function ClientProfile() {
                       <p className="text-gray-800 font-medium">{client.personalData.maritalStatus}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Nivel educativo</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">Educación</label>
                       <p className="text-gray-800 font-medium">{client.personalData.education || 'No especificado'}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">Ocupación</label>
                       <p className="text-gray-800 font-medium">{client.personalData.occupation || 'No especificado'}</p>
                     </div>
-                    {/* Nuevos campos personales */}
                     {client.personalData.bodyFatPercentage && (
                       <div className="bg-blue-50 p-3 rounded-lg">
                         <label className="text-sm font-medium text-blue-700 mb-1">% grasa corporal</label>
@@ -668,7 +491,7 @@ export default function ClientProfile() {
                     {client.personalData.weightVariation && (
                       <div className="bg-blue-50 p-3 rounded-lg">
                         <label className="text-sm font-medium text-blue-700 mb-1">Variación de peso (6 meses)</label>
-                        <p className="text-gray-800 font-medium">{getEvaluationLabel(client.personalData.weightVariation)}</p>
+                        <p className="text-gray-800 font-medium">{valueLabels[client.personalData.weightVariation] || client.personalData.weightVariation}</p>
                       </div>
                     )}
                     {client.personalData.dislikedFoodsActivities && (
@@ -681,7 +504,7 @@ export default function ClientProfile() {
                 )}
 
                 {activeTab === 'medical' && (
-                  <>
+                  <div className="space-y-4">
                     <div className="bg-yellow-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-yellow-700 mb-1">Mayor queja</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
@@ -725,25 +548,35 @@ export default function ClientProfile() {
                     {client.medicalData.appetiteChanges && (
                       <div className="bg-yellow-50 p-3 rounded-lg">
                         <label className="text-sm font-medium text-yellow-700 mb-1">Cambios en apetito/sed</label>
-                        <p className="text-gray-800 font-medium">{getEvaluationLabel(client.medicalData.appetiteChanges)}</p>
+                        <p className="text-gray-800 font-medium">{valueLabels[client.medicalData.appetiteChanges] || client.medicalData.appetiteChanges}</p>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
 
                 {activeTab === 'mental' && (
-                  <>
-                    {Object.entries(mentalHealthOptions).map(([field, options]) => {
-                      const value = client.medicalData[field as keyof Client['medicalData']] as string;
-                      if (!value) return null;
+                  <div className="space-y-4">
+                    {Object.entries(mentalHealthMultipleChoiceQuestions).map(([field, question]) => {
+                      const value = client.medicalData[field as keyof Client['medicalData']] as string
+                      if (!value) return null
                       return (
                         <div key={field} className="bg-purple-50 p-3 rounded-lg">
-                          <label className="text-sm font-medium text-purple-700 mb-1">{field.replace(/([A-Z])/g, ' $1').toLowerCase()}</label>
+                          <label className="text-sm font-medium text-purple-700 mb-1">{question}</label>
                           <p className="text-gray-800 font-medium">{getMentalHealthLabel(field, value)}</p>
                         </div>
-                      );
+                      )
                     })}
-                  </>
+                    {Object.entries(mentalHealthOpenQuestions).map(([field, question]) => {
+                      const value = client.medicalData[field as keyof Client['medicalData']] as string
+                      if (!value) return null
+                      return (
+                        <div key={field} className="bg-purple-50 p-3 rounded-lg">
+                          <label className="text-sm font-medium text-purple-700 mb-1">{question}</label>
+                          <p className="text-gray-800 font-medium">{value}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
 
@@ -765,51 +598,208 @@ export default function ClientProfile() {
             </div>
           </div>
 
-          {/* Columna derecha - 70% */}
+          {/* Columna derecha - 70% con nuevas tarjetas */}
           <div className="w-full lg:w-2/3 space-y-6">
-            {/* Tarjeta Resumen de Vida */}
-            <div className="bg-yellow-50 rounded-xl shadow-md border border-yellow-100 p-6">
+            {/* TARJETA OBJETIVOS (ámbar) */}
+            <div className="bg-amber-50 rounded-xl shadow-md border border-amber-200 p-6">
               <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
+                <div className="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center mr-3">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-yellow-700">Resumen de Vida</h2>
+                <h2 className="text-2xl font-bold text-amber-800">Objetivos</h2>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100">
-                  <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
+              <div className="space-y-4">
+                {(() => {
+                  const motivationArray = parseArrayField(client.medicalData.motivation);
+                  return motivationArray.length > 0 ? (
+                    <div className="bg-white p-4 rounded-lg border border-amber-200">
+                      <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.motivation}</label>
+                      <div className="flex flex-wrap gap-2">
+                        {motivationArray.map((value, idx) => (
+                          <span key={idx} className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full">
+                            {valueLabels[value] || value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                {client.medicalData.commitmentLevel && (
+                  <div className="bg-white p-4 rounded-lg border border-amber-200">
+                    <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.commitmentLevel}</label>
+                    <p className="text-gray-800 font-medium">{client.medicalData.commitmentLevel} / 10</p>
+                  </div>
+                )}
+                {client.medicalData.previousCoachExperience !== undefined && (
+                  <div className="bg-white p-4 rounded-lg border border-amber-200">
+                    <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.previousCoachExperience}</label>
+                    <p className="text-gray-800 font-medium">{client.medicalData.previousCoachExperience ? 'Sí' : 'No'}</p>
+                  </div>
+                )}
+                {client.medicalData.previousCoachExperienceDetails && (
+                  <div className="bg-white p-4 rounded-lg border border-amber-200">
+                    <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.previousCoachExperienceDetails}</label>
+                    <p className="text-gray-800 font-medium">{client.medicalData.previousCoachExperienceDetails}</p>
+                  </div>
+                )}
+                {client.medicalData.targetDate && (
+                  <div className="bg-white p-4 rounded-lg border border-amber-200">
+                    <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.targetDate}</label>
+                    <p className="text-gray-800 font-medium">{client.medicalData.targetDate}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* TARJETA ESTILO DE VIDA Y CONTEXTO (teal) - AHORA CON TODAS LAS PREGUNTAS */}
+            <div className="bg-teal-50 rounded-xl shadow-md border border-teal-200 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-teal-800">Estilo de Vida y Contexto</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Empleo */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">💼</span>
                     Historial de empleos
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[80px]">{client.medicalData.employmentHistory || 'Información no disponible'}</p>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.employmentHistory || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
                 </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100">
-                  <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
+                {/* Vivienda */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">🏠</span>
                     Historial de Vivienda
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[80px]">{client.medicalData.housingHistory || 'Información no disponible'}</p>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.housingHistory || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
                 </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-yellow-100 lg:col-span-2">
-                  <h3 className="font-semibold text-yellow-700 mb-2 flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                {/* Hobbies */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">🎨</span>
                     Hobbies e Intereses
                   </h3>
-                  <p className="text-gray-700 text-sm min-h-[60px]">{client.medicalData.hobbies || 'Información no disponible'}</p>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.hobbies || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
+                </div>
+                {/* Día típico entre semana */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">📅</span>
+                    Día típico entre semana
+                  </h3>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.typicalWeekday || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
+                </div>
+                {/* Día típico fin de semana */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">🎉</span>
+                    Día típico fin de semana
+                  </h3>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.typicalWeekend || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
+                </div>
+                {/* Quién cocina / comida fuera */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">🍳</span>
+                    Quién cocina / comida fuera
+                  </h3>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.whoCooks || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
+                </div>
+                {/* Nivel de actividad física */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">🏃</span>
+                    Nivel de actividad física
+                  </h3>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.currentActivityLevel || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
+                </div>
+                {/* Limitaciones físicas */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
+                  <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
+                    <span className="mr-2 text-lg">⚠️</span>
+                    Limitaciones físicas
+                  </h3>
+                  <p className="text-gray-700 text-sm min-h-[60px]">
+                    {client.medicalData.physicalLimitations || <span className="text-gray-400 italic">No especificado</span>}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Tarjeta Documentos Médicos */}
+            {/* TARJETA EVALUACIONES DE SALUD (rosa) */}
+            <div className="bg-pink-50 rounded-xl shadow-md border border-pink-100 p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-pink-700">Evaluaciones de Salud</h2>
+              </div>
+              <div className="space-y-4">
+                {Object.entries(evaluationQuestions).map(([key, evaluation]) => {
+                  const answers = getEvaluationAnswers(client.medicalData[key as keyof Client['medicalData']])
+                  const isExpanded = expandedEvaluations[key]
+                  return (
+                    <div key={key} className="bg-white rounded-lg border border-pink-200 overflow-hidden">
+                      <button onClick={() => toggleEvaluation(key)} className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-pink-100 transition-colors">
+                        <div className="flex items-center">
+                          <span className="font-semibold text-pink-700">{evaluation.title}</span>
+                          <span className="ml-2 text-sm text-pink-500 bg-pink-100 px-2 py-1 rounded-full">
+                            {answers.filter(a => a && a !== 'no' && a !== 'nunca').length} de {evaluation.questions.length} marcados
+                          </span>
+                        </div>
+                        <svg className={`w-5 h-5 text-pink-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-4 py-3 border-t border-pink-100 bg-pink-50">
+                          <div className="space-y-3">
+                            {evaluation.questions.map((question, idx) => (
+                              <div key={idx} className="flex flex-col p-3 bg-white rounded-lg border border-pink-100">
+                                <span className="text-sm text-gray-700 mb-2">{question}</span>
+                                <span className={`text-sm font-semibold px-2 py-1 rounded self-start ${
+                                  answers[idx] && answers[idx] !== 'no' && answers[idx] !== 'nunca'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {getEvaluationLabel(answers[idx])}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* TARJETA DOCUMENTOS MÉDICOS (índigo) */}
             <div className="bg-indigo-50 rounded-xl shadow-md border border-indigo-100 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center">
@@ -892,80 +882,7 @@ export default function ClientProfile() {
               )}
             </div>
 
-            {/* Tarjeta Evaluaciones de Salud */}
-            <div className="bg-pink-50 rounded-xl shadow-md border border-blue-100 p-6">
-              <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-pink-700">Evaluaciones de Salud</h2>
-              </div>
-              <div className="space-y-4">
-                {Object.entries(evaluationQuestions).map(([key, evaluation]) => {
-                  const answers = getEvaluationAnswers(client.medicalData[key as keyof Client['medicalData']]);
-                  const isExpanded = expandedEvaluations[key];
-                  return (
-                    <div key={key} className="bg-white rounded-lg border border-pink-200 overflow-hidden">
-                      <button onClick={() => toggleEvaluation(key)} className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-pink-100 transition-colors">
-                        <div className="flex items-center">
-                          <span className="font-semibold text-pink-700">{evaluation.title}</span>
-                          <span className="ml-2 text-sm text-pink-500 bg-pink-100 px-2 py-1 rounded-full">
-                            {answers.filter(a => a && a !== 'no' && a !== 'nunca').length} de {evaluation.questions.length} marcados
-                          </span>
-                        </div>
-                        <svg className={`w-5 h-5 text-pink-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {isExpanded && (
-                        <div className="px-4 py-3 border-t border-pink-100 bg-pink-100">
-                          <div className="space-y-3">
-                            {evaluation.questions.map((question, index) => (
-                              <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-pink-100">
-                                <span className="flex-1 text-sm text-gray-700 pr-4">{question}</span>
-                                <span className={`text-sm font-semibold px-2 py-1 rounded ${answers[index] && answers[index] !== 'no' && answers[index] !== 'nunca' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                  {getEvaluationLabel(answers[index] || '')}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Tarjeta Salud Mental y Emocional */}
-            <div className="bg-purple-50 rounded-xl shadow-md border border-purple-100 p-6">
-              <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-purple-700">Salud y Bienestar Emocional</h2>
-              </div>
-              <div className="space-y-4">
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Relación contigo mismo (3 palabras)</h3>
-                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthSelfRelationship || 'No especificado'}</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Creencias limitantes</h3>
-                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthLimitingBeliefs || 'No especificado'}</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <h3 className="font-semibold text-purple-700 mb-2">Equilibrio emocional ideal</h3>
-                  <p className="text-gray-700 text-sm">{client.medicalData.mentalHealthIdealBalance || 'No especificado'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Tarjeta Recomendaciones IA */}
+            {/* TARJETA RECOMENDACIONES IA (verde) */}
             <div className="bg-green-50 rounded-xl shadow-md border border-green-100 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center mr-3">
