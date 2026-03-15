@@ -1,12 +1,89 @@
-import React from 'react';
+// apps/landing/src/components/sections/ContactFormSection.tsx
+import React, { useState, useEffect } from 'react';
+
+interface FormData {
+  name: string;
+  email: string;
+  phone: string;
+  objective: string;
+  otherObjective: string;
+}
+
+const objectives = [
+  { value: 'perder-peso', label: 'Perder peso' },
+  { value: 'ganar-musculo', label: 'Ganar masa muscular' },
+  { value: 'mas-energia', label: 'Tener más energía' },
+  { value: 'mejorar-digestion', label: 'Mejorar digestión' },
+  { value: 'reducir-estres', label: 'Reducir estrés' },
+  { value: 'dormir-mejor', label: 'Dormir mejor' },
+  { value: 'otro', label: 'Otro' },
+];
 
 const ContactFormSection: React.FC = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    email: '',
+    phone: '',
+    objective: 'perder-peso',
+    otherObjective: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Cerrar con tecla Escape
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsModalOpen(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
   const openCalendly = () => {
     window.open(
       'https://calendly.com/nelhealthcoach/30min',
       '_blank',
       'noopener,noreferrer,width=800,height=600'
     );
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    // Construir payload: si objective es 'otro', usamos otherObjective como objetivo real
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      objective: formData.objective === 'otro' ? formData.otherObjective : formData.objective,
+    };
+
+    try {
+      const response = await fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error al enviar');
+
+      setIsModalOpen(false);
+      openCalendly();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error de conexión';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -20,7 +97,6 @@ const ContactFormSection: React.FC = () => {
               <p className="mb-6 text-xl text-blue-100">
                 Prepárate para tomar el control de tu vida de una vez por todas.
               </p>
-              
               <ul className="space-y-4">
                 <li className="flex items-start">
                   <div className="bg-blue-500 rounded-full p-2 mr-3 mt-1">
@@ -48,26 +124,24 @@ const ContactFormSection: React.FC = () => {
                 </li>
               </ul>
             </div>
-            
+
             {/* Panel derecho - Botón único */}
             <div className="md:w-1/2 p-12 flex flex-col justify-center items-center">
               <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">
                 Agenda tu sesión gratuita
               </h3>
-              
               <p className="text-gray-600 mb-6 text-center">
                 Elige el día y hora que mejor te convenga en solo 2 clics
               </p>
-              
-              {/* BOTÓN ÚNICO */}
+
               <button
-                onClick={openCalendly}
-                className="px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                onClick={() => setIsModalOpen(true)}
+                className="w-full md:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
               >
                 <span className="text-2xl">📅</span>
                 <span>Ver horarios disponibles</span>
               </button>
-              
+
               <div className="mt-8 space-y-4">
                 <p className="text-gray-500 text-sm text-center flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,6 +160,107 @@ const ContactFormSection: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal del formulario */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <h3 className="text-2xl font-bold text-blue-800 mb-4">Antes de continuar</h3>
+            <p className="text-gray-600 mb-6">
+              Cuéntanos un poco sobre ti para que podamos preparar mejor tu sesión.
+            </p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-blue-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-700 mb-1">Teléfono (opcional)</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-700 mb-1">Objetivo principal *</label>
+                <select
+                  name="objective"
+                  required
+                  value={formData.objective}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                >
+                  {objectives.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Campo adicional si selecciona 'otro' */}
+              {formData.objective === 'otro' && (
+                <div>
+                  <label className="block text-sm font-medium text-blue-700 mb-1">Especifica tu objetivo</label>
+                  <input
+                    type="text"
+                    name="otherObjective"
+                    required
+                    value={formData.otherObjective}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                    placeholder="Escribe tu objetivo..."
+                  />
+                </div>
+              )}
+
+              {error && <p className="text-red-600 text-sm">{error}</p>}
+
+              <div className="flex justify-center pt-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-center"
+                >
+                  {loading ? 'Enviando...' : 'Continuar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
