@@ -160,3 +160,7 @@ export async function getNutritionCollection() {
   const { db } = await connectToDatabase();
   return db.collection('nutrition_data');
 }
+export async function getLeadsCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('leads');
+}

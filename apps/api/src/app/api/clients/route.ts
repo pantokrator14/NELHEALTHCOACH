@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHealthFormsCollection } from '@/app/lib/database';
+import { getHealthFormsCollection, getLeadsCollection } from '@/app/lib/database';
 import { encrypt, decrypt, decryptFileObject } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 
@@ -303,6 +303,24 @@ export async function POST(request: NextRequest) {
       insertedIdString: result.insertedId.toString(),
       acknowledged: result.acknowledged
     });
+
+    // Después de la inserción exitosa
+    if (result.acknowledged) {
+      // Buscar y eliminar el lead correspondiente por email (sin encriptar)
+      try {
+        const leadsCollection = await getLeadsCollection();
+        const emailToMatch = data.personalData.email; // El email viene en texto plano en la request
+        const deleteResult = await leadsCollection.deleteOne({ email: emailToMatch });
+        if (deleteResult.deletedCount > 0) {
+          console.log(`✅ Lead con email ${emailToMatch} eliminado correctamente.`);
+        } else {
+          console.log(`ℹ️ No se encontró lead con email ${emailToMatch} para eliminar.`);
+        }
+      } catch (leadError) {
+        // Solo logueamos el error, no interrumpimos el flujo principal
+        console.error('❌ Error al eliminar lead:', leadError);
+      }
+    }
 
     const responseData = {
       success: true,
