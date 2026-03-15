@@ -44,10 +44,10 @@ export async function POST(request: NextRequest) {
     // Enviar correo al coach
     await resend.emails.send({
       from: 'NELHEALTHCOACH <info@nelhealthcoach.com>',
-      to: 'coach@nelhealthcoach.com', // Cambia por el correo real
-      subject: 'Nuevo lead - Sesión gratuita',
+      to: 'ceo@nelhealthcoach.com', // Cambia por el correo real
+      subject: 'Nueva solicitud - Sesión gratuita',
       html: `
-        <h1>Nuevo lead para sesión gratuita</h1>
+        <h1>Nueva solicitud para sesión gratuita:</h1>
         <p><strong>Nombre:</strong> ${name}</p>
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Teléfono:</strong> ${phone || 'No proporcionado'}</p>
