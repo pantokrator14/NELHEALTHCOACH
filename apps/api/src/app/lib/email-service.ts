@@ -170,6 +170,8 @@ export class EmailService {
         coachEmail: this.fromEmail,
         replyToEmail: this.fromEmail,
         websiteUrl: 'https://nelhealthcoach.com',
+        logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://nelhealthcoach.com/images/logo-white.png',
+        logoBlueUrl: process.env.LOGO_BLUE_URL || 'https://nelhealthcoach.com/images/logo-blue.png',
         };
 
         // Generar contenido (usando tus mismos templates)

@@ -1,12 +1,14 @@
 // apps/landing/src/components/sections/ContactFormSection.tsx
 import React, { useState, useEffect } from 'react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 interface FormData {
   name: string;
   email: string;
   phone: string;
   objective: string;
-  otherObjective: string;
+  otherObjective?: string;
 }
 
 const objectives = [
@@ -31,7 +33,7 @@ const ContactFormSection: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Cerrar con tecla Escape
+  // Cerrar con Escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsModalOpen(false);
@@ -58,29 +60,50 @@ const ContactFormSection: React.FC = () => {
     setLoading(true);
     setError('');
 
-    // Construir payload: si objective es 'otro', usamos otherObjective como objetivo real
+    const finalObjective = formData.objective === 'otro' && formData.otherObjective
+      ? formData.otherObjective
+      : formData.objective;
+
     const payload = {
       name: formData.name,
       email: formData.email,
       phone: formData.phone,
-      objective: formData.objective === 'otro' ? formData.otherObjective : formData.objective,
+      objective: finalObjective,
     };
 
     try {
-      const response = await fetch('/api/lead', {
+      const response = await fetch(`${API_BASE_URL}/api/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Error al enviar');
+      // Leer la respuesta como texto primero para depurar
+      const text = await response.text();
+      console.log('📨 Respuesta del servidor (texto):', text);
 
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('❌ No se pudo parsear JSON. Respuesta:', text);
+        throw new Error('La respuesta del servidor no es válida');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al enviar');
+      }
+
+      // Éxito: cerrar modal y abrir Calendly
       setIsModalOpen(false);
       openCalendly();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error de conexión';
-      setError(message);
+      console.error('❌ Error en fetch:', err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Error de conexión');
+      }
     } finally {
       setLoading(false);
     }
@@ -136,7 +159,7 @@ const ContactFormSection: React.FC = () => {
 
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="w-full md:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
               >
                 <span className="text-2xl">📅</span>
                 <span>Ver horarios disponibles</span>
@@ -230,29 +253,29 @@ const ContactFormSection: React.FC = () => {
                 </select>
               </div>
 
-              {/* Campo adicional si selecciona 'otro' */}
+              {/* Campo adicional si se selecciona "Otro" */}
               {formData.objective === 'otro' && (
                 <div>
                   <label className="block text-sm font-medium text-blue-700 mb-1">Especifica tu objetivo</label>
                   <input
                     type="text"
                     name="otherObjective"
-                    required
                     value={formData.otherObjective}
                     onChange={handleInputChange}
+                    placeholder="Ej: Mejorar mi rendimiento deportivo"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                    placeholder="Escribe tu objetivo..."
+                    required
                   />
                 </div>
               )}
 
               {error && <p className="text-red-600 text-sm">{error}</p>}
 
-              <div className="flex justify-center pt-4">
+              <div className="flex justify-end pt-4">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-center"
+                  className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {loading ? 'Enviando...' : 'Continuar'}
                 </button>
