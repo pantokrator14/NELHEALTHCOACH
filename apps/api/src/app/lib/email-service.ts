@@ -53,8 +53,8 @@ export class EmailService {
   private enabled: boolean;
 
   private constructor() {
-    this.fromEmail = process.env.EMAIL_FROM_ADDRESS || 'manuelmartinez@nelhealthcoach.com';
-    this.fromName = process.env.EMAIL_FROM_NAME || 'Manuel Martínez - NELHealthCoach';
+    this.fromEmail = process.env.EMAIL_FROM_ADDRESS || 'no-reply@nelhealthcoach.com';
+    this.fromName = process.env.EMAIL_FROM_NAME || 'Servicio Automático de Recomendaciones | NELHealthCoach';
     this.enabled = process.env.EMAIL_ENABLED !== 'false';
     
     logger.info('EMAIL', 'EmailService (Resend) inicializado', {

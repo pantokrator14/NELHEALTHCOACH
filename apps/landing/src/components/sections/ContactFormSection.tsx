@@ -44,7 +44,7 @@ const ContactFormSection: React.FC = () => {
 
   const openCalendly = () => {
     window.open(
-      'https://calendly.com/nelhealthcoach/30min',
+      'https://calendly.com/nelhealthcoach/nelhealthcoach-free-session',
       '_blank',
       'noopener,noreferrer,width=800,height=600'
     );

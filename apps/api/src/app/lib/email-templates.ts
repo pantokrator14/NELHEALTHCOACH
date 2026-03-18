@@ -62,8 +62,8 @@ export interface EmailTemplateData {
  */
 export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
   const currentYear = new Date().getFullYear();
-  const coachEmail = data.coachEmail || 'coach@nelhealthcoach.com';
-  const replyTo = data.replyToEmail || coachEmail;
+  const contactEmail = data.coachEmail || 'contact@nelhealthcoach.com';
+  const replyTo = data.replyToEmail || contactEmail;
   const websiteUrl = data.websiteUrl || 'https://nelhealthcoach.com';
   const logoWhite = data.logoWhiteUrl || 'https://nelhealthcoach.com/images/logo-white.png';
   const logoBlue = data.logoBlueUrl || 'https://nelhealthcoach.com/images/logo-blue.png';
@@ -367,7 +367,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tu Plan de Salud - Mes ${data.monthNumber} | NEL Health Coach</title>
+    <title>Tu Plan de Salud - Mes ${data.monthNumber} | NELHEALTHCOACH</title>
     <style>
         /* Estilos responsive para móvil */
         @media only screen and (max-width: 600px) {
@@ -614,7 +614,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
                 </p>
                 <div style="display: inline-block; text-align: left; background: white; padding: 20px; border-radius: 8px;">
                     <div style="margin-bottom: 10px;">
-                        <strong>📧 Email:</strong> <a href="mailto:${coachEmail}" style="color: #1976D2; text-decoration: none;">${coachEmail}</a>
+                        <strong>📧 Email:</strong> <a href="mailto:${contactEmail}" style="color: #1976D2; text-decoration: none;">${contactEmail}</a>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <strong>📞 Teléfonos:</strong> +1 (442) 342-5050 (español) / +1 (760) 980-5880 (inglés)
@@ -637,17 +637,16 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
             text-align: center;
             font-size: 14px;
         ">
-            <img src="${logoBlue}" alt="NEL Health Coach" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+            <img src="${logoBlue}" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
             <div style="margin-bottom: 15px; opacity: 0.8;">
-                <strong>NEL Health Coach</strong><br>
+                <strong>NELHEALTHCOACH</strong><br>
                 Transformando vidas a través de la salud keto y hábitos sostenibles
             </div>
             <div style="margin-bottom: 15px; opacity: 0.6;">
-                © ${currentYear} NELHealthCoach. Todos los derechos reservados.
+                © ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
             </div>
             <div style="opacity: 0.5; font-size: 12px; max-width: 500px; margin: 0 auto; line-height: 1.5;">
                 Este es un email automático generado por nuestro sistema de recomendaciones de IA.<br>
-                Si tienes preguntas, por favor consulta conmigo.
             </div>
         </div>
     </div>
