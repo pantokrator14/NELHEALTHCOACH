@@ -1,3 +1,4 @@
+// apps/api/src/lib/email-templates.ts
 import { safeDecrypt } from './encryption';
 
 /**
@@ -51,16 +52,21 @@ export interface EmailTemplateData {
   replyToEmail?: string;
   websiteUrl?: string;
   dashboardUrl?: string;
+  // URLs de los logos
+  logoWhiteUrl?: string;
+  logoBlueUrl?: string;
 }
 
 /**
- * Generar email HTML para plan mensual
+ * Generar email HTML para plan mensual (versión mejorada, estilo modal)
  */
 export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
   const currentYear = new Date().getFullYear();
-  const coachEmail = data.coachEmail || 'coach@nelhealthcoach.com';
-  const replyTo = data.replyToEmail || coachEmail;
+  const contactEmail = data.coachEmail || 'contact@nelhealthcoach.com';
+  const replyTo = data.replyToEmail || contactEmail;
   const websiteUrl = data.websiteUrl || 'https://nelhealthcoach.com';
+  const logoWhite = data.logoWhiteUrl || 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoBlue = data.logoBlueUrl || 'https://nelhealthcoach.com/images/logo-blue.png';
 
   // Función para escapar HTML
   const escapeHtml = (text: string): string => {
@@ -74,7 +80,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
       .replace(/\n/g, '<br>');
   };
 
-  // Formatear lista de compras con prioridades
+  // Formatear lista de compras con prioridades (igual que antes, pero mejorado)
   const formatShoppingList = (shoppingList: any[]) => {
     if (!shoppingList || shoppingList.length === 0) return '';
     
@@ -113,7 +119,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
     `;
   };
 
-  // Formatear checklist items
+  // Formatear checklist items con estilo de tarjetas (similar al modal)
   const formatChecklistItems = (items: any[], category: string) => {
     if (!items || items.length === 0) return '<p style="color: #666; font-style: italic;">No hay items para esta semana.</p>';
     
@@ -193,7 +199,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
     }).join('');
   };
 
-  // Generar HTML para cada semana
+  // Generar HTML para cada semana (estilo acordeón, pero siempre visible en email)
   const weeksHTML = data.weeks.map(week => {
     const nutritionFocus = escapeHtml(week.nutrition.focus || 'Nutrición Keto');
     const exerciseFocus = escapeHtml(week.exercise.focus || 'Ejercicio Adaptado');
@@ -207,7 +213,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
       overflow: hidden;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     ">
-      <!-- Encabezado de semana -->
+      <!-- Encabezado de semana (gradiente como en el modal) -->
       <div style="
         background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
         color: white;
@@ -248,9 +254,9 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
         </div>
       </div>
       
-      <!-- Contenido de la semana -->
+      <!-- Contenido de la semana (igual que modal) -->
       <div style="padding: 25px;">
-        <!-- Nutrición -->
+        <!-- Nutrición - Verde -->
         <div style="margin-bottom: 25px;">
           <div style="
             display: flex;
@@ -285,7 +291,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
           ` : ''}
         </div>
         
-        <!-- Ejercicio -->
+        <!-- Ejercicio - Azul -->
         <div style="margin-bottom: 25px;">
           <div style="
             display: flex;
@@ -310,7 +316,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
           ` : ''}
         </div>
         
-        <!-- Hábitos -->
+        <!-- Hábitos - Púrpura -->
         <div>
           <div style="
             display: flex;
@@ -354,15 +360,16 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
     `;
   }).join('');
 
-  // Generar el HTML completo
+  // Generar el HTML completo con cabecera y footer mejorados
   return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tu Plan de Salud - Mes ${data.monthNumber} | NEL Health Coach</title>
+    <title>Tu Plan de Salud - Mes ${data.monthNumber} | NELHEALTHCOACH</title>
     <style>
+        /* Estilos responsive para móvil */
         @media only screen and (max-width: 600px) {
             .container {
                 width: 100% !important;
@@ -378,35 +385,25 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
             .week-stats {
                 margin-top: 10px !important;
             }
+            .grid-2 {
+                grid-template-columns: 1fr !important;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
         }
     </style>
 </head>
-<body style="
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    line-height: 1.6;
-    color: #333;
-    background-color: #f5f5f5;
-">
-    <div style="
-        max-width: 600px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    ">
-        <!-- Header -->
-        <div style="
-            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-        ">
-            <div style="font-size: 32px; font-weight: 800; margin-bottom: 10px; letter-spacing: 1px;">
-                NELHEALTHCOACH
-            </div>
+<body>
+    <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <!-- Header con logo blanco sobre azul -->
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
+            <img src="${logoWhite}" alt="NEL Health Coach" style="max-width: 200px; height: auto; margin-bottom: 20px;">
             <div style="opacity: 0.9; font-size: 16px; max-width: 500px; margin: 0 auto;">
                 Transformando vidas a través de la salud integral y hábitos sostenibles
             </div>
@@ -414,9 +411,9 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
         
         <!-- Contenido principal -->
         <div style="padding: 40px 30px;">
-            <!-- Saludo -->
+            <!-- Saludo y aprobación -->
             <div style="margin-bottom: 30px;">
-                <h1 style="margin: 0 0 10px 0; color: #2E7D32; font-size: 28px;">
+                <h1 style="margin: 0 0 10px 0; color: #1976D2; font-size: 28px;">
                     Hola ${escapeHtml(data.clientName)},
                 </h1>
                 <p style="margin: 0; color: #666; font-size: 18px;">
@@ -424,89 +421,59 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
                 </p>
                 <div style="
                     display: inline-block;
-                    background: #E8F5E9;
-                    color: #2E7D32;
+                    background: #E3F2FD;
+                    color: #1976D2;
                     padding: 8px 16px;
                     border-radius: 20px;
                     font-weight: 600;
                     margin-top: 15px;
                     font-size: 14px;
                 ">
-                    📅 Fecha de aprobación: ${new Date().toLocaleDateString('es-ES', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                    })}
+                    📅 Fecha de aprobación: ${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </div>
             </div>
             
-            <!-- Resumen -->
-            <div style="
-                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                border-radius: 10px;
-                padding: 25px;
-                margin-bottom: 30px;
-                border-left: 5px solid #4CAF50;
-            ">
-                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                    <div style="
-                        background: #4CAF50;
-                        color: white;
-                        width: 40px;
-                        height: 40px;
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 20px;
-                        margin-right: 15px;
-                    ">
-                        📊
+            <!-- Resumen y Visión en tarjetas (como modal) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;" class="grid-2">
+                <!-- Resumen -->
+                <div style="
+                    background: #f8f9fa;
+                    border-radius: 10px;
+                    padding: 20px;
+                    border-left: 5px solid #1976D2;
+                ">
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 24px; margin-right: 10px;">🔍</span>
+                        <h3 style="margin: 0; color: #1976D2; font-size: 18px;">Resumen del Estado Actual</h3>
                     </div>
-                    <h2 style="margin: 0; color: #2E7D32; font-size: 22px;">Análisis de tu Estado Actual</h2>
+                    <p style="color: #444; line-height: 1.7; font-size: 14px;">
+                        ${escapeHtml(data.summary)}
+                    </p>
                 </div>
-                <div style="color: #444; line-height: 1.7;">
-                    ${escapeHtml(data.summary)}
-                </div>
-            </div>
-            
-            <!-- Visión -->
-            <div style="
-                background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
-                border-radius: 10px;
-                padding: 25px;
-                margin-bottom: 30px;
-                border-left: 5px solid #FF9800;
-            ">
-                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                    <div style="
-                        background: #FF9800;
-                        color: white;
-                        width: 40px;
-                        height: 40px;
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 20px;
-                        margin-right: 15px;
-                    ">
-                        🎯
+                <!-- Visión -->
+                <div style="
+                    background: #fff8e1;
+                    border-radius: 10px;
+                    padding: 20px;
+                    border-left: 5px solid #FF9800;
+                ">
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 24px; margin-right: 10px;">🎯</span>
+                        <h3 style="margin: 0; color: #EF6C00; font-size: 18px;">Visión para el siguiente mes</h3>
                     </div>
-                    <h2 style="margin: 0; color: #EF6C00; font-size: 22px;">Visión a 12 Meses</h2>
-                </div>
-                <div style="color: #5d4037; line-height: 1.7;">
-                    ${escapeHtml(data.vision)}
+                    <p style="color: #5d4037; line-height: 1.7; font-size: 14px;">
+                        ${escapeHtml(data.vision)}
+                    </p>
                 </div>
             </div>
             
-            <!-- Métricas -->
+            <!-- Métricas (opcional) -->
             ${data.baselineMetrics ? `
             <div style="margin-bottom: 30px;">
                 <h2 style="color: #333; font-size: 22px; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px;">
                     📈 Métricas de Progreso
                 </h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;" class="grid-2">
                     <div style="
                         background: #f8f9fa;
                         border-radius: 10px;
@@ -565,7 +532,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
                 <h2 style="margin: 0 0 20px 0; color: #1976D2; font-size: 22px; text-align: center;">
                     📝 Instrucciones Importantes
                 </h2>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;" class="grid-2">
                     <div style="text-align: center;">
                         <div style="
                             background: white;
@@ -632,7 +599,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
                 </div>
             </div>
             
-            <!-- Contacto -->
+            <!-- Contacto (con datos reales del footer) -->
             <div style="
                 background: #f3e5f5;
                 border-radius: 10px;
@@ -647,33 +614,39 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
                 </p>
                 <div style="display: inline-block; text-align: left; background: white; padding: 20px; border-radius: 8px;">
                     <div style="margin-bottom: 10px;">
-                        <strong>📧 Email:</strong> ${escapeHtml(coachEmail)}
+                        <strong>📧 Email:</strong> <a href="mailto:${contactEmail}" style="color: #1976D2; text-decoration: none;">${contactEmail}</a>
                     </div>
                     <div style="margin-bottom: 10px;">
-                        <strong>🌐 Sitio Web:</strong> ${escapeHtml(websiteUrl)}
+                        <strong>📞 Teléfonos:</strong> +1 (442) 342-5050 (español) / +1 (760) 980-5880 (inglés)
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>📍 Dirección:</strong> 33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>🌐 Sitio Web:</strong> <a href="${websiteUrl}" style="color: #1976D2; text-decoration: none;">${websiteUrl}</a>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Footer -->
+        <!-- Footer con logo azul sobre fondo oscuro -->
         <div style="
-            background: #333;
+            background: #263238;
             color: white;
             padding: 30px;
             text-align: center;
             font-size: 14px;
         ">
+            <img src="${logoBlue}" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
             <div style="margin-bottom: 15px; opacity: 0.8;">
-                <strong>NEL Health Coach</strong><br>
+                <strong>NELHEALTHCOACH</strong><br>
                 Transformando vidas a través de la salud keto y hábitos sostenibles
             </div>
             <div style="margin-bottom: 15px; opacity: 0.6;">
-                © ${currentYear} NELHealthCoach. Todos los derechos reservados.
+                © ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
             </div>
             <div style="opacity: 0.5; font-size: 12px; max-width: 500px; margin: 0 auto; line-height: 1.5;">
                 Este es un email automático generado por nuestro sistema de recomendaciones de IA.<br>
-                Si tienes preguntas, por favor consulta conmigo.
             </div>
         </div>
     </div>
@@ -683,7 +656,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
 }
 
 /**
- * Generar versión en texto plano para el email
+ * Generar versión en texto plano para el email (se mantiene igual pero con datos de contacto actualizados)
  */
 export function generateMonthlyPlanEmailText(data: EmailTemplateData): string {
   const coachEmail = data.coachEmail || 'coach@nelhealthcoach.com';
@@ -769,6 +742,8 @@ ${week.habits.trackingMethod ? `📋 Método de seguimiento: ${week.habits.track
 
 💬 SOPORTE Y CONTACTO:
 📧 Email: ${coachEmail}
+📞 Teléfonos: +1 (442) 342-5050 (español) / +1 (760) 980-5880 (inglés)
+📍 Dirección: 33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
 🌐 Sitio Web: ${websiteUrl}
 
 ================================================

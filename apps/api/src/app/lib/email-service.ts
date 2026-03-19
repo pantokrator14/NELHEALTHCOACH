@@ -53,8 +53,8 @@ export class EmailService {
   private enabled: boolean;
 
   private constructor() {
-    this.fromEmail = process.env.EMAIL_FROM_ADDRESS || 'manuelmartinez@nelhealthcoach.com';
-    this.fromName = process.env.EMAIL_FROM_NAME || 'Manuel Martínez - NELHealthCoach';
+    this.fromEmail = process.env.EMAIL_FROM_ADDRESS || 'no-reply@nelhealthcoach.com';
+    this.fromName = process.env.EMAIL_FROM_NAME || 'Servicio Automático de Recomendaciones | NELHealthCoach';
     this.enabled = process.env.EMAIL_ENABLED !== 'false';
     
     logger.info('EMAIL', 'EmailService (Resend) inicializado', {
@@ -170,6 +170,8 @@ export class EmailService {
         coachEmail: this.fromEmail,
         replyToEmail: this.fromEmail,
         websiteUrl: 'https://nelhealthcoach.com',
+        logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://nelhealthcoach.com/images/logo-white.png',
+        logoBlueUrl: process.env.LOGO_BLUE_URL || 'https://nelhealthcoach.com/images/logo-blue.png',
         };
 
         // Generar contenido (usando tus mismos templates)
