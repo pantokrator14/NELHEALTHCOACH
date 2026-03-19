@@ -44,7 +44,7 @@ const ContactFormSection: React.FC = () => {
 
   const openCalendly = () => {
     window.open(
-      'https://calendly.com/nelhealthcoach/nelhealthcoach-free-session',
+      'https://calendly.com/manueldejesusmartinez66/30min',
       '_blank',
       'noopener,noreferrer,width=800,height=600'
     );
