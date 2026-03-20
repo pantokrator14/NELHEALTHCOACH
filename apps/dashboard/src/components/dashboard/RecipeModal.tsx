@@ -95,6 +95,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const [nutritionSource, setNutritionSource] = useState<'manual' | 'ai' | 'local'>('manual');
   const [nutritionDetails, setNutritionDetails] = useState<NutritionDetails | null>(null);
   
+  // Estados para edición de ingredientes e instrucciones
+  const [editingIngredientIndex, setEditingIngredientIndex] = useState<number | null>(null);
+  const [editingIngredientText, setEditingIngredientText] = useState<string>('');
+  const [editingInstructionIndex, setEditingInstructionIndex] = useState<number | null>(null);
+  const [editingInstructionText, setEditingInstructionText] = useState<string>('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast, ToastComponent } = useToast();
 
@@ -143,6 +149,24 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [onClose, isSubmitting, isUploading]);
+
+  // Cancelar edición con Escape
+  useEffect(() => {
+    const handleGlobalEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (editingIngredientIndex !== null) {
+          setEditingIngredientIndex(null);
+          setEditingIngredientText('');
+        }
+        if (editingInstructionIndex !== null) {
+          setEditingInstructionIndex(null);
+          setEditingInstructionText('');
+        }
+      }
+    };
+    document.addEventListener('keydown', handleGlobalEscape);
+    return () => document.removeEventListener('keydown', handleGlobalEscape);
+  }, [editingIngredientIndex, editingInstructionIndex]);
 
   // Función para calcular nutrición automáticamente
   const calculateNutritionAutomatically = async () => {
@@ -562,6 +586,27 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     }));
   };
 
+  // Editar ingrediente
+  const startEditIngredient = (index: number, text: string) => {
+    setEditingIngredientIndex(index);
+    setEditingIngredientText(text);
+  };
+
+  const saveEditIngredient = () => {
+    if (editingIngredientIndex !== null && editingIngredientText.trim()) {
+      const updatedIngredients = [...formData.ingredients];
+      updatedIngredients[editingIngredientIndex] = editingIngredientText.trim();
+      setFormData(prev => ({ ...prev, ingredients: updatedIngredients }));
+    }
+    setEditingIngredientIndex(null);
+    setEditingIngredientText('');
+  };
+
+  const cancelEditIngredient = () => {
+    setEditingIngredientIndex(null);
+    setEditingIngredientText('');
+  };
+
   const handleAddInstruction = () => {
     if (newInstruction.trim()) {
       setFormData(prev => ({
@@ -585,6 +630,27 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       ...prev,
       instructions: reorderedItems,
     }));
+  };
+
+  // Editar instrucción
+  const startEditInstruction = (index: number, text: string) => {
+    setEditingInstructionIndex(index);
+    setEditingInstructionText(text);
+  };
+
+  const saveEditInstruction = () => {
+    if (editingInstructionIndex !== null && editingInstructionText.trim()) {
+      const updatedInstructions = [...formData.instructions];
+      updatedInstructions[editingInstructionIndex] = editingInstructionText.trim();
+      setFormData(prev => ({ ...prev, instructions: updatedInstructions }));
+    }
+    setEditingInstructionIndex(null);
+    setEditingInstructionText('');
+  };
+
+  const cancelEditInstruction = () => {
+    setEditingInstructionIndex(null);
+    setEditingInstructionText('');
   };
 
   // Manejar tecla Enter en inputs y textareas
@@ -1057,24 +1123,83 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   
                   <DragDropList
                     items={formData.ingredients}
-                    renderItem={(ingredient, index) => (
-                      <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold">
-                          {index + 1}
+                    renderItem={(ingredient, index) => {
+                      const isEditing = editingIngredientIndex === index;
+                      return (
+                        <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-orange-50 rounded-lg border border-orange-200">
+                          <div className="w-5 h-5 sm:w-6 sm:h-6 bg-orange-100 text-orange-700 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold">
+                            {index + 1}
+                          </div>
+                          {isEditing ? (
+                            <>
+                              <input
+                                type="text"
+                                value={editingIngredientText}
+                                onChange={(e) => setEditingIngredientText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEditIngredient();
+                                }}
+                                className="flex-1 w-full px-2 py-1 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm sm:text-base"
+                                autoFocus
+                                disabled={isSubmitting || isUploading}
+                              />
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={saveEditIngredient}
+                                  className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Guardar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditIngredient}
+                                  className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Cancelar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex-1 text-gray-700 text-sm sm:text-base">{ingredient}</span>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditIngredient(index, ingredient)}
+                                  className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Editar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveIngredient(index)}
+                                  className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Eliminar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <span className="flex-1 text-gray-700 text-sm sm:text-base">{ingredient}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveIngredient(index)}
-                          className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
-                          disabled={isSubmitting || isUploading}
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
+                      );
+                    }}
                     onReorder={handleReorderIngredients}
                     disabled={isSubmitting || isUploading}
                     className="max-h-48 sm:max-h-64 overflow-y-auto"
@@ -1132,28 +1257,92 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                   
                   <DragDropList
                     items={formData.instructions}
-                    renderItem={(instruction, index) => (
-                      <div className="flex gap-2 sm:gap-4 p-3 sm:p-4 bg-purple-50 rounded-lg border border-purple-200">
-                        <div className="flex-shrink-0">
-                          <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-purple-100 text-purple-800 rounded-full font-bold border-2 border-purple-300 text-xs sm:text-base">
-                            {index + 1}
+                    renderItem={(instruction, index) => {
+                      const isEditing = editingInstructionIndex === index;
+                      return (
+                        <div className="flex gap-2 sm:gap-4 p-3 sm:p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <div className="flex-shrink-0">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-purple-100 text-purple-800 rounded-full font-bold border-2 border-purple-300 text-xs sm:text-base">
+                              {index + 1}
+                            </div>
                           </div>
+                          {isEditing ? (
+                            <>
+                              <div className="flex-1 w-full">
+                                <textarea
+                                  value={editingInstructionText}
+                                  onChange={(e) => setEditingInstructionText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      saveEditInstruction();
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
+                                  rows={2}
+                                  autoFocus
+                                  disabled={isSubmitting || isUploading}
+                                />
+                              </div>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={saveEditInstruction}
+                                  className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Guardar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditInstruction}
+                                  className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Cancelar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1">
+                                <p className="text-gray-700 text-sm sm:text-base">{instruction}</p>
+                              </div>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditInstruction(index, instruction)}
+                                  className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Editar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveInstruction(index)}
+                                  className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
+                                  disabled={isSubmitting || isUploading}
+                                  aria-label="Eliminar"
+                                >
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div className="flex-1">
-                          <p className="text-gray-700 text-sm sm:text-base">{instruction}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveInstruction(index)}
-                          className="flex-shrink-0 text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
-                          disabled={isSubmitting || isUploading}
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
+                      );
+                    }}
                     onReorder={handleReorderInstructions}
                     disabled={isSubmitting || isUploading}
                     className="max-h-48 sm:max-h-64 overflow-y-auto"
