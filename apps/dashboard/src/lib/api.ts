@@ -709,12 +709,9 @@ export const apiClient = {
     warning?: string;
     timestamp: string;
   }> => {
-    const response = await fetch('/api/recipes/analyze-nutrition', {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/analyze-nutrition`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
+      headers: getAuthHeaders(), // Usar la misma función que las demás llamadas
       body: JSON.stringify({ 
         ingredients, 
         servings,
@@ -723,7 +720,7 @@ export const apiClient = {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Error analizando nutrición');
     }
     
@@ -732,7 +729,7 @@ export const apiClient = {
 
   // Buscar recetas
   async searchRecipes(query: string) {
-    const response = await fetch(`/api/recipes?search=${encodeURIComponent(query)}&mode=search`);
+    const response = await fetch(`${API_BASE_URL}/api/recipes?search=${encodeURIComponent(query)}&mode=search`);
     return response.json();
   },
 

@@ -100,7 +100,7 @@ NELHEALTHCOACH/
   - Autenticación JWT
   - CRUD de pacientes y usuarios
   - Procesamiento de documentos con AWS Textract
-  - Envío de emails con AWS SES/Resend
+  - Envío de emails con Resend
   - Almacenamiento en AWS S3
 
 ## 🛠️ Stack Tecnológico
@@ -124,7 +124,6 @@ NELHEALTHCOACH/
 ### **Infraestructura Cloud**
 - **☁️ AWS SDK** - Integración con servicios AWS
 - **📦 AWS S3** - Almacenamiento de archivos
-- **✉️ AWS SES** - Servicio de emails
 - **🔍 AWS Textract** - Procesamiento de documentos
 - **🚀 Vercel** - Despliegue y hosting
 
@@ -286,15 +285,12 @@ npm run build
 - Documentar componentes y funciones
 - Escribir tests cuando sea posible
 
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia ISC. Ver el archivo `LICENSE` para más detalles.
 
 ---
 
 <div align="center">
 
-### **Desarrollado con ❤️ para transformar el coaching de salud**
+### **Desarrollado con ❤️ para ayudar a la humanidad**
 
 **👨‍💻 Autor:** [pantokrator14](https://github.com/pantokrator14)  
 **📧 Contacto:** [juliusjosepham@proton.me]
