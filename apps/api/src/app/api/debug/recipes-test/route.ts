@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import { logger } from '@/app/lib/logger';
 
 export async function GET(request: NextRequest) {
   console.log('🧪 Iniciando prueba de diagnóstico de Recipes...');
+  logger.debug('DATABASE', 'Iniciando prueba de diagnóstico de Recipes');
   
   // 1. Intentar conectar con una configuración MUY básica y sin Mongoose models
   const MONGODB_URI = process.env.MONGODB_URI;
@@ -16,6 +18,7 @@ export async function GET(request: NextRequest) {
   let client;
   try {
     console.log('🔌 Conectando con MongoClient nativo...');
+    logger.debug('DATABASE', 'Conectando con MongoClient nativo');
     client = new MongoClient(MONGODB_URI, {
       serverSelectionTimeoutMS: 10000, // 10 segundos para conectar
       socketTimeoutMS: 10000,          // 10 segundos para operaciones
@@ -23,6 +26,7 @@ export async function GET(request: NextRequest) {
     
     await client.connect();
     console.log('✅ Conexión establecida con MongoClient.');
+    logger.debug('DATABASE', 'Conexión establecida con MongoClient');
     
     // 2. Obtener la base de datos y colección por nombre (sin modelos)
     const dbName = new URL(MONGODB_URI).pathname.substring(1); // Extrae el nombre de la BD de la URI
@@ -30,6 +34,7 @@ export async function GET(request: NextRequest) {
     const collection = db.collection('recipes');
     
     console.log(`📂 Usando BD: "${dbName}", Colección: "recipes"`);
+    logger.debug('DATABASE', `Usando BD: "${dbName}", Colección: "recipes"`);
     
     // 3. Prueba CRÍTICA: ¿Podemos LISTAR las colecciones? (permiso de lectura a nivel de BD)
     const collections = await db.listCollections({ name: 'recipes' }).toArray();
@@ -47,6 +52,7 @@ export async function GET(request: NextRequest) {
     try {
       const count = await collection.countDocuments({}, { maxTimeMS: 5000 }); // Timeout más corto
       console.log(`✅ COUNTDocuments exitoso. Total documentos: ${count}`);
+      logger.debug('DATABASE', `COUNTDocuments exitoso. Total documentos: ${count}`);
       return NextResponse.json({ 
         success: true, 
         count,

@@ -838,69 +838,70 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                         Proteína (g) <NutritionTooltip term="protein" />
                       </label>
-                      <input
-                        type="number"
-                        name="nutrition.protein"
-                        value={formData.nutrition.protein}
-                        onChange={handleInputChange}
-                        min="0"
-                        max="1000"
-                        step="0.1"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                        disabled={isSubmitting || isUploading}
-                      />
+                       <input
+                         type="number"
+                         name="nutrition.protein"
+                         value={formData.nutrition.protein}
+                         onChange={handleInputChange}
+                         min="0"
+                         max="1000"
+                         step="any"
+                         className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                         disabled={isSubmitting || isUploading}
+                       />
                     </div>
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                         Carbohidratos (g) <NutritionTooltip term="carbs" />
                       </label>
-                      <input
-                        type="number"
-                        name="nutrition.carbs"
-                        value={formData.nutrition.carbs}
-                        onChange={handleInputChange}
-                        min="0"
-                        max="1000"
-                        step="0.1"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                        disabled={isSubmitting || isUploading}
-                      />
+                       <input
+                         type="number"
+                         name="nutrition.carbs"
+                         value={formData.nutrition.carbs}
+                         onChange={handleInputChange}
+                         min="0"
+                         max="1000"
+                         step="any"
+                         className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                         disabled={isSubmitting || isUploading}
+                       />
                     </div>
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                         Grasas (g) <NutritionTooltip term="fat" />
                       </label>
-                      <input
-                        type="number"
-                        name="nutrition.fat"
-                        value={formData.nutrition.fat}
-                        onChange={handleInputChange}
-                        min="0"
-                        max="1000"
-                        step="0.1"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                        disabled={isSubmitting || isUploading}
-                      />
+                       <input
+                         type="number"
+                         name="nutrition.fat"
+                         value={formData.nutrition.fat}
+                         onChange={handleInputChange}
+                         min="0"
+                         max="1000"
+                         step="any"
+                         className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                         disabled={isSubmitting || isUploading}
+                       />
                     </div>
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                         Calorías <NutritionTooltip term="calories" />
                       </label>
-                      <input
-                        type="number"
-                        name="nutrition.calories"
-                        value={formData.nutrition.calories}
-                        onChange={handleInputChange}
-                        min="0"
-                        max="10000"
-                        className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 ${
-                          errors.calories ? 'border-red-300' : 'border-green-300'
-                        }`}
-                        disabled={isSubmitting || isUploading}
-                      />
+                        <input
+                         type="number"
+                         name="nutrition.calories"
+                         value={formData.nutrition.calories}
+                         onChange={handleInputChange}
+                         min="0"
+                         max="10000"
+                         step="any"
+                         className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50 ${
+                           errors.calories ? 'border-red-300' : 'border-green-300'
+                         }`}
+                         disabled={isSubmitting || isUploading}
+                       />
                       {errors.calories && (
                         <p className="mt-1 text-sm text-red-600">{errors.calories}</p>
                       )}

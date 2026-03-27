@@ -187,6 +187,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <input
                   type="number"
+                  step="1"
                   {...register('age')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu edad"
@@ -202,7 +203,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="any"
                   {...register('weight')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu peso en kilogramos"
@@ -218,6 +219,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                 </label>
                 <input
                   type="number"
+                  step="any"
                   {...register('height')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   placeholder="Tu altura en centímetros"

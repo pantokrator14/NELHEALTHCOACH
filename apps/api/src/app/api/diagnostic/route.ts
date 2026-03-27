@@ -1,10 +1,12 @@
 // apps/api/src/app/api/diagnostic/route.ts - NUEVO ARCHIVO
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/database';
+import { logger } from '@/app/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Ejecutando diagnóstico de conexión...');
+    logger.debug('DATABASE', 'Ejecutando diagnóstico de conexión');
     
     const { db } = await connectToDatabase();
     
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
     
   } catch (error: any) {
     console.error('❌ Error en diagnóstico:', error);
+    logger.error('DATABASE', 'Error en diagnóstico', error);
     
     return NextResponse.json({
       success: false,

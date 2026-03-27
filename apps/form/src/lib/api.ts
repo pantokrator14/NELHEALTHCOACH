@@ -51,6 +51,12 @@ const uploadFileToS3 = async (uploadURL: string, file: File): Promise<void> => {
 export const apiClient = {
   async submitForm(formData: FormPayload) {
     console.log('🚀 Iniciando envío de formulario...');
+    console.log('📊 Datos recibidos en submitForm:', {
+      hasMedicalData: !!formData.medicalData,
+      hasDocuments: !!formData.medicalData?.documents,
+      documentCount: formData.medicalData?.documents?.length || 0,
+      documentTypes: formData.medicalData?.documents?.map(d => typeof d) || []
+    });
     
     // Primero crear el cliente sin archivos
     const clientData = {

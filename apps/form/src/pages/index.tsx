@@ -53,11 +53,19 @@ const convertMedicalDataForApi = (data: MedicalDataFormValues): FormPayload['med
     const value = data[key];
     if (value !== undefined && value !== null && value !== '') {
       if (key === 'documents' && Array.isArray(value)) {
+        console.log('📋 Procesando documentos en convertMedicalDataForApi:', {
+          arrayLength: value.length,
+          firstItemType: value[0] ? typeof value[0] : 'empty',
+          firstItemConstructor: value[0] ? value[0].constructor.name : 'empty',
+          isFile: value[0] instanceof File
+        });
         // Filtramos solo los archivos y aseguramos el tipo con as File[]
         const files = value.filter((item): item is File => item instanceof File) as File[];
+        console.log('📋 Archivos filtrados:', files.length);
         if (files.length > 0) {
           // Asignación directa a la propiedad conocida (segura)
           result.documents = files;
+          console.log('✅ Documentos asignados al resultado:', files.length);
         }
       } else {
         // Para el resto de campos, usamos un cast a Record<string, unknown>
@@ -265,10 +273,13 @@ const FormPage: React.FC = () => {
 
     try {
       const documentsData = data as { documents?: (File | string)[] };
+      const documents = documentsData.documents || [];
+      
+      // Update form data for consistency (even though we use documents directly below)
       updateFormData({
         medicalData: {
           ...formData.medicalData,
-          documents: documentsData.documents,
+          documents,
         }
       });
 
@@ -278,11 +289,23 @@ const FormPage: React.FC = () => {
         return;
       }
 
+      // Create medical data with documents included
+      const medicalDataWithDocs = {
+        ...completeData.medicalData,
+        documents
+      };
+
       const formPayload: FormPayload = {
         contractAccepted: completeData.contractAccepted,
         personalData: convertPersonalDataForApi(completeData.personalData),
-        medicalData: convertMedicalDataForApi(completeData.medicalData),
+        medicalData: convertMedicalDataForApi(medicalDataWithDocs),
       };
+
+      console.log('📤 Enviando formulario con documentos:', {
+        hasDocuments: Array.isArray(documents) && documents.length > 0,
+        documentCount: Array.isArray(documents) ? documents.length : 0,
+        documentTypes: Array.isArray(documents) ? documents.map(d => typeof d) : []
+      });
 
       const result = await apiClient.submitForm(formPayload);
 
