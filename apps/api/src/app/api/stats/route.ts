@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection, getRecipesCollection } from '../../lib/database';
 import { requireAuth } from '../../lib/auth';
+import { logger } from '@/app/lib/logger';
 import { asyncWrapProviders } from 'async_hooks';
 
 export async function GET(request: NextRequest) {
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('❌ Error fetching stats:', error);
+    logger.error('API', 'Error obteniendo estadísticas', error);
     
     if (error.message.includes('Token')) {
       return NextResponse.json(

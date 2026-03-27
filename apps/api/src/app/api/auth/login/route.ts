@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateToken } from '../../../lib/auth';
+import { logger } from '@/app/lib/logger';
 
 const VALID_CREDENTIALS = {
   email: process.env.COACH_EMAIL,
@@ -31,10 +32,17 @@ export async function POST(request: NextRequest) {
         expectedEmail: VALID_CREDENTIALS.email,
         passwordLength: password?.length 
       });
+      logger.debug('AUTH', 'Intento de login', { 
+        email, 
+        expectedEmail: VALID_CREDENTIALS.email,
+        passwordLength: password?.length 
+      });
     }
 
     if (email === VALID_CREDENTIALS.email && password === VALID_CREDENTIALS.password) {
       const token = generateToken({ email });
+      
+      logger.info('AUTH', 'Login exitoso', { email });
       
       // ✅ AGREGAR HEADERS CORS AQUÍ TAMBIÉN
       return NextResponse.json({ 
@@ -50,6 +58,7 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
+      logger.warn('AUTH', 'Credenciales inválidas', { email });
       return NextResponse.json(
         { success: false, message: 'Credenciales inválidas' },
         { 
@@ -63,6 +72,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('❌ Error en login:', error);
+    logger.error('AUTH', 'Error en login', error);
     return NextResponse.json(
       { success: false, message: 'Error interno del servidor' },
       { 

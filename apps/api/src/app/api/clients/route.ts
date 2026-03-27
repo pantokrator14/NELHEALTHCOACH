@@ -36,6 +36,7 @@ interface MedicalData {
   mentalHealthSelfRelationship: string;
   mentalHealthLimitingBeliefs: string;
   mentalHealthIdealBalance: string;
+  documents?: any[];
 }
 
 interface PersonalData {
@@ -212,6 +213,12 @@ export async function POST(request: NextRequest) {
     const encryptObject = (obj: Record<string, any>): Record<string, any> => {
       const encrypted: Record<string, any> = {};
       for (const [key, value] of Object.entries(obj)) {
+        // Manejar array de documentos de forma especial (no encriptar el array completo)
+        if (key === 'documents' && Array.isArray(value)) {
+          encrypted[key] = value;
+          continue;
+        }
+        
         if (typeof value === 'string' && value.trim() !== '') {
           encrypted[key] = encrypt(value);
         } else if (typeof value === 'object' && value !== null) {
@@ -283,6 +290,9 @@ export async function POST(request: NextRequest) {
       (processedMedicalData as any)[field] = JSON.stringify(cleanedArray);
     });
 
+    // Inicializar array de documentos vacío
+    processedMedicalData.documents = [];
+
     // Encriptar datos antes de guardar
     const encryptedPersonalData = encryptObject(data.personalData);
     const encryptedMedicalData = encryptObject(processedMedicalData);
@@ -296,11 +306,16 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('🆕 Insertando nuevo cliente en MongoDB...');
+    logger.info('CLIENTS', 'Insertando nuevo cliente en MongoDB');
     const result = await healthForms.insertOne(newClient);
     
     console.log('✅ Cliente insertado:', {
       insertedId: result.insertedId,
       insertedIdString: result.insertedId.toString(),
+      acknowledged: result.acknowledged
+    });
+    logger.info('CLIENTS', 'Cliente insertado exitosamente', {
+      insertedId: result.insertedId.toString(),
       acknowledged: result.acknowledged
     });
 
@@ -313,12 +328,15 @@ export async function POST(request: NextRequest) {
         const deleteResult = await leadsCollection.deleteOne({ email: emailToMatch });
         if (deleteResult.deletedCount > 0) {
           console.log(`✅ Lead con email ${emailToMatch} eliminado correctamente.`);
+          logger.info('CLIENTS', `Lead con email ${emailToMatch} eliminado correctamente`);
         } else {
           console.log(`ℹ️ No se encontró lead con email ${emailToMatch} para eliminar.`);
+          logger.info('CLIENTS', `No se encontró lead con email ${emailToMatch} para eliminar`);
         }
       } catch (leadError) {
         // Solo logueamos el error, no interrumpimos el flujo principal
         console.error('❌ Error al eliminar lead:', leadError);
+        logger.error('CLIENTS', 'Error al eliminar lead', leadError);
       }
     }
 
@@ -331,11 +349,13 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('📤 Enviando respuesta al frontend:', responseData);
+    logger.info('CLIENTS', 'Enviando respuesta al frontend', responseData);
     
     return NextResponse.json(responseData, { status: 201 });
 
   } catch (error) {
     console.error('❌ Error creando cliente:', error);
+    logger.error('CLIENTS', 'Error creando cliente', error);
     return NextResponse.json(
       { 
         success: false, 

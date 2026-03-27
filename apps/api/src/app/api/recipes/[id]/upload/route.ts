@@ -37,6 +37,12 @@ export async function POST(
         fileSize,
         bodyKeys: Object.keys(body)
       });
+      logger.debug('RECIPE_UPLOAD', 'Datos recibidos en POST', {
+        fileName,
+        fileType,
+        fileSize,
+        bodyKeys: Object.keys(body)
+      });
 
       if (!fileName || !fileType || !fileSize) {
         const errorMsg = 'Faltan campos requeridos: fileName, fileType, fileSize';

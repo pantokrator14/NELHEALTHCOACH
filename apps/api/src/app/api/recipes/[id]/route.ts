@@ -115,10 +115,11 @@ export async function PUT(
                     encryptedKey: currentRecipe.image.key.substring(0, 30) + '...',
                     decryptedKey: oldFileKey
                   });
-                } catch (decryptError) {
-                  console.error('❌ Error desencriptando oldFileKey:', decryptError);
-                  // Si no se puede desencriptar, intentar usar el valor original
-                }
+                 } catch (decryptError) {
+                   console.error('❌ Error desencriptando oldFileKey:', decryptError);
+                   logger.error('RECIPES', 'Error desencriptando oldFileKey', decryptError, { recipeId: id });
+                   // Si no se puede desencriptar, intentar usar el valor original
+                 }
               }
               
               const newFileKey = data.image.key;
@@ -172,9 +173,10 @@ export async function PUT(
               if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
                 try {
                   oldFileKey = decrypt(oldFileKey);
-                } catch (decryptError) {
-                  console.error('❌ Error desencriptando oldFileKey para eliminación:', decryptError);
-                }
+                 } catch (decryptError) {
+                   console.error('❌ Error desencriptando oldFileKey para eliminación:', decryptError);
+                   logger.error('RECIPES', 'Error desencriptando oldFileKey para eliminación', decryptError, { recipeId: id });
+                 }
               }
               
               if (oldFileKey && oldFileKey.trim() !== '') {

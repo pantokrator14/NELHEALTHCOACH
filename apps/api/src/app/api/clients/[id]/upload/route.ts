@@ -16,6 +16,7 @@ export async function POST(
       const { id } = await params;
       
       console.log('🔑 Solicitando URL de upload para cliente:', id);
+      logger.info('UPLOAD', `Solicitando URL de upload para cliente: ${id}`);
       
       // VALIDACIÓN CRÍTICA: Verificar que el clientId es válido
       if (!id || id === 'undefined') {
@@ -68,6 +69,7 @@ export async function POST(
       }
 
       console.log('🔧 Llamando a S3Service.generateUploadURL...');
+      logger.debug('UPLOAD', 'Llamando a S3Service.generateUploadURL');
       const { uploadURL, fileKey } = await S3Service.generateUploadURL(
         fileName,
         fileType,
@@ -220,11 +222,38 @@ export async function PUT(
           }
         };
 
-        updateData = { 
-          $push: { 
-            'medicalData.documents': encryptedFile 
-          },
+        // Obtener documentos existentes y manejar diferentes formatos
+        let existingDocuments = client.medicalData?.documents;
+        let documentsArray: any[] = [];
+
+        if (typeof existingDocuments === 'string') {
+          // Desencriptar y parsear string
+          try {
+            const decryptedString = decrypt(existingDocuments);
+            const parsed = JSON.parse(decryptedString);
+            if (Array.isArray(parsed)) {
+              documentsArray = parsed;
+              logger.info('UPLOAD', 'Documentos existentes convertidos de string a array', {
+                clientId: id,
+                arrayLength: documentsArray.length
+              });
+            }
+          } catch (error) {
+            logger.warn('UPLOAD', 'Error parseando documentos existentes como string', error as Error, {
+              clientId: id
+            });
+            // Continuar con array vacío
+          }
+        } else if (Array.isArray(existingDocuments)) {
+          documentsArray = existingDocuments;
+        }
+
+        // Agregar nuevo documento al array
+        documentsArray.push(encryptedFile);
+
+        updateData = {
           $set: {
+            'medicalData.documents': documentsArray,
             updatedAt: new Date()
           }
         };

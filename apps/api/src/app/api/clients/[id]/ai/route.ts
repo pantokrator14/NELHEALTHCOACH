@@ -59,6 +59,7 @@ function decryptAISessionCompletely(session: any): any {
     return decrypted;
   } catch (error) {
     console.error('❌ Error desencriptando sesión completa:', error);
+    logger.error('AI', 'Error desencriptando sesión completa', error);
     
     // Corrección: Crear error correctamente
     const errorObj = new Error('Error desencriptando sesión completa');
@@ -550,6 +551,7 @@ export async function PUT(
 
     } catch (error: any) {
       console.error('💥 ERROR en endpoint PUT:', error.message);
+      logger.error('AI', 'Error en endpoint PUT', error);
       
       loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error);
       

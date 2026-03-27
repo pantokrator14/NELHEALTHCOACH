@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
+import { logger } from '@/app/lib/logger';
 
 export async function GET(request: NextRequest) {
   let client: MongoClient | null = null;
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
     
   } catch (error: any) {
     console.error('Error getting recipe stats:', error.message);
+    logger.error('RECIPES', 'Error obteniendo estadísticas de recetas', error);
     return NextResponse.json(
       { success: false, message: 'Error obteniendo estadísticas' },
       { status: 500 }

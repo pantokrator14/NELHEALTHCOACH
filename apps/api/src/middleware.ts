@@ -1,8 +1,12 @@
 // apps/api/src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { requestLogger } from './app/middleware/requestLogger';
 
 export function middleware(request: NextRequest) {
+  // Aplicar logging de solicitud
+  const loggedResponse = requestLogger(request);
+  
   // Configuración CORS
   const allowedOrigins = [
     'http://localhost:3000',
@@ -21,6 +25,11 @@ export function middleware(request: NextRequest) {
   // Manejar solicitudes OPTIONS (preflight)
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 200 });
+    // Copiar header X-Request-ID del loggedResponse
+    const requestId = loggedResponse.headers.get('X-Request-ID');
+    if (requestId) {
+      response.headers.set('X-Request-ID', requestId);
+    }
     if (isAllowedOrigin) {
       response.headers.set('Access-Control-Allow-Origin', origin);
     }
@@ -30,8 +39,8 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Para otros métodos, continuar con la respuesta normal
-  const response = NextResponse.next();
+  // Para otros métodos, usar la respuesta con logging y agregar headers CORS
+  const response = loggedResponse;
   if (isAllowedOrigin) {
     response.headers.set('Access-Control-Allow-Origin', origin);
   }
