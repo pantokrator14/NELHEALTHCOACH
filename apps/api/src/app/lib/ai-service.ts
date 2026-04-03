@@ -138,9 +138,9 @@ interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: 'deepseek-chat',
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
     temperature: 0.7,
-    maxTokens: 8000,
+    maxTokens: 12000, // Aumentado para deepseek-reasoner
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
   };
@@ -470,52 +470,67 @@ export class AIService {
     const clientHeight = personalData.height ? parseFloat(this.safeDecryptString(personalData.height)) : null;
     const bmi = clientWeight && clientHeight ? (clientWeight / ((clientHeight/100) ** 2)).toFixed(1) : null;
     
+    // Calcular nivel de experiencia
+    const experienceLevel = this.calculateExperienceLevel(previousSessions, currentProgress);
+    
     // ===== SISTEMA Y ROL =====
-    const systemRole = `Eres un coach médico especializado en:
-  1. Dieta keto (75% grasa animal, 20% proteína, 5% carbohidratos)
-  2. Medicina funcional y nutrición clínica
-  3. Formación de hábitos saludables sostenibles
-
-  TAREA: Crear un plan de 4 semanas progresivo y acumulativo para ${clientName}.`;
+    const systemRole = `Eres un coach médico especializado en dieta keto (75% grasa, 20% proteína, 5% carbos), medicina funcional y formación de hábitos. Crea un plan de 4 semanas progresivo para ${clientName}.`;
 
     // ===== REGLAS ABSOLUTAS (estructura JSON obligatoria) =====
-    const absoluteRules = `🚨 REGLAS ABSOLUTAS:
-  1. Devuelve SOLO JSON válido
-  2. Estructura EXACTA:
-  {
-    "summary": "Análisis general del cliente (máx 300 chars)",
-    "vision": "Visión a 4 semanas (máx 300 chars)",
-    "baselineMetrics": {
-      "currentLifestyle": ["item1", "item2", "item3"],
-      "targetLifestyle": ["item1", "item2", "item3"]
-    },
-    "weeks": [4 objetos semana]
-  }
+    const absoluteRules = `REGLAS:
+1. Devuelve SOLO JSON válido
+2. Estructura: {summary, vision, baselineMetrics, weeks}
+3. Usa español siempre`;
 
-  3. PROGRESIÓN ACUMULATIVA:
-  • Semana 1: 1 alimento + 1 ejercicio + 1 hábito adoptar + 1 hábito eliminar
-  • Semana 2: 2 alimentos (1 nuevo) + 2 ejercicios (1 nuevo) + 2 hábitos adoptar (1 nuevo) + 2 hábitos eliminar
-  • Semana 3: 3 alimentos (1 nuevo) + 3 ejercicios (1 nuevo) + 3 hábitos adoptar (1 nuevo) + 3 hábitos eliminar
-  • Semana 4: 4 alimentos (1 nuevo) + 4 ejercicios (1 nuevo) + 4 hábitos adoptar (1 nuevo) + 4 hábitos eliminar
-  
-  4. LIMITA LA LONGITUD: 
-     - summary: máximo 150 caracteres
-     - vision: máximo 150 caracteres
-     - Cada descripción de ítem: máximo 50 caracteres
-     - Cada receta: máximo 5 ingredientes, preparación en 200 caracteres
+    // ===== ADAPTACIONES POR NIVEL DE EXPERIENCIA =====
+    // ===== ADAPTACIONES POR NIVEL DE EXPERIENCIA =====
+    let levelAdaptations = `NIVEL: ${experienceLevel.toUpperCase()}`;
 
-  5. USA ESPAÑOL SIEMPRE`;
+    if (experienceLevel === 'principiante') {
+      levelAdaptations += `
+• Enfoque: Fundamentos keto, hábitos básicos, ejercicio sencillo
+• Progresión: Semana 1:1 alimento+ejercicio+hábito. Semana 2:2, Semana 3:3, Semana 4:4 (1 nuevo cada semana)
+• Dieta: Keto estándar (75% grasa, 20% proteína, 5% carbos)
+• Longitud: Descripciones ≤50 chars, recetas ≤5 ingredientes`;
+    } else if (experienceLevel === 'intermedio') {
+      levelAdaptations += `
+• Enfoque: Refinamiento técnico, variedad ejercicios, hábitos complejos
+• Progresión: Semana 1:2, Semana 2:3, Semana 3:4, Semana 4: variar preparaciones/aumentar intensidad
+• Dieta: Keto con posible ciclado carbohidratos (1-2 días/semana)
+• Longitud: Descripciones ≤75 chars, recetas ≤7 ingredientes`;
+    } else { // avanzado
+      levelAdaptations += `
+• Enfoque: Optimización avanzada, periodización, técnicas especializadas
+• Progresión: Semana 1:3, Semana 2:4, Semana 3: variar macros/complejidad, Semana 4: intensidad máxima
+• Dieta: Keto dirigida, ayuno intermitente opcional, ajuste fino macros
+• Longitud: Descripciones ≤100 chars, recetas ≤10 ingredientes`;
+    }
+
+    levelAdaptations += `
+
+CONSIDERACIONES:
+• Nutrición: Adaptar si cliente ya está en keto
+• Ejercicio: Adaptar complejidad según nivel, equipamiento, limitaciones físicas
+• Hábitos: Priorizar hábitos según nivel (básicos → complejos → alto impacto)
+• Estilo vida: Considerar horarios, quién cocina, comer fuera, hobbies`;
 
     // ===== INFORMACIÓN CRÍTICA DEL CLIENTE (formato conciso) =====
-    const clientInfo = `👤 CLIENTE: ${clientName}, ${clientAge} años${
-      clientWeight ? `, ${clientWeight}kg` : ''}${
-      clientHeight ? `, ${clientHeight}cm` : ''}${
-      bmi ? ` (IMC: ${bmi})` : ''}
-  📋 OCUPACIÓN: ${this.safeDecryptString(personalData.occupation) || 'No especificada'}
-  📍 UBICACIÓN: ${this.safeDecryptString(personalData.address) || 'No especificada'}`;
+    const clientInfo = `CLIENTE: ${clientName}, ${clientAge} años${clientWeight ? `, ${clientWeight}kg` : ''}${clientHeight ? `, ${clientHeight}cm` : ''}${bmi ? ` (IMC: ${bmi})` : ''}
+OCUPACIÓN: ${this.safeDecryptString(personalData.occupation) || 'No especificada'}
+UBICACIÓN: ${this.safeDecryptString(personalData.address) || 'No especificada'}
+NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
 
     // ===== DATOS MÉDICOS ESENCIALES =====
     const medicalInfo = this.formatMedicalDataConcise(medicalData);
+    
+    // ===== OBJETIVOS Y ESTILO DE VIDA =====
+    const lifestyleAndObjectives = this.formatLifestyleAndObjectives(medicalData, personalData);
+    
+    // ===== INSIGHTS DE EVALUACIONES DE SALUD =====
+    const healthAssessmentInsights = this.formatHealthAssessmentInsights(medicalData);
+    
+    // ===== INSIGHTS DE SALUD MENTAL =====
+    const mentalHealthInsights = this.formatMentalHealthInsights(medicalData);
     
     // ===== DOCUMENTOS MÉDICOS =====
     let docsInfo = '';
@@ -525,7 +540,7 @@ export class AIService {
       ).slice(0, 2); // Solo 2 documentos máximo
       
       if (relevantDocs.length > 0) {
-        docsInfo = '\n📄 DOCUMENTOS MÉDICOS:';
+        docsInfo = '\nDOCUMENTOS MÉDICOS:';
         relevantDocs.forEach((doc, i) => {
           docsInfo += `\n${i+1}. ${doc.title || 'Documento'}: `;
           // Extraer solo puntos clave (primeros 300 chars)
@@ -540,7 +555,7 @@ export class AIService {
     let historyInfo = '';
     if (previousSessions && previousSessions.length > 0) {
       const lastSession = previousSessions[previousSessions.length - 1];
-      historyInfo = `\n📈 SESIÓN ANTERIOR (Mes ${lastSession.monthNumber}):`;
+      historyInfo = `\nSESIÓN ANTERIOR (Mes ${lastSession.monthNumber}):`;
       
       // Progreso general
       if (lastSession.checklist) {
@@ -571,116 +586,133 @@ export class AIService {
     // ===== CONTEXTO ACTUAL =====
     let contextInfo = '';
     if (currentProgress) {
-      contextInfo = `\n📊 PROGRESO ACTUAL: ${currentProgress.overallProgress || 0}%`;
+      contextInfo = `\nProgreso actual: ${currentProgress.overallProgress || 0}%`;
       if (currentProgress.metrics) {
-        contextInfo += `\n📈 Métricas: N${currentProgress.metrics.nutritionAdherence || 0}% ` +
-                    `E${currentProgress.metrics.exerciseConsistency || 0}% ` +
-                    `H${currentProgress.metrics.habitFormation || 0}%`;
+        contextInfo += `\nMétricas: N${currentProgress.metrics.nutritionAdherence || 0}% ` +
+                     `E${currentProgress.metrics.exerciseConsistency || 0}% ` +
+                     `H${currentProgress.metrics.habitFormation || 0}%`;
       }
     }
 
     // ===== NOTAS DEL COACH =====
     let notesInfo = '';
     if (coachNotes && coachNotes.trim().length > 10) {
-      notesInfo = `\n💬 NOTAS COACH: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
+      notesInfo = `\nNotas coach: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
     }
 
     // ===== ESQUEMA DE RESPUESTA =====
-    const responseSchema = `\n\n🎯 ESTRUCTURA DE RESPUESTA (JSON EXACTO):
-  {
-    "summary": "Resumen conciso del estado actual del cliente considerando datos médicos y objetivos.",
-    "vision": "Resultados esperados tras 4 semanas siguiendo el plan.",
-    "baselineMetrics": {
-      "currentLifestyle": ["hábito1", "hábito2", "hábito3"],
-      "targetLifestyle": ["objetivo1", "objetivo2", "objetivo3"]
-    },
-    "weeks": [
-      {
-        "weekNumber": 1,
-        "nutrition": {
-          "focus": "Enfoque nutricional semana 1",
-          "checklistItems": [
-            {
-              "description": "Alimento/receta específica",
-              "type": "breakfast/lunch/dinner/snack",
-              "frequency": 3,
-              "details": {
-                "recipe": {
-                  "ingredients": [
-                    {"name": "ingrediente", "quantity": "cantidad", "notes": "opcional"}
-                  ],
-                  "preparation": "Instrucciones de preparación",
-                  "tips": "Consejos adicionales"
-                }
-              }
+    const responseSchema = `\nESTRUCTURA JSON:
+{
+  "summary": "Resumen conciso del estado actual del cliente",
+  "vision": "Resultados esperados tras 4 semanas",
+  "baselineMetrics": {
+    "currentLifestyle": ["hábito1", "hábito2", "hábito3"],
+    "targetLifestyle": ["objetivo1", "objetivo2", "objetivo3"]
+  },
+  "weeks": [
+    {
+      "weekNumber": 1,
+      "nutrition": {
+        "focus": "Enfoque nutricional semana",
+        "checklistItems": [
+          {
+            "description": "Alimento/receta específica",
+            "type": "breakfast/lunch/dinner/snack",
+            "frequency": 3
+          }
+        ]
+      },
+      "exercise": {
+        "focus": "Enfoque ejercicio semana",
+        "checklistItems": [
+          {
+            "description": "Ejercicio específico",
+            "type": "cardio/strength/flexibility",
+            "details": {
+              "frequency": "veces por semana",
+              "duration": "duración",
+              "equipment": ["equipo necesario"]
             }
-          ],
-          "shoppingList": [
-            {"item": "producto", "quantity": "cantidad", "priority": "high/medium/low"}
-          ]
-        },
-        "exercise": {
-          "focus": "Enfoque ejercicio semana 1",
-          "checklistItems": [
-            {
-              "description": "Ejercicio específico",
-              "type": "cardio/strength/flexibility",
-              "details": {
-                "frequency": "veces por semana",
-                "duration": "duración",
-                "equipment": ["equipo necesario"]
-              }
-            }
-          ]
-        },
-        "habits": {
-          "checklistItems": [
-            {
-              "description": "Hábito a adoptar",
-              "type": "toAdopt"
-            },
-            {
-              "description": "Hábito a eliminar",
-              "type": "toEliminate"
-            }
-          ]
-        }
+          }
+        ]
+      },
+      "habits": {
+        "checklistItems": [
+          {
+            "description": "Hábito a adoptar",
+            "type": "toAdopt"
+          },
+          {
+            "description": "Hábito a eliminar",
+            "type": "toEliminate"
+          }
+        ]
       }
-    ]
-  }`;
+    }
+  ]
+}`;
 
   // ===== CONSIDERACIONES ESPECÍFICAS =====
-  const specificConsiderations = `\n🔍 ADAPTACIONES REQUERIDAS (considerar siempre):
-${medicalData.allergies ? `• ALERGIAS: ${this.safeDecryptString(medicalData.allergies)}` : '• Sin alergias reportadas'}
-${medicalData.medications ? `• MEDICAMENTOS: ${this.safeDecryptString(medicalData.medications)}` : '• Sin medicamentos reportados'}
-${medicalData.mainComplaint ? `• QUEJA PRINCIPAL: ${this.safeDecryptString(medicalData.mainComplaint)}` : ''}
-${medicalData.surgeries ? `• CIRUGÍAS: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
-${personalData.occupation ? `• IMPACTO OCUPACIÓN: ${this.safeDecryptString(personalData.occupation)} en rutina` : ''}`;
+  const specificConsiderations = `\nConsiderar:
+${medicalData.allergies ? `• Alergias: ${this.safeDecryptString(medicalData.allergies)}` : '• Sin alergias'}
+${medicalData.medications ? `• Medicamentos: ${this.safeDecryptString(medicalData.medications)}` : '• Sin medicamentos'}
+${medicalData.mainComplaint ? `• Queja principal: ${this.safeDecryptString(medicalData.mainComplaint)}` : ''}
+${medicalData.surgeries ? `• Cirugías: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
+${personalData.occupation ? `• Impacto ocupación: ${this.safeDecryptString(personalData.occupation)}` : ''}`;
 
   // ===== CONSTRUCCIÓN DEL PROMPT FINAL =====
   const prompt = `${systemRole}
 
 ${absoluteRules}
 
-${clientInfo}
-${medicalInfo}
-${docsInfo}
-${historyInfo}
-${contextInfo}
-${notesInfo}
-${specificConsiderations}
+${levelAdaptations}
+
+ ${clientInfo}
+ ${medicalInfo}
+ ${lifestyleAndObjectives}
+ ${healthAssessmentInsights}
+ ${mentalHealthInsights}
+ ${docsInfo}
+ ${historyInfo}
+ ${contextInfo}
+ ${notesInfo}
+ ${specificConsiderations}
 
 ${responseSchema}
 
-📌 INSTRUCCIÓN FINAL: Genera un plan REALISTA, PERSONALIZADO y PROGRESIVO.
-   Considera limitaciones físicas, horarios, acceso a alimentos y sostenibilidad.
-   Los alimentos deben ser accesibles en ${this.safeDecryptString(personalData.address) || 'la ubicación del cliente'}.
-   Priorizar ejercicios que puedan hacerse en casa y sin equipo especializado.
+INSTRUCCIÓN: Genera un plan realista, personalizado y progresivo adaptado al nivel ${experienceLevel}.
 
-🚨 DEVUELVE SOLO EL OBJETO JSON, SIN TEXTO ADICIONAL.`;
+Considerar:
+- Limitaciones físicas, nivel actividad actual, horarios, quién cocina, acceso alimentos
+- Alimentos accesibles en ${this.safeDecryptString(personalData.address) || 'la ubicación del cliente'}
+
+EJERCICIO:
+1. Si cliente ya realiza actividad regularmente, NO repetirla. Recomendar actividades complementarias:
+   • Si hace cardio → fuerza, flexibilidad, equilibrio
+   • Si hace fuerza → cardio ligero, movilidad, recuperación activa
+   • Considerar limitaciones físicas y equipamiento disponible
+2. Progresión gradual según nivel ${experienceLevel}
+3. Variedad de tipos (cardio, fuerza, flexibilidad, equilibrio) en 4 semanas
+
+HÁBITOS:
+1. Priorizar hábitos que aborden evaluaciones de salud positivas (ver insights)
+2. Priorizar hábitos que aborden insights de salud mental (ver arriba)
+3. Adaptar hábitos a estilo de vida del cliente (horarios, responsabilidades)
+4. Progresión: hábitos simples → complejos según nivel ${experienceLevel}
+
+EN GENERAL: Cada recomendación debe tener conexión clara con datos del cliente. Evitar genéricos.
+
+DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
 
   console.log('📝 Prompt optimizado - Longitud:', prompt.length);
-  console.log('📝 Tokens estimados:', Math.ceil(prompt.length / 4));
+  const estimatedTokens = Math.ceil(prompt.length / 4);
+  console.log('📝 Tokens estimados:', estimatedTokens);
+  console.log('🤖 Modelo configurado:', this.config.model);
+  
+  // Advertencia si el prompt es muy largo
+  if (estimatedTokens > 25000) {
+    console.warn('⚠️  Prompt muy largo (>25k tokens estimados). Considerar optimizar.');
+  }
   
   return prompt;
 }
@@ -721,6 +753,43 @@ ${responseSchema}
       else if (ageNum < 50) return '18-21%';
       else return '20-23%';
     }
+  }
+
+  /**
+   * Calcula el nivel de experiencia del cliente basado en historial y progreso
+   */
+  private static calculateExperienceLevel(
+    previousSessions?: AIRecommendationSession[],
+    currentProgress?: { overallProgress: number; metrics?: any }
+  ): 'principiante' | 'intermedio' | 'avanzado' {
+    if (!previousSessions || previousSessions.length === 0) {
+      return 'principiante';
+    }
+    
+    const sessionCount = previousSessions.length;
+    const totalMonths = sessionCount; // Asumiendo 1 sesión por mes
+    
+    // Calcular tasa de éxito promedio
+    let avgProgress = 0;
+    if (currentProgress?.overallProgress) {
+      avgProgress = currentProgress.overallProgress;
+    } else if (previousSessions.length > 0) {
+      // Estimar progreso basado en checklist completado
+      const lastSession = previousSessions[previousSessions.length - 1];
+      if (lastSession.checklist && lastSession.checklist.length > 0) {
+        const completed = lastSession.checklist.filter(item => item.completed).length;
+        avgProgress = (completed / lastSession.checklist.length) * 100;
+      }
+    }
+    
+    // Lógica de nivel
+    if (totalMonths >= 6 || avgProgress >= 80) {
+      return 'avanzado'; // 6+ meses o alta adherencia
+    } else if (totalMonths >= 3 || avgProgress >= 50) {
+      return 'intermedio'; // 3-5 meses o adherencia moderada
+    }
+    
+    return 'principiante'; // Menos de 3 meses o baja adherencia
   }
 
   /**
@@ -796,6 +865,7 @@ ${responseSchema}
     try {
       console.log('🔍 DEBUG: Llamando a DeepSeek API...');
       console.log('🔑 API Key presente:', !!this.config.apiKey);
+      console.log('🤖 Modelo:', this.config.model);
       console.log('📝 Prompt length:', prompt.length);
       console.log('📝 Tokens estimados:', Math.ceil(prompt.length / 4));
       
@@ -816,7 +886,7 @@ ${responseSchema}
           }
         ],
         temperature: this.config.temperature,
-        max_tokens: 6000,
+        max_tokens: this.config.maxTokens,
         response_format: { type: 'json_object' }
       };
 
@@ -826,7 +896,7 @@ ${responseSchema}
       const startTime = Date.now();
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000);
+      const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos para deepseek-reasoner
       
       try {
         const response = await fetch(`${this.config.baseURL}/chat/completions`, {
@@ -956,7 +1026,7 @@ ${responseSchema}
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 1.5 minutos para reintentos
       
       try {
         const response = await fetch(`${this.config.baseURL}/chat/completions`, {
@@ -1073,6 +1143,9 @@ ${responseSchema}
     const clientWeight = decryptedPersonal.weight ? parseFloat(decryptedPersonal.weight) : 70;
     const clientHeight = decryptedPersonal.height ? parseFloat(decryptedPersonal.height) : 170;
     
+    // Calcular nivel de experiencia
+    const experienceLevel = this.calculateExperienceLevel(input.previousSessions, input.currentProgress);
+    
     // Calcular visión a 1 año
     const idealWeight = this.calculateIdealWeight(clientHeight, decryptedPersonal.gender || '');
     const idealBodyFat = this.calculateIdealBodyFat(clientAge.toString(), decryptedPersonal.gender || '');
@@ -1092,10 +1165,17 @@ ${responseSchema}
       return groupMapping[key];
     };
 
-    // Simulamos 4 semanas con items
+    // Simulamos 4 semanas con items adaptados al nivel
     for (let weekNumber = 1; weekNumber <= 4; weekNumber++) {
       const w = weekNumber as 1 | 2 | 3 | 4;
-      const itemCount = weekNumber; // 1,2,3,4
+      let itemCount = weekNumber; // Base
+      if (experienceLevel === 'intermedio') {
+        itemCount = Math.min(4, weekNumber + 1); // 2,3,4,4
+      } else if (experienceLevel === 'avanzado') {
+        itemCount = Math.min(4, weekNumber + 2); // 3,4,4,4
+      }
+      // Asegurar mínimo 1
+      if (itemCount < 1) itemCount = 1;
 
       // Nutrición
       for (let i = 0; i < itemCount; i++) {
@@ -1201,7 +1281,7 @@ ${responseSchema}
     }
 
     // Resumen y visión mejorados
-    const summary = `Análisis inicial para ${clientName}, ${clientAge} años. Se recomienda enfoque keto progresivo adaptado a necesidades individuales. El plan incluye alimentación basada en grasas saludables, ejercicio gradual y formación de hábitos sostenibles.`;
+    const summary = `Análisis inicial para ${clientName}, ${clientAge} años (Nivel: ${experienceLevel}). Se recomienda enfoque keto progresivo adaptado al nivel de experiencia. El plan incluye alimentación basada en grasas saludables, ejercicio gradual y formación de hábitos sostenibles.`;
 
     const vision = `VISIÓN A 1 AÑO PARA ${clientName.toUpperCase()}:
     
@@ -1277,14 +1357,38 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
   // ===== MÉTODOS AUXILIARES =====
 
-  private static safeDecryptString(value: any): string {
-    if (!value || typeof value !== 'string') return '';
-    try {
-      return safeDecrypt(value);
-    } catch {
-      return value;
-    }
-  }
+   private static safeDecryptString(value: any): string {
+     if (!value || typeof value !== 'string') return '';
+     try {
+       return safeDecrypt(value);
+     } catch {
+       return value;
+     }
+   }
+
+   private static safeDecryptAndParseArray(value: any): string[] {
+     if (!value) return [];
+     // If already an array (should not happen as stored encrypted, but just in case)
+     if (Array.isArray(value)) {
+       return value.map(item => typeof item === 'string' ? this.safeDecryptString(item) : String(item));
+     }
+     if (typeof value === 'string') {
+       try {
+         const decrypted = safeDecrypt(value);
+         // Try to parse JSON array
+         const parsed = JSON.parse(decrypted);
+         if (Array.isArray(parsed)) {
+           return parsed.map(item => typeof item === 'string' ? item : String(item));
+         }
+         // If not an array, treat as single string
+         return [parsed];
+       } catch {
+         // If decryption or parsing fails, return empty array
+         return [];
+       }
+     }
+     return [];
+   }
 
   private static decryptPersonalData(data: PersonalData): any {
     const decrypted: any = {};
@@ -1303,46 +1407,348 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   private static formatMedicalDataConcise(data: any): string {
-    if (!data) return '\n🏥 SIN DATOS MÉDICOS';
+    if (!data) return '\nSin datos médicos';
     
     const criticalInfo = [];
     
     if (data.allergies) {
       const allergies = this.safeDecryptString(data.allergies);
       if (allergies.toLowerCase() !== 'ninguna' && allergies.toLowerCase() !== 'no') {
-        criticalInfo.push(`🚫 Alergias: ${allergies}`);
+        criticalInfo.push(`Alergias: ${allergies}`);
       }
     }
     
     if (data.medications) {
       const meds = this.safeDecryptString(data.medications);
       if (meds.toLowerCase() !== 'ninguno' && meds.toLowerCase() !== 'no') {
-        criticalInfo.push(`💊 Medicamentos: ${meds}`);
+        criticalInfo.push(`Medicamentos: ${meds}`);
+      }
+    }
+    
+    if (data.supplements) {
+      const supplements = this.safeDecryptString(data.supplements);
+      if (supplements.toLowerCase() !== 'ninguno' && supplements.toLowerCase() !== 'no') {
+        criticalInfo.push(`Suplementos: ${supplements}`);
       }
     }
     
     if (data.mainComplaint) {
-      criticalInfo.push(`🤕 Queja principal: ${this.safeDecryptString(data.mainComplaint)}`);
+      criticalInfo.push(`Queja principal: ${this.safeDecryptString(data.mainComplaint)}`);
+    }
+    
+    if (data.currentPastConditions) {
+      const conditions = this.safeDecryptString(data.currentPastConditions);
+      if (conditions.toLowerCase() !== 'ninguna' && conditions.toLowerCase() !== 'no' && conditions.trim().length > 5) {
+        criticalInfo.push(`Condiciones actuales/pasadas: ${conditions.substring(0, 100)}${conditions.length > 100 ? '...' : ''}`);
+      }
     }
     
     if (data.surgeries) {
       const surgeries = this.safeDecryptString(data.surgeries);
       if (surgeries.toLowerCase() !== 'ninguna') {
-        criticalInfo.push(`🩺 Cirugías: ${surgeries}`);
+        criticalInfo.push(`Cirugías: ${surgeries}`);
       }
     }
     
+    // Evaluaciones de salud (booleanas)
+    const healthAssessments = [];
     if (this.getBooleanValue(data.carbohydrateAddiction)) {
-      criticalInfo.push('🍩 Adicción a carbohidratos: SÍ');
+      healthAssessments.push('Adicción a carbohidratos');
+    }
+    if (this.getBooleanValue(data.leptinResistance)) {
+      healthAssessments.push('Resistencia a leptina');
+    }
+    if (this.getBooleanValue(data.circadianRhythms)) {
+      healthAssessments.push('Alteración ritmos circadianos');
+    }
+    if (this.getBooleanValue(data.sleepHygiene)) {
+      healthAssessments.push('Alteración higiene del sueño');
+    }
+    if (this.getBooleanValue(data.electrosmogExposure)) {
+      healthAssessments.push('Exposición al electrosmog');
+    }
+    if (this.getBooleanValue(data.generalToxicity)) {
+      healthAssessments.push('Toxicidad general');
+    }
+    if (this.getBooleanValue(data.microbiotaHealth)) {
+      healthAssessments.push('Salud microbiota comprometida');
     }
     
-    if (this.getBooleanValue(data.leptinResistance)) {
-      criticalInfo.push('⚖️ Resistencia a leptina: SÍ');
+    if (healthAssessments.length > 0) {
+      criticalInfo.push(`Evaluaciones positivas: ${healthAssessments.join(', ')}`);
     }
     
     return criticalInfo.length > 0 
-      ? '\n🏥 DATOS MÉDICOS CRÍTICOS:\n' + criticalInfo.join('\n')
-      : '\n🏥 Sin condiciones médicas críticas reportadas';
+      ? '\nDatos médicos críticos:\n' + criticalInfo.join('\n')
+      : '\nSin condiciones médicas críticas reportadas';
+  }
+
+  /**
+   * Extrae información de estilo de vida y objetivos del cliente
+   */
+  private static formatLifestyleAndObjectives(medicalData: any, personalData: any): string {
+    if (!medicalData && !personalData) return '';
+    
+    const sections = [];
+    
+    // ---- OBJETIVOS ----
+    const objectives = [];
+    
+    // Motivación (puede ser un array de strings)
+    if (medicalData.motivation) {
+      const motivationArray = this.safeDecryptAndParseArray(medicalData.motivation);
+      if (motivationArray.length > 0) {
+        // Map values to human-readable labels using valueLabels from formConstants
+        // Since we don't have direct access to valueLabels, we can use the values as is
+        const readableMotivation = motivationArray.map(val => {
+          // Convert kebab-case to readable text
+          return val.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }).join(', ');
+        objectives.push(`🎯 Motivación: ${readableMotivation}`);
+      } else {
+        // Fallback to string decryption for backward compatibility
+        const motivation = this.safeDecryptString(medicalData.motivation);
+        if (motivation && motivation.toLowerCase() !== 'ninguna' && motivation.trim().length > 3) {
+          objectives.push(`🎯 Motivación: ${motivation}`);
+        }
+      }
+    }
+    
+    // Nivel de compromiso (puede ser número o string)
+    if (medicalData.commitmentLevel) {
+      const commitment = this.safeDecryptString(medicalData.commitmentLevel);
+      if (commitment && commitment.trim().length > 0) {
+        objectives.push(`📊 Nivel compromiso: ${commitment}/10`);
+      }
+    }
+    
+    // Experiencia previa con coach (booleano o string)
+    if (medicalData.previousCoachExperience) {
+      const experience = this.safeDecryptString(medicalData.previousCoachExperience);
+      if (experience && experience.toLowerCase() !== 'no' && experience.toLowerCase() !== 'false') {
+        objectives.push(`👥 Experiencia previa con coach: ${experience}`);
+      }
+    }
+    
+    // Fecha límite / evento importante
+    if (medicalData.targetDate) {
+      const target = this.safeDecryptString(medicalData.targetDate);
+      if (target && target.toLowerCase() !== 'ninguna' && target.trim().length > 3) {
+        objectives.push(`📅 Fecha límite/evento: ${target}`);
+      }
+    }
+    
+    // ---- ESTILO DE VIDA ----
+    const lifestyle = [];
+    
+    // Día típico entre semana
+    if (medicalData.typicalWeekday) {
+      const weekday = this.safeDecryptString(medicalData.typicalWeekday);
+      if (weekday && weekday.trim().length > 10) {
+        lifestyle.push(`📅 Día entre semana: ${weekday.substring(0, 120)}${weekday.length > 120 ? '...' : ''}`);
+      }
+    }
+    
+    // Día típico fin de semana
+    if (medicalData.typicalWeekend) {
+      const weekend = this.safeDecryptString(medicalData.typicalWeekend);
+      if (weekend && weekend.trim().length > 10) {
+        lifestyle.push(`🎉 Día fin de semana: ${weekend.substring(0, 100)}${weekend.length > 100 ? '...' : ''}`);
+      }
+    }
+    
+    // Quién cocina y frecuencia comer fuera
+    if (medicalData.whoCooks) {
+      const whoCooks = this.safeDecryptString(medicalData.whoCooks);
+      if (whoCooks && whoCooks.trim().length > 5) {
+        lifestyle.push(`🍳 Cocina/comer fuera: ${whoCooks.substring(0, 80)}${whoCooks.length > 80 ? '...' : ''}`);
+      }
+    }
+    
+    // Nivel actividad física
+    if (medicalData.currentActivityLevel) {
+      const activity = this.safeDecryptString(medicalData.currentActivityLevel);
+      if (activity && activity.trim().length > 5) {
+        lifestyle.push(`🏃 Actividad física: ${activity.substring(0, 100)}${activity.length > 100 ? '...' : ''}`);
+      }
+    }
+    
+    // Limitaciones físicas
+    if (medicalData.physicalLimitations) {
+      const limitations = this.safeDecryptString(medicalData.physicalLimitations);
+      if (limitations && limitations.toLowerCase() !== 'ninguna' && limitations.trim().length > 5) {
+        lifestyle.push(`⚠️ Limitaciones físicas: ${limitations.substring(0, 80)}${limitations.length > 80 ? '...' : ''}`);
+      }
+    }
+    
+    // Hobbies (está en medicalData)
+    if (medicalData.hobbies) {
+      const hobbies = this.safeDecryptString(medicalData.hobbies);
+      if (hobbies && hobbies.toLowerCase() !== 'ninguno' && hobbies.trim().length > 5) {
+        lifestyle.push(`🎭 Hobbies: ${hobbies.substring(0, 80)}${hobbies.length > 80 ? '...' : ''}`);
+      }
+    }
+    
+    // ---- INFORMACIÓN PERSONAL ADICIONAL ----
+    const personal = [];
+    
+    if (personalData.maritalStatus) {
+      const marital = this.safeDecryptString(personalData.maritalStatus);
+      if (marital && marital.trim().length > 0) {
+        personal.push(`💍 Estado civil: ${marital}`);
+      }
+    }
+    
+    if (personalData.education) {
+      const education = this.safeDecryptString(personalData.education);
+      if (education && education.trim().length > 0) {
+        personal.push(`🎓 Educación: ${education}`);
+      }
+    }
+    
+    // ---- CONSTRUCCIÓN FINAL ----
+    let result = '';
+    
+    if (objectives.length > 0) {
+      result += '\n🎯 OBJETIVOS DEL CLIENTE:\n' + objectives.join('\n');
+    }
+    
+    if (lifestyle.length > 0) {
+      result += '\n🏡 ESTILO DE VIDA:\n' + lifestyle.join('\n');
+    }
+    
+    if (personal.length > 0) {
+      result += '\n👤 INFORMACIÓN PERSONAL:\n' + personal.join('\n');
+    }
+    
+    // Salud mental resumida
+    const mentalHealthFields = [
+      'mentalHealthEmotionIdentification', 'mentalHealthEmotionIntensity', 'mentalHealthUncomfortableEmotion',
+      'mentalHealthInternalDialogue', 'mentalHealthStressStrategies', 'mentalHealthSayingNo',
+      'mentalHealthRelationships', 'mentalHealthExpressThoughts', 'mentalHealthEmotionalDependence',
+      'mentalHealthPurpose', 'mentalHealthFailureReaction', 'mentalHealthSelfConnection',
+      'mentalHealthSupportNetwork', 'mentalHealthDailyStress'
+    ];
+    
+    const mentalHealthIssues = [];
+    for (const field of mentalHealthFields) {
+      if (medicalData[field]) {
+        const value = this.safeDecryptString(medicalData[field]);
+        if (value && value.toLowerCase() !== 'ninguno' && value.trim().length > 0) {
+          // Simplificar: solo mencionar si hay problemas significativos
+          if (value.includes('a)') || value.includes('rara vez') || value.includes('dificultad')) {
+            mentalHealthIssues.push(field.replace('mentalHealth', '').replace(/([A-Z])/g, ' $1').trim());
+          }
+        }
+      }
+    }
+    
+    if (mentalHealthIssues.length > 0) {
+      result += `\n🧠 ÁREAS DE SALUD MENTAL A CONSIDERAR: ${mentalHealthIssues.slice(0, 3).join(', ')}`;
+    }
+    
+    return result || '\n📝 Sin información adicional de objetivos/estilo de vida';
+  }
+
+  /**
+   * Genera insights y recomendaciones basadas en las evaluaciones de salud
+   */
+  private static formatHealthAssessmentInsights(medicalData: any): string {
+    if (!medicalData) return '';
+    
+    const insights = [];
+    
+    // Mapeo de evaluación a recomendaciones de hábitos
+    if (this.getBooleanValue(medicalData.carbohydrateAddiction)) {
+      insights.push('Adicción a carbohidratos: Considerar hábitos para reducir consumo de azúcar, como evitar snacks dulces, reemplazar por grasas saludables, y comer comidas balanceadas con proteína y grasa.');
+    }
+    
+    if (this.getBooleanValue(medicalData.leptinResistance)) {
+      insights.push('Resistencia a leptina: Enfoque en hábitos que mejoren sensibilidad hormonal: horarios regulares de comidas, evitar snacks nocturnos, priorizar sueño de calidad, y exposición a luz solar matutina.');
+    }
+    
+    if (this.getBooleanValue(medicalData.circadianRhythms)) {
+      insights.push('Alteración ritmos circadianos: Hábitos para sincronizar reloj interno: exposición a luz solar al despertar, reducir luz artificial por la noche, horarios consistentes de sueño y comidas.');
+    }
+    
+    if (this.getBooleanValue(medicalData.sleepHygiene)) {
+      insights.push('Alteración higiene del sueño: Mejorar hábitos de sueño: apagar dispositivos 1 hora antes de dormir, mantener habitación oscura y fresca, evitar cenas pesadas, establecer rutina relajante.');
+    }
+    
+    if (this.getBooleanValue(medicalData.electrosmogExposure)) {
+      insights.push('Exposición al electrosmog: Reducir exposición a campos electromagnéticos: no llevar celular en bolsillo, usar modo avión al dormir, distancia de dispositivos electrónicos, tiempo en naturaleza.');
+    }
+    
+    if (this.getBooleanValue(medicalData.generalToxicity)) {
+      insights.push('Toxicidad general: Hábitos de detoxificación: hidratación adecuada, consumo de alimentos detox (brócoli, ajo, cúrcuma), sudar regularmente (ejercicio, sauna), reducir exposición a químicos.');
+    }
+    
+    if (this.getBooleanValue(medicalData.microbiotaHealth)) {
+      insights.push('Salud microbiota comprometida: Hábitos para mejorar salud intestinal: consumir alimentos fermentados, aumentar fibra soluble, masticar bien, gestionar estrés, considerar probióticos naturales.');
+    }
+    
+    if (insights.length === 0) {
+      return '';
+    }
+    
+    return '\nInsights evaluaciones de salud (priorizar hábitos relacionados):\n' + insights.join('\n');
+  }
+
+  /**
+   * Analiza respuestas de salud mental y genera insights para hábitos
+   */
+  private static formatMentalHealthInsights(medicalData: any): string {
+    if (!medicalData) return '';
+    
+    const insights = [];
+    
+    // Función helper para extraer valor y categorizar
+    const getValue = (field: string): string => {
+      if (!medicalData[field]) return '';
+      return this.safeDecryptString(medicalData[field]).toLowerCase().trim();
+    };
+    
+    // Análisis de cada campo
+    const emotionId = getValue('mentalHealthEmotionIdentification');
+    if (emotionId.includes('c)') || emotionId === 'c' || emotionId.includes('rara vez')) {
+      insights.push('Dificultad identificando emociones: Considerar hábitos de mindfulness, journaling emocional, pausas para check-in emocional durante el día.');
+    }
+    
+    const emotionIntensity = getValue('mentalHealthEmotionIntensity');
+    if (emotionIntensity.includes('a)') || emotionIntensity.includes('desbordan')) {
+      insights.push('Emociones intensas que desbordan: Hábitos de regulación emocional: respiración profunda, pausas activas, técnicas de grounding, expresión creativa.');
+    }
+    
+    const stressStrategies = getValue('mentalHealthStressStrategies');
+    if (stressStrategies.includes('a)') || stressStrategies.includes('comer') || stressStrategies.includes('fumar') || stressStrategies.includes('pantallas')) {
+      insights.push('Estrategias de estrés poco saludables: Reemplazar con alternativas saludables: caminata breve, llamar a un amigo, respiración, actividad creativa.');
+    }
+    
+    const sayingNo = getValue('mentalHealthSayingNo');
+    if (sayingNo.includes('a)') || sayingNo.includes('casi siempre')) {
+      insights.push('Dificultad para decir "no": Practicar asertividad, establecer límites saludables, priorizar necesidades propias, comunicar límites con claridad.');
+    }
+    
+    const stressLevel = getValue('mentalHealthDailyStress');
+    if (stressLevel.includes('alto') || stressLevel.includes('muy-alto')) {
+      insights.push('Nivel de estrés alto: Incorporar hábitos de gestión de estrés: meditación breve, pausas de 5 minutos, tiempo en naturaleza, desconexión digital.');
+    }
+    
+    const supportNetwork = getValue('mentalHealthSupportNetwork');
+    if (supportNetwork.includes('no') || supportNetwork.includes('solo/a')) {
+      insights.push('Red de apoyo limitada: Fomentar conexión social: unirse a grupos de interés, programar contactos regulares, terapia o coaching, voluntariado.');
+    }
+    
+    const selfConnection = getValue('mentalHealthSelfConnection');
+    if (selfConnection.includes('c)') || selfConnection.includes('no')) {
+      insights.push('Poca conexión consigo mismo/a: Establecer rutinas de autocuidado: meditación, tiempo a solas, journaling, actividades que generen flow.');
+    }
+    
+    if (insights.length === 0) {
+      return '';
+    }
+    
+    return '\nInsights salud mental (priorizar hábitos relacionados):\n' + insights.join('\n');
   }
 
   private static getBMICategory(bmi: number): string {
