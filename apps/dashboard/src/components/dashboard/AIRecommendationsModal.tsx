@@ -194,6 +194,24 @@ type NewHabitItemData = {
 
 type NewItemData = NewNutritionItemData | NewExerciseItemData | NewHabitItemData;
 
+interface ImportableAISessionData {
+  summary?: string;
+  vision?: string;
+  weeks?: AIRecommendationWeek[] | unknown[];
+  checklist?: ChecklistItem[] | unknown[];
+  coachNotes?: string;
+  monthNumber?: number;
+  status?: 'draft' | 'approved' | 'sent';
+  baselineMetrics?: {
+    currentWeight?: number;
+    targetWeight?: number;
+    currentLifestyle?: string[];
+    targetLifestyle?: string[];
+  };
+  // Campos adicionales que podrían estar presentes en JSON importado
+  [key: string]: unknown;
+}
+
 // ===== COMPONENTE PRINCIPAL =====
 export default function AIRecommendationsModal({ 
   clientId, 
@@ -228,6 +246,7 @@ export default function AIRecommendationsModal({
   
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ===== ESTADOS PARA MODALES DE EDICIÓN =====
   const [showRecipeSearch, setShowRecipeSearch] = useState(false);
@@ -247,6 +266,9 @@ export default function AIRecommendationsModal({
   } | null>(null);
   const [showAIRecipeEditModal, setShowAIRecipeEditModal] = useState(false);
   const [loadingShoppingList, setLoadingShoppingList] = useState<Record<number, boolean>>({});
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
@@ -897,6 +919,127 @@ export default function AIRecommendationsModal({
     }
   }, [clientId, loadAIProgress]);
 
+  const handleFileUpload = useCallback(async (file: File) => {
+    setUploadingFile(true);
+    setUploadError(null);
+    
+    // Validar tamaño del archivo (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('El archivo es demasiado grande (máximo 5MB)');
+      setUploadingFile(false);
+      return;
+    }
+    
+    // Validar extensión del archivo
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const supportedExtensions = ['txt', 'json', 'doc', 'docx', 'pdf'];
+    if (!fileExtension || !supportedExtensions.includes(fileExtension)) {
+      setUploadError(`Formato de archivo no soportado. Formatos permitidos: ${supportedExtensions.join(', ')}`);
+      setUploadingFile(false);
+      return;
+    }
+    
+    try {
+      let text: string;
+      const isTextFile = fileExtension === 'txt' || fileExtension === 'json';
+      const isDocumentFile = fileExtension === 'doc' || fileExtension === 'docx' || fileExtension === 'pdf';
+      
+      console.log('Archivo subido:', { name: file.name, size: file.size, type: file.type, fileExtension, isTextFile, isDocumentFile });
+      
+      // Determinar si necesitamos extraer texto del documento
+      if (isDocumentFile) {
+        // Llamar al endpoint de extracción de texto para DOC/DOCX/PDF
+        console.log('Extrayendo texto del documento...');
+        try {
+          const extractionResponse = await apiClient.extractTextFromFile(file);
+          if (!extractionResponse.success) {
+            throw new Error(extractionResponse.message || 'Error extrayendo texto del documento');
+          }
+          text = extractionResponse.data.extractedText;
+          console.log('Texto extraído:', { length: text.length, preview: text.substring(0, 200) });
+        } catch (extractionError: unknown) {
+          console.error('Error en extracción de texto:', extractionError);
+          const errorMessage = extractionError instanceof Error ? extractionError.message : String(extractionError);
+          throw new Error(`No se pudo extraer texto del archivo ${file.name}. Asegúrate de que sea un documento válido. Detalles: ${errorMessage}`);
+        }
+      } else {
+        // Para .txt y .json, usar file.text()
+        text = await file.text();
+      }
+      
+      let sessionData: ImportableAISessionData;
+      
+      // Intentar parsear como JSON si es .json o si el contenido parece JSON
+      if (fileExtension === 'json' || text.trim().startsWith('{')) {
+        try {
+          sessionData = JSON.parse(text) as ImportableAISessionData;
+          console.log('JSON parseado exitosamente:', sessionData);
+        } catch (jsonError: unknown) {
+          console.error('Error parseando JSON:', jsonError);
+          throw new Error('El archivo JSON tiene formato inválido');
+        }
+      } else {
+        // Texto plano: crear estructura básica
+        console.log('Procesando como texto plano');
+        sessionData = {
+          summary: text.substring(0, 1000), // Limitar longitud
+          vision: 'Plan personalizado importado desde archivo',
+          weeks: [],
+          checklist: [],
+          coachNotes: `Archivo importado: ${file.name}`
+        };
+      }
+      
+      // Validar estructura mínima
+      if (!sessionData.summary || typeof sessionData.summary !== 'string') {
+        sessionData.summary = sessionData.summary || 'Resumen importado';
+      }
+      if (!sessionData.vision || typeof sessionData.vision !== 'string') {
+        sessionData.vision = sessionData.vision || 'Visión importada';
+      }
+      sessionData.weeks = sessionData.weeks || [];
+      sessionData.checklist = sessionData.checklist || [];
+      
+      // Determinar monthNumber: si no hay sesiones, usar 1
+      const monthNumber = 1; // Siempre primera sesión cuando no hay sesiones existentes
+      
+      console.log('Enviando datos de sesión a API:', { monthNumber, sessionData });
+      
+      // Llamar al endpoint de importación
+      const response = await apiClient.importAISession(clientId, sessionData, monthNumber);
+      
+      if (response.success) {
+        console.log('✅ Sesión importada exitosamente:', response);
+        // Recargar progreso de IA para reflejar la nueva sesión
+        await loadAIProgress();
+        setUploadError(null);
+        // Opcional: cerrar el modal o mostrar mensaje de éxito
+        alert('✅ Sesión importada exitosamente. Ahora puedes revisar y editar las recomendaciones.');
+      } else {
+        throw new Error(response.message || 'Error desconocido al importar sesión');
+      }
+      
+    } catch (error: unknown) {
+      console.error('Error subiendo archivo:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setUploadError(errorMessage || 'Error procesando el archivo');
+      alert(`Error: ${errorMessage || 'No se pudo importar la sesión'}`);
+    } finally {
+      setUploadingFile(false);
+    }
+  }, [clientId, loadAIProgress]);
+
+  const triggerFileInput = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+    // reset input to allow same file again
+    e.target.value = '';
+  }, [handleFileUpload]);
+
   // ===== MANEJADORES DE UI =====
   const handleChangeMonthTab = useCallback((monthNumber: number) => {
     setActiveMonthTab(monthNumber);
@@ -1358,7 +1501,18 @@ export default function AIRecommendationsModal({
               <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
               <h3 className="text-xl font-bold text-gray-700 mb-2">No hay recomendaciones generadas</h3>
               <p className="text-gray-600 mb-6">Comienza generando las primeras recomendaciones para este cliente</p>
-              <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">Generar Primera Evaluación</button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">Generar Primera Evaluación</button>
+                <button onClick={triggerFileInput} disabled={uploadingFile} className="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                  {uploadingFile ? 'Subiendo...' : 'Subir Archivo de Recomendaciones'}
+                </button>
+              </div>
+              {uploadError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">Error: {uploadError}</p>
+                </div>
+              )}
+               <p className="text-gray-500 text-sm mt-4">Formatos aceptados: .txt (texto plano), .json (estructura de sesión AI), .doc/.docx (documento Word) o .pdf (documento PDF)</p>
             </div>
           ) : !activeSession ? (
             <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión del mes {activeMonthTab}</p></div>
@@ -1627,6 +1781,15 @@ export default function AIRecommendationsModal({
           }}
         />
       )}
+
+      {/* Input file oculto para subir archivos */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileInputChange}
+        accept=".txt,.json,.doc,.docx,.pdf"
+        className="hidden"
+      />
     </div>
   );
 }

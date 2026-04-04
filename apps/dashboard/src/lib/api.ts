@@ -41,6 +41,23 @@ interface UpdateChecklistItemData {
   };
 }
 
+interface ImportableAISessionData {
+  summary?: string;
+  vision?: string;
+  weeks?: unknown[];
+  checklist?: unknown[];
+  coachNotes?: string;
+  monthNumber?: number;
+  status?: 'draft' | 'approved' | 'sent';
+  baselineMetrics?: {
+    currentWeight?: number;
+    targetWeight?: number;
+    currentLifestyle?: string[];
+    targetLifestyle?: string[];
+  };
+  [key: string]: unknown;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -522,6 +539,105 @@ export const apiClient = {
         throw error;
       }
       throw new Error('Error desconocido al regenerar sesión de IA');
+    }
+  },
+
+  async importAISession(
+    clientId: string,
+    sessionData: ImportableAISessionData,
+    monthNumber: number = 1
+  ): Promise<ApiResponse<unknown>> {
+    console.log('📤 importAISession llamado:', {
+      clientId,
+      monthNumber,
+      sessionDataKeys: Object.keys(sessionData)
+    });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action: 'import_session',
+          sessionId: '', // El backend generará uno nuevo
+          data: { 
+            sessionData,
+            monthNumber
+          }
+        } as AIActionRequest),
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        let errorData: { message?: string };
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText || 'Error desconocido' };
+        }
+        throw new Error(errorData.message || 'Error importando sesión de IA');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Importación exitosa:', data);
+      return data as ApiResponse<unknown>;
+      
+    } catch (error) {
+      console.error('💥 Error en importAISession:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al importar sesión de IA');
+    }
+  },
+
+  async extractTextFromFile(file: File): Promise<ApiResponse<{ extractedText: string; fileName: string; fileType: string; fileSize: number; extractedLength: number }>> {
+    console.log('📄 extractTextFromFile llamado:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size
+    });
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/extract-text`, {
+        method: 'POST',
+        body: formData,
+        // No incluir Content-Type header, FormData lo establece automáticamente con boundary
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', errorText);
+        let errorData: { message?: string };
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText || 'Error desconocido' };
+        }
+        throw new Error(errorData.message || 'Error extrayendo texto del archivo');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Texto extraído exitosamente:', {
+        fileName: data.data?.fileName,
+        extractedLength: data.data?.extractedLength
+      });
+      return data as ApiResponse<{ extractedText: string; fileName: string; fileType: string; fileSize: number; extractedLength: number }>;
+      
+    } catch (error) {
+      console.error('💥 Error en extractTextFromFile:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Error desconocido al extraer texto del archivo');
     }
   },
 

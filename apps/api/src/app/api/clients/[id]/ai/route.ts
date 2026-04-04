@@ -525,6 +525,15 @@ export async function PUT(
           message = 'Lista de compras actualizada';
           break;
 
+        case 'import_session':
+          console.log('📥 IMPORT_SESSION: Iniciando...', { 
+            monthNumber: data?.monthNumber,
+            sessionDataKeys: data?.sessionData ? Object.keys(data.sessionData) : []
+          });
+          operationResult = await importSession(id, data?.sessionData, data?.monthNumber || 1, requestId);
+          message = 'Sesión importada exitosamente';
+          break;
+
         default:
           loggerWithContext.warn('AI', 'Acción no válida', { action });
           return NextResponse.json(
@@ -1537,6 +1546,219 @@ async function updateSessionFields(
       success: false,
       message: error.message
     };
+  }
+}
+
+async function importSession(
+  clientId: string,
+  sessionData: any,
+  monthNumber: number = 1,
+  requestId: string
+): Promise<boolean> {
+  const loggerWithContext = logger.withContext({ requestId, clientId });
+  
+  loggerWithContext.info('AI', '📥 Iniciando importación de sesión', { 
+    monthNumber,
+    sessionDataKeys: sessionData ? Object.keys(sessionData) : [],
+    hasSummary: !!sessionData?.summary,
+    hasVision: !!sessionData?.vision,
+    weeksCount: sessionData?.weeks?.length || 0,
+    checklistCount: sessionData?.checklist?.length || 0
+  });
+  
+  try {
+    const healthForms = await getHealthFormsCollection();
+    const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
+
+    if (!client) {
+      loggerWithContext.warn('AI', 'Cliente no encontrado');
+      return false;
+    }
+
+    loggerWithContext.debug('AI', 'Cliente encontrado para importación', {
+      hasPersonalData: !!client.personalData,
+      hasMedicalData: !!client.medicalData,
+      existingSessions: client.aiProgress?.sessions?.length || 0
+    });
+
+    // Validar datos mínimos de la sesión
+    if (!sessionData.summary || !sessionData.vision) {
+      loggerWithContext.error('AI', 'Datos de sesión incompletos', undefined, {
+        hasSummary: !!sessionData.summary,
+        hasVision: !!sessionData.vision
+      });
+      throw new Error('La sesión debe incluir summary y vision');
+    }
+
+    // Generar nuevo sessionId
+    const sessionId = crypto.randomUUID();
+    
+    // Preparar semanas (asegurar estructura correcta)
+    const weeks = sessionData.weeks || [];
+    const validatedWeeks = weeks.map((week: any, index: number) => ({
+      weekNumber: week.weekNumber || (index + 1),
+      nutrition: {
+        focus: week.nutrition?.focus || 'Nutrición personalizada',
+        shoppingList: week.nutrition?.shoppingList || []
+      },
+      exercise: {
+        focus: week.exercise?.focus || 'Ejercicio adaptado',
+        equipment: week.exercise?.equipment || []
+      },
+      habits: {
+        trackingMethod: week.habits?.trackingMethod,
+        motivationTip: week.habits?.motivationTip
+      }
+    }));
+
+    // Preparar checklist (encriptar descripciones)
+    const checklist = sessionData.checklist || [];
+    const encryptedChecklist = checklist.map((item: any) => ({
+      ...item,
+      description: encrypt(item.description || ''),
+      details: item.details ? {
+        ...item.details,
+        recipe: item.details.recipe ? {
+          ...item.details.recipe,
+          ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+            name: encrypt(ing.name || ''),
+            quantity: encrypt(ing.quantity || ''),
+            notes: ing.notes ? encrypt(ing.notes) : undefined
+          })) || [],
+          preparation: encrypt(item.details.recipe.preparation || ''),
+          tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
+        } : undefined,
+        frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+        duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+        equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
+      } : undefined
+    }));
+
+    // Crear objeto de sesión completo (encriptar campos sensibles)
+    const newSession = {
+      sessionId,
+      monthNumber,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      status: 'draft', // Por defecto en estado borrador
+      summary: encrypt(sessionData.summary),
+      vision: encrypt(sessionData.vision),
+      baselineMetrics: sessionData.baselineMetrics || { currentLifestyle: [], targetLifestyle: [] },
+      weeks: validatedWeeks.map((week: any) => ({
+        weekNumber: week.weekNumber,
+        nutrition: {
+          focus: encrypt(week.nutrition.focus),
+          shoppingList: week.nutrition.shoppingList.map((item: any) => ({
+            item: encrypt(item.item || ''),
+            quantity: encrypt(item.quantity || ''),
+            priority: item.priority || 'medium'
+          }))
+        },
+        exercise: {
+          focus: encrypt(week.exercise.focus),
+          equipment: week.exercise.equipment.map((eq: string) => encrypt(eq))
+        },
+        habits: {
+          trackingMethod: week.habits.trackingMethod ? encrypt(week.habits.trackingMethod) : undefined,
+          motivationTip: week.habits.motivationTip ? encrypt(week.habits.motivationTip) : undefined
+        }
+      })),
+      checklist: encryptedChecklist,
+      coachNotes: sessionData.coachNotes ? encrypt(sessionData.coachNotes) : undefined,
+      emailSent: false
+    };
+
+    loggerWithContext.debug('AI', 'Sesión preparada para guardar', {
+      sessionId,
+      weekCount: newSession.weeks.length,
+      checklistCount: newSession.checklist.length
+    });
+
+    // Preparar datos de actualización
+    const updateData: any = {
+      $set: {
+        updatedAt: new Date()
+      }
+    };
+
+    // Verificar si ya existe una sesión para este mes
+    const existingSessionIndex = client.aiProgress?.sessions?.findIndex(
+      (s: any) => s.monthNumber === monthNumber
+    );
+
+    loggerWithContext.debug('AI', 'Buscando sesión existente para el mes', {
+      monthNumber,
+      hasAIProgress: !!client.aiProgress,
+      sessionsCount: client.aiProgress?.sessions?.length || 0,
+      existingSessionIndex
+    });
+
+    if (!client.aiProgress || existingSessionIndex === -1) {
+      // Primera vez para este mes: crear estructura
+      updateData.$set['aiProgress'] = {
+        clientId,
+        currentSessionId: sessionId,
+        sessions: [newSession],
+        overallProgress: 0,
+        lastEvaluation: new Date(),
+        nextEvaluation: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        metrics: {
+          nutritionAdherence: 0,
+          exerciseConsistency: 0,
+          habitFormation: 0
+        }
+      };
+      
+      loggerWithContext.info('AI', 'Creando nueva sesión para mes', { monthNumber });
+    } else {
+      // Reemplazar la sesión existente para este mes
+      const updatedSessions = [...client.aiProgress.sessions];
+      updatedSessions[existingSessionIndex] = newSession;
+      
+      updateData.$set['aiProgress.sessions'] = updatedSessions;
+      updateData.$set['aiProgress.currentSessionId'] = sessionId;
+      updateData.$set['aiProgress.lastEvaluation'] = new Date();
+      updateData.$set['aiProgress.nextEvaluation'] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      loggerWithContext.info('AI', 'Reemplazando sesión existente', {
+        monthNumber,
+        oldSessionId: client.aiProgress.sessions[existingSessionIndex].sessionId,
+        newSessionId: sessionId
+      });
+    }
+
+    const result = await healthForms.updateOne(
+      { _id: new ObjectId(clientId) },
+      updateData
+    );
+
+    loggerWithContext.debug('AI', 'Resultado de actualización en BD', {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedCount: result.upsertedCount
+    });
+
+    if (result.modifiedCount === 0 && result.upsertedCount === 0) {
+      loggerWithContext.error('AI', 'No se pudo guardar la sesión importada en BD');
+      throw new Error('No se pudo guardar la sesión importada en la base de datos');
+    }
+
+    loggerWithContext.info('AI', '✅ Sesión importada exitosamente', {
+      sessionId,
+      monthNumber
+    });
+
+    return true;
+
+  } catch (error: any) {
+    loggerWithContext.error('AI', '💥 Error importando sesión', error);
+    
+    // Propagar error específico
+    if (error.message.includes('La sesión debe incluir')) {
+      throw error;
+    }
+    
+    return false;
   }
 }
 

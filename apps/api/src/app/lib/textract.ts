@@ -1,17 +1,31 @@
 // apps/api/src/app/lib/textract.ts
-import { TextractClient, AnalyzeDocumentCommand, DetectDocumentTextCommand } from '@aws-sdk/client-textract';
+import { TextractClient, AnalyzeDocumentCommand, DetectDocumentTextCommand, Block, AnalyzeDocumentCommandOutput, Relationship, DetectDocumentTextCommandOutput } from '@aws-sdk/client-textract';
 import { logger } from './logger';
 import { encrypt } from './encryption';
 
+// Types for Textract tables
+interface TextractCell {
+  text: string;
+  row: number;
+  column: number;
+  confidence: number;
+}
+
+interface TextractTable {
+  rows: TextractCell[][];
+  cellCount: number;
+  confidence: number;
+}
+
 export interface TextractResult {
   rawText: string;           // Texto plano extraído
-  tables: any[];             // Tablas detectadas (para resultados de laboratorio)
+  tables: TextractTable[];             // Tablas detectadas (para resultados de laboratorio)
   forms: Record<string, string>; // Campos de formulario (clave-valor)
   confidence: number;        // Confianza promedio de extracción
 }
 
 export interface MedicalDocumentAnalysis {
-  confidence: any;
+  confidence: number;
   originalKey: string;
   extractedText: string;     // Encriptado
   extractedData: string;     // Encriptado (JSON con estructuras)
@@ -102,12 +116,14 @@ export class TextractService {
 
         return analysis;
 
-      } catch (error: any) {
-        logger.error('TEXTRACT', 'Error procesando documento médico', error, {
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        const awsError = error as { Code?: string };
+        logger.error('TEXTRACT', 'Error procesando documento médico', err, {
           s3Key,
           documentType,
-          errorCode: error.Code,
-          errorMessage: error.message
+          errorCode: awsError.Code,
+          errorMessage: err.message
         });
 
         return {
@@ -118,7 +134,7 @@ export class TextractService {
           extractedAt: new Date(),
           status: 'failed',
           confidence: 0,
-          error: error.message || 'Error desconocido en Textract'
+          error: err.message || 'Error desconocido en Textract'
         };
       }
     }, { s3Key, documentType });
@@ -145,12 +161,12 @@ export class TextractService {
   /**
    * Extrae datos estructurados de la respuesta de Textract
    */
-  private static extractStructuredData(response: any, documentType: string): TextractResult {
+  private static extractStructuredData(response: AnalyzeDocumentCommandOutput, documentType: string): TextractResult {
     const blocks = response.Blocks || [];
     
     // Extraer texto plano
-    const textBlocks = blocks.filter((block: any) => block.BlockType === 'LINE');
-    const rawText = textBlocks.map((block: any) => block.Text).join('\n');
+    const textBlocks = blocks.filter((block: Block) => block.BlockType === 'LINE');
+    const rawText = textBlocks.map((block: Block) => block.Text ?? '').join('\n');
     
     // Extraer tablas (para resultados de laboratorio)
     const tables = this.extractTables(blocks);
@@ -160,8 +176,8 @@ export class TextractService {
     
     // Calcular confianza promedio
     const confidences = blocks
-      .filter((block: any) => block.Confidence)
-      .map((block: any) => block.Confidence);
+      .filter((block: Block) => block.Confidence !== undefined)
+      .map((block: Block) => block.Confidence!);
     const avgConfidence = confidences.length > 0 
       ? confidences.reduce((a: number, b: number) => a + b) / confidences.length 
       : 0;
@@ -177,8 +193,8 @@ export class TextractService {
   /**
    * Extrae tablas de los bloques de Textract
    */
-  private static extractTables(blocks: any[]): any[] {
-    const tables: any[] = [];
+  private static extractTables(blocks: Block[]): TextractTable[] {
+    const tables: TextractTable[] = [];
     const tableBlocks = blocks.filter(block => block.BlockType === 'TABLE');
     
     for (const tableBlock of tableBlocks) {
@@ -194,17 +210,17 @@ export class TextractService {
   /**
    * Construye una tabla estructurada
    */
-  private static buildTable(tableBlock: any, allBlocks: any[]): any {
-    const cells = tableBlock.Relationships
-      ?.flatMap((rel: any) => rel.Ids || [])
+  private static buildTable(tableBlock: Block, allBlocks: Block[]): TextractTable {
+    const cells = (tableBlock.Relationships ?? [])
+      .flatMap((rel: Relationship) => rel.Ids ?? [])
       .map((id: string) => allBlocks.find(b => b.Id === id))
-      .filter(Boolean) || [];
+      .filter((cell): cell is Block => cell !== undefined);
 
-    const rows: any[] = [];
+    const rows: TextractCell[][] = [];
     let currentRowIndex = 0;
-    let currentRow: any[] = [];
+    let currentRow: TextractCell[] = [];
 
-    cells.forEach((cell: any) => {
+    cells.forEach((cell: Block) => {
       if (!cell.RowIndex) return;
       
       if (cell.RowIndex !== currentRowIndex) {
@@ -218,9 +234,9 @@ export class TextractService {
       const cellText = this.getCellText(cell, allBlocks);
       currentRow.push({
         text: cellText,
-        row: cell.RowIndex,
-        column: cell.ColumnIndex,
-        confidence: cell.Confidence
+        row: cell.RowIndex ?? 0,
+        column: cell.ColumnIndex ?? 0,
+        confidence: cell.Confidence ?? 0
       });
     });
 
@@ -238,14 +254,14 @@ export class TextractService {
   /**
    * Extrae texto de una celda
    */
-  private static getCellText(cell: any, allBlocks: any[]): string {
+  private static getCellText(cell: Block, allBlocks: Block[]): string {
     if (!cell.Relationships) return '';
     
-    const wordIds = cell.Relationships.flatMap((rel: any) => rel.Ids || []);
+    const wordIds = cell.Relationships.flatMap((rel: Relationship) => rel.Ids ?? []);
     const words = wordIds
       .map((id: string) => allBlocks.find(b => b.Id === id))
-      .filter((block: { BlockType: string; }) => block && block.BlockType === 'WORD')
-      .map((word: any) => word.Text)
+      .filter((block): block is Block => block !== undefined && block.BlockType === 'WORD')
+      .map((word) => word.Text ?? '')
       .join(' ');
     
     return words;
@@ -254,15 +270,15 @@ export class TextractService {
   /**
    * Extrae campos de formulario
    */
-  private static extractForms(blocks: any[]): Record<string, string> {
+  private static extractForms(blocks: Block[]): Record<string, string> {
     const forms: Record<string, string> = {};
     const keyValueSets = blocks.filter(block => block.BlockType === 'KEY_VALUE_SET');
     
     // Mapear bloques por ID para acceso rápido
-    const blockMap = new Map();
-    blocks.forEach(block => blockMap.set(block.Id, block));
+    const blockMap = new Map<string, Block>();
+    blocks.forEach(block => { if (block.Id) blockMap.set(block.Id, block); });
     
-    keyValueSets.forEach((block: any) => {
+    keyValueSets.forEach((block: Block) => {
       if (block.EntityTypes?.includes('KEY')) {
         const keyText = this.getFormFieldText(block, blockMap);
         const valueBlock = this.findValueBlock(block, keyValueSets, blockMap);
@@ -281,11 +297,11 @@ export class TextractService {
    * Encuentra el bloque VALUE asociado a un KEY
    */
   private static findValueBlock(
-    keyBlock: any, 
-    keyValueSets: any[], 
-    blockMap: Map<string, any>
-  ): any | null {
-    const valueRelationship = keyBlock.Relationships?.find((rel: any) => rel.Type === 'VALUE');
+    keyBlock: Block, 
+    keyValueSets: Block[], 
+    blockMap: Map<string, Block>
+  ): Block | null {
+    const valueRelationship = keyBlock.Relationships?.find((rel: Relationship) => rel.Type === 'VALUE');
     if (!valueRelationship) return null;
     
     const valueId = valueRelationship.Ids?.[0];
@@ -293,21 +309,21 @@ export class TextractService {
     
     return keyValueSets.find(block => 
       block.Id === valueId && block.EntityTypes?.includes('VALUE')
-    );
+    ) ?? null;
   }
 
   /**
    * Extrae texto de un campo de formulario
    */
-  private static getFormFieldText(block: any, blockMap: Map<string, any>): string {
+  private static getFormFieldText(block: Block, blockMap: Map<string, Block>): string {
     const wordIds = block.Relationships
-      ?.filter((rel: any) => rel.Type === 'CHILD')
-      .flatMap((rel: any) => rel.Ids || []) || [];
+      ?.filter((rel: Relationship) => rel.Type === 'CHILD')
+      .flatMap((rel: Relationship) => rel.Ids ?? []) ?? [];
     
     const words = wordIds
       .map((id: string) => blockMap.get(id))
-      .filter((word: { BlockType: string; }) => word && word.BlockType === 'WORD')
-      .map((word: any) => word.Text)
+      .filter((word): word is Block => word !== undefined && word.BlockType === 'WORD')
+      .map((word) => word.Text ?? '')
       .join(' ');
     
     return words;
@@ -320,7 +336,7 @@ export class TextractService {
     documents: Array<{ s3Key: string; documentType: string }>
   ): Promise<MedicalDocumentAnalysis[]> {
     const promises = documents.map(doc => 
-      this.processMedicalDocument(doc.s3Key, doc.documentType as any)
+      this.processMedicalDocument(doc.s3Key, doc.documentType as 'lab_results' | 'prescription' | 'medical_history' | 'other')
     );
     
     return Promise.all(promises);
@@ -343,8 +359,8 @@ export class TextractService {
       });
 
       const response = await this.client.send(command);
-      const textBlocks = response.Blocks?.filter((block: any) => block.BlockType === 'LINE') || [];
-      const text = textBlocks.map((block: any) => block.Text).join('\n');
+      const textBlocks = response.Blocks?.filter((block: Block) => block.BlockType === 'LINE') || [];
+      const text = textBlocks.map((block: Block) => block.Text ?? '').join('\n');
       
       return text;
     } catch (error) {
