@@ -19,7 +19,7 @@ interface LogMetadata {
   fileInfo?: { fileName?: string; fileSize?: number; fileType?: string; fileCategory?: 'profile' | 'document'; s3Key?: string };
   
   // ✅ ESTA ES LA CLAVE: Permite cualquier propiedad adicional
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface LogEntry {
@@ -27,7 +27,7 @@ interface LogEntry {
   level: LogLevel;
   context: LogContext;
   message: string;
-  data?: any;
+  data?: unknown;
   
   // Ahora hereda de LogMetadata
   requestId?: string;
@@ -43,11 +43,11 @@ interface LogEntry {
     message: string;
     stack?: string;
     code?: string;
-    details?: any;
+    details?: unknown;
   };
   
   // Otras propiedades dinámicas
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 class Logger {
@@ -96,10 +96,10 @@ class Logger {
     }
   }
 
-  private extractStructuredData(entry: LogEntry): any {
+  private extractStructuredData(entry: LogEntry): Record<string, unknown> | undefined {
     const { timestamp, level, context, message, requestId, userId, clientId, endpoint, method, duration, ...rest } = entry;
     
-    const structured: any = {};
+    const structured: Record<string, unknown> = {};
     
     // Extraer propiedades conocidas
     if (rest.data) structured.data = rest.data;
@@ -121,7 +121,7 @@ class Logger {
   info(
     context: LogContext, 
     message: string, 
-    data?: any, 
+    data?: unknown, 
     metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
@@ -137,7 +137,7 @@ class Logger {
   warn(
     context: LogContext, 
     message: string, 
-    data?: any, 
+    data?: unknown, 
     metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
@@ -153,16 +153,16 @@ class Logger {
   error(
     context: LogContext, 
     message: string, 
-    error?: Error | any, 
-    data?: any, 
+    error?: Error | unknown, 
+    data?: unknown, 
     metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     const errorObj = error ? {
-      name: error.name || 'UnknownError',
-      message: error.message || String(error),
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      code: error.code || error.statusCode,
-      details: error.details || error.response?.data
+      name: (error instanceof Error ? error.name : (error as Record<string, unknown>).name as string) || 'UnknownError',
+      message: (error instanceof Error ? error.message : String(error)),
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined,
+      code: (error as Record<string, unknown>).code as string ?? (error as Record<string, unknown>).statusCode as string,
+      details: (error as Record<string, unknown>).details || ((error as Record<string, unknown>).response as Record<string, unknown> | undefined)?.data
     } : undefined;
 
     this.logToConsole({
@@ -179,7 +179,7 @@ class Logger {
   debug(
     context: LogContext, 
     message: string, 
-    data?: any, 
+    data?: unknown, 
     metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
   ) {
     this.logToConsole({
@@ -267,17 +267,17 @@ class Logger {
   // Método para crear un logger con contexto específico
   withContext(metadata: LogMetadata) {
     return {
-      info: (context: LogContext, message: string, data?: any) => 
+      info: (context: LogContext, message: string, data?: unknown) => 
         this.info(context, message, data, metadata),
-      warn: (context: LogContext, message: string, data?: any) => 
+      warn: (context: LogContext, message: string, data?: unknown) => 
         this.warn(context, message, data, metadata),
-      error: (context: LogContext, message: string, error?: Error, data?: any) => 
+      error: (context: LogContext, message: string, error?: Error, data?: unknown) => 
         this.error(context, message, error, data, metadata),
-      debug: (context: LogContext, message: string, data?: any) => 
+      debug: (context: LogContext, message: string, data?: unknown) => 
         this.debug(context, message, data, metadata),
-      ai: (context: LogContext, message: string, aiInfo: any) => 
+      ai: (context: LogContext, message: string, aiInfo: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number }) => 
         this.ai(context, message, aiInfo, metadata),
-      textract: (message: string, textractInfo: any) => 
+      textract: (message: string, textractInfo: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number }) => 
         this.textract(message, textractInfo, metadata),
       time: <T>(context: LogContext, operation: string, fn: () => Promise<T>) => 
         this.time(context, operation, fn, metadata)

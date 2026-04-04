@@ -13,7 +13,7 @@ export interface ProcessedDocument {
     language?: string;
     documentType?: string;
     extractionStatus: 'completed' | 'failed' | 'pending';
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -67,7 +67,7 @@ export interface UploadedFile {
   extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
   extractedData?: {              // Datos estructurados (encriptados)
     rawText?: string;
-    tables?: any[];
+    tables?: unknown[];
     forms?: Record<string, string>;
   };
 
