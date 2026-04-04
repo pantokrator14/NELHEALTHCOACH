@@ -5,6 +5,7 @@ import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
 import { apiClient } from '@/lib/api';
+import { generateClientPDF } from '@/lib/pdfGenerator';
 import Image from 'next/image'
 import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
 import {
@@ -14,7 +15,6 @@ import {
   mentalHealthOptions,
   mentalHealthOpenQuestions,
   objectivesQuestions,
-  lifestyleQuestions,
 } from '../../../lib/formConstants';
 
 interface UploadedFile {
@@ -180,6 +180,19 @@ export default function ClientProfile() {
     }
   }
 
+  const handleExportPDF = () => {
+    if (!client) {
+      alert('No hay datos del cliente para exportar');
+      return;
+    }
+    try {
+      generateClientPDF(client);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      alert('Error al generar el PDF');
+    }
+  }
+
   const getMentalHealthLabel = (field: string, value: string): string => {
     if (!value) return 'No especificado'
     return mentalHealthOptions[field]?.[value] || valueLabels[value] || value
@@ -286,7 +299,7 @@ export default function ClientProfile() {
         await apiClient.confirmUpload(
           clientId,
           uploadResponse.fileKey,
-          file.name,
+          file.name, 
           file.type,
           file.size,
           'document',
@@ -582,7 +595,13 @@ export default function ClientProfile() {
 
               {/* Botones de acción */}
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <button onClick={() => setIsEditModalOpen(true)} className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
+                <button onClick={handleExportPDF} className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Descargar información en PDF
+                </button>
+                <button onClick={() => setIsEditModalOpen(true)} className="w-full mt-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
