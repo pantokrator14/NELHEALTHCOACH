@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, ChangeEvent } from 'react';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../../packages/types/src/recipe-types';
-import { NutritionAnalysisResult } from '@nelhealthcoach/types/src/nutrition-types';
+
 import AutocompleteInput from '../ui/AutocompleteInput';
 import DragDropList from '../ui/DragDropList';
 import { NutritionTooltip } from '../ui/Tooltip';
@@ -404,20 +404,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   }, []);
 
   // ✅ FUNCIÓN PARA MANEJAR LA SUBIDA DE IMAGEN DURANTE CREACIÓN
-  const handleImageUploadForNewRecipe = async (recipeId: string): Promise<RecipeImage | null> => {
-    if (!imageFile) return null;
-    
-    try {
-      showToast('Subiendo imagen...', 'info');
-      const imageData = await uploadImageToS3(imageFile, recipeId);
-      showToast('Imagen subida exitosamente', 'success');
-      return imageData;
-    } catch (error) {
-      console.error('Error subiendo imagen:', error);
-      showToast(`Error subiendo imagen: ${error instanceof Error ? error.message : 'Error desconocido'}`, 'error');
-      return null;
-    }
-  };
+
 
   // Validar formulario
   const validateForm = (): boolean => {

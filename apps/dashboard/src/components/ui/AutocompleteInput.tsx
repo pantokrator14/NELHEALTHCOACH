@@ -295,7 +295,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 type="button"
                 className="w-full text-left px-4 py-3 hover:bg-green-50 focus:bg-green-50 focus:outline-none transition-colors border-b border-gray-100"
                 onClick={handleCreateNew}
-                role="option"
+                role="option" aria-selected="false"
               >
                 <div className="flex items-center">
                   <div className="w-6 h-6 mr-2 bg-green-100 text-green-600 rounded-full flex items-center justify-center">

@@ -1,0 +1,244 @@
+{
+  "summary": "Plan integral de 12 semanas para transformación completa de salud. Cliente: Juan Pérez, 35 años, 85kg, 175cm (IMC: 27.8). Objetivo: pérdida de grasa, mejora metabólica, aumento de energía y estabilidad emocional.",
+  "vision": "Tras 12 semanas: reducción de 8-10kg de grasa, mejora del 40% en marcadores metabólicos, aumento del 30% en energía diaria, establecimiento de 12 hábitos saludables sostenibles y mejora significativa en calidad de sueño y manejo del estrés.",
+  "baselineMetrics": {
+    "currentLifestyle": [
+      "Dieta alta en carbohidratos procesados",
+      "Sedentarismo laboral (8h/día sentado)",
+      "Sueño irregular (5-6h/noche)",
+      "Estrés laboral alto",
+      "Consumo de alcohol social los fines de semana"
+    ],
+    "targetLifestyle": [
+      "Dieta cetogénica terapéutica (75%G/20%P/5%C)",
+      "Actividad física regular (3 días/semana + caminatas)",
+      "Sueño reparador (7-8h/noche)",
+      "Gestión activa del estrés",
+      "Hidratación óptima (3L/día)",
+      "Exposición solar diaria (15-20min)"
+    ]
+  },
+  "weeks": [
+    {
+      "weekNumber": 1,
+      "nutrition": {
+        "focus": "Introducción a keto - Eliminación de azúcares y procesados",
+        "checklistItems": [
+          {
+            "description": "Omelette de espinacas y queso feta",
+            "type": "breakfast",
+            "frequency": 4,
+            "details": {
+              "recipe": {
+                "ingredients": [
+                  { "name": "huevos", "quantity": "3 unidades", "notes": "orgánicos, de pastoreo" },
+                  { "name": "espinacas", "quantity": "1 taza", "notes": "frescas" },
+                  { "name": "queso feta", "quantity": "30g", "notes": "entero" },
+                  { "name": "aceite de oliva", "quantity": "1 cucharada", "notes": "extra virgen" }
+                ],
+                "preparation": "Batir huevos, saltear espinacas en aceite, agregar huevos y cocinar, añadir queso al final.",
+                "tips": "Servir con aguacate para grasas adicionales."
+              },
+              "macros": {
+                "protein": "28g",
+                "fat": "32g",
+                "carbs": "4g",
+                "ratio": "70% grasa, 25% proteína, 5% carbos"
+              },
+              "calories": 420,
+              "metabolicPurpose": "Inicio cetosis, saciedad prolongada, estabilización glucémica"
+            }
+          },
+          {
+            "description": "Salmón al horno con brócoli y mantequilla de ajo",
+            "type": "lunch",
+            "frequency": 3,
+            "details": {
+              "macros": {
+                "protein": "35g",
+                "fat": "25g",
+                "carbs": "8g",
+                "ratio": "65% grasa, 30% proteína, 5% carbos"
+              },
+              "calories": 380,
+              "metabolicPurpose": "Omega-3 antiinflamatorio, proteína de alta calidad, quema de grasa"
+            }
+          }
+        ],
+        "shoppingList": [
+          { "item": "huevos orgánicos", "quantity": "12 unidades", "priority": "high" },
+          { "item": "salmón fresco", "quantity": "500g", "priority": "high" },
+          { "item": "espinacas", "quantity": "200g", "priority": "medium" },
+          { "item": "brócoli", "quantity": "1 cabeza", "priority": "medium" },
+          { "item": "aceite de oliva extra virgen", "quantity": "500ml", "priority": "high" }
+        ]
+      },
+      "exercise": {
+        "focus": "Adaptación - Caminatas y movilidad básica",
+        "checklistItems": [
+          {
+            "description": "Caminata rápida 30min + estiramientos",
+            "type": "cardio",
+            "details": {
+              "frequency": "6 días/semana",
+              "duration": "30 minutos",
+              "equipment": ["zapatos deportivos"],
+              "sets": 1,
+              "repetitions": "N/A",
+              "timeUnderTension": "N/A",
+              "progression": "Aumentar a 45min semana 2"
+            }
+          },
+          {
+            "description": "Movilidad articular completa (10min)",
+            "type": "flexibility",
+            "details": {
+              "frequency": "7 días/semana",
+              "duration": "10 minutos",
+              "equipment": ["esterilla"],
+              "sets": 1,
+              "repetitions": "10 repeticiones por articulación",
+              "timeUnderTension": "2 segundos por movimiento",
+              "progression": "Añadir resistencia banda elástica semana 3"
+            }
+          }
+        ]
+      },
+      "habits": {
+        "checklistItems": [
+          {
+            "description": "Beber 500ml agua al despertar",
+            "type": "toAdopt"
+          },
+          {
+            "description": "Eliminar azúcar en café/té",
+            "type": "toEliminate"
+          }
+        ],
+        "trackingMethod": "App de hidratación + diario alimenticio",
+        "motivationTip": "Cada vaso de agua es un paso hacia tu mejor versión."
+      }
+    },
+    {
+      "weekNumber": 2,
+      "nutrition": {
+        "focus": "Consolidación keto - Enfoque en proteínas y grasas saludables",
+        "checklistItems": [
+          {
+            "description": "Pechuga de pollo a la plancha con ensalada de aguacate",
+            "type": "lunch",
+            "frequency": 3,
+            "details": {
+              "macros": {
+                "protein": "40g",
+                "fat": "28g",
+                "carbs": "6g",
+                "ratio": "60% grasa, 35% proteína, 5% carbos"
+              },
+              "calories": 450,
+              "metabolicPurpose": "Mantenimiento muscular, saciedad, termogénesis"
+            }
+          }
+        ],
+        "shoppingList": [
+          { "item": "pechuga de pollo", "quantity": "600g", "priority": "high" },
+          { "item": "aguacates", "quantity": "3 unidades", "priority": "high" },
+          { "item": "lechuga romana", "quantity": "1 cabeza", "priority": "medium" }
+        ]
+      },
+      "exercise": {
+        "focus": "Introducción fuerza - Ejercicios cuerpo libre",
+        "checklistItems": [
+          {
+            "description": "Circuito cuerpo libre (sentadillas, flexiones, planchas)",
+            "type": "strength",
+            "details": {
+              "frequency": "3 días/semana (miércoles, sábado, domingo)",
+              "duration": "25 minutos",
+              "equipment": ["esterilla"],
+              "sets": 3,
+              "repetitions": "12-15",
+              "timeUnderTension": "30-40 segundos por ejercicio",
+              "progression": "Aumentar a 4 sets semana 3"
+            }
+          }
+        ]
+      },
+      "habits": {
+        "checklistItems": [
+          {
+            "description": "Exposición solar 15min al mediodía",
+            "type": "toAdopt"
+          },
+          {
+            "description": "Eliminar snacks después de las 20:00",
+            "type": "toEliminate"
+          }
+        ],
+        "trackingMethod": "Recordatorio en teléfono + diario de sueño",
+        "motivationTip": "El sol es tu dosis diaria de vitamina D y energía."
+      }
+    },
+
+    {
+      "weekNumber": 12,
+      "nutrition": {
+        "focus": "Mantenimiento avanzado - Optimización final",
+        "checklistItems": [
+          {
+            "description": "Filete de res con espárragos y mantequilla de hierbas",
+            "type": "dinner",
+            "frequency": 2,
+            "details": {
+              "macros": {
+                "protein": "45g",
+                "fat": "35g",
+                "carbs": "5g",
+                "ratio": "70% grasa, 25% proteína, 5% carbos"
+              },
+              "calories": 520,
+              "metabolicPurpose": "Recuperación muscular, saciedad nocturna, mantenimiento cetosis"
+            }
+          }
+        ],
+        "shoppingList": [
+          { "item": "filete de res", "quantity": "400g", "priority": "high" },
+          { "item": "espárragos", "quantity": "300g", "priority": "medium" },
+          { "item": "mantequilla", "quantity": "100g", "priority": "low" }
+        ]
+      },
+      "exercise": {
+        "focus": "Consolidación - Rutina completa avanzada",
+        "checklistItems": [
+          {
+            "description": "Rutina fuerza completa + HIIT 20min",
+            "type": "strength",
+            "details": {
+              "frequency": "3 días/semana",
+              "duration": "45 minutos",
+              "equipment": ["pesas", "bandas", "esterilla"],
+              "sets": 4,
+              "repetitions": "8-10",
+              "timeUnderTension": "40-50 segundos",
+              "progression": "Mantener intensidad, enfocarse en técnica perfecta"
+            }
+          }
+        ]
+      },
+      "habits": {
+        "checklistItems": [
+          {
+            "description": "Meditación 10min diaria",
+            "type": "toAdopt"
+          },
+          {
+            "description": "Revisar progreso semanal en diario",
+            "type": "toAdopt"
+          }
+        ],
+        "trackingMethod": "App de meditación + diario de gratitud",
+        "motivationTip": "Has completado 12 semanas de transformación. ¡Celebra tu consistencia!"
+      }
+    }
+  ]
+}

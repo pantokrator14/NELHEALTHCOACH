@@ -46,6 +46,19 @@ export interface ChecklistItem {
     frequency?: string;
     duration?: string;
     equipment?: string[];
+    // New fields for AI-generated plans
+    macros?: {
+      protein?: string;
+      fat?: string;
+      carbs?: string;
+      ratio?: string;
+    };
+    calories?: number;
+    metabolicPurpose?: string;
+    sets?: number;
+    repetitions?: string;
+    timeUnderTension?: string;
+    progression?: string;
   };
   recipeId?: string;
   frequency?: number;
@@ -164,7 +177,7 @@ export interface ClientDetails extends HealthFormData {
 }
 
 export interface AIRecommendationWeek {
-  weekNumber: 1 | 2 | 3 | 4;
+  weekNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   nutrition: {
     focus: string;
     shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
@@ -183,11 +196,12 @@ export interface AIRecommendationWeek {
 export interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
+  totalWeeks?: number; // Número total de semanas en el plan (4 para 1 mes, 12 para 3 meses)
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent' | 'completed';
-  summary: string; // encriptado
-  vision: string; // encriptado
+  summary: string; // encriptado - Análisis de situación actual y resumen
+  vision: string; // encriptado - Visión a largo plazo (12 semanas)
   baselineMetrics: {
     currentLifestyle: string[];
     targetLifestyle: string[];

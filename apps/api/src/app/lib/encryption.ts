@@ -1,5 +1,5 @@
 // apps/api/src/app/lib/encryption.ts
-import CryptoJS from 'crypto-js';
+import * as CryptoJS from 'crypto-js';
 import { logger } from './logger';
 
 const secretKey = process.env.ENCRYPTION_KEY!;

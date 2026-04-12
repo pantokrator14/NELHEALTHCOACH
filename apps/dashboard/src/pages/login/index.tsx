@@ -21,7 +21,7 @@ export default function Login() {
 
       localStorage.setItem('token', result.token);
       router.push('/dashboard');
-    } catch (err) {
+    } catch {
       setError('Error de conexión. Intenta nuevamente.');
     } finally {
       setLoading(false)
