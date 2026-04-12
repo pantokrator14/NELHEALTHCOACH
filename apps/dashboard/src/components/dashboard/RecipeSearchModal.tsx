@@ -24,7 +24,7 @@ const RecipeSearchModal: React.FC<RecipeSearchModalProps> = ({ onSelect, onClose
   const [loading, setLoading] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [frequency, setFrequency] = useState(1);
-  const [isRecurring, setIsRecurring] = useState(false);
+  const isRecurring = false;
 
   const searchRecipes = useCallback(async () => {
     if (search.length < 2) {

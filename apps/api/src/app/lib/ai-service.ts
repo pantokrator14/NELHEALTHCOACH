@@ -119,7 +119,7 @@ interface DecryptedRecipe {
   tags: string[];
 }
 
-interface AIResponseNutritionItem {
+export interface AIResponseNutritionItem {
   description: string;
   type?: string;
   frequency?: number;
@@ -133,14 +133,30 @@ interface AIResponseNutritionItem {
     frequency?: string;
     duration?: string;
     equipment?: string[];
+    // Campos adicionales para nutrición cetogénica terapéutica
+    macros?: {
+      protein?: string;
+      fat?: string;
+      carbs?: string;
+      ratio?: string; // Ej: "75% grasa, 20% proteína, 5% carbos"
+    };
+    calories?: number;
+    metabolicPurpose?: string; // Explicación breve del propósito metabólico
+    // Campos adicionales para entrenamiento físico inteligente
+    sets?: number;
+    repetitions?: string; // Puede ser un rango "8-12"
+    timeUnderTension?: string;
+    progression?: string; // Progresión de carga o intensidad
   };
 }
+
+
 
 export class AIService {
   private static config: AIConfig = {
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
     temperature: 0.7,
-    maxTokens: 12000, // Aumentado para deepseek-reasoner
+    maxTokens: 30000, // Aumentado significativamente para planes de 12 semanas
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
   };
@@ -195,6 +211,148 @@ export class AIService {
   }
 
   /**
+   * Busca recetas similares en la base de datos antes de crear una nueva
+   * @param description Descripción/título de la receta
+   * @param recipeDetails Detalles de la receta (ingredientes, preparación, etc.)
+   * @returns ID de receta similar o null si no se encuentra
+   */
+  private static async findSimilarRecipe(
+    description: string,
+    recipeDetails: AIResponseNutritionItem['details']
+  ): Promise<string | null> {
+    try {
+      const collection = await getRecipesCollection();
+      
+      // Validar recipeDetails
+      if (!recipeDetails) return null;
+      
+      // Limpiar título para búsqueda
+      let title = description;
+      const mealPrefixMatch = description.match(/^(Desayuno|Almuerzo|Cena|Merienda|Snack|Breakfast|Lunch|Dinner|Snack):\s*/i);
+      if (mealPrefixMatch) {
+        title = description.substring(mealPrefixMatch[0].length).trim();
+      }
+      
+      // Extraer ingredientes de la receta
+      const recipe = recipeDetails.recipe;
+      if (!recipe || !recipe.ingredients) {
+        return null;
+      }
+      
+      const ingredientNames = recipe.ingredients.map((ing: any) => 
+        (ing.name || '').toLowerCase().trim()
+      ).filter((name: string) => name.length > 0);
+      
+      // 1. Búsqueda por título usando texto completo
+      const titleSearch = await collection
+        .find(
+          { $text: { $search: title } },
+          { projection: { score: { $meta: "textScore" }, _id: 1 } }
+        )
+        .sort({ score: { $meta: "textScore" } })
+        .limit(5)
+        .toArray();
+      
+      // Si hay coincidencia fuerte en título (score > 2), usarla
+      if (titleSearch.length > 0 && titleSearch[0].score > 2) {
+        logger.debug('AI_SERVICE', 'Receta similar encontrada por título', {
+          title,
+          score: titleSearch[0].score,
+          recipeId: titleSearch[0]._id.toString()
+        });
+        return titleSearch[0]._id.toString();
+      }
+      
+      // 2. Búsqueda por ingredientes principales (primeros 3 ingredientes)
+      if (ingredientNames.length > 0) {
+        const mainIngredients = ingredientNames.slice(0, 3);
+        
+        // Buscar recetas que contengan estos ingredientes en el campo ingredients
+        const ingredientQueries = mainIngredients.map((ingredient: string) => ({
+          ingredients: { $regex: ingredient, $options: 'i' }
+        }));
+        
+        const ingredientSearch = await collection
+          .find({
+            $or: ingredientQueries
+          })
+          .limit(5)
+          .toArray();
+        
+        // Si encontramos recetas con al menos 2 ingredientes principales en común
+        if (ingredientSearch.length > 0) {
+          // Calcular similitud más precisa
+          for (const recipeDoc of ingredientSearch) {
+            const encryptedIngredients = Array.isArray(recipeDoc.ingredients) 
+              ? recipeDoc.ingredients 
+              : [];
+            
+            const decryptedIngredients = encryptedIngredients.map((ing: string) => 
+              safeDecrypt(ing).toLowerCase()
+            );
+            
+            // Contar ingredientes en común
+            const commonIngredients = ingredientNames.filter((ing: string) => 
+              decryptedIngredients.some((decrypted: string) => decrypted.includes(ing) || ing.includes(decrypted))
+            );
+            
+            // Si al menos 2 ingredientes principales coinciden
+            if (commonIngredients.length >= Math.min(2, ingredientNames.length)) {
+              logger.debug('AI_SERVICE', 'Receta similar encontrada por ingredientes', {
+                title,
+                commonIngredients,
+                recipeId: recipeDoc._id.toString()
+              });
+              return recipeDoc._id.toString();
+            }
+          }
+        }
+      }
+      
+      // 3. Búsqueda por autor "AI-NelHealthCoach" con título similar (sin prefijo)
+      const authorEncrypted = encrypt('AI-NelHealthCoach');
+      const authorSearch = await collection
+        .find({
+          author: authorEncrypted,
+          $text: { $search: title }
+        })
+        .limit(3)
+        .toArray();
+      
+      if (authorSearch.length > 0) {
+        // Verificar similitud de título después de desencriptar
+        for (const recipeDoc of authorSearch) {
+          const decryptedTitle = safeDecrypt(recipeDoc.title);
+          // Comparación simple de palabras clave
+          const titleWords = title.toLowerCase().split(/\s+/);
+          const decryptedWords = decryptedTitle.toLowerCase().split(/\s+/);
+          
+          const commonWords = titleWords.filter(word => 
+            decryptedWords.some(dw => dw.includes(word) || word.includes(dw))
+          );
+          
+          // Si al menos 2 palabras clave coinciden
+          if (commonWords.length >= Math.min(2, titleWords.length)) {
+            logger.debug('AI_SERVICE', 'Receta AI similar encontrada', {
+              title,
+              decryptedTitle,
+              recipeId: recipeDoc._id.toString()
+            });
+            return recipeDoc._id.toString();
+          }
+        }
+      }
+      
+      logger.debug('AI_SERVICE', 'No se encontraron recetas similares', { title });
+      return null;
+      
+    } catch (error) {
+      logger.error('AI_SERVICE', 'Error buscando recetas similares', error);
+      return null;
+    }
+  }
+
+  /**
    * Analiza los datos del cliente y genera recomendaciones
    */
   static async analyzeClientAndGenerateRecommendations(
@@ -204,8 +362,20 @@ export class AIService {
   ): Promise<AIRecommendationSession> {
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
-    return loggerWithContext.time('AI_SERVICE', metadata?.isRegeneration ? '🔄 Regenerando recomendaciones' : '🚀 Generando recomendaciones', async () => {
+
     
+    return loggerWithContext.time('AI_SERVICE', metadata?.isRegeneration ? '🔄 Regenerando recomendaciones' : '🚀 Generando recomendaciones', async () => {
+        let totalWeeksToGenerate = 12; // Todas las nuevas sesiones son de 12 semanas (3 meses)
+        
+        // Si es regeneración, usar el total de semanas de la sesión anterior
+        if (metadata?.isRegeneration && metadata.previousSessionId && input.previousSessions) {
+          const previousSession = input.previousSessions.find(s => s.sessionId === metadata.previousSessionId);
+          if (previousSession?.totalWeeks) {
+            totalWeeksToGenerate = previousSession.totalWeeks;
+            console.log('=== DEBUG: Regeneración - usando totalWeeks de sesión anterior:', totalWeeksToGenerate);
+          }
+        }
+        
       try {
         
         console.log('=== DEBUG: ' + (metadata?.isRegeneration ? 'REGENERACIÓN' : 'GENERACIÓN') + ' de recomendaciones ===');
@@ -228,7 +398,7 @@ export class AIService {
         });
 
         // Preparar prompt optimizado
-        const prompt = this.buildAnalysisPrompt(input, monthNumber);
+        const prompt = this.buildAnalysisPrompt(input, monthNumber, totalWeeksToGenerate);
         
         loggerWithContext.debug('AI_SERVICE', 'Prompt construido para IA', {
           model: this.config.model,
@@ -243,9 +413,9 @@ export class AIService {
         try {
           aiResponse = await this.callDeepSeekAPI(prompt, metadata);
         } catch (apiError: any) {
-          console.log('=== DEBUG: Error en API, usando fallback ===');
-          console.log('Error:', apiError.message);
-          return this.getFallbackRecommendations(input, monthNumber, metadata);
+           console.log('=== DEBUG: Error en API, usando fallback ===');
+           console.log('Error:', apiError.message);
+            return this.getFallbackRecommendations(input, monthNumber, metadata, totalWeeksToGenerate);
         }
 
         // Validar respuesta
@@ -257,9 +427,9 @@ export class AIService {
         try {
           parsedResponse = this.parseAIResponse(aiResponse, metadata);
         } catch (parseError: any) {
-          console.log('=== DEBUG: Error parseando respuesta, usando fallback ===');
-          loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', parseError);
-          return this.getFallbackRecommendations(input, monthNumber, metadata);
+           console.log('=== DEBUG: Error parseando respuesta, usando fallback ===');
+           loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', parseError);
+             return this.getFallbackRecommendations(input, monthNumber, metadata, totalWeeksToGenerate);
         }
 
         // Validar estructura
@@ -276,6 +446,7 @@ export class AIService {
         const groupMapping: Record<string, string> = {}; // clave: "categoria_indice" -> groupId
         const allChecklistItems: ChecklistItem[] = [];
         const weeks: AIRecommendationWeek[] = [];
+        const savedRecipeIds = new Map<string, string>(); // description -> recipeId (para recetas generadas por IA)
 
         // Función auxiliar para obtener o crear groupId
         const getOrCreateGroupId = (category: string, index: number): string => {
@@ -289,16 +460,33 @@ export class AIService {
         // Primera pasada: recorrer semanas para construir el checklist y también las semanas (sin items)
         for (let weekIndex = 0; weekIndex < parsedResponse.weeks.length; weekIndex++) {
           const weekResp = parsedResponse.weeks[weekIndex];
-          const weekNumber = (weekResp.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4;
+           const weekNumber = (weekResp.weekNumber || (weekIndex + 1)) as AIRecommendationWeek['weekNumber'];
 
           // ---- Nutrición ----
           if (weekResp.nutrition?.checklistItems && Array.isArray(weekResp.nutrition.checklistItems)) {
-            (weekResp.nutrition.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+            // Usar for loop para permitir await y evitar problemas de iteración
+            for (let itemIndex = 0; itemIndex < weekResp.nutrition.checklistItems.length; itemIndex++) {
+              const item = weekResp.nutrition.checklistItems[itemIndex];
               const groupId = getOrCreateGroupId('nutrition', itemIndex);
-              // Verificar si hay receta en BD
+              
+              // Determinar recipeId: si ya tiene uno, usarlo; si no, guardar receta generada por IA
               let recipeId = item.recipeId;
-              // Podríamos buscar receta aquí también, pero para simplificar, lo dejamos como está
-              // (ya se buscará después si se desea)
+              
+              // Si el item tiene detalles de receta pero no recipeId, guardar en BD
+              if (item.details?.recipe && !recipeId) {
+                const description = item.description || '';
+                // Verificar si ya guardamos una receta con esta descripción (para evitar duplicados en la misma generación)
+                if (savedRecipeIds.has(description)) {
+                  recipeId = savedRecipeIds.get(description)!;
+                } else {
+                  // Guardar receta generada por IA
+                  const savedRecipeId = await this.saveAIRecipe(item.details, description);
+                  if (savedRecipeId) {
+                    recipeId = savedRecipeId;
+                    savedRecipeIds.set(description, recipeId);
+                  }
+                }
+              }
 
               allChecklistItems.push({
                 id: `nutrition_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -309,24 +497,33 @@ export class AIService {
                 category: 'nutrition',
                 type: item.type || 'meal',
                 frequency: item.frequency || 1,
-                recipeId: item.recipeId,
-                details: item.details ? {
-                  recipe: item.details.recipe ? {
-                    ingredients: (item.details.recipe.ingredients || []).map((ing: any) => ({
-                      name: encrypt(ing.name || ''),
-                      quantity: encrypt(ing.quantity || ''),
-                      notes: ing.notes ? encrypt(ing.notes) : undefined
-                    })),
-                    preparation: encrypt(item.details.recipe.preparation || ''),
-                    tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined
-                  } : undefined,
-                  frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
-                  duration: item.details.duration ? encrypt(item.details.duration) : undefined,
-                  equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
-                } : undefined,
+                recipeId,
+                details: item.details ? (() => {
+                  const { recipe, frequency, duration, equipment, ...additional } = item.details;
+                  const detailsObj: any = {};
+                  if (recipe) {
+                    detailsObj.recipe = {
+                      ingredients: (recipe.ingredients || []).map((ing: any) => ({
+                        name: encrypt(ing.name || ''),
+                        quantity: encrypt(ing.quantity || ''),
+                        notes: ing.notes ? encrypt(ing.notes) : undefined
+                      })),
+                      preparation: encrypt(recipe.preparation || ''),
+                      tips: recipe.tips ? encrypt(recipe.tips) : undefined
+                    };
+                  }
+                  if (frequency) detailsObj.frequency = encrypt(frequency);
+                  if (duration) detailsObj.duration = encrypt(duration);
+                  if (equipment) detailsObj.equipment = equipment.map((eq: string) => encrypt(eq));
+                  // Campos adicionales (macros, calories, metabolicPurpose, sets, repetitions, etc.)
+                  if (Object.keys(additional).length > 0) {
+                    detailsObj.additionalDetails = encrypt(JSON.stringify(additional));
+                  }
+                  return detailsObj;
+                })() : undefined,
                 isRecurring: true
               });
-            });
+            }
           }
 
           // ---- Ejercicio ----
@@ -341,11 +538,18 @@ export class AIService {
                 weekNumber,
                 category: 'exercise',
                 type: item.type || 'routine',
-                details: item.details ? {
-                  frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
-                  duration: item.details.duration ? encrypt(item.details.duration) : undefined,
-                  equipment: item.details.equipment?.map((eq: string) => encrypt(eq))
-                } : undefined,
+                details: item.details ? (() => {
+                  const { frequency, duration, equipment, ...additional } = item.details;
+                  const detailsObj: any = {};
+                  if (frequency) detailsObj.frequency = encrypt(frequency);
+                  if (duration) detailsObj.duration = encrypt(duration);
+                  if (equipment) detailsObj.equipment = equipment.map((eq: string) => encrypt(eq));
+                  // Campos adicionales (sets, repetitions, timeUnderTension, progression, etc.)
+                  if (Object.keys(additional).length > 0) {
+                    detailsObj.additionalDetails = encrypt(JSON.stringify(additional));
+                  }
+                  return detailsObj;
+                })() : undefined,
                 isRecurring: true
               });
             });
@@ -397,6 +601,8 @@ export class AIService {
 
         console.log('=== DEBUG: Creando sesión completa ===');
         
+        // totalWeeksToGenerate ya definida al inicio de la función (12 semanas para nuevas sesiones)
+        
         // Crear sesión
         const sessionId = metadata?.isRegeneration 
           ? `regen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -405,6 +611,7 @@ export class AIService {
         const session: AIRecommendationSession = {
           sessionId,
           monthNumber,
+          totalWeeks: totalWeeksToGenerate,
           createdAt: new Date(),
           updatedAt: new Date(),
           status: 'draft',
@@ -451,74 +658,96 @@ export class AIService {
           hasDocuments: input.documents?.length || 0
         });
         
-        return this.getFallbackRecommendations(input, monthNumber, metadata);
+        return this.getFallbackRecommendations(input, monthNumber, metadata, totalWeeksToGenerate);
       }
     });
   }
 
   /**
-   * Construye el prompt optimizado para DeepSeek
+   * Construye el prompt optimizado para DeepSeek (experto multidisciplinario en salud integral)
    */
-  private static buildAnalysisPrompt(input: AIAnalysisInput, monthNumber: number): string {
-    // (Este método no cambia, lo dejamos igual que antes)
-    const { personalData, medicalData, documents, previousSessions, currentProgress, coachNotes } = input;
-    
-    // Extraer información crítica del cliente (optimizado)
-    const clientName = this.safeDecryptString(personalData.name) || 'cliente';
-    const clientAge = this.safeDecryptString(personalData.age) || 'no especificada';
-    const clientWeight = personalData.weight ? parseFloat(this.safeDecryptString(personalData.weight)) : null;
-    const clientHeight = personalData.height ? parseFloat(this.safeDecryptString(personalData.height)) : null;
-    const bmi = clientWeight && clientHeight ? (clientWeight / ((clientHeight/100) ** 2)).toFixed(1) : null;
-    
-    // Calcular nivel de experiencia
-    const experienceLevel = this.calculateExperienceLevel(previousSessions, currentProgress);
+    private static buildAnalysisPrompt(input: AIAnalysisInput, monthNumber: number, totalWeeks: number = 12): string {
+     const { personalData, medicalData, documents, previousSessions, currentProgress, coachNotes } = input;
+     
+     // Extraer información crítica del cliente (optimizado)
+     const clientName = this.safeDecryptString(personalData.name) || 'cliente';
+     const clientAge = this.safeDecryptString(personalData.age) || 'no especificada';
+     const clientWeight = personalData.weight ? parseFloat(this.safeDecryptString(personalData.weight)) : null;
+     const clientHeight = personalData.height ? parseFloat(this.safeDecryptString(personalData.height)) : null;
+     const bmi = clientWeight && clientHeight ? (clientWeight / ((clientHeight/100) ** 2)).toFixed(1) : null;
+     
+     // Calcular nivel de experiencia
+     const experienceLevel = this.calculateExperienceLevel(previousSessions, currentProgress);
+     
+      // Determinar si generamos plan completo de 12 semanas (todas las nuevas sesiones son 12 semanas)
+      const isFull12WeekPlan = totalWeeks === 12;
+      const startWeek = 1; // Siempre comenzar desde semana 1 para la sesión actual
+      const endWeek = totalWeeks; // Terminar en el total de semanas
     
     // ===== SISTEMA Y ROL =====
-    const systemRole = `Eres un coach médico especializado en dieta keto (75% grasa, 20% proteína, 5% carbos), medicina funcional y formación de hábitos. Crea un plan de 4 semanas progresivo para ${clientName}.`;
+    const systemRole = `Eres experto en nutrición keto terapéutica y ejercicio inteligente. Crea un plan de 12 semanas (3 meses) para ${clientName} (nivel: ${experienceLevel}). Incluye:
+1. NUTRICIÓN KETO TERAPÉUTICA: Elimina azúcar, alcohol, gluten, procesados. Prioriza alimentos orgánicos. 3 comidas/día. Incluye macros, calorías y propósito metabólico.
+2. EJERCICIO INTELIGENTE: Miércoles, sábado, domingo. Incluye sets, repeticiones, progresión.
+3. HÁBITOS: 1-2 hábitos semanales (adoptar/eliminar).
 
-    // ===== REGLAS ABSOLUTAS (estructura JSON obligatoria) =====
+Genera 12 semanas detalladas con progresión clara.`;
+
+    // ===== REGLAS ABSOLUTAS =====
     const absoluteRules = `REGLAS:
-1. Devuelve SOLO JSON válido
-2. Estructura: {summary, vision, baselineMetrics, weeks}
-3. Usa español siempre`;
+1. SOLO JSON: {summary, vision, baselineMetrics, weeks}
+2. Español. Descripciones concisas (≤50-100 chars según nivel).
+3. Campos obligatorios:
+   • Nutrición: macros (protein, fat, carbs, ratio), calories, metabolicPurpose.
+   • Ejercicio: sets, repetitions, timeUnderTension, progression.
+   • Hábitos: type: 'toAdopt' o 'toEliminate'.
+4. Usa nombres de recetas existentes: "Omelette espinacas queso", "Salmón horneado verduras", "Ensalada aguacate pollo".`;
 
-    // ===== ADAPTACIONES POR NIVEL DE EXPERIENCIA =====
-    // ===== ADAPTACIONES POR NIVEL DE EXPERIENCIA =====
-    let levelAdaptations = `NIVEL: ${experienceLevel.toUpperCase()}`;
+    // ===== ADAPTACIONES POR NIVEL =====
+    const levelConfigs = {
+      principiante: {
+        enfoque: 'Fundamentos keto, hábitos básicos, ejercicio sencillo',
+        progresion: '1 nuevo item/semana',
+        dieta: 'Keto estándar (75%G/20%P/5%C)',
+        descMax: '50 chars',
+        recetaMaxIng: '5 ingredientes',
+        ejercicio: 'Cuerpo libre, caminatas, movilidad',
+        habitos: 'Hidratación, sueño, exposición solar'
+      },
+      intermedio: {
+        enfoque: 'Refinamiento técnico, variedad ejercicios',
+        progresion: '2-4 items/semana, variar preparaciones',
+        dieta: 'Keto + posible ciclado carbos (1-2 días/semana)',
+        descMax: '75 chars',
+        recetaMaxIng: '7 ingredientes',
+        ejercicio: 'Pesos, intervalos, movilidad avanzada',
+        habitos: 'Gestión estrés, planificación comidas'
+      },
+      avanzado: {
+        enfoque: 'Optimización avanzada, periodización',
+        progresion: '3-4 items/semana, intensidad máxima',
+        dieta: 'Keto dirigida, ayuno intermitente opcional',
+        descMax: '100 chars',
+        recetaMaxIng: '10 ingredientes',
+        ejercicio: 'Fuerza avanzada, HIIT, recuperación',
+        habitos: 'Meditación, diario gratitud, gestión tiempo'
+      }
+    };
+    
+    const config = levelConfigs[experienceLevel];
+    const levelAdaptations = `NIVEL: ${experienceLevel.toUpperCase()}
+• Enfoque: ${config.enfoque}
+• Progresión: ${config.progresion}
+• Dieta: ${config.dieta}
+• Descripciones: ≤${config.descMax}, recetas: ≤${config.recetaMaxIng}
+• Ejercicio: ${config.ejercicio}
+• Hábitos: ${config.habitos}`;
 
-    if (experienceLevel === 'principiante') {
-      levelAdaptations += `
-• Enfoque: Fundamentos keto, hábitos básicos, ejercicio sencillo
-• Progresión: Semana 1:1 alimento+ejercicio+hábito. Semana 2:2, Semana 3:3, Semana 4:4 (1 nuevo cada semana)
-• Dieta: Keto estándar (75% grasa, 20% proteína, 5% carbos)
-• Longitud: Descripciones ≤50 chars, recetas ≤5 ingredientes`;
-    } else if (experienceLevel === 'intermedio') {
-      levelAdaptations += `
-• Enfoque: Refinamiento técnico, variedad ejercicios, hábitos complejos
-• Progresión: Semana 1:2, Semana 2:3, Semana 3:4, Semana 4: variar preparaciones/aumentar intensidad
-• Dieta: Keto con posible ciclado carbohidratos (1-2 días/semana)
-• Longitud: Descripciones ≤75 chars, recetas ≤7 ingredientes`;
-    } else { // avanzado
-      levelAdaptations += `
-• Enfoque: Optimización avanzada, periodización, técnicas especializadas
-• Progresión: Semana 1:3, Semana 2:4, Semana 3: variar macros/complejidad, Semana 4: intensidad máxima
-• Dieta: Keto dirigida, ayuno intermitente opcional, ajuste fino macros
-• Longitud: Descripciones ≤100 chars, recetas ≤10 ingredientes`;
-    }
-
-    levelAdaptations += `
-
-CONSIDERACIONES:
-• Nutrición: Adaptar si cliente ya está en keto
-• Ejercicio: Adaptar complejidad según nivel, equipamiento, limitaciones físicas
-• Hábitos: Priorizar hábitos según nivel (básicos → complejos → alto impacto)
-• Estilo vida: Considerar horarios, quién cocina, comer fuera, hobbies`;
-
-    // ===== INFORMACIÓN CRÍTICA DEL CLIENTE (formato conciso) =====
-    const clientInfo = `CLIENTE: ${clientName}, ${clientAge} años${clientWeight ? `, ${clientWeight}kg` : ''}${clientHeight ? `, ${clientHeight}cm` : ''}${bmi ? ` (IMC: ${bmi})` : ''}
-OCUPACIÓN: ${this.safeDecryptString(personalData.occupation) || 'No especificada'}
-UBICACIÓN: ${this.safeDecryptString(personalData.address) || 'No especificada'}
-NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
+    // ===== INFORMACIÓN CLIENTE =====
+    const clientInfo = `${clientName}, ${clientAge}a${clientWeight ? `, ${clientWeight}kg` : ''}${clientHeight ? `, ${clientHeight}cm` : ''}${bmi ? ` (IMC:${bmi})` : ''}
+Ocupación: ${this.safeDecryptString(personalData.occupation) || 'N/A'}
+Ubicación: ${this.safeDecryptString(personalData.address) || 'N/A'}
+Nivel: ${experienceLevel}
+Plan: ${isFull12WeekPlan ? '12 semanas (3 meses) completo' : `Mes ${monthNumber} (semanas ${startWeek}-${endWeek})`}`;
 
     // ===== DATOS MÉDICOS ESENCIALES =====
     const medicalInfo = this.formatMedicalDataConcise(medicalData);
@@ -540,7 +769,7 @@ NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
       ).slice(0, 2); // Solo 2 documentos máximo
       
       if (relevantDocs.length > 0) {
-        docsInfo = '\nDOCUMENTOS MÉDICOS:';
+        docsInfo = '\n📄 DOCUMENTOS MÉDICOS (análisis e interpretación):';
         relevantDocs.forEach((doc, i) => {
           docsInfo += `\n${i+1}. ${doc.title || 'Documento'}: `;
           // Extraer solo puntos clave (primeros 300 chars)
@@ -548,6 +777,7 @@ NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
           const keyPoints = content.split(/[.!?]/).slice(0, 3).join('. ');
           docsInfo += keyPoints.substring(0, 150) + (keyPoints.length > 150 ? '...' : '');
         });
+        docsInfo += '\n• Proporciona interpretación clara y recomendaciones específicas basadas en estos documentos.';
       }
     }
 
@@ -555,7 +785,7 @@ NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
     let historyInfo = '';
     if (previousSessions && previousSessions.length > 0) {
       const lastSession = previousSessions[previousSessions.length - 1];
-      historyInfo = `\nSESIÓN ANTERIOR (Mes ${lastSession.monthNumber}):`;
+      historyInfo = `\n📊 SESIÓN ANTERIOR (Mes ${lastSession.monthNumber}):`;
       
       // Progreso general
       if (lastSession.checklist) {
@@ -586,79 +816,85 @@ NIVEL EXPERIENCIA: ${experienceLevel.toUpperCase()} (basado en historial)`;
     // ===== CONTEXTO ACTUAL =====
     let contextInfo = '';
     if (currentProgress) {
-      contextInfo = `\nProgreso actual: ${currentProgress.overallProgress || 0}%`;
+      contextInfo = `\n📈 Progreso actual: ${currentProgress.overallProgress || 0}%`;
       if (currentProgress.metrics) {
-        contextInfo += `\nMétricas: N${currentProgress.metrics.nutritionAdherence || 0}% ` +
-                     `E${currentProgress.metrics.exerciseConsistency || 0}% ` +
-                     `H${currentProgress.metrics.habitFormation || 0}%`;
+        contextInfo += `\n📊 Métricas: Nutrición ${currentProgress.metrics.nutritionAdherence || 0}% ` +
+                     `| Ejercicio ${currentProgress.metrics.exerciseConsistency || 0}% ` +
+                     `| Hábitos ${currentProgress.metrics.habitFormation || 0}%`;
       }
     }
 
     // ===== NOTAS DEL COACH =====
     let notesInfo = '';
     if (coachNotes && coachNotes.trim().length > 10) {
-      notesInfo = `\nNotas coach: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
+      notesInfo = `\n🗒️ Notas del coach: ${coachNotes.substring(0, 150)}${coachNotes.length > 150 ? '...' : ''}`;
     }
 
-    // ===== ESQUEMA DE RESPUESTA =====
-    const responseSchema = `\nESTRUCTURA JSON:
+    // ===== ESQUEMA JSON =====
+    const responseSchema = `\n🎯 JSON (estructura mínima):
 {
-  "summary": "Resumen conciso del estado actual del cliente",
-  "vision": "Resultados esperados tras 4 semanas",
+  "summary": "Resumen estado cliente",
+  "vision": "Resultados esperados tras ${isFull12WeekPlan ? '12 semanas' : '4 semanas'}",
   "baselineMetrics": {
-    "currentLifestyle": ["hábito1", "hábito2", "hábito3"],
-    "targetLifestyle": ["objetivo1", "objetivo2", "objetivo3"]
+    "currentLifestyle": ["hábito1", "hábito2"],
+    "targetLifestyle": ["objetivo1", "objetivo2"]
   },
-  "weeks": [
-    {
-      "weekNumber": 1,
-      "nutrition": {
-        "focus": "Enfoque nutricional semana",
-        "checklistItems": [
-          {
-            "description": "Alimento/receta específica",
-            "type": "breakfast/lunch/dinner/snack",
-            "frequency": 3
-          }
-        ]
-      },
-      "exercise": {
-        "focus": "Enfoque ejercicio semana",
-        "checklistItems": [
-          {
-            "description": "Ejercicio específico",
-            "type": "cardio/strength/flexibility",
-            "details": {
-              "frequency": "veces por semana",
-              "duration": "duración",
-              "equipment": ["equipo necesario"]
-            }
-          }
-        ]
-      },
-      "habits": {
-        "checklistItems": [
-          {
-            "description": "Hábito a adoptar",
-            "type": "toAdopt"
+  "weeks": [{
+    "weekNumber": ${startWeek}, // Genera ${totalWeeks} semanas
+    "nutrition": {
+      "focus": "Enfoque nutricional semana",
+      "checklistItems": [{
+        "description": "Receta o alimento",
+        "type": "breakfast/lunch/dinner/snack",
+        "frequency": 3,
+        "details": {
+          "recipe": {
+            "ingredients": [{"name": "ingrediente", "quantity": "cantidad"}],
+            "preparation": "Instrucciones",
+            "tips": "Consejos"
           },
-          {
-            "description": "Hábito a eliminar",
-            "type": "toEliminate"
-          }
-        ]
-      }
+          "macros": {"protein": "XXg", "fat": "XXg", "carbs": "XXg", "ratio": "75%G/20%P/5%C"},
+          "calories": 500,
+          "metabolicPurpose": "Propósito metabólico"
+        }
+      }],
+      "shoppingList": [{"item": "ingrediente", "quantity": "cantidad", "priority": "high/medium/low"}]
+    },
+    "exercise": {
+      "focus": "Enfoque ejercicio",
+      "checklistItems": [{
+        "description": "Ejercicio específico",
+        "type": "strength/cardio/flexibility",
+        "details": {
+          "frequency": "veces/semana",
+          "duration": "duración",
+          "equipment": ["equipo"],
+          "sets": 3,
+          "repetitions": "8-12",
+          "timeUnderTension": "30-40s",
+          "progression": "Progresión siguiente semana"
+        }
+      }]
+    },
+    "habits": {
+      "checklistItems": [
+        {"description": "Hábito adoptar", "type": "toAdopt"},
+        {"description": "Hábito eliminar", "type": "toEliminate"}
+      ],
+      "trackingMethod": "Método seguimiento",
+      "motivationTip": "Consejo motivación"
     }
-  ]
+  }]
 }`;
 
   // ===== CONSIDERACIONES ESPECÍFICAS =====
-  const specificConsiderations = `\nConsiderar:
+  const specificConsiderations = `\n🔍 CONSIDERACIONES ESPECÍFICAS:
 ${medicalData.allergies ? `• Alergias: ${this.safeDecryptString(medicalData.allergies)}` : '• Sin alergias'}
 ${medicalData.medications ? `• Medicamentos: ${this.safeDecryptString(medicalData.medications)}` : '• Sin medicamentos'}
 ${medicalData.mainComplaint ? `• Queja principal: ${this.safeDecryptString(medicalData.mainComplaint)}` : ''}
 ${medicalData.surgeries ? `• Cirugías: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
-${personalData.occupation ? `• Impacto ocupación: ${this.safeDecryptString(personalData.occupation)}` : ''}`;
+${personalData.occupation ? `• Impacto ocupación: ${this.safeDecryptString(personalData.occupation)}` : ''}
+• Base de datos de recetas: El sistema tiene una base de datos de recetas cetogénicas. Sugiere nombres de recetas que puedan coincidir (ej: "Omelette de espinacas y queso", "Salmón al horno con verduras", "Ensalada de aguacate y pollo").`;
 
   // ===== CONSTRUCCIÓN DEL PROMPT FINAL =====
   const prompt = `${systemRole}
@@ -667,44 +903,31 @@ ${absoluteRules}
 
 ${levelAdaptations}
 
- ${clientInfo}
- ${medicalInfo}
- ${lifestyleAndObjectives}
- ${healthAssessmentInsights}
- ${mentalHealthInsights}
- ${docsInfo}
- ${historyInfo}
- ${contextInfo}
- ${notesInfo}
- ${specificConsiderations}
+${clientInfo}
+${medicalInfo}
+${lifestyleAndObjectives}
+${healthAssessmentInsights}
+${mentalHealthInsights}
+${docsInfo}
+${historyInfo}
+${contextInfo}
+${notesInfo}
+${specificConsiderations}
 
 ${responseSchema}
 
-INSTRUCCIÓN: Genera un plan realista, personalizado y progresivo adaptado al nivel ${experienceLevel}.
+📋 INSTRUCCIONES FINALES:
+• Genera un plan realista, personalizado y progresivo adaptado al nivel ${experienceLevel}${isFull12WeekPlan ? ' para el plan completo de 12 semanas' : ` y mes ${monthNumber}`}.
+• Considerar limitaciones físicas, nivel actividad actual, horarios, quién cocina, acceso alimentos.
+• Alimentos accesibles en ${this.safeDecryptString(personalData.address) || 'la ubicación del cliente'}.
+• Ejercicio: Si cliente ya realiza actividad regularmente, NO repetirla. Recomendar actividades complementarias.
+• Hábitos: Priorizar hábitos que aborden evaluaciones de salud positivas e insights de salud mental.
+• Cada recomendación debe tener conexión clara con datos del cliente. Evitar genéricos.
+• ¡Sorprende con creatividad, detalles y un enfoque integral! Usa colores mentalmente (pero solo JSON).
 
-Considerar:
-- Limitaciones físicas, nivel actividad actual, horarios, quién cocina, acceso alimentos
-- Alimentos accesibles en ${this.safeDecryptString(personalData.address) || 'la ubicación del cliente'}
+🚀 DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
 
-EJERCICIO:
-1. Si cliente ya realiza actividad regularmente, NO repetirla. Recomendar actividades complementarias:
-   • Si hace cardio → fuerza, flexibilidad, equilibrio
-   • Si hace fuerza → cardio ligero, movilidad, recuperación activa
-   • Considerar limitaciones físicas y equipamiento disponible
-2. Progresión gradual según nivel ${experienceLevel}
-3. Variedad de tipos (cardio, fuerza, flexibilidad, equilibrio) en 4 semanas
-
-HÁBITOS:
-1. Priorizar hábitos que aborden evaluaciones de salud positivas (ver insights)
-2. Priorizar hábitos que aborden insights de salud mental (ver arriba)
-3. Adaptar hábitos a estilo de vida del cliente (horarios, responsabilidades)
-4. Progresión: hábitos simples → complejos según nivel ${experienceLevel}
-
-EN GENERAL: Cada recomendación debe tener conexión clara con datos del cliente. Evitar genéricos.
-
-DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
-
-  console.log('📝 Prompt optimizado - Longitud:', prompt.length);
+  console.log('📝 Prompt optimizado (experto multidisciplinario) - Longitud:', prompt.length);
   const estimatedTokens = Math.ceil(prompt.length / 4);
   console.log('📝 Tokens estimados:', estimatedTokens);
   console.log('🤖 Modelo configurado:', this.config.model);
@@ -715,7 +938,7 @@ DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
   }
   
   return prompt;
-}
+  }
 
   /**
    * Calcula el peso ideal basado en altura y género
@@ -1128,7 +1351,8 @@ DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
   private static getFallbackRecommendations(
     input: AIAnalysisInput, 
     monthNumber: number,
-    metadata?: { requestId?: string; clientId?: string }
+    metadata?: { requestId?: string; clientId?: string },
+    totalWeeks: number = 4
   ): AIRecommendationSession {
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
@@ -1151,7 +1375,7 @@ DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
     const idealBodyFat = this.calculateIdealBodyFat(clientAge.toString(), decryptedPersonal.gender || '');
     
     // Crear semanas de fallback (sin checklistItems en las semanas)
-    const weeks = this.createFallbackWeeks();
+    const weeks = this.createFallbackWeeks(totalWeeks);
     
     // Crear checklist plano de fallback (con groupIds)
     const allChecklistItems: ChecklistItem[] = [];
@@ -1165,9 +1389,9 @@ DEVUELVE SOLO JSON, SIN TEXTO ADICIONAL.`;
       return groupMapping[key];
     };
 
-    // Simulamos 4 semanas con items adaptados al nivel
-    for (let weekNumber = 1; weekNumber <= 4; weekNumber++) {
-      const w = weekNumber as 1 | 2 | 3 | 4;
+    // Simulamos semanas con items adaptados al nivel
+    for (let weekNumber = 1; weekNumber <= totalWeeks; weekNumber++) {
+      const w = weekNumber as AIRecommendationWeek['weekNumber'];
       let itemCount = weekNumber; // Base
       if (experienceLevel === 'intermedio') {
         itemCount = Math.min(4, weekNumber + 1); // 2,3,4,4
@@ -1301,6 +1525,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     const session: AIRecommendationSession = {
       sessionId,
       monthNumber,
+      totalWeeks,
       createdAt: new Date(),
       updatedAt: new Date(),
       status: 'draft',
@@ -1326,11 +1551,11 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   /**
    * Crear semanas de fallback (solo metadatos)
    */
-  private static createFallbackWeeks(): AIRecommendationWeek[] {
+  private static createFallbackWeeks(totalWeeks: number = 4): AIRecommendationWeek[] {
     const weeks: AIRecommendationWeek[] = [];
     
-    for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
-      const weekNumber = (weekIndex + 1) as 1 | 2 | 3 | 4;
+    for (let weekIndex = 0; weekIndex < totalWeeks; weekIndex++) {
+      const weekNumber = (weekIndex + 1) as AIRecommendationWeek['weekNumber'];
       
       weeks.push({
         weekNumber,
@@ -2235,5 +2460,159 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     }
 
     return result.sort((a, b) => a.item.localeCompare(b.item));
+  }
+
+  /**
+   * Guarda una receta generada por IA en la base de datos
+   * @param recipeDetails Detalles de la receta desde AIResponseNutritionItem.details
+   * @param description Descripción del item (puede usarse como título)
+   * @returns ID de la receta guardada o null si falla
+   */
+  private static async saveAIRecipe(
+    recipeDetails: AIResponseNutritionItem['details'],
+    description: string
+  ): Promise<string | null> {
+    try {
+      const collection = await getRecipesCollection();
+      
+      // 1. Buscar receta similar antes de crear nueva
+      const similarRecipeId = await this.findSimilarRecipe(description, recipeDetails);
+      if (similarRecipeId) {
+        logger.info('AI_SERVICE', 'Receta similar encontrada, usando existente', {
+          recipeId: similarRecipeId,
+          description
+        });
+        return similarRecipeId;
+      }
+      
+      // Extraer información de la receta
+      if (!recipeDetails) {
+        logger.warn('AI_SERVICE', 'recipeDetails es undefined, no se guarda receta', { description });
+        return null;
+      }
+      const recipe = recipeDetails.recipe;
+      if (!recipe || !recipe.ingredients || !recipe.preparation) {
+        logger.warn('AI_SERVICE', 'Receta incompleta, no se guarda', { description });
+        return null;
+      }
+
+      // Título: usar description o generar uno
+      let title = description;
+      // Limpiar título (quitar prefijo como "Desayuno:", "Almuerzo:", etc.)
+      const mealPrefixMatch = description.match(/^(Desayuno|Almuerzo|Cena|Merienda|Snack|Breakfast|Lunch|Dinner|Snack):\s*/i);
+      if (mealPrefixMatch) {
+        title = description.substring(mealPrefixMatch[0].length).trim();
+      }
+      if (title.length > 100) title = title.substring(0, 100);
+
+      // Ingredientes: convertir array de objetos a strings
+      const ingredients = recipe.ingredients.map((ing: any) => {
+        let str = `${ing.name || 'Ingrediente'}: ${ing.quantity || 'al gusto'}`;
+        if (ing.notes && ing.notes.trim()) {
+          str += ` (${ing.notes})`;
+        }
+        return str;
+      });
+
+      // Instrucciones: separar por puntos o saltos de línea
+      const preparation = recipe.preparation || '';
+      const instructions = preparation
+        .split(/[.!?]+/)
+        .filter((s: string) => s.trim().length > 5)
+        .map((s: string) => s.trim() + '.');
+      if (instructions.length === 0) {
+        instructions.push(preparation.trim());
+      }
+
+      // Nutrición: extraer macros y calorías
+      const macros = recipeDetails.macros || {};
+      const calories = recipeDetails.calories || 0;
+      
+      // Parsear valores numéricos de macros (ej. "20g" -> 20)
+      const parseMacro = (macroStr: string | undefined): number => {
+        if (!macroStr || typeof macroStr !== 'string') return 0;
+        const match = macroStr.match(/(\d+(?:\.\d+)?)/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+
+      const nutrition = {
+        protein: parseMacro(macros.protein),
+        carbs: parseMacro(macros.carbs),
+        fat: parseMacro(macros.fat),
+        calories: typeof calories === 'number' ? calories : parseFloat(calories) || 0
+      };
+
+      // Calcular tiempo de cocina aproximado basado en preparación (default 30 min)
+      let cookTime = 30;
+      const prepLower = preparation.toLowerCase();
+      if (prepLower.includes('rápido') || prepLower.includes('quick') || prepLower.includes('5 min') || prepLower.includes('10 min')) {
+        cookTime = 15;
+      } else if (prepLower.includes('horno') || prepLower.includes('slow') || prepLower.includes('lento') || prepLower.includes('60 min')) {
+        cookTime = 60;
+      }
+
+      // Dificultad estimada
+      let difficulty = 'medium';
+      if (ingredients.length <= 3 && preparation.length < 100) {
+        difficulty = 'easy';
+      } else if (ingredients.length > 6 || prepLower.includes('complej') || prepLower.includes('advanced')) {
+        difficulty = 'hard';
+      }
+
+      // Categorías y tags
+      const category = ['keto', 'AI-generated'];
+      const tags = ['ai-generated', 'keto', 'health'];
+      // Añadir etiquetas basadas en descripción
+      if (description.toLowerCase().includes('desayuno') || description.toLowerCase().includes('breakfast')) {
+        tags.push('breakfast');
+      } else if (description.toLowerCase().includes('almuerzo') || description.toLowerCase().includes('lunch')) {
+        tags.push('lunch');
+      } else if (description.toLowerCase().includes('cena') || description.toLowerCase().includes('dinner')) {
+        tags.push('dinner');
+      } else if (description.toLowerCase().includes('snack') || description.toLowerCase().includes('merienda')) {
+        tags.push('snack');
+      }
+
+      // Construir objeto de receta encriptado
+      const encryptedRecipeData: any = {
+        title: encrypt(title),
+        description: encrypt(recipe.tips ? `${preparation}\n\nConsejo: ${recipe.tips}` : preparation),
+        category: category.map((cat: string) => encrypt(cat)),
+        ingredients: ingredients.map((ing: string) => encrypt(ing)),
+        instructions: instructions.map((inst: string) => encrypt(inst)),
+        nutrition,
+        cookTime,
+        difficulty: encrypt(difficulty),
+        author: encrypt('AI-NelHealthCoach'),
+        isPublished: true,
+        tags: tags.map((tag: string) => encrypt(tag)),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        image: {
+          url: '',
+          key: '',
+          name: '',
+          type: '',
+          size: 0,
+          uploadedAt: new Date().toISOString()
+        }
+      };
+
+      // Insertar en BD
+      const result = await collection.insertOne(encryptedRecipeData);
+      const recipeId = result.insertedId.toString();
+
+      logger.info('AI_SERVICE', 'Receta generada por IA guardada exitosamente', {
+        recipeId,
+        title,
+        ingredientsCount: ingredients.length
+      });
+
+      return recipeId;
+
+    } catch (error: any) {
+      logger.error('AI_SERVICE', 'Error guardando receta generada por IA', error);
+      return null;
+    }
   }
 }

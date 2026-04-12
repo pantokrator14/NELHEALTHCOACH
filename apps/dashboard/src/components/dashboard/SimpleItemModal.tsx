@@ -29,7 +29,7 @@ const SimpleItemModal: React.FC<SimpleItemModalProps> = ({
   const [duration, setDuration] = useState(initialData?.details?.duration || '');
   const [frequency, setFrequency] = useState(initialData?.details?.frequency || '');
   const [equipment, setEquipment] = useState(initialData?.details?.equipment?.join(', ') || '');
-  const [isRecurring, setIsRecurring] = useState(false);
+  const isRecurring = false;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

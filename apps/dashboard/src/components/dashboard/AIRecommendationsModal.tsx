@@ -45,7 +45,7 @@ interface OldWeekStructure {
 }
 
 interface AIRecommendationWeek {
-  weekNumber: 1 | 2 | 3 | 4;
+  weekNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   nutrition: {
     focus: string;
     shoppingList: Array<{ item: string; quantity: string; priority: 'high' | 'medium' | 'low' }>;
@@ -77,6 +77,7 @@ interface RegenerationHistoryItem {
 interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
+  totalWeeks?: number; // Número total de semanas en el plan (4 para 1 mes, 12 para 3 meses)
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent';
@@ -225,8 +226,9 @@ export default function AIRecommendationsModal({
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   
   // ===== ESTADOS DE NAVEGACIÓN =====
-  const [activeMonthTab, setActiveMonthTab] = useState<number>(1);
+
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]);
+  const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   
   // ===== ESTADOS DE FORMULARIOS =====
   const [showNewEvaluationForm, setShowNewEvaluationForm] = useState(false);
@@ -267,7 +269,7 @@ export default function AIRecommendationsModal({
   const [showAIRecipeEditModal, setShowAIRecipeEditModal] = useState(false);
   const [loadingShoppingList, setLoadingShoppingList] = useState<Record<number, boolean>>({});
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [showUploadForm, setShowUploadForm] = useState(false);
+
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // ===== FUNCIONES AUXILIARES =====
@@ -280,7 +282,7 @@ export default function AIRecommendationsModal({
       // Caso 1: Ya tiene estructura nueva (sin checklistItems)
       if (typedWeek.nutrition && !('checklistItems' in typedWeek.nutrition)) {
         return {
-          weekNumber: typedWeek.weekNumber || (weekIndex + 1) as 1 | 2 | 3 | 4,
+          weekNumber: typedWeek.weekNumber || (weekIndex + 1) as AIRecommendationWeek['weekNumber'],
           nutrition: {
             focus: typedWeek.nutrition?.focus || 'Nutrición keto',
             shoppingList: typedWeek.nutrition?.shoppingList || [] // ¡Conservamos shoppingList!
@@ -299,7 +301,7 @@ export default function AIRecommendationsModal({
       // Caso 2: Estructura antigua, extraemos solo metadatos
       const oldWeek = week as OldWeekStructure;
       return {
-        weekNumber: (oldWeek.weekNumber || (weekIndex + 1)) as 1 | 2 | 3 | 4,
+        weekNumber: (oldWeek.weekNumber || (weekIndex + 1)) as AIRecommendationWeek['weekNumber'],
         nutrition: {
           focus: oldWeek.nutrition?.focus || 'Nutrición keto',
           shoppingList: [] // Las viejas no tienen shoppingList
@@ -323,19 +325,20 @@ export default function AIRecommendationsModal({
       const updatedAt = session.updatedAt ? new Date(session.updatedAt) : createdAt;
       // Convertimos las semanas a la nueva estructura (sin checklistItems)
       const weeks = session.weeks ? convertToNewStructure(session.weeks) : [];
-      return {
-        sessionId: session.sessionId,
-        monthNumber: session.monthNumber || 1,
-        createdAt,
-        updatedAt,
-        status: session.status || 'draft',
-        summary: session.summary || '',
-        vision: session.vision || '',
-        baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
-        weeks,
-        checklist: session.checklist || [],
-        emailSent: false
-      };
+       return {
+         sessionId: session.sessionId,
+         monthNumber: session.monthNumber || 1,
+         totalWeeks: (session as { totalWeeks?: number }).totalWeeks || 4,
+         createdAt,
+         updatedAt,
+         status: session.status || 'draft',
+         summary: session.summary || '',
+         vision: session.vision || '',
+         baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
+         weeks,
+         checklist: session.checklist || [],
+         emailSent: false
+       };
     });
     return {
       clientId: apiData.clientId || clientId,
@@ -363,7 +366,7 @@ export default function AIRecommendationsModal({
         const firstSession = aiProgress.sessions[0];
         if (!activeSessionId) {
           setActiveSessionId(firstSession.sessionId);
-          setActiveMonthTab(firstSession.monthNumber);
+
         }
         return firstSession;
       }
@@ -371,6 +374,53 @@ export default function AIRecommendationsModal({
     }
     return aiProgress.sessions.find(s => s.sessionId === activeSessionId) || null;
   }, [aiProgress, activeSessionId]);
+
+  const sessionTabs = useMemo(() => {
+    if (!aiProgress?.sessions) return [];
+    return aiProgress.sessions.map((session, index) => ({
+      sessionId: session.sessionId,
+      label: `Sesión ${index + 1}`,
+      sessionNumber: index + 1,
+      monthNumber: session.monthNumber,
+      totalWeeks: session.totalWeeks || 4,
+    }));
+  }, [aiProgress]);
+
+  const sessionMonths = useMemo(() => {
+    if (!activeSession) return [];
+    const months = [];
+    if (activeSession.totalWeeks === 12) {
+      // 12-week session: divide into 3 months
+      for (let month = 1; month <= 3; month++) {
+        const startWeek = (month - 1) * 4 + 1;
+        const endWeek = month * 4;
+        const weeks = activeSession.weeks
+          .map((week, originalIndex) => ({ week, originalIndex }))
+          .filter(({ week }) => week.weekNumber >= startWeek && week.weekNumber <= endWeek);
+        months.push({
+          monthNumber: month,
+          label: `Mes ${month}`,
+          weeks,
+          startWeek,
+          endWeek,
+        });
+      }
+    } else {
+      // 4-week session: single month
+      const startWeek = activeSession.weeks[0]?.weekNumber || 1;
+      const endWeek = activeSession.weeks[activeSession.weeks.length - 1]?.weekNumber || activeSession.weeks.length;
+      months.push({
+        monthNumber: activeSession.monthNumber,
+        label: `Mes ${activeSession.monthNumber}`,
+        weeks: activeSession.weeks.map((week, originalIndex) => ({ week, originalIndex })),
+        startWeek,
+        endWeek,
+      });
+    }
+    return months;
+  }, [activeSession]);
+
+
 
   // ===== MANEJADORES DE DATOS =====
   const loadAIProgress = useCallback(async () => {
@@ -384,11 +434,11 @@ export default function AIRecommendationsModal({
           if (progress.sessions && progress.sessions.length > 0) {
             if (!activeSessionId && progress.currentSessionId) {
               setActiveSessionId(progress.currentSessionId);
-              const session = progress.sessions.find(s => s.sessionId === progress.currentSessionId);
-              if (session) setActiveMonthTab(session.monthNumber);
+
+
             } else if (!activeSessionId) {
               setActiveSessionId(progress.sessions[0].sessionId);
-              setActiveMonthTab(progress.sessions[0].monthNumber);
+
             }
           }
         } else {
@@ -429,14 +479,16 @@ export default function AIRecommendationsModal({
     loadAIProgress();
   }, [loadAIProgress]);
 
+  // useEffect removed - month tabs replaced with session tabs
+  // activeMonthTab now represents month within active session (1,2,3) for 12-week plans
+
+  // Expand first month when session changes
   useEffect(() => {
-    if (aiProgress?.sessions && activeMonthTab) {
-      const sessionForMonth = aiProgress.sessions.find(s => s.monthNumber === activeMonthTab);
-      if (sessionForMonth && sessionForMonth.sessionId !== activeSessionId) {
-        setActiveSessionId(sessionForMonth.sessionId);
-      }
+    if (activeSession && sessionMonths.length > 0) {
+      const firstMonthId = `${activeSession.sessionId}_month_${sessionMonths[0].monthNumber}`;
+      setExpandedMonths(prev => prev.includes(firstMonthId) ? prev : [...prev, firstMonthId]);
     }
-  }, [aiProgress, activeMonthTab, activeSessionId]);
+  }, [activeSession, sessionMonths]);
 
   // ===== MANEJADORES DE CHECKLIST (CON SINCRONIZACIÓN POST-OPERACIÓN) =====
   const handleChecklistChange = useCallback(async (sessionId: string, itemId: string, completed: boolean) => {
@@ -1041,19 +1093,29 @@ export default function AIRecommendationsModal({
   }, [handleFileUpload]);
 
   // ===== MANEJADORES DE UI =====
-  const handleChangeMonthTab = useCallback((monthNumber: number) => {
-    setActiveMonthTab(monthNumber);
-    const sessionForMonth = aiProgress?.sessions?.find(s => s.monthNumber === monthNumber);
-    if (sessionForMonth) setActiveSessionId(sessionForMonth.sessionId);
-  }, [aiProgress?.sessions]);
+  const handleChangeMonthTab = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+  }, []);
 
   const toggleWeekExpansion = useCallback((weekIndex: number) => {
     setExpandedWeeks(prev => prev.includes(weekIndex) ? prev.filter(w => w !== weekIndex) : [...prev, weekIndex]);
   }, []);
 
   const toggleAllWeeks = useCallback(() => {
-    setExpandedWeeks(prev => prev.length === 4 ? [] : [0, 1, 2, 3]);
+    if (!activeSession) return;
+    const weekCount = activeSession.weeks.length;
+    setExpandedWeeks(prev => prev.length === weekCount ? [] : Array.from({ length: weekCount }, (_, i) => i));
+  }, [activeSession]);
+
+  const toggleMonthExpansion = useCallback((monthId: string) => {
+    setExpandedMonths(prev => prev.includes(monthId) ? prev.filter(id => id !== monthId) : [...prev, monthId]);
   }, []);
+
+  const toggleAllMonths = useCallback(() => {
+    if (!activeSession) return;
+    const monthIds = sessionMonths.map(month => `${activeSession.sessionId}_month_${month.monthNumber}`);
+    setExpandedMonths(prev => prev.length === monthIds.length ? [] : monthIds);
+  }, [activeSession, sessionMonths]);
 
   const toggleShoppingList = useCallback(async (weekId: string, weekNumber: number, sessionId: string) => {
     
@@ -1178,6 +1240,34 @@ export default function AIRecommendationsModal({
                       <p className="text-sm text-gray-600 break-words text-justify">{item.details.recipe.tips}</p>
                     </div>
                   )}
+                  {(item.details.macros || item.details.calories || item.details.metabolicPurpose) && (
+                    <div className="mt-3 pt-3 border-t border-yellow-300">
+                      <h6 className="text-sm font-medium text-gray-700 mb-2">📊 Información Nutricional:</h6>
+                      {item.details.macros && (
+                        <div className="mb-2">
+                          <span className="text-sm font-medium text-gray-700">Macros:</span>
+                          <div className="grid grid-cols-2 gap-1 mt-1">
+                            {item.details.macros.protein && <span className="text-sm text-gray-600">Proteína: {item.details.macros.protein}</span>}
+                            {item.details.macros.fat && <span className="text-sm text-gray-600">Grasas: {item.details.macros.fat}</span>}
+                            {item.details.macros.carbs && <span className="text-sm text-gray-600">Carbos: {item.details.macros.carbs}</span>}
+                            {item.details.macros.ratio && <span className="text-sm text-gray-600 col-span-2">Ratio: {item.details.macros.ratio}</span>}
+                          </div>
+                        </div>
+                      )}
+                      {item.details.calories && (
+                        <div className="mb-2">
+                          <span className="text-sm font-medium text-gray-700">Calorías:</span>
+                          <span className="text-sm text-gray-600 ml-2">{item.details.calories} kcal</span>
+                        </div>
+                      )}
+                      {item.details.metabolicPurpose && (
+                        <div className="mb-2">
+                          <span className="text-sm font-medium text-gray-700">Propósito metabólico:</span>
+                          <p className="text-sm text-gray-600 mt-1">{item.details.metabolicPurpose}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1204,6 +1294,37 @@ export default function AIRecommendationsModal({
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
                         <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">⏱️</span> Duración:</span>
                         <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.duration}</span>
+                      </div>
+                    )}
+                    {(item.details.sets || item.details.repetitions || item.details.timeUnderTension || item.details.progression) && (
+                      <div className="text-sm text-gray-700">
+                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🏋️</span> Detalles de ejercicio:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-6 sm:ml-8">
+                          {item.details.sets && (
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-gray-600">Series</span>
+                              <span className="text-sm text-gray-800">{item.details.sets}</span>
+                            </div>
+                          )}
+                          {item.details.repetitions && (
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-gray-600">Repeticiones</span>
+                              <span className="text-sm text-gray-800">{item.details.repetitions}</span>
+                            </div>
+                          )}
+                          {item.details.timeUnderTension && (
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-gray-600">Tiempo bajo tensión</span>
+                              <span className="text-sm text-gray-800">{item.details.timeUnderTension}</span>
+                            </div>
+                          )}
+                          {item.details.progression && (
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-gray-600">Progresión</span>
+                              <span className="text-sm text-gray-800">{item.details.progression}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     {item.details.equipment && item.details.equipment.length > 0 && (
@@ -1448,6 +1569,9 @@ export default function AIRecommendationsModal({
   }
 
   const cumulativeProgress = calculateCumulativeProgress();
+  const activeSessionNumber = aiProgress?.sessions && activeSessionId 
+    ? aiProgress.sessions.findIndex(s => s.sessionId === activeSessionId) + 1 
+    : 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -1483,14 +1607,23 @@ export default function AIRecommendationsModal({
         {aiProgress && aiProgress.sessions.length > 0 && (
           <div className="border-b border-green-200 bg-white">
             <div className="flex space-x-1 px-6 overflow-x-auto">
-              {aiProgress.sessions.sort((a, b) => a.monthNumber - b.monthNumber).map(session => (
-                <button key={session.sessionId} onClick={() => handleChangeMonthTab(session.monthNumber)} className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${activeSessionId === session.sessionId ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-green-600'}`}>
-                  Mes {session.monthNumber}
-                  <span className={`ml-2 text-xs px-2 py-1 rounded-full ${session.status === 'approved' ? 'bg-green-100 text-green-800' : session.status === 'sent' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                    {session.status === 'draft' ? 'Borrador' : session.status === 'approved' ? 'Aprobado' : 'Enviado'}
-                  </span>
-                </button>
-              ))}
+               {sessionTabs.map(tab => {
+                 const session = aiProgress.sessions.find(s => s.sessionId === tab.sessionId);
+                 if (!session) return null;
+                 const isActive = activeSessionId === tab.sessionId;
+                 return (
+                   <button 
+                     key={`${tab.sessionId}`}
+                      onClick={() => handleChangeMonthTab(tab.sessionId)}
+                     className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-green-600'}`}
+                   >
+                     {tab.label}
+                     <span className={`ml-2 text-xs px-2 py-1 rounded-full ${session.status === 'approved' ? 'bg-green-100 text-green-800' : session.status === 'sent' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                       {session.status === 'draft' ? 'Borrador' : session.status === 'approved' ? 'Aprobado' : 'Enviado'}
+                     </span>
+                   </button>
+                 );
+               })}
             </div>
           </div>
         )}
@@ -1515,7 +1648,7 @@ export default function AIRecommendationsModal({
                <p className="text-gray-500 text-sm mt-4">Formatos aceptados: .txt (texto plano), .json (estructura de sesión AI), .doc/.docx (documento Word) o .pdf (documento PDF)</p>
             </div>
           ) : !activeSession ? (
-            <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión del mes {activeMonthTab}</p></div>
+             <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión seleccionada</p></div>
           ) : (
             <div className="space-y-6">
 
@@ -1627,17 +1760,50 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
 
-              {/* Semanas */}
+              {/* Semanas agrupadas por meses */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between"><h3 className="text-xl font-bold text-green-700">📅 Plan Semanal</h3><button onClick={toggleAllWeeks} className="text-sm text-green-600 hover:text-green-800">{expandedWeeks.length === 4 ? 'Contraer todas' : 'Expandir todas'}</button></div>
-                {activeSession.weeks.map((week, weekIndex) => renderWeek(week, weekIndex, activeSession.sessionId, activeSession))}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-green-700">📅 Plan Semanal</h3>
+                  <div className="flex gap-2">
+                    <button onClick={toggleAllMonths} className="text-sm text-green-600 hover:text-green-800">
+                      {expandedMonths.length === sessionMonths.length ? 'Contraer todos los meses' : 'Expandir todos los meses'}
+                    </button>
+                    <button onClick={toggleAllWeeks} className="text-sm text-blue-600 hover:text-blue-800">
+                      {expandedWeeks.length === activeSession.weeks.length ? 'Contraer todas las semanas' : 'Expandir todas las semanas'}
+                    </button>
+                  </div>
+                </div>
+                {sessionMonths.map(month => {
+                  const monthId = `${activeSession.sessionId}_month_${month.monthNumber}`;
+                  const isMonthExpanded = expandedMonths.includes(monthId);
+                  return (
+                    <div key={monthId} className="bg-white rounded-xl border border-green-300 overflow-hidden">
+                      <div 
+                        className="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-b border-green-300 cursor-pointer hover:from-green-200 transition-colors flex justify-between items-center"
+                        onClick={() => toggleMonthExpansion(monthId)}
+                      >
+                        <h4 className="font-bold text-green-800 text-lg">{month.label} (Semanas {month.startWeek}-{month.endWeek})</h4>
+                        <button className="text-green-700 p-1 hover:bg-green-300 rounded-full transition-colors">
+                          <svg className={`w-6 h-6 transform transition-transform ${isMonthExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
+                      {isMonthExpanded && (
+                        <div className="p-4 space-y-4">
+                          {month.weeks.map(({ week, originalIndex }) => renderWeek(week, originalIndex, activeSession.sessionId, activeSession))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {showNewEvaluationForm && (
             <div className="bg-white rounded-xl p-6 border border-green-200 shadow-sm mt-6">
-              <h3 className="text-xl font-bold text-green-700 mb-4">Nueva Evaluación - Mes {aiProgress ? aiProgress.sessions.length + 1 : 1}</h3>
+               <h3 className="text-xl font-bold text-green-700 mb-4">Nueva Evaluación - Sesión {aiProgress ? aiProgress.sessions.length + 1 : 1}</h3>
               <div className="space-y-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">Notas para la IA (opcional)</label><textarea value={coachNotes} onChange={(e) => setCoachNotes(e.target.value)} rows={3} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Agrega observaciones específicas..." /></div>
                 <div className="flex items-center"><input type="checkbox" id="reprocessDocuments" checked={reprocessDocuments} onChange={(e) => setReprocessDocuments(e.target.checked)} className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500" /><label htmlFor="reprocessDocuments" className="ml-2 text-sm text-gray-700">Reprocesar documentos médicos con IA</label></div>
@@ -1658,7 +1824,7 @@ export default function AIRecommendationsModal({
                   <div className="flex items-center"><span className="text-sm text-gray-500">Estado: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                     {activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
                   </span></div>
-                  <span className="text-sm text-gray-500 md:ml-4">Mes {activeSession.monthNumber} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
+                   <span className="text-sm text-gray-500 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
                 </div>
               ) : <span className="text-sm text-gray-500">Sin sesiones activas</span>}
               <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">

@@ -11,7 +11,7 @@ interface Stats {
 }
 
 export default function Dashboard() {
-  const [coachName, setCoachName] = useState('Manuel')
+  const coachName = 'Manuel'
   const [stats, setStats] = useState<Stats>({ clientCount: 0, recipeCount: 0, nearGoalPercentage: 0 })
   const [loading, setLoading] = useState(true)
   const router = useRouter()

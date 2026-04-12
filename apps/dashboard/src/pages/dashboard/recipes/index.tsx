@@ -7,7 +7,7 @@ import RecipeDetailModal from '../../../components/dashboard/RecipeDetailModal';
 import RecipeFilters, { FilterState, SortOption } from '../../../components/dashboard/RecipeFilters';
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/api';
-import { Recipe, RecipeFormData } from '../../../../../../packages/types/src/recipe-types';
+import { Recipe } from '../../../../../../packages/types/src/recipe-types';
 
 const RecipesPage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -204,9 +204,7 @@ const RecipesPage = () => {
     }
   };
 
-  const handleRecipesReload = async () => {
-    await loadRecipes();
-  };
+
 
 
   const handleDeleteRecipe = async () => {
