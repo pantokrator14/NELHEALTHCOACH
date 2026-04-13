@@ -9,6 +9,7 @@ import { AIService } from '@/app/lib/ai-service';
 import { TextractService } from '@/app/lib/textract';
 import { ChecklistItem } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
+import { inngest } from '@/app/inngest/client';
 
 function decryptAISessionCompletely(session: any): any {
   try {
@@ -60,11 +61,11 @@ function decryptAISessionCompletely(session: any): any {
   } catch (error) {
     console.error('❌ Error desencriptando sesión completa:', error);
     logger.error('AI', 'Error desencriptando sesión completa', error);
-    
+
     // Corrección: Crear error correctamente
     const errorObj = new Error('Error desencriptando sesión completa');
     logger.error('AI', 'Error desencriptando sesión completa', errorObj);
-    
+
     // Fallback: intentar desencriptar lo básico
     return {
       ...session,
@@ -83,7 +84,7 @@ export async function GET(
 ) {
   const { id } = await params;
   const requestId = crypto.randomUUID();
-  
+
   const loggerWithContext = logger.withContext({
     requestId,
     clientId: id,
@@ -94,7 +95,7 @@ export async function GET(
   return loggerWithContext.time('AI', 'Obtener recomendaciones IA', async () => {
     try {
       loggerWithContext.info('AI', 'Iniciando obtención de progreso de IA');
-      
+
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
       requireAuth(token);
 
@@ -116,7 +117,7 @@ export async function GET(
 
       // Devolver progreso de IA si existe
       const aiProgress = client.aiProgress;
-      
+
       if (!aiProgress) {
         loggerWithContext.info('AI', 'Cliente sin progreso de IA');
         return NextResponse.json({
@@ -135,7 +136,7 @@ export async function GET(
       });
 
       // Desencriptar sesiones si es necesario
-      const decryptedSessions = aiProgress.sessions?.map((session: any) => 
+      const decryptedSessions = aiProgress.sessions?.map((session: any) =>
         decryptAISessionCompletely(session)
       ) || [];
 
@@ -158,13 +159,13 @@ export async function GET(
     } catch (error: any) {
       // Corrección: Usar error directamente
       loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', error);
-      
+
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
           requestId,
-          ...(process.env.NODE_ENV === 'development' && { 
+          ...(process.env.NODE_ENV === 'development' && {
             error: error.message
           })
         },
@@ -181,7 +182,7 @@ export async function POST(
 ) {
   const { id } = await params;
   const requestId = crypto.randomUUID();
-  
+
   const loggerWithContext = logger.withContext({
     requestId,
     clientId: id,
@@ -192,7 +193,7 @@ export async function POST(
   return loggerWithContext.time('AI', 'Generar recomendaciones IA', async () => {
     try {
       loggerWithContext.info('AI', 'Iniciando generación de recomendaciones IA');
-      
+
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
       requireAuth(token);
 
@@ -214,7 +215,7 @@ export async function POST(
       }
 
       const { monthNumber = 1, reprocessDocuments = false, coachNotes = '' } = body;
-      
+
       loggerWithContext.info('AI', 'Parámetros procesados', {
         monthNumber,
         reprocessDocuments,
@@ -247,7 +248,7 @@ export async function POST(
 
       // 2. Preparar datos para la IA
       const aiInput = await prepareAIInput(client, requestId);
-      
+
       // 3. Agregar notas del coach si las hay
       if (coachNotes) {
         aiInput.coachNotes = coachNotes;
@@ -259,124 +260,147 @@ export async function POST(
         aiInput.currentProgress = client.aiProgress;
       }
 
-      // 5. Generar recomendaciones con la IA
-      loggerWithContext.info('AI', 'Llamando a servicio de IA');
-      const recommendations = await AIService.analyzeClientAndGenerateRecommendations(
-        aiInput, 
-        monthNumber,
-        { requestId, clientId: id }
-      );
+      // 5. Enviar evento a Inngest para procesamiento asíncrono
+      loggerWithContext.info('AI', 'Enviando evento a Inngest para procesamiento asíncrono');
 
-      loggerWithContext.debug('AI', 'Recomendaciones generadas', {
-        sessionId: recommendations.sessionId,
-        weekCount: recommendations.weeks.length,
-        summaryLength: recommendations.summary?.length || 0
-      });
+      const jobId = `recommendations_${id}_${monthNumber}_${Date.now()}`;
 
-      // 6. Actualizar el cliente con las nuevas recomendaciones
-      const updateData: any = {
-        $set: {
-          updatedAt: new Date()
-        }
-      };
-
-      // Verificar si ya existe una sesión para este mes
-      const existingSessionIndex = client.aiProgress?.sessions?.findIndex(
-        (s: any) => s.monthNumber === monthNumber
-      );
-
-      loggerWithContext.debug('AI', 'Buscando sesión existente', {
-        monthNumber,
-        hasAIProgress: !!client.aiProgress,
-        sessionsCount: client.aiProgress?.sessions?.length || 0,
-        existingSessionIndex
-      });
-
-      if (!client.aiProgress || existingSessionIndex === -1) {
-        // Primera vez para este mes: crear estructura
-        updateData.$set['aiProgress'] = {
-          clientId: id,
-          currentSessionId: recommendations.sessionId,
-          sessions: [recommendations],
-          overallProgress: 0,
-          lastEvaluation: new Date(),
-          nextEvaluation: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          metrics: {
-            nutritionAdherence: 0,
-            exerciseConsistency: 0,
-            habitFormation: 0
-          }
-        };
-        
-        loggerWithContext.info('AI', 'Creando nueva sesión para mes', { monthNumber });
-      } else {
-        // ✅ REEMPLAZAR la sesión existente para este mes
-        const updatedSessions = [...client.aiProgress.sessions];
-        
-        // Mantener el mismo sessionId si estamos regenerando?
-        // O crear uno nuevo? Vamos a mantener el mes pero nuevo ID
-        updatedSessions[existingSessionIndex] = recommendations;
-        
-        updateData.$set['aiProgress.sessions'] = updatedSessions;
-        updateData.$set['aiProgress.currentSessionId'] = recommendations.sessionId;
-        updateData.$set['aiProgress.lastEvaluation'] = new Date();
-        updateData.$set['aiProgress.nextEvaluation'] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        
-        loggerWithContext.info('AI', 'Reemplazando sesión existente', {
-          monthNumber,
-          oldSessionId: client.aiProgress.sessions[existingSessionIndex].sessionId,
-          newSessionId: recommendations.sessionId
+      try {
+        await inngest.send({
+          name: 'ai.recommendations.requested',
+          id: jobId,
+          data: {
+            clientId: id,
+            monthNumber,
+            coachNotes: coachNotes,
+            maxRevisions: 2,
+          },
         });
-      }
 
-      const result = await healthForms.updateOne(
-        { _id: new ObjectId(id) },
-        updateData
-      );
-
-      loggerWithContext.debug('AI', 'Resultado de actualización en BD', {
-        matchedCount: result.matchedCount,
-        modifiedCount: result.modifiedCount,
-        upsertedCount: result.upsertedCount
-      });
-
-      if (result.modifiedCount === 0 && result.upsertedCount === 0) {
-        loggerWithContext.error('AI', 'No se pudo guardar las recomendaciones en BD');
-        throw new Error('No se pudo guardar las recomendaciones en la base de datos');
-      }
-
-      loggerWithContext.info('AI', 'Recomendaciones de IA guardadas exitosamente', {
-        sessionId: recommendations.sessionId,
-        monthNumber
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          sessionId: recommendations.sessionId,
+        loggerWithContext.info('AI', 'Evento enviado exitosamente a Inngest', {
+          jobId,
+          clientId: id,
           monthNumber,
-          summary: recommendations.summary, // Ya desencriptado en ai-service
-          vision: recommendations.vision,   // Ya desencriptado en ai-service
-          weekCount: recommendations.weeks.length,
-          weeks: recommendations.weeks,     // Ya desencriptado en ai-service
-          requestId
-        }
-      });
+        });
 
-    } catch (error: any) {
-      loggerWithContext.error('AI', 'Error generando recomendaciones IA', error);
-      
+        // Retornar 202 Accepted con información del job
+        return NextResponse.json({
+          success: true,
+          data: {
+            jobId,
+            status: 'queued',
+            message: 'Recomendaciones en proceso. El resultado estará disponible pronto.',
+            clientId: id,
+            monthNumber,
+            requestId,
+          },
+        }, { status: 202 });
+      } catch (inngestError) {
+        loggerWithContext.error('AI', 'Error enviando evento a Inngest, usando fallback directo', inngestError as Error);
+
+        // Fallback: ejecutar AIService directamente si Inngest falla
+        loggerWithContext.warn('AI', 'Ejecutando AIService como fallback');
+        const recommendations = await AIService.analyzeClientAndGenerateRecommendations(
+          aiInput,
+          monthNumber,
+          { requestId, clientId: id }
+        );
+
+        return saveAndReturnRecommendations(
+          recommendations as unknown as Record<string, unknown>,
+          healthForms,
+          id,
+          monthNumber,
+          requestId,
+          loggerWithContext,
+          client
+        );
+      }
+
+    } catch (error: unknown) {
+      const errorObj = error instanceof Error ? error : new Error('Unknown error');
+      loggerWithContext.error('AI', 'Error generando recomendaciones IA', errorObj);
+
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error generando recomendaciones',
           requestId,
-          ...(process.env.NODE_ENV === 'development' && { 
-            error: error.message
+          ...(process.env.NODE_ENV === 'development' && {
+            error: errorObj.message
           })
         },
         { status: 500 }
       );
+    }
+  });
+}
+
+/**
+ * Helper function to save and return recommendations (used as fallback).
+ */
+async function saveAndReturnRecommendations(
+  recommendations: Record<string, unknown>,
+  healthForms: ReturnType<typeof getHealthFormsCollection> extends Promise<infer T> ? T : never,
+  clientId: string,
+  monthNumber: number,
+  requestId: string,
+  loggerWithContext: ReturnType<typeof logger.withContext>,
+  client: Record<string, unknown>
+): Promise<NextResponse> {
+  const updateData: Record<string, unknown> = {
+    $set: {
+      updatedAt: new Date()
+    }
+  };
+
+  const aiProgress = client.aiProgress as { sessions?: Array<Record<string, unknown>> } | undefined;
+  const sessions = aiProgress?.sessions ?? [];
+  const existingSessionIndex = sessions.findIndex((s: Record<string, unknown>) => s.monthNumber === monthNumber);
+
+  if (!aiProgress || existingSessionIndex === -1) {
+    (updateData.$set as Record<string, unknown>)['aiProgress'] = {
+      clientId,
+      currentSessionId: recommendations.sessionId,
+      sessions: [recommendations],
+      overallProgress: 0,
+      lastEvaluation: new Date(),
+      nextEvaluation: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      metrics: {
+        nutritionAdherence: 0,
+        exerciseConsistency: 0,
+        habitFormation: 0
+      }
+    };
+  } else {
+    const updatedSessions = [...sessions];
+    updatedSessions[existingSessionIndex] = recommendations;
+    (updateData.$set as Record<string, unknown>)['aiProgress.sessions'] = updatedSessions;
+    (updateData.$set as Record<string, unknown>)['aiProgress.currentSessionId'] = recommendations.sessionId;
+    (updateData.$set as Record<string, unknown>)['aiProgress.lastEvaluation'] = new Date();
+    (updateData.$set as Record<string, unknown>)['aiProgress.nextEvaluation'] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+
+  const collection = await healthForms;
+  const result = await collection.updateOne(
+    { _id: new ObjectId(clientId) },
+    updateData
+  );
+
+  if (result.modifiedCount === 0 && result.upsertedCount === 0) {
+    throw new Error('No se pudo guardar las recomendaciones en la base de datos');
+  }
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      sessionId: recommendations.sessionId,
+      monthNumber,
+      summary: recommendations.summary,
+      vision: recommendations.vision,
+      weekCount: (recommendations.weeks as Array<unknown>)?.length ?? 0,
+      weeks: recommendations.weeks,
+      requestId
     }
   });
 }
@@ -388,7 +412,7 @@ export async function PUT(
 ) {
   const { id } = await params;
   const requestId = crypto.randomUUID();
-  
+
   const loggerWithContext = logger.withContext({
     requestId,
     clientId: id,
@@ -398,18 +422,18 @@ export async function PUT(
 
   return loggerWithContext.time('AI', 'Actualizar recomendaciones IA', async () => {
     let requestBody = null;
-    
+
     try {
       loggerWithContext.info('AI', 'Actualizando recomendaciones IA');
-      
+
       const token = request.headers.get('authorization')?.replace('Bearer ', '');
       requireAuth(token);
 
       requestBody = await request.json();
       console.log('📦 Body recibido en PUT:', requestBody);
-      
+
       const { action, sessionId, data } = requestBody;
-      
+
       loggerWithContext.info('AI', 'Parámetros de actualización', {
         action,
         sessionId,
@@ -436,11 +460,11 @@ export async function PUT(
             sessionId,
             checklistItemsCount: data?.checklistItems?.length || 0
           });
-          
+
           // ✅ Directamente retornamos aquí, no necesitamos almacenar el resultado
           const updateChecklistResult = await updateChecklist(id, sessionId, data.checklistItems, requestId);
           return NextResponse.json(updateChecklistResult);
-        
+
         case 'update_session_fields':
           console.log('📝 UPDATE_SESSION_FIELDS: Iniciando...', {
             sessionId,
@@ -465,7 +489,7 @@ export async function PUT(
 
           try {
             operationResult = await approveSession(id, sessionId, requestId);
-            
+
             if (!operationResult) {
               // ✅ CORRECCIÓN: Crear un error correctamente
               const error = new Error('Falló la aprobación de sesión');
@@ -473,28 +497,28 @@ export async function PUT(
               (error as any).sessionId = sessionId;
               (error as any).possibleReasons = [
                 'Sesión no encontrada',
-                'Sesión no está en estado draft', 
+                'Sesión no está en estado draft',
                 'Cliente no encontrado'
               ];
-              
+
               loggerWithContext.error('AI', 'Falló la aprobación de sesión', error);
-              
+
               return NextResponse.json(
-                { 
-                  success: false, 
+                {
+                  success: false,
                   message: 'No se pudo aprobar la sesión. Verifica que la sesión esté en estado "draft".',
                   requestId
                 },
                 { status: 400 } // Cambia a 400 Bad Request
               );
             }
-            
+
             message = 'Sesión aprobada exitosamente';
           } catch (error: any) {
             loggerWithContext.error('AI', 'Error en approve_session', error);
             return NextResponse.json(
-              { 
-                success: false, 
+              {
+                success: false,
                 message: `Error aprobando sesión: ${error.message}`,
                 requestId
               },
@@ -510,7 +534,7 @@ export async function PUT(
           break;
 
         case 'regenerate_session':
-          console.log('🔄 REGENERATE_SESSION: Iniciando...', { 
+          console.log('🔄 REGENERATE_SESSION: Iniciando...', {
             sessionId,
             hasCoachNotes: !!data?.coachNotes,
             notesLength: data?.coachNotes?.length || 0
@@ -518,7 +542,7 @@ export async function PUT(
           operationResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
           message = 'Sesión regenerada';
           break;
-        
+
         case 'generate_shopping_list':
           console.log('🛒 GENERATE_SHOPPING_LIST: Iniciando...', { sessionId, weekNumber: data?.weekNumber });
           operationResult = await generateShoppingList(id, sessionId, data?.weekNumber, requestId);
@@ -526,7 +550,7 @@ export async function PUT(
           break;
 
         case 'import_session':
-          console.log('📥 IMPORT_SESSION: Iniciando...', { 
+          console.log('📥 IMPORT_SESSION: Iniciando...', {
             monthNumber: data?.monthNumber,
             sessionDataKeys: data?.sessionData ? Object.keys(data.sessionData) : []
           });
@@ -561,15 +585,15 @@ export async function PUT(
     } catch (error: any) {
       console.error('💥 ERROR en endpoint PUT:', error.message);
       logger.error('AI', 'Error en endpoint PUT', error);
-      
+
       loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error);
-      
+
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
           requestId,
-          ...(process.env.NODE_ENV === 'development' && { 
+          ...(process.env.NODE_ENV === 'development' && {
             error: error.message
           })
         },
@@ -582,9 +606,9 @@ export async function PUT(
 // Funciones auxiliares
 async function prepareAIInput(client: any, requestId: string): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
-  
+
   loggerWithContext.debug('AI', 'Preparando entrada para IA');
-  
+
   // Desencriptar datos personales
   const personalData = Object.entries(client.personalData || {}).reduce((acc, [key, value]) => {
     if (typeof value === 'string') {
@@ -621,18 +645,18 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     loggerWithContext.debug('AI', 'Procesando documentos procesados para IA', {
       documentCount: client.medicalData.processedDocuments.length
     });
-    
+
     try {
       for (const procDoc of client.medicalData.processedDocuments) {
         try {
           // Solo usar documentos con buen nivel de confianza y completados
           const extractionStatus = procDoc.metadata?.extractionStatus || 'pending';
           const confidence = procDoc.confidence || 0;
-          
+
           if (extractionStatus === 'completed' && confidence > 50) {
             const docTitle = safeDecrypt(procDoc.title || '');
             const docContent = safeDecrypt(procDoc.content || '');
-            
+
             processedDocs.push({
               title: docTitle,
               content: docContent.substring(0, 2000), // Limitar longitud para no saturar el prompt
@@ -643,7 +667,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
               pageCount: procDoc.metadata?.pageCount || 1,
               language: procDoc.metadata?.language || 'es'
             });
-            
+
             loggerWithContext.debug('AI', 'Documento procesado incluido', {
               title: docTitle.substring(0, 50),
               confidence,
@@ -672,32 +696,32 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     loggerWithContext.debug('AI', 'Usando documentos originales (estructura antigua) para compatibilidad', {
       documentCount: Array.isArray(client.medicalData.documents) ? client.medicalData.documents.length : 1
     });
-    
+
     try {
       let docsArray = client.medicalData.documents;
-      
+
       // Si es un string (encriptado), desencriptar y parsear
       if (typeof docsArray === 'string') {
         const decryptedString = safeDecrypt(docsArray);
         docsArray = JSON.parse(decryptedString);
       }
-      
+
       if (Array.isArray(docsArray)) {
         for (const doc of docsArray) {
           try {
             let decryptedDoc = doc;
-            
+
             // Si el documento está encriptado como string, desencriptarlo
             if (typeof doc === 'string') {
               decryptedDoc = JSON.parse(safeDecrypt(doc));
             }
-            
+
             const docName = safeDecrypt(decryptedDoc.name || '');
-            
+
             // Solo incluir si tiene análisis de Textract
             if (decryptedDoc.textractAnalysis?.extractedText) {
               const content = safeDecrypt(decryptedDoc.textractAnalysis.extractedText || '');
-              
+
               legacyDocuments.push({
                 title: docName,
                 content: content.substring(0, 2000),
@@ -705,7 +729,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
                 source: 'textract_legacy',
                 confidence: decryptedDoc.textractAnalysis.confidence || 0
               });
-              
+
               loggerWithContext.debug('AI', 'Documento legacy procesado', {
                 documentName: docName,
                 hasTextractAnalysis: true
@@ -741,7 +765,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
           completed: true,
           completedDate: item.completedDate
         }));
-        
+
         previousChecklistStatus.push({
           month: session.monthNumber,
           completedItems,
@@ -757,7 +781,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     const recentProcessed = client.medicalData.processedDocuments
       .sort((a: any, b: any) => new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime())
       .slice(0, 5); // Solo los 5 más recientes
-    
+
     for (const doc of recentProcessed) {
       documentHistory.push({
         processedAt: doc.processedAt,
@@ -796,34 +820,34 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
 
 async function reprocessClientDocuments(clientId: string, documents: any[], requestId: string) {
   const loggerWithContext = requestId ? logger.withContext({ requestId, clientId }) : logger;
-  
+
   loggerWithContext.info('TEXTRACT', 'Reprocesando documentos con estructura separada');
-  
+
   try {
     let docsArray = documents;
-    
+
     // Si es un string (encriptado), desencriptar y parsear
     if (typeof docsArray === 'string') {
       const decryptedString = safeDecrypt(docsArray);
       docsArray = JSON.parse(decryptedString);
     }
-    
+
     if (!Array.isArray(docsArray)) {
       loggerWithContext.error('TEXTRACT', 'Documents no es un array válido');
       return;
     }
-    
+
     // Por cada documento, procesar con Textract y guardar en processedDocuments
     const processingPromises = docsArray.map(async (doc, index) => {
       try {
         // Extraer info del documento
         const originalName = safeDecrypt(doc.name || '');
         const s3Key = safeDecrypt(doc.key);
-        
+
         // Procesar con Textract
         const docType = TextractService.determineDocumentType(originalName);
         const analysis = await TextractService.processMedicalDocument(s3Key, docType);
-        
+
         // Crear processed document
         const processedDoc: any = {
           id: `reproc_${Date.now()}_${index}`,
@@ -841,7 +865,7 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
             originalUploadDate: doc.uploadedAt
           }
         };
-        
+
         return processedDoc;
       } catch (error) {
         loggerWithContext.error('TEXTRACT', `Error reprocesando documento ${index}`, error as Error);
@@ -850,10 +874,10 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
     });
 
     const processedDocs = (await Promise.all(processingPromises)).filter(doc => doc !== null);
-    
+
     if (processedDocs.length > 0) {
       const healthForms = await getHealthFormsCollection();
-      
+
       // Agregar al array de processedDocuments
       const result = await healthForms.updateOne(
         { _id: new ObjectId(clientId) },
@@ -867,13 +891,13 @@ async function reprocessClientDocuments(clientId: string, documents: any[], requ
           }
         } as any
       );
-      
+
       loggerWithContext.info('TEXTRACT', 'Documentos reprocesados en estructura separada', {
         clientId,
         processedCount: processedDocs.length
       });
     }
-    
+
   } catch (error) {
     loggerWithContext.error('TEXTRACT', 'Error general reprocesando documentos', error as Error);
   }
@@ -997,14 +1021,14 @@ async function updateChecklist(
 
 async function approveSession(clientId: string, sessionId: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
-  
+
   loggerWithContext.info('AI', '✅ Aprobando sesión (sin enviar email)', { sessionId });
-  
+
   try {
     const healthForms = await getHealthFormsCollection();
-    
+
     // 1. Primero buscar el cliente
-    const client = await healthForms.findOne({ 
+    const client = await healthForms.findOne({
       _id: new ObjectId(clientId)
     });
 
@@ -1035,10 +1059,10 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
     }
 
     const targetSession = client.aiProgress.sessions[sessionIndex];
-    
+
     if (targetSession.status !== 'draft') {
-      loggerWithContext.warn('AI', 'Sesión no está en estado draft', { 
-        sessionId, 
+      loggerWithContext.warn('AI', 'Sesión no está en estado draft', {
+        sessionId,
         currentStatus: targetSession.status,
         requiredStatus: 'draft'
       });
@@ -1047,7 +1071,7 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
 
     // 3. Actualizar solo el estado a 'approved'
     const result = await healthForms.updateOne(
-      { 
+      {
         _id: new ObjectId(clientId),
         'aiProgress.sessions.sessionId': sessionId
       },
@@ -1062,21 +1086,21 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
     );
 
     if (result.modifiedCount > 0) {
-      loggerWithContext.info('AI', '✅ Sesión aprobada exitosamente (email NO enviado)', { 
+      loggerWithContext.info('AI', '✅ Sesión aprobada exitosamente (email NO enviado)', {
         sessionId,
         modifiedCount: result.modifiedCount,
         matchedCount: result.matchedCount
       });
       return true;
     } else {
-      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', { 
+      loggerWithContext.warn('AI', 'No se modificó ningún documento al aprobar sesión', {
         sessionId,
         matchedCount: result.matchedCount,
         modifiedCount: result.modifiedCount
       });
       return false;
     }
-    
+
   } catch (error: any) {
     loggerWithContext.error('AI', '❌ Error aprobando sesión', error);
     return false;
@@ -1085,14 +1109,14 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
 
 async function sendToClient(clientId: string, sessionId: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
-  
+
   loggerWithContext.info('AI', '📤 Enviando sesión al cliente via email', { sessionId });
-  
+
   try {
     const healthForms = await getHealthFormsCollection();
-    
+
     // 1. Obtener el cliente completo
-    const client = await healthForms.findOne({ 
+    const client = await healthForms.findOne({
       _id: new ObjectId(clientId),
       'aiProgress.sessions.sessionId': sessionId
     });
@@ -1113,11 +1137,11 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
     }
 
     const session = client.aiProgress.sessions[sessionIndex];
-    
+
     // 3. Verificar que la sesión esté aprobada
     if (session.status !== 'approved') {
-      loggerWithContext.warn('AI', 'Sesión no está aprobada', { 
-        sessionId, 
+      loggerWithContext.warn('AI', 'Sesión no está aprobada', {
+        sessionId,
         currentStatus: session.status,
         requiredStatus: 'approved'
       });
@@ -1126,22 +1150,22 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     // 4. Desencriptar la sesión completa para el email
     const decryptedSession = decryptAISessionCompletely(session);
-    
+
     // 5. Obtener y desencriptar el email del cliente
     let clientEmail = '';
     let clientName = 'Cliente';
-    
+
     try {
       if (client.personalData?.email) {
         clientEmail = safeDecrypt(client.personalData.email);
       }
-      
+
       if (client.personalData?.name) {
         clientName = safeDecrypt(client.personalData.name);
       }
     } catch (error) {
       loggerWithContext.warn('AI', 'Error desencriptando datos personales', error as Error);
-      
+
       // Intentar usar datos sin desencriptar si falla
       clientEmail = client.personalData?.email || '';
       clientName = client.personalData?.name || 'Cliente';
@@ -1160,27 +1184,27 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
     // 7. Enviar email con el plan mensual usando EmailService
     let emailSent = false;
     let emailError: any = null;
-    
+
     try {
       loggerWithContext.info('EMAIL', '✉️ Iniciando envío de email de plan mensual', {
         clientEmail,
         clientName,
         monthNumber: session.monthNumber
       });
-      
+
       const emailService = EmailService.getInstance();
-      
+
       // Verificar configuración del email
       const configCheck = await emailService.testConfiguration();
       loggerWithContext.debug('EMAIL', 'Configuración del servicio de email', configCheck);
-      
+
       if (!configCheck.configured) {
         loggerWithContext.warn('EMAIL', 'Servicio de email no configurado correctamente', {
           issues: configCheck.issues,
           fromEmail: configCheck.fromEmail
         });
       }
-      
+
       emailSent = await emailService.sendMonthlyPlanEmail(
         clientEmail,
         clientName,
@@ -1188,7 +1212,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
         session.monthNumber,
         { clientId, sessionId, requestId }
       );
-      
+
       if (emailSent) {
         loggerWithContext.info('EMAIL', '✅ Email enviado exitosamente', {
           clientEmail,
@@ -1201,7 +1225,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
           clientName
         });
       }
-      
+
     } catch (err: any) {
       emailError = err;
       loggerWithContext.error('EMAIL', 'Error enviando email', err);
@@ -1224,7 +1248,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     // 9. Actualizar la sesión en la base de datos
     const result = await healthForms.updateOne(
-      { 
+      {
         _id: new ObjectId(clientId),
         'aiProgress.sessions.sessionId': sessionId
       },
@@ -1233,14 +1257,14 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     if (result.modifiedCount > 0) {
       if (emailSent) {
-        loggerWithContext.info('AI', '✅ Sesión enviada al cliente exitosamente', { 
-          sessionId, 
+        loggerWithContext.info('AI', '✅ Sesión enviada al cliente exitosamente', {
+          sessionId,
           clientEmail,
           clientName,
-          monthNumber: session.monthNumber 
+          monthNumber: session.monthNumber
         });
       } else {
-        loggerWithContext.warn('AI', '⚠️ Sesión NO se pudo enviar al cliente (email falló)', { 
+        loggerWithContext.warn('AI', '⚠️ Sesión NO se pudo enviar al cliente (email falló)', {
           sessionId,
           clientEmail,
           clientName,
@@ -1252,7 +1276,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       loggerWithContext.warn('AI', 'No se modificó ningún documento al enviar sesión', { sessionId });
       return false;
     }
-    
+
   } catch (error: any) {
     loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', error);
     return false;
@@ -1261,20 +1285,20 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
 async function regenerateSession(clientId: string, sessionId: string, coachNotes: string, requestId: string): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
-  
-  loggerWithContext.info('AI_REGEN', '🚀 Iniciando proceso de regeneración', { 
+
+  loggerWithContext.info('AI_REGEN', '🚀 Iniciando proceso de regeneración', {
     sessionId,
     hasCoachNotes: !!coachNotes && coachNotes.trim().length > 0,
     notesLength: coachNotes?.length || 0
   });
-  
+
   try {
     const healthForms = await getHealthFormsCollection();
-    
+
     // 1. Obtener el cliente y la sesión actual
     loggerWithContext.debug('AI_REGEN', 'Buscando cliente y sesión', { clientId, sessionId });
-    
-    const client = await healthForms.findOne({ 
+
+    const client = await healthForms.findOne({
       _id: new ObjectId(clientId),
       'aiProgress.sessions.sessionId': sessionId
     });
@@ -1299,14 +1323,14 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     }
 
     const existingSession = client.aiProgress.sessions[sessionIndex];
-    
+
     // 3. ✅ VERIFICAR QUE LA SESIÓN ESTÉ EN ESTADO 'draft'
     loggerWithContext.debug('AI_REGEN', 'Verificando estado de sesión', {
       sessionId,
       currentStatus: existingSession.status,
       allowed: existingSession.status === 'draft'
     });
-    
+
     if (existingSession.status !== 'draft') {
       loggerWithContext.error('AI_REGEN', '❌ No se puede regenerar - sesión no está en estado draft', undefined, {
         sessionId,
@@ -1324,9 +1348,9 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
 
     // 4. Preparar datos para la IA incluyendo notas del coach
     loggerWithContext.info('AI_REGEN', '🔄 Preparando datos para regeneración');
-    
+
     const aiInput = await prepareAIInput(client, requestId);
-    
+
     // Agregar notas del coach si las hay
     if (coachNotes && coachNotes.trim().length > 0) {
       aiInput.coachNotes = coachNotes;
@@ -1337,7 +1361,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     } else {
       loggerWithContext.debug('AI_REGEN', 'No hay notas del coach, regenerando sin modificaciones');
     }
-    
+
     // Agregar sesiones anteriores (excluyendo la actual si es necesario)
     if (client.aiProgress.sessions && client.aiProgress.sessions.length > 0) {
       const otherSessions = client.aiProgress.sessions.filter(
@@ -1354,12 +1378,12 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       monthNumber: existingSession.monthNumber,
       hasPreviousSessions: aiInput.previousSessions?.length || 0
     });
-    
+
     const newRecommendations = await AIService.analyzeClientAndGenerateRecommendations(
-      aiInput, 
+      aiInput,
       existingSession.monthNumber,
-      { 
-        requestId, 
+      {
+        requestId,
         clientId,
         isRegeneration: true, // <-- Nuevo flag
         previousSessionId: sessionId // <-- ID de la sesión anterior
@@ -1374,7 +1398,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     });
 
     // 6. Actualizar la sesión en la base de datos (REEMPLAZAR)
-    // Mantener el mismo sessionId? O crear uno nuevo? 
+    // Mantener el mismo sessionId? O crear uno nuevo?
     // Vamos a crear uno nuevo para mantener historial de regeneraciones
     const updateData: any = {
       $set: {
@@ -1413,7 +1437,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     };
 
     const result = await healthForms.updateOne(
-      { 
+      {
         _id: new ObjectId(clientId),
         'aiProgress.sessions.sessionId': sessionId
       },
@@ -1442,15 +1466,15 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       });
       return false;
     }
-    
+
   } catch (error: any) {
     loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', error);
-    
+
     // Enviar error específico si es por estado incorrecto
     if (error.message.includes("estado 'draft'")) {
       throw error; // Propagar error específico
     }
-    
+
     return false;
   }
 }
@@ -1458,7 +1482,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
 async function debugSessionStatus(clientId: string, targetSessionId: string): Promise<any> {
   try {
     const healthForms = await getHealthFormsCollection();
-    const client = await healthForms.findOne({ 
+    const client = await healthForms.findOne({
       _id: new ObjectId(clientId)
     });
 
@@ -1467,7 +1491,7 @@ async function debugSessionStatus(clientId: string, targetSessionId: string): Pr
     }
 
     const sessions = client.aiProgress.sessions || [];
-    
+
     return {
       clientId,
       totalSessions: sessions.length,
@@ -1556,8 +1580,8 @@ async function importSession(
   requestId: string
 ): Promise<boolean> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
-  
-  loggerWithContext.info('AI', '📥 Iniciando importación de sesión', { 
+
+  loggerWithContext.info('AI', '📥 Iniciando importación de sesión', {
     monthNumber,
     sessionDataKeys: sessionData ? Object.keys(sessionData) : [],
     hasSummary: !!sessionData?.summary,
@@ -1565,7 +1589,7 @@ async function importSession(
     weeksCount: sessionData?.weeks?.length || 0,
     checklistCount: sessionData?.checklist?.length || 0
   });
-  
+
   try {
     const healthForms = await getHealthFormsCollection();
     const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
@@ -1592,7 +1616,7 @@ async function importSession(
 
     // Generar nuevo sessionId
     const sessionId = crypto.randomUUID();
-    
+
     // Preparar semanas (asegurar estructura correcta)
     const weeks = sessionData.weeks || [];
     const validatedWeeks = weeks.map((week: any, index: number) => ({
@@ -1708,18 +1732,18 @@ async function importSession(
           habitFormation: 0
         }
       };
-      
+
       loggerWithContext.info('AI', 'Creando nueva sesión para mes', { monthNumber });
     } else {
       // Reemplazar la sesión existente para este mes
       const updatedSessions = [...client.aiProgress.sessions];
       updatedSessions[existingSessionIndex] = newSession;
-      
+
       updateData.$set['aiProgress.sessions'] = updatedSessions;
       updateData.$set['aiProgress.currentSessionId'] = sessionId;
       updateData.$set['aiProgress.lastEvaluation'] = new Date();
       updateData.$set['aiProgress.nextEvaluation'] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      
+
       loggerWithContext.info('AI', 'Reemplazando sesión existente', {
         monthNumber,
         oldSessionId: client.aiProgress.sessions[existingSessionIndex].sessionId,
@@ -1752,12 +1776,12 @@ async function importSession(
 
   } catch (error: any) {
     loggerWithContext.error('AI', '💥 Error importando sesión', error);
-    
+
     // Propagar error específico
     if (error.message.includes('La sesión debe incluir')) {
       throw error;
     }
-    
+
     return false;
   }
 }

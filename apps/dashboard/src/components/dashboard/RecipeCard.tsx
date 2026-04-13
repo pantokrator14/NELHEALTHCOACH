@@ -4,9 +4,18 @@ import { Recipe } from '../../../../../packages/types/src/recipe-types';
 interface RecipeCardProps {
   recipe: Recipe;
   onClick: () => void;
+  deleteMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (recipeId: string) => void;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ 
+  recipe, 
+  onClick, 
+  deleteMode = false, 
+  isSelected = false, 
+  onToggleSelect 
+}) => {
   // Formatear dificultad para mostrar
   const getDifficultyText = (difficulty: string) => {
     switch (difficulty) {
@@ -55,8 +64,8 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
 
   return (
     <div
-      onClick={onClick}
-      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-green-100 hover:border-green-300 p-4 group h-full flex flex-col"
+      onClick={deleteMode ? undefined : onClick}
+      className={`bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${deleteMode ? 'cursor-default' : 'cursor-pointer'} border ${isSelected ? 'border-red-300 hover:border-red-400' : 'border-green-100 hover:border-green-300'} p-4 group h-full flex flex-col relative`}
     >
       {/* Imagen de la receta - CORREGIDO */}
       <div className="relative mb-4 overflow-hidden rounded-lg h-48">
@@ -78,7 +87,30 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
             </svg>
           </div>
         )}
-        
+        {/* Botón de selección para eliminación múltiple */}
+        {deleteMode && onToggleSelect && (
+          <div className="absolute top-2 left-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect(recipe.id);
+              }}
+              className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all ${isSelected ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}
+              aria-label={isSelected ? 'Deseleccionar receta' : 'Seleccionar receta para eliminar'}
+            >
+              {isSelected ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Badge de dificultad */}
         <div className="absolute top-2 right-2">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getDifficultyColor(recipe.difficulty)}`}>

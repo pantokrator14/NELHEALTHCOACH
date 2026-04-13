@@ -1,4 +1,9 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "functions": {
+    "src/app/api/inngest/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }
