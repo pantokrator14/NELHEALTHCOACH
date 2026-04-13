@@ -1,7 +1,7 @@
 import type {
   PersonalData,
   MedicalData,
-} from "@nelhealthcoach/types";
+} from "../../../../../../../packages/types/src/healthForm";
 
 // ─────────────────────────────────────────────
 // Client Analyzer Prompt
