@@ -1,6 +1,7 @@
 node_modules
 .env
 .next
+.qwen
 .vercel
 .dist
 *.log
