@@ -4,7 +4,7 @@ import type {
   ChecklistItem,
   PersonalData,
   MedicalData,
-} from "@nelhealthcoach/types";
+} from "../../../../../../packages/types/src/healthForm";
 
 // ─────────────────────────────────────────────
 // Schema for intermediate nutrition plan output
