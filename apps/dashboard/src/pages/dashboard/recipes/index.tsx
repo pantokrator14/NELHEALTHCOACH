@@ -22,6 +22,10 @@ const RecipesPage = () => {
     hard: 0,
   });
 
+  // Estado para eliminación múltiple
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedRecipes, setSelectedRecipes] = useState<string[]>([]);
+
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     category: [],
@@ -204,8 +208,51 @@ const RecipesPage = () => {
     }
   };
 
+ 
 
+  // Función para eliminar múltiples recetas
+  const handleDeleteMultipleRecipes = async () => {
+    if (selectedRecipes.length === 0) return;
 
+    if (window.confirm(`¿Estás seguro de eliminar ${selectedRecipes.length} receta(s)? Esta acción no se puede deshacer.`)) {
+      try {
+        // Eliminar cada receta individualmente
+        for (const recipeId of selectedRecipes) {
+          await apiClient.deleteRecipe(recipeId);
+        }
+        showToast(`${selectedRecipes.length} receta(s) eliminada(s) exitosamente`, 'success');
+        await loadRecipes();
+        // Salir del modo eliminar y limpiar selección
+        setDeleteMode(false);
+        setSelectedRecipes([]);
+      } catch (err: unknown) {
+        console.error('Error deleting recipes:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Error al eliminar recetas';
+        showToast(errorMessage, 'error');
+      }
+    }
+  };
+
+  // Función para alternar selección de una receta
+  const toggleRecipeSelection = (recipeId: string) => {
+    setSelectedRecipes(prev => 
+      prev.includes(recipeId)
+        ? prev.filter(id => id !== recipeId)
+        : [...prev, recipeId]
+    );
+  };
+
+  // Función para activar/desactivar modo eliminar
+  const toggleDeleteMode = () => {
+    if (deleteMode) {
+      // Si está activo, desactivar y limpiar selección
+      setDeleteMode(false);
+      setSelectedRecipes([]);
+    } else {
+      // Activar modo eliminar
+      setDeleteMode(true);
+    }
+  };
 
   const handleDeleteRecipe = async () => {
     if (!selectedRecipe) return;
@@ -334,8 +381,33 @@ const RecipesPage = () => {
             onReset={handleResetFilters}
           />
 
-          {/* Botón para crear receta */}
-          <div className="mb-6 flex justify-end">
+           {/* Botones de acciones */}
+          <div className="mb-6 flex justify-between items-center">
+            <div>
+              {deleteMode ? (
+                <button
+                  onClick={toggleDeleteMode}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all transform hover:scale-105 shadow-md font-medium"
+                  aria-label="Cancelar modo eliminación"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancelar
+                </button>
+              ) : (
+                <button
+                  onClick={toggleDeleteMode}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-md font-medium"
+                  aria-label="Activar modo eliminación múltiple"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Eliminar Varias
+                </button>
+              )}
+            </div>
             <button
               onClick={handleCreateRecipe}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105 shadow-md font-medium"
@@ -346,6 +418,21 @@ const RecipesPage = () => {
               Crear Nueva Receta
             </button>
           </div>
+
+          {/* Banner de modo eliminación */}
+          {deleteMode && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.768 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <p className="text-red-700 font-medium">
+                  Modo eliminación - Selecciona las recetas que deseas eliminar. 
+                  <span className="font-normal text-red-600 ml-1">Haz clic en la X de cada tarjeta para seleccionar.</span>
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Resultados de búsqueda */}
           <div className="mb-4 flex justify-between items-center">
@@ -374,11 +461,14 @@ const RecipesPage = () => {
           {filteredAndSortedRecipes.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {filteredAndSortedRecipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  recipe={recipe}
-                  onClick={() => handleCardClick(recipe)}
-                />
+                 <RecipeCard
+                   key={recipe.id}
+                   recipe={recipe}
+                   onClick={() => handleCardClick(recipe)}
+                   deleteMode={deleteMode}
+                   isSelected={selectedRecipes.includes(recipe.id)}
+                   onToggleSelect={toggleRecipeSelection}
+                 />
               ))}
             </div>
           ) : recipes.length > 0 ? (
@@ -415,6 +505,22 @@ const RecipesPage = () => {
             </div>
           )}
         </div>
+
+        {/* Botón flotante para eliminar seleccionados */}
+        {deleteMode && selectedRecipes.length > 0 && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={handleDeleteMultipleRecipes}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-lg font-medium animate-bounce"
+              aria-label={`Eliminar ${selectedRecipes.length} recetas seleccionadas`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Eliminar seleccionados ({selectedRecipes.length})
+            </button>
+          </div>
+        )}
 
         {/* Modal de detalles */}
         {isDetailModalOpen && selectedRecipe && (
