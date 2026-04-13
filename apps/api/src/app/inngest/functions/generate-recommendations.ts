@@ -10,7 +10,7 @@ import type {
   AIRecommendationSession,
   AIRecommendationWeek,
   ChecklistItem,
-} from "@nelhealthcoach/types";
+} from "../../../../../../packages/types";
 import { logger } from "@/app/lib/logger";
 import type { Handler } from "inngest";
 
