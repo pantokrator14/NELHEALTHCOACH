@@ -50,7 +50,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Overlay para móviles */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -63,9 +63,9 @@ export default function Layout({ children }: LayoutProps) {
         transform transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        
+
         {/* Logo */}
-        <div 
+        <div
           className="p-6 border-b border-blue-600 cursor-pointer hover:bg-blue-600 transition duration-200"
           onClick={() => navigateTo('/dashboard')}
         >
@@ -107,6 +107,19 @@ export default function Layout({ children }: LayoutProps) {
                 </svg>
               </div>
               <span className="font-medium">Recetas</span>
+            </button>
+
+            {/* Ejercicios */}
+            <button
+              onClick={() => navigateTo('/dashboard/exercises')}
+              className="w-full text-left px-4 py-3 rounded-lg hover:bg-teal-600 transition-all duration-200 flex items-center group"
+            >
+              <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-teal-600 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span className="font-medium">Ejercicios</span>
             </button>
           </div>
         </nav>

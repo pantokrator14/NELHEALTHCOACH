@@ -428,6 +428,52 @@ export const generateRecommendationsFn = inngest.createFunction(
       });
     });
 
+    // Step 5: Notify dashboard via webhook
+    await ctx.step.run("notify-dashboard", async () => {
+      const dashboardUrl = process.env.DASHBOARD_WEBHOOK_URL
+        ?? (process.env.NODE_ENV === "production"
+          ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
+          : "http://localhost:3002/api/webhooks/inngest");
+
+      const weekCount = (graphResult as Record<string, unknown>).nutritionPlan
+        ? ((graphResult as Record<string, unknown>).nutritionPlan as Array<unknown>).length
+        : 0;
+
+      const errors = (graphResult as Record<string, unknown>).errors
+        ? ((graphResult as Record<string, unknown>).errors as string[])
+        : [];
+
+      try {
+        const response = await fetch(dashboardUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "recommendations_ready",
+            clientId,
+            sessionId: saveResult.sessionId,
+            monthNumber,
+            weekCount,
+            errors,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+
+        if (!response.ok) {
+          log.warn("AI", "Dashboard webhook returned non-OK status", {
+            status: response.status,
+          });
+        } else {
+          log.info("AI", "Dashboard notified of recommendations ready");
+        }
+      } catch (webhookError: unknown) {
+        const errorMsg = webhookError instanceof Error
+          ? webhookError.message
+          : "Unknown webhook error";
+        log.warn("AI", `Failed to notify dashboard: ${errorMsg}`);
+        // Don't fail the whole function for a webhook failure
+      }
+    });
+
     return {
       success: true,
       clientId,

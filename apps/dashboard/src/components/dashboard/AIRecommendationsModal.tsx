@@ -214,38 +214,38 @@ interface ImportableAISessionData {
 }
 
 // ===== COMPONENTE PRINCIPAL =====
-export default function AIRecommendationsModal({ 
-  clientId, 
-  onClose, 
-  onRecommendationsGenerated 
+export default function AIRecommendationsModal({
+  clientId,
+  onClose,
+  onRecommendationsGenerated
 }: AIRecommendationsModalProps) {
   // ===== ESTADOS PRINCIPALES =====
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
-  
+
   // ===== ESTADOS DE NAVEGACIÓN =====
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
-  
+
   // ===== ESTADOS DE FORMULARIOS =====
   const [showNewEvaluationForm, setShowNewEvaluationForm] = useState(false);
   const [coachNotes, setCoachNotes] = useState('');
   const [reprocessDocuments, setReprocessDocuments] = useState(false);
-  
+
   // ===== ESTADOS DE EDICIÓN =====
   const [editMode, setEditMode] = useState(false);
   const [editingField, setEditingField] = useState<EditingField | null>(null);
   const [editText, setEditText] = useState('');
-  
+
   // ===== ESTADOS DE DETALLES EXPANDIDOS =====
   const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
   const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
   const [expandedExerciseDetails, setExpandedExerciseDetails] = useState<string[]>([]);
   const [footerExpanded, setFooterExpanded] = useState(false);
-  
+
   // ===== REFERENCIA PARA SCROLL =====
   const modalContentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -275,10 +275,10 @@ export default function AIRecommendationsModal({
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
     if (!weeks || !Array.isArray(weeks)) return [];
-    
+
     return weeks.map((week: unknown, weekIndex: number) => {
       const typedWeek = week as Partial<AIRecommendationWeek>;
-      
+
       // Caso 1: Ya tiene estructura nueva (sin checklistItems)
       if (typedWeek.nutrition && !('checklistItems' in typedWeek.nutrition)) {
         return {
@@ -297,7 +297,7 @@ export default function AIRecommendationsModal({
           }
         };
       }
-      
+
       // Caso 2: Estructura antigua, extraemos solo metadatos
       const oldWeek = week as OldWeekStructure;
       return {
@@ -459,11 +459,24 @@ export default function AIRecommendationsModal({
       setGenerating(true);
       const response = await apiClient.generateAIRecommendations(clientId, monthNumber, reprocessDocuments, coachNotes);
       if (response.success) {
-        await loadAIProgress();
-        if (onRecommendationsGenerated) onRecommendationsGenerated();
-        setCoachNotes('');
-        setShowNewEvaluationForm(false);
-        setReprocessDocuments(false);
+        // Check if it's a queued response (202 from Inngest)
+        const data = response.data as { status?: string; jobId?: string } | undefined;
+        if (data?.status === 'queued') {
+          // Inngest is processing - notify parent to start polling
+          if (onRecommendationsGenerated) {
+            (onRecommendationsGenerated as (info?: { status: string; jobId?: string }) => void)({
+              status: 'queued',
+              jobId: data.jobId,
+            });
+          }
+        } else {
+          // Synchronous response (fallback)
+          await loadAIProgress();
+          if (onRecommendationsGenerated) onRecommendationsGenerated();
+          setCoachNotes('');
+          setShowNewEvaluationForm(false);
+          setReprocessDocuments(false);
+        }
       } else {
         throw new Error(response.message);
       }
@@ -526,11 +539,11 @@ export default function AIRecommendationsModal({
   }, [aiProgress, clientId, loadAIProgress]);
 
   const updateItemViaFullChecklist = useCallback(async (sessionId: string, updatedChecklist: ChecklistItem[]) => {
-    console.log('updateItemViaFullChecklist - checklist recibido:', updatedChecklist.map(item => ({ 
-      id: item.id, 
-      groupId: item.groupId, 
+    console.log('updateItemViaFullChecklist - checklist recibido:', updatedChecklist.map(item => ({
+      id: item.id,
+      groupId: item.groupId,
       description: item.description,
-      weekNumber: item.weekNumber 
+      weekNumber: item.weekNumber
     })));
     if (!aiProgress) return;
     try {
@@ -576,7 +589,7 @@ export default function AIRecommendationsModal({
 
   const handleSaveEdit = useCallback(async () => {
     if (!editMode || !editingField || !aiProgress) return;
-    
+
     try {
       // 1. Obtener la sesión directamente desde aiProgress
       const session = aiProgress.sessions.find(s => s.sessionId === editingField.sessionId);
@@ -602,10 +615,10 @@ export default function AIRecommendationsModal({
         // 4. Construir nuevo checklist: todos los ítems del grupo con la nueva descripción
         const updatedChecklist = session.checklist.map(item => {
           if (originalItem.groupId && item.groupId === originalItem.groupId) {
-            return { 
-              ...item, 
-              description: editText, 
-              updatedAt: new Date() 
+            return {
+              ...item,
+              description: editText,
+              updatedAt: new Date()
             };
           }
           return item;
@@ -617,7 +630,7 @@ export default function AIRecommendationsModal({
 
         // 6. Enviar al backend
         await updateItemViaFullChecklist(session.sessionId, updatedChecklist);
-      } 
+      }
       else if (editingField.type === 'summary' || editingField.type === 'vision') {
         const field = editingField.type;
         const value = editText;
@@ -854,7 +867,7 @@ export default function AIRecommendationsModal({
     category: 'exercise' | 'habit'
   ) => {
     if (!activeSession || !aiProgress) return;
-    
+
     const originalItem = activeSession.checklist.find(item => item.id === itemId);
     if (!originalItem) return;
 
@@ -890,9 +903,9 @@ export default function AIRecommendationsModal({
 
   const handleSaveAIRecipe = useCallback(async (data: AIRecipeData) => {
     if (!activeSession || !editingAIRecipe) return;
-    
+
     const originalItem = editingAIRecipe.item;
-    
+
     // Si tiene grupo, actualizar TODOS los ítems del grupo (cada uno con su weekNumber)
     if (originalItem.groupId) {
       const updatedChecklist = activeSession.checklist.map(item => {
@@ -974,14 +987,14 @@ export default function AIRecommendationsModal({
   const handleFileUpload = useCallback(async (file: File) => {
     setUploadingFile(true);
     setUploadError(null);
-    
+
     // Validar tamaño del archivo (máximo 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setUploadError('El archivo es demasiado grande (máximo 5MB)');
       setUploadingFile(false);
       return;
     }
-    
+
     // Validar extensión del archivo
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     const supportedExtensions = ['txt', 'json', 'doc', 'docx', 'pdf'];
@@ -990,14 +1003,14 @@ export default function AIRecommendationsModal({
       setUploadingFile(false);
       return;
     }
-    
+
     try {
       let text: string;
       const isTextFile = fileExtension === 'txt' || fileExtension === 'json';
       const isDocumentFile = fileExtension === 'doc' || fileExtension === 'docx' || fileExtension === 'pdf';
-      
+
       console.log('Archivo subido:', { name: file.name, size: file.size, type: file.type, fileExtension, isTextFile, isDocumentFile });
-      
+
       // Determinar si necesitamos extraer texto del documento
       if (isDocumentFile) {
         // Llamar al endpoint de extracción de texto para DOC/DOCX/PDF
@@ -1018,9 +1031,9 @@ export default function AIRecommendationsModal({
         // Para .txt y .json, usar file.text()
         text = await file.text();
       }
-      
+
       let sessionData: ImportableAISessionData;
-      
+
       // Intentar parsear como JSON si es .json o si el contenido parece JSON
       if (fileExtension === 'json' || text.trim().startsWith('{')) {
         try {
@@ -1041,7 +1054,7 @@ export default function AIRecommendationsModal({
           coachNotes: `Archivo importado: ${file.name}`
         };
       }
-      
+
       // Validar estructura mínima
       if (!sessionData.summary || typeof sessionData.summary !== 'string') {
         sessionData.summary = sessionData.summary || 'Resumen importado';
@@ -1051,15 +1064,15 @@ export default function AIRecommendationsModal({
       }
       sessionData.weeks = sessionData.weeks || [];
       sessionData.checklist = sessionData.checklist || [];
-      
+
       // Determinar monthNumber: si no hay sesiones, usar 1
       const monthNumber = 1; // Siempre primera sesión cuando no hay sesiones existentes
-      
+
       console.log('Enviando datos de sesión a API:', { monthNumber, sessionData });
-      
+
       // Llamar al endpoint de importación
       const response = await apiClient.importAISession(clientId, sessionData, monthNumber);
-      
+
       if (response.success) {
         console.log('✅ Sesión importada exitosamente:', response);
         // Recargar progreso de IA para reflejar la nueva sesión
@@ -1070,7 +1083,7 @@ export default function AIRecommendationsModal({
       } else {
         throw new Error(response.message || 'Error desconocido al importar sesión');
       }
-      
+
     } catch (error: unknown) {
       console.error('Error subiendo archivo:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1118,13 +1131,13 @@ export default function AIRecommendationsModal({
   }, [activeSession, sessionMonths]);
 
   const toggleShoppingList = useCallback(async (weekId: string, weekNumber: number, sessionId: string) => {
-    
+
     const isExpanding = !expandedShoppingLists.includes(weekId);
 
     console.log('toggleShoppingList', { weekId, weekNumber, sessionId, isExpanding: !expandedShoppingLists.includes(weekId) });
-    
+
     // Actualizar el estado de expansión
-    setExpandedShoppingLists(prev => 
+    setExpandedShoppingLists(prev =>
       prev.includes(weekId) ? prev.filter(id => id !== weekId) : [...prev, weekId]
     );
 
@@ -1381,7 +1394,7 @@ export default function AIRecommendationsModal({
     );
 
     const totalWeekItems = nutritionItems.length + exerciseItems.length + habitItems.length;
-    const completedWeekItems = 
+    const completedWeekItems =
       nutritionItems.filter(i => i.completed).length +
       exerciseItems.filter(i => i.completed).length +
       habitItems.filter(i => i.completed).length;
@@ -1478,8 +1491,8 @@ export default function AIRecommendationsModal({
 
                   {week.nutrition.shoppingList.length === 0 ? (
                     <p className="text-gray-500 text-sm italic">
-                      {loadingShoppingList[week.weekNumber] 
-                        ? 'Generando lista...' 
+                      {loadingShoppingList[week.weekNumber]
+                        ? 'Generando lista...'
                         : 'No hay productos en la lista. Presiona "Actualizar" para generarla.'}
                     </p>
                   ) : (
@@ -1569,8 +1582,8 @@ export default function AIRecommendationsModal({
   }
 
   const cumulativeProgress = calculateCumulativeProgress();
-  const activeSessionNumber = aiProgress?.sessions && activeSessionId 
-    ? aiProgress.sessions.findIndex(s => s.sessionId === activeSessionId) + 1 
+  const activeSessionNumber = aiProgress?.sessions && activeSessionId
+    ? aiProgress.sessions.findIndex(s => s.sessionId === activeSessionId) + 1
     : 0;
 
   return (
@@ -1612,7 +1625,7 @@ export default function AIRecommendationsModal({
                  if (!session) return null;
                  const isActive = activeSessionId === tab.sessionId;
                  return (
-                   <button 
+                   <button
                      key={`${tab.sessionId}`}
                       onClick={() => handleChangeMonthTab(tab.sessionId)}
                      className={`py-4 px-6 font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-green-600'}`}
@@ -1778,7 +1791,7 @@ export default function AIRecommendationsModal({
                   const isMonthExpanded = expandedMonths.includes(monthId);
                   return (
                     <div key={monthId} className="bg-white rounded-xl border border-green-300 overflow-hidden">
-                      <div 
+                      <div
                         className="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-b border-green-300 cursor-pointer hover:from-green-200 transition-colors flex justify-between items-center"
                         onClick={() => toggleMonthExpansion(monthId)}
                       >
