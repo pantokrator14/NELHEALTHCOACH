@@ -43,6 +43,10 @@ export {
   saveRecipeTool,
 } from "./tools/recipe-tools";
 export {
+  searchExerciseTool,
+  saveExerciseTool,
+} from "./tools/exercise-tools";
+export {
   getClientDataTool,
   getPreviousSessionsTool,
   saveSessionTool,

@@ -128,6 +128,11 @@ export default function ClientProfile() {
   const [uploading, setUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [aiGenerationStatus, setAiGenerationStatus] = useState<'queued' | 'ready'>('queued')
+  const [aiJobId, setAiJobId] = useState<string | null>(null)
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
 
   // Función auxiliar para parsear campos que pueden ser string JSON o array
   const parseArrayField = (field: unknown): string[] => {
@@ -150,13 +155,23 @@ export default function ClientProfile() {
       if (!clientId) return
       const result = await apiClient.getClient(clientId)
       setClient(result.data)
+      // Update AI status based on existing sessions
+      const sessions = result.data?.aiProgress?.sessions
+      if (sessions && sessions.length > 0) {
+        setAiGenerationStatus('ready')
+        setIsGeneratingAI(false)
+      } else {
+        // No sessions yet → Inngest is still processing (auto-triggered on registration)
+        setAiGenerationStatus('queued')
+        setIsGeneratingAI(true)
+      }
     } catch (error) {
       console.error('Error fetching client:', error)
       alert('Error al cargar los datos del cliente')
     } finally {
       setLoading(false)
     }
-  }, [clientId])
+  }, [clientId, aiGenerationStatus])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -168,6 +183,34 @@ export default function ClientProfile() {
       fetchClient()
     }
   }, [clientId, router, fetchClient])
+
+  // Polling: check if AI recommendations are ready when queued
+  useEffect(() => {
+    if (aiGenerationStatus !== 'queued' || !clientId) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const result = await apiClient.getAIProgress(clientId)
+        const sessions = result.data?.aiProgress?.sessions
+        if (result.success && sessions && sessions.length > 0) {
+          setAiGenerationStatus('ready')
+          setIsGeneratingAI(false)
+          clearInterval(pollInterval)
+          // Show toast notification
+          const clientName = client?.personalData?.name ?? 'El cliente'
+          setToastMessage(`✅ Las recomendaciones de IA para ${clientName} están listas para tu revisión.`)
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 8000)
+          // Refresh client data
+          fetchClient()
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, 5000) // Check every 5 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [aiGenerationStatus, clientId, fetchClient])
 
   const handleDelete = async () => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
@@ -299,7 +342,7 @@ export default function ClientProfile() {
         await apiClient.confirmUpload(
           clientId,
           uploadResponse.fileKey,
-          file.name, 
+          file.name,
           file.type,
           file.size,
           'document',
@@ -379,6 +422,23 @@ export default function ClientProfile() {
         <title>{firstName} {lastName} - NELHEALTHCOACH</title>
       </Head>
       <Layout>
+        {/* Toast notification */}
+        {showToast && (
+          <div className="fixed top-4 right-4 z-[100] animate-bounce">
+            <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 max-w-md">
+              <svg className="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm font-medium">{toastMessage}</p>
+              <button onClick={() => setShowToast(false)} className="ml-2 text-green-200 hover:text-white flex-shrink-0">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="p-8 flex flex-col lg:flex-row gap-8 min-h-full">
           {/* Columna izquierda - 30% */}
           <div className="w-full lg:w-1/3">
@@ -682,7 +742,7 @@ export default function ClientProfile() {
                 </div>
                 <h2 className="text-2xl font-bold text-teal-800">Estilo de Vida y Contexto</h2>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Empleo */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
@@ -912,13 +972,38 @@ export default function ClientProfile() {
                 <h2 className="text-2xl font-bold text-green-700">Recomendaciones de IA</h2>
               </div>
               <div className="text-center py-4">
-                <button onClick={() => setIsAIModalOpen(true)} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition shadow-lg flex items-center justify-center mx-auto">
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  Ver Recomendaciones
-                </button>
-                <p className="text-gray-600 text-sm mt-3">Recomendaciones personalizadas generadas por IA avanzada</p>
+                {/* Estado: Generando (Inngest procesando automáticamente al registrar cliente) */}
+                {aiGenerationStatus === 'queued' && (
+                  <button
+                    disabled
+                    className="bg-green-300 text-green-100 font-semibold py-3 px-8 rounded-lg cursor-not-allowed flex items-center justify-center mx-auto opacity-60"
+                  >
+                    <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Generando recomendaciones. Por favor, espere...
+                  </button>
+                )}
+
+                {/* Estado: Listo para ver (recomendaciones generadas) */}
+                {aiGenerationStatus === 'ready' && (
+                  <button
+                    onClick={() => setIsAIModalOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition shadow-lg flex items-center justify-center mx-auto"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    Ver Recomendaciones
+                  </button>
+                )}
+
+                <p className="text-gray-600 text-sm mt-3">
+                  {aiGenerationStatus === 'queued'
+                    ? 'La IA está procesando las recomendaciones automáticamente. Esto puede tomar unos minutos.'
+                    : 'Recomendaciones personalizadas generadas por IA avanzada'}
+                </p>
               </div>
             </div>
           </div>
@@ -1083,7 +1168,17 @@ export default function ClientProfile() {
           </div>
         )}
         {isAIModalOpen && clientId && (
-          <AIRecommendationsModal clientId={clientId} _clientName={client.personalData.name} onClose={() => setIsAIModalOpen(false)} onRecommendationsGenerated={fetchClient} />
+          <AIRecommendationsModal
+            clientId={clientId}
+            _clientName={client.personalData.name}
+            onClose={() => setIsAIModalOpen(false)}
+            onRecommendationsGenerated={() => {
+              // Auto-flow: just refresh client data to show new sessions
+              setAiGenerationStatus('ready')
+              setIsGeneratingAI(false)
+              fetchClient()
+            }}
+          />
         )}
       </Layout>
     </>

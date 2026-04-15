@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm *)",
       "Bash(npx *)",
-      "Bash(head *)"
+      "Bash(head *)",
+      "Bash(rm *)"
     ]
   },
   "$version": 3

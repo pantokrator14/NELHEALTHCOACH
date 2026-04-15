@@ -43,22 +43,22 @@ export async function connectToDatabase(): Promise<MongoConnection> {
       maxPoolSize: 10,
       minPoolSize: 1,
       maxIdleTimeMS: 30000,
-      
+
       // Timeout configuration
       serverSelectionTimeoutMS: 30000,
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
-      
+
       // TLS/SSL configuration - DIFERENTE EN DESARROLLO
       tls: true,
       tlsAllowInvalidCertificates: isDevelopment, // Permite certificados inválidos en dev
       tlsAllowInvalidHostnames: isDevelopment,    // Permite hostnames inválidos en dev
-      
+
       // Retry configuration
       retryWrites: true,
       retryReads: true,
       w: 'majority',
-      
+
       // DNS configuration
       ...(isDevelopment && {
         // Configuraciones adicionales solo para desarrollo
@@ -89,7 +89,7 @@ export async function connectToDatabase(): Promise<MongoConnection> {
             hasMongoURI: !!MONGODB_URI,
             isDevelopment
           });
-          
+
           cached.promise = null;
           throw error;
         });
@@ -107,25 +107,25 @@ export async function connectToDatabase(): Promise<MongoConnection> {
 
 export async function getHealthFormsCollection() {
   const { db } = await connectToDatabase();
-  
+
   return logger.time('DATABASE', 'Buscar colección healthforms', async () => {
     const possibleCollectionNames = [
-      'healthforms', 'healthForms', 'HealthForms', 
+      'healthforms', 'healthForms', 'HealthForms',
       'formularios', 'forms'
     ];
-    
+
     for (const collectionName of possibleCollectionNames) {
       const collection = db.collection(collectionName);
       const count = await collection.countDocuments();
-      
+
       if (count > 0) {
         logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
         return collection;
       }
-      
+
       logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
     }
-    
+
     logger.warn('DATABASE', 'No se encontraron colecciones con datos, usando "healthforms" por defecto');
     return db.collection('healthforms');
   });
@@ -133,26 +133,51 @@ export async function getHealthFormsCollection() {
 
 export async function getRecipesCollection() {
   const { db } = await connectToDatabase();
-  
+
   return logger.time('DATABASE', 'Buscar colección recipes', async () => {
     const possibleCollectionNames = [
       'recipes', 'Recipes', 'recetas', 'Recetas'
     ];
-    
+
     for (const collectionName of possibleCollectionNames) {
       const collection = db.collection(collectionName);
       const count = await collection.countDocuments();
-      
+
       if (count > 0) {
         logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
         return collection;
       }
-      
+
       logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
     }
-    
+
     logger.info('DATABASE', 'Creando nueva colección "recipes"');
     return db.collection('recipes');
+  });
+}
+
+export async function getExerciseCollection() {
+  const { db } = await connectToDatabase();
+
+  return logger.time('DATABASE', 'Buscar colección exercises', async () => {
+    const possibleCollectionNames = [
+      'exercises', 'Exercises', 'ejercicios', 'Ejercicios'
+    ];
+
+    for (const collectionName of possibleCollectionNames) {
+      const collection = db.collection(collectionName);
+      const count = await collection.countDocuments();
+
+      if (count > 0) {
+        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
+        return collection;
+      }
+
+      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
+    }
+
+    logger.info('DATABASE', 'Creando nueva colección "exercises"');
+    return db.collection('exercises');
   });
 }
 
