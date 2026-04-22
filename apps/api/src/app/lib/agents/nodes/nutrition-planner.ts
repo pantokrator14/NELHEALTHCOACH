@@ -7,6 +7,7 @@ import {
 import type { RecommendationStateType } from "../state";
 import { searchRecipeTool, saveRecipeTool, getRecipeByIdTool } from "../tools/recipe-tools";
 import { logger } from "../../logger";
+import { nutritionPlannerGuard, applyGuardrails, validateAIResponse } from "../guard";
 
 interface ClientInsights {
   summary: string;
@@ -45,13 +46,29 @@ export async function analyzeClient(
       coachNotes: state.coachNotes,
     });
 
-    const response = await llm.invoke([
-      new SystemMessage("Eres un experto analista de salud integral. Responde SOLO con JSON válido."),
-      new HumanMessage(prompt),
-    ]);
+    // Usar guardrails para análisis de cliente
+    const insights = await applyGuardrails(
+      nutritionPlannerGuard,
+      { prompt, personalData: state.personalData, medicalData: state.medicalData },
+      async (validatedInput) => {
+        const response = await llm.invoke([
+          new SystemMessage("Eres un experto analista de salud integral. Responde SOLO con JSON válido."),
+          new HumanMessage(validatedInput.prompt),
+        ]);
 
-    const content = typeof response.content === "string" ? response.content : "";
-    const insights = parseInsightsResponse(content);
+        const content = typeof response.content === "string" ? response.content : "";
+        
+        // Validación adicional de la respuesta
+        const validation = await validateAIResponse(content);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en respuesta de análisis", {
+            issues: validation.issues,
+          });
+        }
+
+        return parseInsightsResponse(validation.sanitizedResponse || content);
+      }
+    );
 
     logCtx.info("AI", "Client analysis completed", {
       experienceLevel: insights.experienceLevel,
@@ -152,10 +169,37 @@ export async function planNutrition(
 
     logCtx.debug("AI", "Invoking LLM with tools for nutrition planning");
 
-    // Run the tool-calling loop
-    const finalContent = await runToolCallingLoop(llmWithTools, systemPrompt, userPrompt, logCtx);
+    // Usar guardrails para planificación nutricional
+    const nutritionPlan = await applyGuardrails(
+      nutritionPlannerGuard,
+      { systemPrompt, userPrompt, clientData: state },
+      async (validatedInput) => {
+        // Run the tool-calling loop
+        const finalContent = await runToolCallingLoop(
+          llmWithTools, 
+          validatedInput.systemPrompt, 
+          validatedInput.userPrompt, 
+          logCtx
+        );
 
-    const nutritionPlan = parseNutritionResponse(finalContent, weekNumbers);
+        // Validar respuesta final
+        const validation = await validateAIResponse(finalContent);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en plan nutricional", {
+            issues: validation.issues,
+            weekCount: weekNumbers.length,
+          });
+        }
+
+        const plan = parseNutritionResponse(validation.sanitizedResponse || finalContent, weekNumbers);
+        
+        // Asegurar que cada semana tenga disclaimer médico
+        return plan.map(weekPlan => ({
+          ...weekPlan,
+          focus: weekPlan.focus + " | ⚠️ Consulte con profesional médico",
+        }));
+      }
+    );
 
     logCtx.info("AI", "Nutrition planning completed", {
       weekCount: nutritionPlan.length,
@@ -270,27 +314,91 @@ function buildNutritionUserPrompt(
   const insights = state.clientInsights;
   const personalData = state.personalData;
   const medicalData = state.medicalData;
+  const healthAssessment = state.healthAssessment;
+  const weekList = weekNumbers.join(", ");
 
-  return `## CLIENTE
+  // Formatear evaluaciones de salud relevantes para nutrición
+  const healthConditions: string[] = [];
+  if (healthAssessment.carbohydrateAddiction) healthConditions.push("- Adicción a carbohidratos (priorizar cetosis estricta)");
+  if (healthAssessment.leptinResistance) healthConditions.push("- Resistencia a leptina (manejo de hambre)");
+  if (healthAssessment.microbiotaHealth) healthConditions.push("- Problemas de microbiota (pre/post bióticos)");
+  if (healthAssessment.generalToxicity) healthConditions.push("- Toxicidad general (limpieza hepática)");
+  if (healthAssessment.sleepHygiene) healthConditions.push("- Problemas de sueño (evitar cafeína tarde)");
+
+  // Preferencias alimentarias
+  const foodPreferences: string[] = [];
+  if (medicalData.dislikedFoodsActivities) foodPreferences.push(`- No deseados: ${medicalData.dislikedFoodsActivities}`);
+  if (medicalData.allergies) foodPreferences.push(`- Alergias: ${medicalData.allergies}`);
+
+  // Calcular IMC para ajuste de calorías
+  const weight = parseFloat(personalData.weight) || 0;
+  const height = parseFloat(personalData.height) || 0;
+  const bmi = height > 0 ? Math.round((weight / ((height / 100) ** 2)) * 10) / 10 : 0;
+  let calorieAdjustment = "";
+  if (bmi > 30) calorieAdjustment = "Déficit calórico mayor (-500 kcal)";
+  else if (bmi > 25) calorieAdjustment = "Déficit calórico moderado (-300 kcal)";
+  else if (bmi < 18.5) calorieAdjustment = "Sin déficit, mantenimiento o leve aumento";
+
+  // Estilo de vida para horarios de comida
+  const lifestyleInfo = [];
+  if (medicalData.typicalWeekday) lifestyleInfo.push(`- Día entre semana: ${medicalData.typicalWeekday.substring(0, 150)}`);
+  if (medicalData.typicalWeekend) lifestyleInfo.push(`- Fin de semana: ${medicalData.typicalWeekend.substring(0, 150)}`);
+  if (medicalData.whoCooks) lifestyleInfo.push(`- Quién cocina: ${medicalData.whoCooks}`);
+
+  return `## PERFIL DEL CLIENTE
+
+**Resumen:** ${insights?.summary ?? "No disponible"}
 **Nivel:** ${insights?.experienceLevel ?? "principiante"}
-**Peso:** ${personalData.weight ?? "N/A"} kg | **Altura:** ${personalData.height ?? "N/A"} cm
-**Alergias:** ${medicalData.allergies ?? "Ninguna"}
-**Condiciones:** ${medicalData.currentPastConditions ?? "Ninguna"}
+**Peso ideal objetivo:** ${insights?.idealWeight ?? "No definido"}
+
+## DATOS ANTROPOMÉTRICOS
+- Peso: ${personalData.weight ?? "N/A"} kg
+- Altura: ${personalData.height ?? "N/A"} cm
+- IMC estimado: ${bmi > 0 ? bmi : "N/A"} → ${calorieAdjustment || "Calcular según nivel de actividad"}
+
+## ESTILO DE VIDA (para adaptar horarios de comidas)
+${lifestyleInfo.length > 0 ? lifestyleInfo.join("\n") : "- No especificado"}
+- Nivel de actividad: ${medicalData.currentActivityLevel ?? "No especificado"}
+- Ocupación/horario de trabajo: ${personalData.occupation ?? "No especificado"}
+
+## CONDICIONES MÉDICAS Y ALERGIAS
+- Condiciones: ${medicalData.currentPastConditions ?? "Ninguna"}
+- Alergias: ${medicalData.allergies ?? "Ninguna"}
+- Quién cocina: ${medicalData.whoCooks ?? "No especificado"}
+
+## EVALUACIONES DE SALUD RELEVANTES PARA NUTRICIÓN
+${healthConditions.length > 0 ? healthConditions.join("\n") : "- Sin problemas de salud identificados"}
+
+## PREFERENCIAS ALIMENTARIAS
+${foodPreferences.length > 0 ? foodPreferences.join("\n") : "- Ninguna especificada"}
+
+## OBJETIVOS DEL CLIENTE
+${insights?.targetImprovements?.join(", ") ?? "Mejorar composición corporal y salud general"}
 
 ## TAREA
-Plan para semanas: ${weekNumbers.join(", ")}
-- Semanas 1-4: ~1600 kcal
-- Semanas 5-8: ~1450 kcal
-- Semanas 9-12: ~1350 kcal
+Plan de nutrición para semanas: ${weekList}
 
-## FORMATO JSON
+### Progresión calórica:
+- Semanas 1-4 (Adaptación): ~1600 kcal (mantener cetosis)
+- Semanas 5-8 (Optimización): ~1450 kcal (déficit moderado)
+- Semanas 9-12 (Intensificación): ~1350 kcal (déficit mayor si IMC > 25)
+
+### Consideraciones especiales:
+- Ajustar horarios de comida según rutina del cliente (trabajo, sueño)
+- Si quien cocina no es el cliente, priorizar recetas simples que pueda preparar
+- Incluir suplementos según condiciones (vit D, omega-3 si hay problemas de microbiota)
+- Evitar TODOS los alimentos no deseados/alergias del cliente
+
+### Formato JSON:
+\`\`\`json
 [{
   "weekNumber": number,
   "focus": "string",
   "macros": { "protein": "g", "fat": "g", "carbs": "g", "calories": number },
   "metabolicPurpose": "string",
   "shoppingList": [{ "item": "string", "quantity": "string", "priority": "high|medium|low" }]
-}]`;
+}]
+\`\`\``;
 }
 
 function parseNutritionResponse(

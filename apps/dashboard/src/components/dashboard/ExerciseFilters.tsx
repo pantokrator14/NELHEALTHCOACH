@@ -30,7 +30,7 @@ export type ExerciseSortOption =
 const DIFFICULTIES = [
   { value: 'easy' as const, label: 'Fácil', color: 'bg-green-100 text-green-800' },
   { value: 'medium' as const, label: 'Medio', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'hard' as const, label: 'Difícil', color: 'bg-red-100 text-red-800' },
+  { value: 'hard' as const, label: 'Complejo', color: 'bg-red-100 text-red-800' },
 ] as const;
 
 const LEVELS = [
@@ -76,11 +76,6 @@ const ExerciseFilters: React.FC<ExerciseFiltersProps> = ({
 
   const allEquipment = useMemo(() =>
     Array.from(new Set(exercises.flatMap(e => e.equipment))).sort(),
-    [exercises]
-  );
-
-  const allTags = useMemo(() =>
-    Array.from(new Set(exercises.flatMap(e => e.tags))).sort(),
     [exercises]
   );
 

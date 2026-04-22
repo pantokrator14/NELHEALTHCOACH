@@ -6,6 +6,7 @@ import DragDropList from '../ui/DragDropList';
 import { NutritionTooltip } from '../ui/Tooltip';
 import { apiClient } from '../../lib/api';
 import { useToast } from '../ui/Toast';
+import { useTranslation } from 'react-i18next';
 
 interface RecipeModalProps {
   recipe: Recipe | null;
@@ -57,6 +58,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   existingCategories = [],
   existingTags = [],
 }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<RecipeFormData>({
     title: '',
     description: '',
@@ -171,7 +173,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   // Función para calcular nutrición automáticamente
   const calculateNutritionAutomatically = async () => {
     if (formData.ingredients.length === 0) {
-      showToast('Agrega ingredientes primero para calcular nutrición', 'warning');
+      showToast(t('recipes.addIngredientsFirst'), 'warning');
       return;
     }
     
@@ -204,7 +206,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       }
     } catch (error) {
       console.error('Error calculando nutrición:', error);
-      showToast('Error calculando nutrición. Usa valores manuales.', 'error');
+      showToast(t('recipes.errorCalculatingNutrition'), 'error');
     } finally {
       setIsCalculatingNutrition(false);
     }
@@ -282,7 +284,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
     if (file) {
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
-        showToast('Solo se permiten imágenes (JPEG, PNG, GIF, WebP)', 'error');
+        showToast(t('recipes.invalidImageType'), 'error');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -291,7 +293,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
 
       const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        showToast('La imagen es demasiado grande (máximo 10MB)', 'error');
+        showToast(t('recipes.imageTooLarge'), 'error');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -308,7 +310,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       reader.onerror = () => {
         setImagePreview(null);
         setImageFile(null);
-        showToast('Error al leer el archivo', 'error');
+        showToast(t('recipes.errorReadingFile'), 'error');
       };
       reader.readAsDataURL(file);
     }
@@ -410,13 +412,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.title.trim()) newErrors.title = 'El título es requerido';
-    if (!formData.description.trim()) newErrors.description = 'La descripción es requerida';
-    if (formData.category.length === 0) newErrors.category = 'Agrega al menos una categoría';
-    if (formData.ingredients.length === 0) newErrors.ingredients = 'Agrega al menos un ingrediente';
-    if (formData.instructions.length === 0) newErrors.instructions = 'Agrega al menos una instrucción';
-    if (formData.cookTime <= 0) newErrors.cookTime = 'El tiempo debe ser mayor a 0';
-    if (formData.nutrition.calories < 0) newErrors.calories = 'Las calorías no pueden ser negativas';
+if (!formData.title.trim()) newErrors.title = t('common.required');
+    if (!formData.description.trim()) newErrors.description = t('common.required');
+    if (formData.category.length === 0) newErrors.category = t('common.required');
+    if (formData.instructions.length === 0) newErrors.instructions = t('common.required');
+    if (formData.nutrition.calories < 0) newErrors.calories = t('common.error');
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -446,7 +446,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
             recipeData = { ...recipeData, image: imageData };
           } catch (uploadError) {
             console.error('Error subiendo imagen:', uploadError);
-            showToast('La receta se actualizó pero hubo un error subiendo la imagen', 'warning');
+            showToast(t('recipes.recipeUpdatedImageError'), 'warning');
           }
         }
         
@@ -455,7 +455,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         if (response.success && response.data) {
           updatedRecipeData = response.data;
         } else {
-          throw new Error('Error al actualizar la receta');
+          throw new Error(t('common.error'));
         }
         
       } else {
@@ -487,12 +487,12 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
             if (updateResponse.success && updateResponse.data) {
               updatedRecipeData = updateResponse.data; // Receta final con imagen
             } else {
-              showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
+showToast(t('recipes.recipeCreatedImageError'), 'warning');
               // Si falla, mantenemos la receta sin imagen
             }
           } catch (imageError) {
             console.error('Error en proceso de imagen:', imageError);
-            showToast('Receta creada pero hubo un error subiendo la imagen', 'warning');
+            showToast(t('recipes.recipeCreatedImageError'), 'warning');
           }
         }
       }
@@ -511,7 +511,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       
     } catch (error) {
       console.error('Error guardando receta:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error al guardar la receta';
+      const errorMessage = error instanceof Error ? error.message : t('common.error');
       showToast(errorMessage, 'error');
       setErrors(prev => ({ ...prev, form: errorMessage }));
     } finally {
@@ -777,7 +777,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
                         >
                           <option value="easy">Fácil</option>
                           <option value="medium">Media</option>
-                          <option value="hard">Difícil</option>
+                          <option value="hard">Complejo</option>
                         </select>
                       </div>
                     </div>

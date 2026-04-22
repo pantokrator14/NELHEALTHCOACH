@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useTranslation } from 'react-i18next';
+import '../../../lib/i18n';
 
 const Navbar: React.FC = () => {
+  const { t } = useTranslation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isOverHero, setIsOverHero] = useState(true);
@@ -44,11 +47,11 @@ const Navbar: React.FC = () => {
 
   // Elementos del menú de navegación
   const navItems = [
-    { id: 'inicio', label: 'Inicio' },
-    { id: 'metodo', label: 'Método' },
-    { id: 'sobre-mi', label: 'Sobre Mí' },
-    { id: 'testimonios', label: 'Testimonios' },
-    { id: 'contacto', label: 'Contacto' },
+    { id: 'inicio', labelKey: 'landing.nav.inicio' },
+    { id: 'metodo', labelKey: 'landing.nav.metodo' },
+    { id: 'sobre-mi', labelKey: 'landing.nav.sobreMi' },
+    { id: 'testimonios', labelKey: 'landing.nav.testimonios' },
+    { id: 'contacto', labelKey: 'landing.nav.contacto' },
   ];
 
   // Función para scroll suave con animación
@@ -109,7 +112,7 @@ const Navbar: React.FC = () => {
               onClick={() => scrollToSection(item.id)}
               className={`font-medium transition-colors cursor-pointer ${textColor}`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
         </nav>
@@ -133,7 +136,7 @@ const Navbar: React.FC = () => {
                 onClick={() => scrollToSection(item.id)}
                 className={`font-medium transition-colors py-2 cursor-pointer ${isOverHero ? 'text-white hover:text-blue-200' : 'text-gray-700 hover:text-blue-600'}`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </a>
             ))}
           </div>

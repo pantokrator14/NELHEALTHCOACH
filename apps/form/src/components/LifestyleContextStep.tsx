@@ -97,6 +97,63 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
               />
             </div>
 
+            {/* Acceso a gimnasio o equipos */}
+            <div>
+              <label className="block text-sm font-medium text-teal-600 mb-2">
+                ¿Tienes acceso a un gimnasio, parque de calistenia o equipos de ejercicio en casa?
+              </label>
+              <select
+                {...register('gymAccess')}
+                className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
+              >
+                <option value="">Selecciona una opción</option>
+                <option value="si-gimnasio">Sí, tengo acceso a un gimnasio</option>
+                <option value="si-parque">Sí, tengo acceso a un parque de calistenia o área al aire libre</option>
+                <option value="equipos-casa">Sí, tengo equipos básicos en casa (pesas, bandas de resistencia, etc.)</option>
+                <option value="peso-corporal">Prefiero ejercicios sin equipo (peso corporal)</option>
+                <option value="no-acceso">No tengo acceso a equipos específicos</option>
+              </select>
+            </div>
+
+            {/* Detalles del acceso */}
+            <div>
+              <label className="block text-sm font-medium text-teal-600 mb-2">
+                Describe los equipos o espacios disponibles (ej: tipo de máquinas, pesas libres, barras, etc.)
+              </label>
+              <textarea
+                rows={3}
+                {...register('gymAccessDetails')}
+                className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
+                placeholder="Ej: En el gimnasio tienen máquinas de cardio, pesas libres hasta 20kg, barras para dominadas..."
+              />
+            </div>
+
+            {/* Tipos de ejercicio preferidos */}
+            <div>
+              <label className="block text-sm font-medium text-teal-600 mb-2">
+                ¿Qué tipos de ejercicio disfrutas o estarías dispuesto a probar? (ej: cardio, fuerza, yoga, natación, etc.)
+              </label>
+              <textarea
+                rows={3}
+                {...register('preferredExerciseTypes')}
+                className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
+                placeholder="Ej: Me gusta caminar y yoga, estaría dispuesto a probar entrenamiento de fuerza básico..."
+              />
+            </div>
+
+            {/* Disponibilidad de tiempo para ejercicio */}
+            <div>
+              <label className="block text-sm font-medium text-teal-600 mb-2">
+                ¿Cuánto tiempo puedes dedicar al ejercicio por sesión y cuántas veces por semana?
+              </label>
+              <textarea
+                rows={2}
+                {...register('exerciseTimeAvailability')}
+                className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
+                placeholder="Ej: Puedo dedicar 30-45 minutos, 3-4 veces por semana, preferiblemente por las mañanas..."
+              />
+            </div>
+
             <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
               <button
                 type="button"

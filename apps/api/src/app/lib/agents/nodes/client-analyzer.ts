@@ -4,6 +4,8 @@ import {
   buildClientAnalysisPrompt,
 } from "../utils/prompt-builders";
 import type { RecommendationStateType } from "../state";
+import { clientAnalyzerGuard, applyGuardrails, validateAIResponse } from "../guard";
+import { logger } from "../../logger";
 
 interface ClientInsights {
   summary: string;
@@ -25,6 +27,11 @@ export async function analyzeClient(
   state: RecommendationStateType,
   _config?: RunnableConfig
 ): Promise<Partial<RecommendationStateType>> {
+  const logCtx = logger.withContext({
+    node: "analyzeClient",
+    clientId: state.clientId,
+  });
+
   try {
     const llm = createDeepSeekJSONLLM();
 
@@ -38,13 +45,41 @@ export async function analyzeClient(
       coachNotes: state.coachNotes,
     });
 
-    const response = await llm.invoke([
-      { role: "system", content: "Eres un experto analista de salud integral. Responde SOLO con JSON válido." },
-      { role: "user", content: prompt },
-    ]);
+    // Usar guardrails para análisis de cliente
+    const insights = await applyGuardrails(
+      clientAnalyzerGuard,
+      { 
+        prompt, 
+        personalData: state.personalData, 
+        medicalData: state.medicalData,
+        clientId: state.clientId 
+      },
+      async (validatedInput) => {
+        const response = await llm.invoke([
+          { role: "system", content: "Eres un experto analista de salud integral. Responde SOLO con JSON válido." },
+          { role: "user", content: validatedInput.prompt },
+        ]);
 
-    const content = typeof response.content === "string" ? response.content : "";
-    const insights = parseInsightsResponse(content);
+        const content = typeof response.content === "string" ? response.content : "";
+        
+        // Validación adicional de la respuesta
+        const validation = await validateAIResponse(content);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en respuesta de análisis de cliente", {
+            issues: validation.issues,
+            clientId: validatedInput.clientId,
+          });
+        }
+
+        return parseInsightsResponse(validation.sanitizedResponse || content);
+      }
+    );
+
+    logCtx.info("AI", "Análisis de cliente completado con guardrails", {
+      experienceLevel: insights.experienceLevel,
+      riskCount: insights.keyRisks.length,
+      opportunityCount: insights.opportunities.length,
+    });
 
     return {
       clientInsights: insights,
@@ -52,17 +87,22 @@ export async function analyzeClient(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error in analyzeClient";
+    
+    logCtx.error("AI", `Análisis de cliente falló: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage), { 
+      clientId: state.clientId,
+      operation: "analyzeClient"
+    });
 
     return {
       errors: [`analyzeClient: ${errorMessage}`],
       clientInsights: {
-        summary: "Error analyzing client profile",
-        keyRisks: ["Unable to assess risks due to analysis error"],
-        opportunities: ["Retry analysis"],
+        summary: "Error analyzing client profile - using safe fallback",
+        keyRisks: ["Unable to assess risks due to security validation"],
+        opportunities: ["Consult with healthcare professional"],
         experienceLevel: "principiante" as const,
         idealWeight: "N/A",
         idealBodyFat: "N/A",
-        targetImprovements: ["Complete analysis first"],
+        targetImprovements: ["Professional medical evaluation required"],
       },
     };
   }

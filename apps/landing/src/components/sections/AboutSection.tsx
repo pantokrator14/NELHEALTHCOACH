@@ -1,18 +1,20 @@
 import React from 'react';
 import Image from 'next/image';
+import { useTranslation } from 'react-i18next';
+import '../../lib/i18n';
 
-/**
- * Sección biográfica con:
- * - Título "¿Pero quién soy yo?"
- * - Foto a la izquierda (en escritorio) o arriba (en móvil)
- * - Biografía a la derecha (en escritorio) o abajo (en móvil)
- * - Badges de certificaciones y logros
- */
 const AboutSection: React.FC = () => {
+  const { t } = useTranslation();
+  const badges = [
+    t('landing.about.badge1'),
+    t('landing.about.badge2'),
+    t('landing.about.badge3')
+  ];
+
   return (
     <section id="sobre-mi" className="bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 text-white min-h-screen py-16 px-4 flex items-center">
       <div className="container mx-auto max-w-6xl w-full">
-        <h2 className="text-3xl text-white md:text-4xl font-bold text-center mb-16">¡Hola! soy Nel, te invito a conocer &quot;El Poder de tu Cuerpo.&quot;</h2>
+        <h2 className="text-3xl text-white md:text-4xl font-bold text-center mb-16">{t('landing.about.title')}</h2>
         
         <div className="flex flex-col lg:flex-row items-center gap-10">
           <div>
@@ -21,36 +23,31 @@ const AboutSection: React.FC = () => {
                alt="Manuel Martínez | NelHealthCoach"
                width={600}
                height={800}
-              className="w-full h-auto rounded-xl shadow-lg"
-              priority
-            />
+               className="w-full h-auto rounded-xl shadow-lg"
+               priority
+             />
           </div>
           
           <div className="lg:w-1/2 w-full">
-            <h3 className="text-2xl text-white font-bold mb-4">Mi nombre es Manuel Martínez.</h3>
+            <h3 className="text-2xl text-white font-bold mb-4">{t('landing.about.subtitle')}</h3>
             <p className="mb-4 text-white">
-              Durante la pandemia comprendí que <strong>muchos alimentos enferman y que la medicina convencional a menudo solo alivia síntomas, sin abordar la causa de raíz.</strong>
+              {t('landing.about.description1')}
             </p>
             <p className="mb-4 text-white">
-              Decidí escuchar a mi cuerpo y mi vida cambió por completo: <strong>descubrí que la mejor medicina es la alimentación ancestral.</strong>
+              {t('landing.about.description2')}
             </p>
             <p className="mb-6 text-white">
-              Un claro ejemplo es mi hija, quien tomó medicamentos para la tiroides durante diez años sin mejorar. Al cambiar su alimentación, recuperó su salud de forma natural.
+              {t('landing.about.description3')}
             </p>
             <p className="mb-6 text-white">
-              Estas experiencias me impulsaron a formarme con <strong>dos certificaciones en nutrición</strong> para acompañar y empoderar a otras personas a liberarse de esa dependencia.
-Esta es mi historia… y podría ser la tuya.
+              {t('landing.about.description4')}
             </p>
             <p className="mb-6 text-white">
-              <strong>La alimentación es tu mejor medicina.</strong>
+              {t('landing.about.description5')}
             </p>
             
             <div className="flex flex-wrap gap-3">
-              {[
-                "COACH CERTIFICADO EN NUTRICIÓN MODERNA", 
-                "+50 Clientes Transformados", 
-                "Experiencia en nutrición humana evolutiva"
-              ].map((badge, index) => (
+              {badges.map((badge, index) => (
                 <div 
                   key={index} 
                   className="bg-blue-100 text-blue-800 py-2 px-4 rounded-full text-sm font-medium"

@@ -1,26 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useTranslation } from 'react-i18next';
+import '../../lib/i18n';
 
 const HeroCarousel: React.FC = () => {
+  const { t } = useTranslation();
   const slides = [
     {
       id: 1,
-      title: "Llego el momento de escuchar a tu cuerpo",
+      titleKey: 'landing.carousel.slide1',
       image: "/images/hero/hero1.jpg"
     },
     {
       id: 2,
-      title: "Que tu alimento sea tu medicina y que tu medicina sea tu alimento",
+      titleKey: 'landing.carousel.slide2',
       image: "/images/hero/hero2.jpg"
     },
     {
       id: 3,
-      title: "Conoce El Poder de tu Cuerpo",
+      titleKey: 'landing.carousel.slide3',
       image: "/images/hero/hero3.jpg"
     },
     {
       id: 4,
-      title: "Elige una meta y te acompañamos paso a paso",
+      titleKey: 'landing.carousel.slide4',
       image: "/images/hero/hero4.jpg"
     }
   ];
@@ -62,7 +65,7 @@ const HeroCarousel: React.FC = () => {
           {/* Contenido del slide */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center z-20 px-4">
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 max-w-3xl">
-              {slide.title}
+              {t(slide.titleKey)}
             </h1>
           </div>
         </div>

@@ -9,6 +9,7 @@
     "start:auto": "PORT=${PORT:-3001} next start"
   },
   "dependencies": {
+    "@arcjet/next": "^1.4.0",
     "@aws-sdk/client-s3": "^3.927.0",
     "@aws-sdk/client-ses": "^3.948.0",
     "@aws-sdk/client-textract": "^3.943.0",

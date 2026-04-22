@@ -4,6 +4,7 @@ import { createDeepSeekWithTools, invokeWithTools } from "../utils/llm";
 import type { RecommendationStateType, RecipeMatch } from "../state";
 import { searchRecipeTool, saveRecipeTool } from "../tools/recipe-tools";
 import { logger } from "../../logger";
+import { recipeMatcherGuard, applyGuardrails } from "../guard";
 
 /**
  * Recipe Matcher Node
@@ -44,8 +45,22 @@ export async function matchRecipes(
         const systemPrompt = `Busca recetas para "${query}". Si no encuentras adecuadas, crea una nueva.`;
         const userPrompt = `Busca: ${query}. Nivel: ${state.clientInsights?.experienceLevel ?? "principiante"}`;
 
-        const content = await runToolLoopForMatch(llmWithTools, systemPrompt, userPrompt, query, logCtx);
-        const matchResult = parseMatchResult(content, query, weekPlan.weekNumber);
+        // Usar guardrails para emparejamiento de recetas
+        const matchResult = await applyGuardrails(
+          recipeMatcherGuard,
+          { systemPrompt, userPrompt, query, weekNumber: weekPlan.weekNumber },
+          async (validatedInput) => {
+            const content = await runToolLoopForMatch(
+              llmWithTools, 
+              validatedInput.systemPrompt, 
+              validatedInput.userPrompt, 
+              validatedInput.query, 
+              logCtx
+            );
+            return parseMatchResult(content, validatedInput.query, validatedInput.weekNumber);
+          }
+        );
+        
         matches.push(matchResult);
       }
     }

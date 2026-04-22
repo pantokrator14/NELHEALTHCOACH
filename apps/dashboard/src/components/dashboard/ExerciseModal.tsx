@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent } from 'react';
+import React, { useState, useEffect, useMemo, useRef, ChangeEvent } from 'react';
 import DragDropList from '../ui/DragDropList';
 import AutocompleteInput from '../ui/AutocompleteInput';
 import { useToast } from '../ui/Toast';
+import Tooltip from '../ui/Tooltip';
 import type { Exercise, ExerciseFormData } from '../../lib/api';
+import { useTranslation } from 'react-i18next';
 
 interface ExerciseModalProps {
   exercise: Exercise | null;
@@ -23,6 +25,7 @@ export default function ExerciseModal({
 }: ExerciseModalProps) {
   const isEditing = !!exercise;
   const { showToast, ToastComponent } = useToast();
+  const { t } = useTranslation();
 
   // Form state
   const [name, setName] = useState(exercise?.name ?? '');
@@ -190,13 +193,13 @@ export default function ExerciseModal({
     if (file) {
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
-        showToast('Solo se permiten imágenes (JPEG, PNG, GIF, WebP)', 'error');
+        showToast(t('exercises.invalidImageType'), 'error');
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
       const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        showToast('La imagen es demasiado grande (máximo 10MB)', 'error');
+        showToast(t('exercises.imageTooLarge'), 'error');
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
@@ -224,12 +227,10 @@ export default function ExerciseModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = 'El nombre es obligatorio';
-    if (!description.trim()) newErrors.description = 'La descripción es obligatoria';
-    if (category.length === 0) newErrors.category = 'Agrega al menos una categoría';
-    if (muscleGroups.length === 0) newErrors.muscleGroups = 'Agrega al menos un grupo muscular';
-    if (equipment.length === 0) newErrors.equipment = 'Agrega al menos un equipamiento';
-    if (instructions.filter(i => i.trim()).length === 0) newErrors.instructions = 'Agrega al menos una instrucción';
-    if (!progression.trim()) newErrors.progression = 'La progresión es obligatoria';
+if (!description.trim()) newErrors.description = t('common.required');
+    if (category.length === 0) newErrors.category = t('common.required');
+    if (instructions.filter(i => i.trim()).length === 0) newErrors.instructions = t('common.required');
+    if (!progression.trim()) newErrors.progression = t('common.required');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -272,14 +273,14 @@ export default function ExerciseModal({
 
       if (isEditing && exercise) {
         await apiClient.updateExercise(exercise.id, formData);
-        showToast('Ejercicio actualizado exitosamente', 'success');
+        showToast(t('exercises.updated'), 'success');
       } else {
         await apiClient.createExercise(formData);
-        showToast('Ejercicio creado exitosamente', 'success');
+        showToast(t('exercises.created'), 'success');
       }
       onSuccess();
     } catch {
-      showToast('Error al guardar el ejercicio', 'error');
+      showToast(t('exercises.errorSaving'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -477,7 +478,7 @@ export default function ExerciseModal({
                       <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as ExerciseFormData['difficulty'])} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
                         <option value="easy">Fácil</option>
                         <option value="medium">Medio</option>
-                        <option value="hard">Difícil</option>
+                        <option value="hard">Complejo</option>
                       </select>
                     </div>
                     <div>
@@ -497,7 +498,16 @@ export default function ExerciseModal({
                       <input value={repetitions} onChange={(e) => setRepetitions(e.target.value)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" placeholder="12" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">TUT</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2 flex items-center">
+                        TUT
+                        <Tooltip content="Time Under Tension (Tiempo Bajo Tensión). Formato: fase concéntrica - pausa - fase excéntrica. Ej: 3-1-1 significa 3s subiendo, 1s de pausa, 1s bajando." position="right" delay={150}>
+                          <button type="button" className="ml-1 text-gray-400 hover:text-gray-600 inline-flex items-center" aria-label="Información sobre TUT">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </button>
+                        </Tooltip>
+                      </label>
                       <input value={timeUnderTension} onChange={(e) => setTimeUnderTension(e.target.value)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" placeholder="3-1-1" />
                     </div>
                     <div>

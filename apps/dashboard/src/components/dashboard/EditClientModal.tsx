@@ -7,6 +7,7 @@ import {
   mentalHealthOpenQuestions,
   lifestyleQuestions,
 } from '../../lib/formConstants';
+import { useTranslation } from 'react-i18next';
 
 interface UploadedFile {
   url: string;
@@ -97,6 +98,12 @@ interface Client {
     whoCooks?: string
     currentActivityLevel?: string
     physicalLimitations?: string
+    // Nuevos campos para acceso a equipos de ejercicio
+    gymAccess?: 'si-gimnasio' | 'si-parque' | 'no-acceso' | 'equipos-casa' | 'peso-corporal'
+    gymAccessDetails?: string
+    equipmentAvailable?: string
+    preferredExerciseTypes?: string
+    exerciseTimeAvailability?: string
   }
   contractAccepted: string
   ipAddress: string
@@ -241,6 +248,7 @@ const parseStringArray = (field: unknown): string[] => {
 };
 
 export default function EditClientModal({ client, onClose, onSave }: EditClientModalProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('personal')
   const [footerExpanded, setFooterExpanded] = useState(false)
 
@@ -333,11 +341,11 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
         onSave();
         onClose();
       } else {
-        alert(`Error: ${responseData.message || 'Error desconocido'}`);
+        alert(t('clients.errorSaving', { error: responseData.message || '' }));
       }
     } catch (error) {
       console.error('Error guardando cliente:', error);
-      alert('Error de conexión');
+      alert(t('common.error'));
     }
   };
 
@@ -778,17 +786,43 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
           {/* ESTILO DE VIDA */}
           {activeTab === 'lifestyle' && (
             <div className="space-y-4">
-              {Object.entries(lifestyleQuestions).map(([field, question]) => (
-                <div key={field} className="bg-white p-4 rounded-lg border border-teal-100 shadow-sm">
-                  <label className="block text-sm font-medium text-teal-700 mb-2">{question}</label>
-                  <textarea
-                    rows={3}
-                    value={formData.medicalData[field as keyof Client['medicalData']] as string || ''}
-                    onChange={(e) => handleInputChange('medicalData', field, e.target.value)}
-                    className="w-full px-3 py-2 border border-teal-200 rounded-md focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-              ))}
+              {Object.entries(lifestyleQuestions).map(([field, question]) => {
+                const currentValue = formData.medicalData[field as keyof Client['medicalData']] as string || '';
+                
+                // gymAccess es un select, no un textarea
+                if (field === 'gymAccess') {
+                  return (
+                    <div key={field} className="bg-white p-4 rounded-lg border border-teal-100 shadow-sm">
+                      <label className="block text-sm font-medium text-teal-700 mb-2">{question}</label>
+                      <select
+                        value={currentValue}
+                        onChange={(e) => handleInputChange('medicalData', field, e.target.value)}
+                        className="w-full px-3 py-2 border border-teal-200 rounded-md focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="">Selecciona una opción</option>
+                        <option value="si-gimnasio">Sí, tengo acceso a un gimnasio</option>
+                        <option value="si-parque">Sí, tengo acceso a un parque de calistenia o área al aire libre</option>
+                        <option value="equipos-casa">Sí, tengo equipos básicos en casa (pesas, bandas de resistencia, etc.)</option>
+                        <option value="peso-corporal">Prefiero ejercicios sin equipo (peso corporal)</option>
+                        <option value="no-acceso">No tengo acceso a equipos específicos</option>
+                      </select>
+                    </div>
+                  );
+                }
+                
+                // Los demás campos son textarea
+                return (
+                  <div key={field} className="bg-white p-4 rounded-lg border border-teal-100 shadow-sm">
+                    <label className="block text-sm font-medium text-teal-700 mb-2">{question}</label>
+                    <textarea
+                      rows={3}
+                      value={currentValue}
+                      onChange={(e) => handleInputChange('medicalData', field, e.target.value)}
+                      className="w-full px-3 py-2 border border-teal-200 rounded-md focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import type {
   ValidationResult,
 } from "../state";
 import { logger } from "../../logger";
+import { qualityValidatorGuard, applyGuardrails, validateAIResponse } from "../guard";
 
 /**
  * Quality Validator Node
@@ -49,13 +50,35 @@ export async function validateQuality(
       habitPlan: state.habitPlan as unknown as Array<Record<string, unknown>>,
     });
 
-    const response = await llm.invoke([
-      new SystemMessage("Eres un auditor de calidad en planes de salud integral. Responde SOLO con JSON válido."),
-      new HumanMessage(prompt),
-    ]);
+    // Usar guardrails para validación de calidad
+    const validationResults = await applyGuardrails(
+      qualityValidatorGuard,
+      { 
+        prompt, 
+        clientInsights: state.clientInsights,
+        nutritionPlan: state.nutritionPlan,
+        exercisePlan: state.exercisePlan,
+        habitPlan: state.habitPlan
+      },
+      async (validatedInput) => {
+        const response = await llm.invoke([
+          new SystemMessage("Eres un auditor de calidad en planes de salud integral. Responde SOLO con JSON válido."),
+          new HumanMessage(validatedInput.prompt),
+        ]);
 
-    const content = typeof response.content === "string" ? response.content : "";
-    const validationResults = parseValidationResponse(content);
+        const content = typeof response.content === "string" ? response.content : "";
+        
+        // Validación adicional de la respuesta
+        const validation = await validateAIResponse(content);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en respuesta de validación de calidad", {
+            issues: validation.issues,
+          });
+        }
+
+        return parseValidationResponse(validation.sanitizedResponse || content);
+      }
+    );
 
     // Check if revision is needed and within limits
     const maxRevisions = state.maxRevisions ?? 2;

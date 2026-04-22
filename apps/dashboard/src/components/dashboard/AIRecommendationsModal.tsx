@@ -7,6 +7,7 @@ import AIRecipeEditModal, { AIRecipeData } from './AIRecipeEditModal';
 import OriginPin from './OriginPin';
 import { ChecklistItem } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
+import { useTranslation } from 'react-i18next';
 
 // ===== TIPOS Y INTERFACES =====
 
@@ -219,6 +220,7 @@ export default function AIRecommendationsModal({
   onClose,
   onRecommendationsGenerated
 }: AIRecommendationsModalProps) {
+  const { t } = useTranslation();
   // ===== ESTADOS PRINCIPALES =====
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -448,7 +450,7 @@ export default function AIRecommendationsModal({
         setAiProgress(null);
       }
     } catch {
-      alert('Error al cargar recomendaciones');
+      alert(t('ai.errorGenerating'));
     } finally {
       setLoading(false);
     }
@@ -481,7 +483,7 @@ export default function AIRecommendationsModal({
         throw new Error(response.message);
       }
     } catch {
-      alert('Error al generar recomendaciones');
+      alert(t('ai.errorGenerating'));
     } finally {
       setGenerating(false);
     }
@@ -530,10 +532,10 @@ export default function AIRecommendationsModal({
           return { ...prev, sessions };
         });
       } else {
-        throw new Error(response.message || 'Error al actualizar');
+        throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert('Error al actualizar');
+      alert(t('common.error'));
       await loadAIProgress();
     }
   }, [aiProgress, clientId, loadAIProgress]);
@@ -560,10 +562,10 @@ export default function AIRecommendationsModal({
         // ✅ FORZAR ACTUALIZACIÓN DE LAS SEMANAS EXPANDIDAS
         setExpandedWeeks(prev => [...prev]);
       } else {
-        throw new Error(response.message || 'Error al guardar cambios');
+        throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert('Error al guardar cambios');
+      alert(t('common.error'));
       await loadAIProgress();
     }
   }, [aiProgress, clientId, loadAIProgress]);
@@ -659,7 +661,7 @@ export default function AIRecommendationsModal({
       setEditText('');
     } catch (error) {
       console.error('💥 Error en handleSaveEdit:', error);
-      alert('Error al guardar');
+      alert(t('common.error'));
     }
   }, [editMode, editingField, aiProgress, editText, clientId, updateItemViaFullChecklist]);
 
@@ -684,7 +686,7 @@ export default function AIRecommendationsModal({
       }
     } catch (error) {
       console.error('Error actualizando lista de compras', error);
-      alert('Error al actualizar la lista de compras');
+      alert(t('common.error'));
     } finally {
       setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
     }
@@ -735,7 +737,7 @@ export default function AIRecommendationsModal({
     if (!activeSession || !aiProgress) return;
     const item = activeSession.checklist.find(i => i.id === itemId);
     if (!item) return;
-    if (!confirm('¿Estás seguro de eliminar este ítem?')) return;
+    if (!confirm(t('common.confirmDelete'))) return;
 
     // Eliminar solo el ítem con ese ID (sin importar el grupo)
     const updatedChecklist = activeSession.checklist.filter(i => i.id !== itemId);
@@ -759,10 +761,10 @@ export default function AIRecommendationsModal({
         });
         setExpandedWeeks(prev => [...prev]); // Forzar actualización
       } else {
-        throw new Error(response.message || 'Error al eliminar');
+        throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert('Error al eliminar');
+      alert(t('common.error'));
       await loadAIProgress();
     }
   }, [activeSession, aiProgress, clientId, loadAIProgress]);
@@ -852,10 +854,10 @@ export default function AIRecommendationsModal({
         setShowRecipeSearch(false);
         setShowEditItemModal(false);
       } else {
-        throw new Error(response.message || 'Error al crear el ítem');
+        throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert('Error al crear el ítem');
+      alert(t('common.error'));
       await loadAIProgress();
     }
   }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress]);
@@ -956,7 +958,7 @@ export default function AIRecommendationsModal({
       await apiClient.approveAISession(clientId, sessionId);
       await loadAIProgress();
     } catch {
-      alert('Error al aprobar');
+      alert(t('common.error'));
     }
   }, [clientId, loadAIProgress]);
 
@@ -968,7 +970,7 @@ export default function AIRecommendationsModal({
       await apiClient.regenerateAISession(clientId, activeSession.sessionId, notes || '');
       await loadAIProgress();
     } catch {
-      alert('Error al regenerar');
+      alert(t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -978,9 +980,9 @@ export default function AIRecommendationsModal({
     try {
       await apiClient.sendAISessionToClient(clientId, sessionId);
       await loadAIProgress();
-      alert('Enviado al cliente');
+      alert(t('common.success'));
     } catch {
-      alert('Error al enviar');
+      alert(t('common.error'));
     }
   }, [clientId, loadAIProgress]);
 
@@ -1079,7 +1081,7 @@ export default function AIRecommendationsModal({
         await loadAIProgress();
         setUploadError(null);
         // Opcional: cerrar el modal o mostrar mensaje de éxito
-        alert('✅ Sesión importada exitosamente. Ahora puedes revisar y editar las recomendaciones.');
+        alert(t('ai.sessionImported'));
       } else {
         throw new Error(response.message || 'Error desconocido al importar sesión');
       }
@@ -1088,7 +1090,7 @@ export default function AIRecommendationsModal({
       console.error('Error subiendo archivo:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setUploadError(errorMessage || 'Error procesando el archivo');
-      alert(`Error: ${errorMessage || 'No se pudo importar la sesión'}`);
+      alert(t('ai.sessionImportError', { error: errorMessage || '' }));
     } finally {
       setUploadingFile(false);
     }
@@ -1150,7 +1152,7 @@ export default function AIRecommendationsModal({
           await handleUpdateShoppingList(sessionId, weekNumber);
         } catch (error) {
           console.error('Error generando lista automática', error);
-          alert('No se pudo generar la lista de compras automáticamente');
+          alert(t('ai.shoppingListError'));
         } finally {
           setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
         }
@@ -1892,10 +1894,10 @@ export default function AIRecommendationsModal({
                   },
                 });
               } else {
-                alert('Error al obtener la receta completa');
+                alert(t('recipes.errorLoading'));
               }
             } catch {
-              alert('Error al cargar la receta');
+              alert(t('recipes.errorLoading'));
             }
           }}
           onClose={() => setShowRecipeSearch(false)}

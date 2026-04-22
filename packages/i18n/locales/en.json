@@ -1,0 +1,102 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "yes": "Yes",
+    "no": "No",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information",
+    "required": "Required"
+  },
+  "navigation": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "exercises": "Exercises",
+    "recipes": "Recipes",
+    "settings": "Settings",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "rememberMe": "Remember me"
+  },
+  "clients": {
+    "title": "Clients",
+    "addClient": "Add Client",
+    "editClient": "Edit Client",
+    "deleteClient": "Delete Client",
+    "clientDetails": "Client Details",
+    "noClients": "No clients found",
+    "searchClients": "Search clients...",
+    "personalData": "Personal Data",
+    "medicalData": "Medical Data",
+    "age": "Age",
+    "weight": "Weight",
+    "height": "Height",
+    "gender": "Gender",
+    "occupation": "Occupation"
+  },
+  "ai": {
+    "recommendations": "AI Recommendations",
+    "generating": "Generating recommendations...",
+    "ready": "Recommendations ready",
+    "generateNew": "Generate New Recommendations",
+    "viewRecommendations": "View Recommendations",
+    "noRecommendations": "No recommendations generated",
+    "nutrition": "Nutrition",
+    "exercise": "Exercise",
+    "habits": "Habits"
+  },
+  "form": {
+    "title": "Health Form",
+    "personalInformation": "Personal Information",
+    "medicalHistory": "Medical History",
+    "lifestyle": "Lifestyle",
+    "healthAssessment": "Health Assessment",
+    "submitForm": "Submit Form",
+    "formSubmitted": "Form submitted successfully",
+    "continue": "Continue",
+    "finish": "Finish"
+  },
+  "landing": {
+    "hero": {
+      "title": "Transform Your Health",
+      "subtitle": "Personalized nutrition and wellness plans powered by AI",
+      "cta": "Get Started"
+    },
+    "features": {
+      "title": "Features",
+      "personalized": "Personalized Plans",
+      "aiPowered": "AI Powered",
+      "tracking": "Progress Tracking"
+    },
+    "contact": {
+      "title": "Contact Us",
+      "name": "Name",
+      "email": "Email",
+      "message": "Message",
+      "send": "Send Message"
+    }
+  }
+}

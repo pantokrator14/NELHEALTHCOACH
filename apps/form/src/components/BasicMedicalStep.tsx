@@ -50,7 +50,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={4}
                 {...register('mainComplaint')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Describe detalladamente tus síntomas..."
+                placeholder="Ej: Dolor de cabeza constante desde hace 3 meses, fatiga crónica que me impide hacer ejercicio, insomnio 3-4 noches por semana, ansiedad por las tardes. Los síntomas comenzaron después de un período de estrés laboral intenso."
               />
               {errors.mainComplaint?.message && (
                 <p className="text-red-500 text-sm mt-1">{String(errors.mainComplaint.message)}</p>
@@ -81,7 +81,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('mainComplaintImpact')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Ej: Hacer ejercicio, concentrarme en el trabajo..."
+                placeholder="Ej: Me impide hacer ejercicio cardiovascular por más de 10 minutos, dificulta mi concentración en el trabajo después del mediodía, afecta mi calidad de sueño, limita mi capacidad para realizar tareas domésticas que requieren esfuerzo físico."
               />
             </div>
 
@@ -93,7 +93,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('medications')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Lista los medicamentos y dosis..."
+                placeholder="Ej: Metformina 500mg 2 veces al día para diabetes tipo 2, Levotiroxina 50mcg diario para hipotiroidismo, Omeprazol 20mg al día para reflujo, suplemento de vitamina D 2000 UI diarias. No tomo medicamentos para la presión arterial ni antidepresivos."
               />
             </div>
 
@@ -105,7 +105,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('supplements')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Lista los suplementos que tomas..."
+                placeholder="Ej: Multivitamínico diario, Omega-3 1000mg al día, Magnesio 400mg antes de dormir, Probiótico en la mañana. No tomo creatina ni proteína en polvo."
               />
             </div>
 
@@ -117,7 +117,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('currentPastConditions')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Describe tus condiciones de salud..."
+                placeholder="Ej: Diabetes tipo 2 diagnosticada hace 5 años, hipertensión controlada con medicación, hipotiroidismo de Hashimoto, síndrome de ovario poliquístico, ansiedad generalizada. En el pasado: mononucleosis a los 18 años, apendicectomía a los 25."
               />
             </div>
 
@@ -129,7 +129,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('additionalMedicalHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Información adicional de tu historial médico..."
+                placeholder="Ej: Historial familiar: madre con diabetes tipo 2, padre con enfermedad cardíaca. En la niñez: asma infantil que se resolvió en la adolescencia, múltiples infecciones de oído. Historial quirúrgico: cesárea hace 8 años, extracción de vesícula biliar hace 3 años."
               />
             </div>
 
@@ -141,7 +141,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('allergies')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Lista tus alergias..."
+                placeholder="Ej: Alergia a la penicilina (reacción cutánea severa), alergia estacional al polen en primavera, intolerancia a la lactosa. No tengo alergias alimentarias conocidas a frutos secos, mariscos o gluten."
               />
             </div>
 
@@ -153,7 +153,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('surgeries')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Lista tus cirugías..."
+                placeholder="Ej: Apendicectomía (2015), cesárea (2018), extracción de vesícula biliar (2021), cirugía de menisco rodilla derecha (2022). No he tenido cirugías cardíacas, cerebrales o de columna."
               />
             </div>
 
@@ -165,7 +165,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('employmentHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Ej: Trabajo en oficina, sedentario, mucho estrés..."
+                placeholder="Ej: Trabajo como analista de datos en oficina, 8 horas diarias sentado frente a computadora. Exposición moderada a estrés por plazos ajustados. No estoy expuesto a químicos, ruido industrial o turnos rotativos. Trabajo de lunes a viernes, horario fijo de 9am a 6pm."
               />
             </div>
 
@@ -177,7 +177,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('hobbies')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Describe tus hobbies y actividades..."
+                placeholder="Ej: Actual: lectura, caminatas en parque los fines de semana, cocinar recetas saludables, yoga ocasional. Pasados: jugué fútbol en la universidad, practiqué natación durante 5 años, toqué guitarra en una banda. Me gustaría retomar el ejercicio regular."
               />
             </div>
 
@@ -189,7 +189,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 rows={3}
                 {...register('housingHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Describe tu historial de vivienda..."
+                placeholder="Ej: Nací y crecí en ciudad con alta contaminación. Viví en apartamento pequeño hasta los 25, luego casa con jardín en suburbio por 10 años. Actualmente vivo en departamento moderno con buena ventilación. Nunca he vivido cerca de fábricas o zonas industriales pesadas."
               />
             </div>
 

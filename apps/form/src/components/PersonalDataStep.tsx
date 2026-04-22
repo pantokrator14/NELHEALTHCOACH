@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema, PersonalDataFormValues } from '../lib/validation';
 import FileUpload from './FileUpload';
+import { useTranslation } from 'react-i18next';
 
 interface PersonalDataStepProps {
   data?: Partial<PersonalDataFormValues>;
@@ -13,6 +14,7 @@ interface PersonalDataStepProps {
 }
 
 const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onBack }) => {
+  const { t } = useTranslation();
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
     setPhotoError(null);
     setValue('profilePhoto', file, { shouldValidate: true });
     
-    // Crear preview URL
+    // Create preview URL
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
   };
@@ -112,7 +114,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   type="text"
                   {...register('address')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Tu dirección completa"
+                  placeholder="Ej: Calle Principal #123, Colonia Centro, Ciudad de México, CP 06000"
                 />
                 {errors.address?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.address?.message)}</p>
@@ -127,7 +129,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   type="tel"
                   {...register('phone')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Tu número de teléfono"
+                  placeholder="Ej: +52 55 1234 5678 (incluye código de país y área)"
                 />
                 {errors.phone?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.phone?.message)}</p>
@@ -165,16 +167,16 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
-                  Género *
+                  {t('form.gender')} *
                 </label>
                 <select
                   {...register('gender')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
-                  <option value="">Selecciona tu género</option>
-                  <option value="masculino">Masculino</option>
-                  <option value="femenino">Femenino</option>
-                  <option value="prefiero-no-decir">Prefiero no decir</option>
+                  <option value="">{t('form.selectYourGender')}</option>
+                  <option value="masculino">{t('form.male')}</option>
+                  <option value="femenino">{t('form.female')}</option>
+                  <option value="prefiero-no-decir">{t('form.preferNotToSay')}</option>
                 </select>
                 {errors.gender?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.gender?.message)}</p>
@@ -231,18 +233,18 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
-                  Estado civil *
+                  {t('form.maritalStatus')} *
                 </label>
                 <select
                   {...register('maritalStatus')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
-                  <option value="">Selecciona tu estado civil</option>
-                  <option value="soltero">Soltero/a</option>
-                  <option value="casado">Casado/a</option>
-                  <option value="divorciado">Divorciado/a</option>
-                  <option value="viudo">Viudo/a</option>
-                  <option value="union-libre">Unión libre</option>
+                  <option value="">{t('form.selectMaritalStatus')}</option>
+                  <option value="soltero">{t('form.single')}</option>
+                  <option value="casado">{t('form.married')}</option>
+                  <option value="divorciado">{t('form.divorced')}</option>
+                  <option value="viudo">{t('form.widowed')}</option>
+                  <option value="union-libre">{t('form.civilUnion')}</option>
                 </select>
                 {errors.maritalStatus?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.maritalStatus?.message)}</p>
@@ -251,19 +253,19 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
-                  Educación *
+                  {t('form.education')} *
                 </label>
                 <select
                   {...register('education')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
-                  <option value="">Selecciona tu nivel educativo</option>
-                  <option value="primaria">Primaria</option>
-                  <option value="secundaria">Secundaria</option>
-                  <option value="bachillerato">Bachillerato</option>
-                  <option value="tecnico">Técnico</option>
-                  <option value="universitario">Universitario</option>
-                  <option value="posgrado">Posgrado</option>
+                  <option value="">{t('form.selectEducationLevel')}</option>
+                  <option value="primaria">{t('form.primary')}</option>
+                  <option value="secundaria">{t('form.secondary')}</option>
+                  <option value="bachillerato">{t('form.bachelor')}</option>
+                  <option value="tecnico">{t('form.technical')}</option>
+                  <option value="universitario">{t('form.university')}</option>
+                  <option value="posgrado">{t('form.postgraduate')}</option>
                 </select>
                 {errors.education?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.education?.message)}</p>
@@ -278,7 +280,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   type="text"
                   {...register('occupation')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Tu ocupación actual"
+                  placeholder="Ej: Ingeniero de software, Maestra de primaria, Médico cirujano, Emprendedor en el sector alimenticio"
                 />
                 {errors.occupation?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.occupation?.message)}</p>
@@ -299,28 +301,28 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
-                  ¿Tu peso se ha mantenido estable en los últimos 6 meses?
+                  {t('form.weightStable')}
                 </label>
                 <select
                   {...register('weightVariation')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
-                  <option value="">Selecciona una opción</option>
-                  <option value="estable">Estable</option>
-                  <option value="bajo">Ha bajado</option>
-                  <option value="subido">Ha subido</option>
+                  <option value="">{t('form.selectOption')}</option>
+                  <option value="estable">{t('form.stable')}</option>
+                  <option value="bajo">{t('form.decreased')}</option>
+                  <option value="subido">{t('form.increased')}</option>
                 </select>
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-blue-500 mb-2">
-                  ¿Hay algún tipo de alimento que NO estés dispuesto a comer o alguna actividad física que NO estés dispuesto a realizar?
+                  {t('form.foodRestrictions')}
                 </label>
                 <textarea
                   {...register('dislikedFoodsActivities')}
                   rows={3}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Ej: No como pescado, odio correr"
+                  placeholder="Ej: No como mariscos por alergia, evito el brócoli por gases, no me gusta correr por dolor de rodillas, prefiero ejercicios de bajo impacto como natación o yoga, tengo aversión a las coles de Bruselas"
                 />
               </div>
 

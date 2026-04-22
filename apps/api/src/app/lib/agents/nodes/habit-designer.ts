@@ -4,6 +4,7 @@ import { createDeepSeekJSONLLM } from "../utils/llm";
 import { buildHabitPrompt } from "../utils/prompt-builders";
 import type { RecommendationStateType } from "../state";
 import { logger } from "../../logger";
+import { habitDesignerGuard, applyGuardrails, validateAIResponse } from "../guard";
 
 /**
  * Habit Designer Node
@@ -39,16 +40,45 @@ export async function planHabits(
       clientInsights: state.clientInsights,
       healthAssessment: state.healthAssessment,
       mentalHealth: state.mentalHealth,
+      medicalData: state.medicalData,
+      personalData: state.personalData,
       weekNumbers,
     });
 
-    const response = await llm.invoke([
-      new SystemMessage("Eres un experto en psicología del comportamiento y formación de hábitos. Responde SOLO con JSON válido (array de objetos)."),
-      new HumanMessage(prompt),
-    ]);
+    // Usar guardrails para diseño de hábitos
+    const habitPlan = await applyGuardrails(
+      habitDesignerGuard,
+      { prompt, clientData: state },
+      async (validatedInput) => {
+        const response = await llm.invoke([
+          new SystemMessage("Eres un experto en psicología del comportamiento y formación de hábitos. Responde SOLO con JSON válido (array de objetos)."),
+          new HumanMessage(validatedInput.prompt),
+        ]);
 
-    const content = typeof response.content === "string" ? response.content : "";
-    const habitPlan = parseHabitResponse(content, weekNumbers);
+        const content = typeof response.content === "string" ? response.content : "";
+        
+        // Validación adicional de la respuesta
+        const validation = await validateAIResponse(content);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en plan de hábitos", {
+            issues: validation.issues,
+            weekCount: weekNumbers.length,
+          });
+        }
+
+        const plan = parseHabitResponse(validation.sanitizedResponse || content, weekNumbers);
+        
+        // Asegurar que cada semana tenga disclaimer de seguridad
+        return plan.map(weekPlan => ({
+          ...weekPlan,
+          motivationTip: weekPlan.motivationTip + " | ⚠️ Cambios graduales recomendados",
+          adoptHabits: weekPlan.adoptHabits.map(habit => ({
+            ...habit,
+            habit: habit.habit + " (implementar gradualmente)",
+          })),
+        }));
+      }
+    );
 
     logCtx.info("AI", "Habit planning completed", {
       weekCount: habitPlan.length,

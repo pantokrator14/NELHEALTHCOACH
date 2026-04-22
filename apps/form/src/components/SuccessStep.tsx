@@ -1,7 +1,9 @@
 import React from 'react';
 import Image from 'next/image';
+import { useTranslation } from 'react-i18next';
 
 const SuccessStep: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center px-4">
       
@@ -25,16 +27,16 @@ const SuccessStep: React.FC = () => {
         </div>
         
         <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          ¡Formulario Completado!
+          {t('form.formSubmittedSuccessfully')}
         </h1>
         
         <p className="text-gray-600 mb-6">
-          Gracias por completar el formulario de salud. Hemos recibido tu información de forma segura y puedes cerrar esta ventana.
+          {t('form.thankYouMessage')}
         </p>
 
         <div className="bg-blue-50 p-4 rounded-lg mb-6">
           <p className="text-sm text-blue-700">
-            <strong>Próximos pasos:</strong> Revisaremos tu información y te contactaremos dentro de las próximas 24-48 horas para coordinar una sesión.
+            <strong>{t('form.nextSteps')}</strong> {t('form.nextStepsMessage')}
           </p>
         </div>
 

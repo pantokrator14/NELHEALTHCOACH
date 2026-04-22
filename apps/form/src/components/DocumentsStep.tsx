@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { documentsSchema } from '../lib/validation'; // NUEVO ESQUEMA
+import { documentsSchema } from '../lib/validation';
 import FileUpload from './FileUpload';
+import { useTranslation } from 'react-i18next';
 
 interface DocumentsStepProps {
   data: unknown;
@@ -19,9 +20,9 @@ interface DocumentFile {
 }
 
 const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, loading = false }) => {
+  const { t } = useTranslation();
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
 
-  // USAR EL NUEVO ESQUEMA - SOLO VALIDA DOCUMENTOS
   const { handleSubmit, formState: { errors } } = useForm({
     defaultValues: { documents: [] },
     resolver: yupResolver(documentsSchema),
@@ -151,13 +152,13 @@ const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, l
             </div>
 
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <h4 className="font-semibold text-green-700 mb-2">📋 Documentos recomendados:</h4>
+              <h4 className="font-semibold text-green-700 mb-2">{t('form.documentsTitle')}</h4>
               <ul className="text-sm text-green-600 list-disc list-inside space-y-1">
-                <li>Resultados de análisis de sangre</li>
-                <li>Estudios de imagen (radiografías, ecografías, etc.)</li>
-                <li>Recetas médicas actuales</li>
-                <li>Diagnósticos previos</li>
-                <li>Informes de especialistas</li>
+                <li>{t('form.bloodResults')}</li>
+                <li>{t('form.imagingStudies')}</li>
+                <li>{t('form.currentPrescriptions')}</li>
+                <li>{t('form.previousDiagnoses')}</li>
+                <li>{t('form.specialistReports')}</li>
               </ul>
             </div>
 

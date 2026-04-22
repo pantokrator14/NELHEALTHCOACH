@@ -1121,17 +1121,17 @@ ${responseSchema}
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos para deepseek-reasoner
       
-      try {
-        const response = await fetch(`${this.config.baseURL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        });
+        try {
+          const response = await fetch(`${this.config.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.config.apiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+          });
 
         clearTimeout(timeoutId);
         

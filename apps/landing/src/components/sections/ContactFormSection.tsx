@@ -1,5 +1,7 @@
 // apps/landing/src/components/sections/ContactFormSection.tsx
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import '../../lib/i18n';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -12,16 +14,17 @@ interface FormData {
 }
 
 const objectives = [
-  { value: 'perder-peso', label: 'Perder peso' },
-  { value: 'ganar-musculo', label: 'Ganar masa muscular' },
-  { value: 'mas-energia', label: 'Tener más energía' },
-  { value: 'mejorar-digestion', label: 'Mejorar digestión' },
-  { value: 'reducir-estres', label: 'Reducir estrés' },
-  { value: 'dormir-mejor', label: 'Dormir mejor' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'perder-peso', labelKey: 'landing.contact.objective1' },
+  { value: 'ganar-musculo', labelKey: 'landing.contact.objective2' },
+  { value: 'mas-energia', labelKey: 'landing.contact.objective3' },
+  { value: 'mejorar-digestion', labelKey: 'landing.contact.objective4' },
+  { value: 'reducir-estres', labelKey: 'landing.contact.objective5' },
+  { value: 'dormir-mejor', labelKey: 'landing.contact.objective6' },
+  { value: 'otro', labelKey: 'landing.contact.objective7' },
 ];
 
 const ContactFormSection: React.FC = () => {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -116,9 +119,9 @@ const ContactFormSection: React.FC = () => {
           <div className="md:flex">
             {/* Panel izquierdo - Beneficios */}
             <div className="md:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 text-white p-8 md:p-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">¿Hablamos?</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('landing.contact.title2')}</h2>
               <p className="mb-6 text-xl text-blue-100">
-                Prepárate para tomar el control de tu vida de una vez por todas.
+                {t('landing.contact.subtitle2')}
               </p>
               <ul className="space-y-4">
                 <li className="flex items-start">
@@ -127,7 +130,7 @@ const ContactFormSection: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                   </div>
-                  <span className="text-lg">Sesión personalizada de 60 minutos</span>
+                  <span className="text-lg">{t('landing.contact.benefit1')}</span>
                 </li>
                 <li className="flex items-start">
                   <div className="bg-blue-500 rounded-full p-2 mr-3 mt-1">
@@ -135,7 +138,7 @@ const ContactFormSection: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                   </div>
-                  <span className="text-lg">Análisis inicial para establecer tu plan</span>
+                  <span className="text-lg">{t('landing.contact.benefit2')}</span>
                 </li>
                 <li className="flex items-start">
                   <div className="bg-blue-500 rounded-full p-2 mr-3 mt-1">
@@ -143,7 +146,7 @@ const ContactFormSection: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                   </div>
-                  <span className="text-lg">Plan de acción personalizado</span>
+                  <span className="text-lg">{t('landing.contact.benefit3')}</span>
                 </li>
               </ul>
             </div>
@@ -151,10 +154,10 @@ const ContactFormSection: React.FC = () => {
             {/* Panel derecho - Botón único */}
             <div className="md:w-1/2 p-12 flex flex-col justify-center items-center">
               <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">
-                Agenda tu sesión gratuita
+                {t('landing.contact.schedule')}
               </h3>
               <p className="text-gray-600 mb-6 text-center">
-                Elige el día y hora que mejor te convenga en solo 2 clics
+                {t('landing.contact.scheduleSubtitle')}
               </p>
 
               <button
@@ -162,7 +165,7 @@ const ContactFormSection: React.FC = () => {
                 className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
               >
                 <span className="text-2xl">📅</span>
-                <span>Ver horarios disponibles</span>
+                <span>{t('landing.contact.viewSchedule')}</span>
               </button>
 
               <div className="mt-8 space-y-4">
@@ -170,13 +173,13 @@ const ContactFormSection: React.FC = () => {
                   <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  Sin registros necesario
+                  {t('landing.contact.noRegister')}
                 </p>
                 <p className="text-gray-500 text-sm text-center flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  Recibirás confirmación por email
+                  {t('landing.contact.confirmEmail')}
                 </p>
               </div>
             </div>
@@ -197,26 +200,26 @@ const ContactFormSection: React.FC = () => {
               </svg>
             </button>
 
-            <h3 className="text-2xl font-bold text-blue-800 mb-4">Antes de continuar</h3>
+            <h3 className="text-2xl font-bold text-blue-800 mb-4">{t('landing.contact.beforeContinue')}</h3>
             <p className="text-gray-600 mb-6">
-              Cuéntanos un poco sobre ti para que podamos preparar mejor tu sesión.
+              {t('landing.contact.tellUs')}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">Nombre *</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('common.name')} *</label>
                 <input
                   type="text"
                   name="name"
                   required
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ringblue-500 focus:border-blue-500 text-gray-700"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">Email *</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('auth.email')} *</label>
                 <input
                   type="email"
                   name="email"
@@ -239,7 +242,7 @@ const ContactFormSection: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">Objetivo principal *</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.mainObjective')} *</label>
                 <select
                   name="objective"
                   required
@@ -248,7 +251,7 @@ const ContactFormSection: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
                 >
                   {objectives.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                   ))}
                 </select>
               </div>
