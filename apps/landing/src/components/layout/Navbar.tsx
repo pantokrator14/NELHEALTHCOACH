@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
-import '../../../lib/i18n';
+import '../../lib/i18n';
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
