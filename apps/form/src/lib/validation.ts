@@ -113,6 +113,12 @@ export const medicalDataSchema = yup.object({
   whoCooks: yup.string().optional(),
   currentActivityLevel: yup.string().optional(),
   physicalLimitations: yup.string().optional(),
+  // Nuevos campos para acceso a equipos de ejercicio
+  gymAccess: yup.string().oneOf(['si-gimnasio', 'si-parque', 'no-acceso', 'equipos-casa', 'peso-corporal']).optional(),
+  gymAccessDetails: yup.string().optional(),
+  equipmentAvailable: yup.string().optional(),
+  preferredExerciseTypes: yup.string().optional(),
+  exerciseTimeAvailability: yup.string().optional(),
 
   documents: yup.array().of(documentFileSchema),
 });

@@ -278,12 +278,12 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
     {
       field: 'mentalHealthLimitingBeliefs',
       question: '¿Hay alguna creencia o pensamiento recurrente que sientas que te limita en tu vida actual?',
-      placeholder: 'Describe las creencias o pensamientos que sientes que te limitan...'
+      placeholder: 'Ej: "No soy lo suficientemente disciplinado para mantener un estilo de vida saludable", "Siempre he sido gordo y así seguiré", "El ejercicio es solo para personas jóvenes", "No tengo tiempo para cuidarme porque mi trabajo es muy demandante", "Merezo comer lo que quiero porque trabajo duro"'
     },
     {
       field: 'mentalHealthIdealBalance',
       question: 'Imagina que has alcanzado un equilibrio emocional ideal. ¿Qué cambiaría en tu día a día?',
-      placeholder: 'Describe cómo sería tu día a día con un equilibrio emocional ideal...'
+      placeholder: 'Ej: Me despertaría con energía y sin necesidad de café, manejaría el estrés laboral con técnicas de respiración, tendría tiempo para ejercicio matutino 4 veces por semana, comería conscientemente sin culpa, dormiría 7-8 horas de calidad, tendría tiempo para hobbies los fines de semana, mantendría relaciones sociales saludables sin agotamiento'
     }
   ];
 

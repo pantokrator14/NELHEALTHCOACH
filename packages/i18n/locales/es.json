@@ -1,0 +1,102 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Ocurrió un error",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "submit": "Enviar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "clear": "Limpiar",
+    "yes": "Sí",
+    "no": "No",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "required": "Requerido"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "dashboard": "Panel",
+    "clients": "Clientes",
+    "exercises": "Ejercicios",
+    "recipes": "Recetas",
+    "settings": "Configuración",
+    "logout": "Cerrar sesión",
+    "login": "Iniciar sesión",
+    "register": "Registrarse"
+  },
+  "auth": {
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "rememberMe": "Recuérdame"
+  },
+  "clients": {
+    "title": "Clientes",
+    "addClient": "Agregar cliente",
+    "editClient": "Editar cliente",
+    "deleteClient": "Eliminar cliente",
+    "clientDetails": "Detalles del cliente",
+    "noClients": "No se encontraron clientes",
+    "searchClients": "Buscar clientes...",
+    "personalData": "Datos personales",
+    "medicalData": "Datos médicos",
+    "age": "Edad",
+    "weight": "Peso",
+    "height": "Altura",
+    "gender": "Género",
+    "occupation": "Ocupación"
+  },
+  "ai": {
+    "recommendations": "Recomendaciones de IA",
+    "generating": "Generando recomendaciones...",
+    "ready": "Recomendaciones listas",
+    "generateNew": "Generar nuevas recomendaciones",
+    "viewRecommendations": "Ver recomendaciones",
+    "noRecommendations": "No hay recomendaciones generadas",
+    "nutrition": "Nutrición",
+    "exercise": "Ejercicio",
+    "habits": "Hábitos"
+  },
+  "form": {
+    "title": "Formulario de salud",
+    "personalInformation": "Información personal",
+    "medicalHistory": "Historial médico",
+    "lifestyle": "Estilo de vida",
+    "healthAssessment": "Evaluación de salud",
+    "submitForm": "Enviar formulario",
+    "formSubmitted": "Formulario enviado exitosamente",
+    "continue": "Continuar",
+    "finish": "Finalizar"
+  },
+  "landing": {
+    "hero": {
+      "title": "Transforma tu salud",
+      "subtitle": "Planes personalizados de nutrición y bienestar impulsados por IA",
+      "cta": "Comenzar"
+    },
+    "features": {
+      "title": "Características",
+      "personalized": "Planes personalizados",
+      "aiPowered": "Impulsado por IA",
+      "tracking": "Seguimiento de progreso"
+    },
+    "contact": {
+      "title": "Contáctanos",
+      "name": "Nombre",
+      "email": "Correo electrónico",
+      "message": "Mensaje",
+      "send": "Enviar mensaje"
+    }
+  }
+}

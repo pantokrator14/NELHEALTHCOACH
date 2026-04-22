@@ -1,5 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
+import { useTranslation } from 'react-i18next';
 
 interface ContractStepProps {
   onAccept: () => void;
@@ -7,6 +8,7 @@ interface ContractStepProps {
 }
 
 const ContractStep: React.FC<ContractStepProps> = ({ onAccept, onReject }) => {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 py-12 px-4">
       <div className="max-w-4xl mx-auto">
@@ -28,7 +30,7 @@ const ContractStep: React.FC<ContractStepProps> = ({ onAccept, onReject }) => {
               </div>
             </div>
             <h1 className="text-3xl font-bold text-center text-blue-800 mb-8">
-              CONTRATO DE COACHING EN NUTRICIÓN Y BIENESTAR
+              {t('form.contractTitle')}
             </h1>
             
             <div className="bg-gray-50 p-6 rounded-lg max-h-96 overflow-y-auto mb-8">

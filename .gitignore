@@ -3,7 +3,12 @@ node_modules
 .next
 .qwen
 .vercel
+.engram
 .dist
 *.log
 *.swp
 node_modules/@next/swc-*
+# Scripts locales (herramientas de desarrollo)
+scripts/
+# Engram AI agent memory
+

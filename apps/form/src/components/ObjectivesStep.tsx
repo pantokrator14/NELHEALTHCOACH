@@ -121,7 +121,7 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
                 rows={3}
                 {...register('previousCoachExperienceDetails')}
                 className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700"
-                placeholder="Cuéntanos tu experiencia..."
+                placeholder="Ej: Trabajé con nutricionista hace 2 años por 6 meses, perdí 8kg pero lo recuperé. Seguía dietas muy restrictivas que no podía mantener. Con entrenador personal hice 3 meses de gimnasio pero me lesioné la rodilla. Aprendí que necesito un enfoque más sostenible y menos extremo."
               />
             </div>
 
@@ -134,7 +134,7 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
                 type="text"
                 {...register('targetDate')}
                 className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700"
-                placeholder="Ej: Boda en 6 meses, Viaje en verano, Revisión médica anual"
+                placeholder="Ej: Boda de mi hermana en 4 meses (quiero bajar 2 tallas de vestido), vacaciones en la playa en 3 meses, revisión médica anual en 5 meses donde quiero mostrar mejoras en mis marcadores de salud, evento importante del trabajo en 2 meses"
               />
             </div>
 

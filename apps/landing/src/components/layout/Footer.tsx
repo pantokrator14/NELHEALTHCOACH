@@ -1,15 +1,18 @@
 import React from 'react';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
+import '../../lib/i18n';
 
 /**
- * Pie de página con:
- * - Información de la empresa
- * - Enlaces rápidos
+ * Pie de pagina con:
+ * - Informacion de la empresa
+ * - Enlaces rapidos
  * - Enlaces legales
- * - Información de contacto
+ * - Informacion de contacto
  * - Redes sociales
  */
 const Footer: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <footer className="bg-gray-900 text-white pt-12 pb-8">
       <div className="container mx-auto px-4">
@@ -17,37 +20,37 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="text-xl font-bold mb-4">NELHEALTHCOACH</h3>
             <p className="text-gray-400">
-              Transformando vidas a través de la salud integral y la nutrición consciente.
+              {t('landing.footer.description')}
             </p>
           </div>
           
           <div>
-            <h4 className="text-lg font-semibold mb-4">Legal</h4>
+            <h4 className="text-lg font-semibold mb-4">{t('landing.footer.legal')}</h4>
             <ul className="space-y-2">
               <li>
                 <Link href="/politica-privacidad" className="text-gray-400 hover:text-white transition-colors">
-                  Política de Privacidad
+                  {t('landing.footer.privacy')}
                 </Link>
               </li>
               <li>
                 <Link href="/terminos-condiciones" className="text-gray-400 hover:text-white transition-colors">
-                  Términos y Condiciones
+                  {t('landing.footer.terms')}
                 </Link>
               </li>
               <li>
                 <Link href="/aviso-legal" className="text-gray-400 hover:text-white transition-colors">
-                  Aviso Legal
+                  {t('landing.footer.legalNotice')}
                 </Link>
               </li>
             </ul>
           </div>
           
           <div>
-            <h4 className="text-lg font-semibold mb-4">Contacto</h4>
+            <h4 className="text-lg font-semibold mb-4">{t('landing.footer.contact')}</h4>
             <address className="not-italic text-gray-400">
               <p className="mb-2">contact@nelhealthcoach.com</p>
-              <p className="mb-2">+1 (442) 342-5050 - Asistencia en español</p>
-              <p className="mb-2">+1 (760) 980-5880 - Asistencia en inglés</p>
+              <p className="mb-2">+1 (442) 342-5050 - {t('landing.footer.spanishSupport')}</p>
+              <p className="mb-2">+1 (760) 980-5880 - {t('landing.footer.englishSupport')}</p>
               <p>33450 shifting Sands Trail, cathedral city, CA, 92234 (USA)</p>
             </address>
           </div>
@@ -55,7 +58,7 @@ const Footer: React.FC = () => {
         
         <div className="border-t border-gray-800 pt-6 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-400 mb-4 md:mb-0">
-            © {new Date().getFullYear()} NELHEALTHCOACH. Todos los derechos reservados.
+            {t('landing.footer.copyright')}
           </p>
           <div className="flex space-x-4">
             {['facebook', 'instagram', 'youtube'].map((social) => (

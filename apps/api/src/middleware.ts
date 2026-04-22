@@ -2,8 +2,97 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requestLogger } from './app/middleware/requestLogger';
+import arcjet, { shield, detectBot, tokenBucket } from '@arcjet/next';
 
-export function middleware(request: NextRequest) {
+// Inicializar Arcjet con las reglas de seguridad
+const aj = arcjet({
+  key: process.env.ARCJET_KEY || 'demo', // Usar 'demo' para desarrollo si no hay key
+  rules: [
+    // Protección contra ataques comunes (XSS, SQLi, etc.)
+    shield({ mode: "LIVE" }),
+    // Detección de bots - solo permitir bots conocidos
+    detectBot({ mode: "LIVE", allow: [] }), // Removed specific bots due to type issues
+    // Rate limiting: 10 solicitudes por 10 segundos
+    tokenBucket({ mode: "LIVE", refillRate: 10, interval: 10, capacity: 10 }),
+  ],
+});
+
+export async function middleware(request: NextRequest) {
+  // Aplicar protección Arcjet solo a rutas API
+  if (request.nextUrl.pathname.startsWith('/api')) {
+    try {
+      const decision = await aj.protect(request, {
+        // Información adicional para logging
+        requested: 1,
+      });
+
+      // Manejar decisiones de denegación de Arcjet
+      if (decision.isDenied()) {
+        const reason = decision.reason;
+        
+        // Loggear la denegación
+        console.warn('🔒 Arcjet denegó solicitud:', {
+          path: request.nextUrl.pathname,
+          reason,
+          ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+          userAgent: request.headers.get('user-agent'),
+        });
+
+        // Devolver respuesta apropiada según el motivo
+        if (reason === 'RATE_LIMIT' as any) {
+          return new NextResponse(
+            JSON.stringify({
+              error: 'Rate limit excedido',
+              message: 'Demasiadas solicitudes. Por favor, espera 10 segundos.',
+              retryAfter: 10,
+            }),
+            {
+              status: 429,
+              headers: {
+                'Content-Type': 'application/json',
+                'Retry-After': '10',
+              },
+            }
+          );
+        } else if (reason === 'BOT' as any) {
+          return new NextResponse(
+            JSON.stringify({
+              error: 'Bot no permitido',
+              message: 'Los bots no están permitidos en esta API.',
+            }),
+            {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        } else {
+          // Para SHIELD u otras razones
+          return new NextResponse(
+            JSON.stringify({
+              error: 'Solicitud bloqueada',
+              message: 'La solicitud fue bloqueada por medidas de seguridad.',
+              reason,
+            }),
+            {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        }
+      }
+
+      // Si la solicitud es permitida, continuar con el logging
+      console.debug('✅ Arcjet permitió solicitud:', {
+        path: request.nextUrl.pathname,
+        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      });
+    } catch (error) {
+      // En caso de error en Arcjet, permitir la solicitud pero loggear
+      console.error('⚠️ Error en Arcjet, permitiendo solicitud:', error);
+      // Continuar con el procesamiento normal
+    }
+  }
+
   // Aplicar logging de solicitud
   const loggedResponse = requestLogger(request);
   

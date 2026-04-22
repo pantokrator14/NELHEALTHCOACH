@@ -115,6 +115,19 @@ export interface MedicalData {
   surgeries: string;
   housingHistory: string;
   
+  // Estilo de vida
+  typicalWeekday?: string;
+  typicalWeekend?: string;
+  currentActivityLevel?: string;
+  whoCooks?: string;
+  physicalLimitations?: string;
+  dislikedFoodsActivities?: string;
+  // Nuevos campos para acceso a equipos de ejercicio
+  gymAccess?: string;
+  gymAccessDetails?: string;
+  preferredExerciseTypes?: string;
+  exerciseTimeAvailability?: string;
+  
   // ✅ Evaluaciones como strings (encriptados en BD)
   carbohydrateAddiction: string;
   leptinResistance: string;

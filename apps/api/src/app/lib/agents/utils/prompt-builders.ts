@@ -29,6 +29,7 @@ interface ClientAnalysisInput {
 export function buildClientAnalysisPrompt(input: ClientAnalysisInput): string {
   const personalInfo = formatPersonalData(input.personalData);
   const medicalInfo = formatMedicalData(input.medicalData);
+  const lifestyleInfo = formatLifestyleData(input.medicalData);
   const healthAssessmentInfo = formatHealthAssessment(input.healthAssessment);
   const mentalHealthInfo = formatMentalHealth(input.mentalHealth);
   const documentsInfo = formatDocuments(input.processedDocuments);
@@ -48,6 +49,10 @@ ${personalInfo}
 ## 🏥 DATOS MÉDICOS
 
 ${medicalInfo}
+
+## 🌿 ESTILO DE VIDA
+
+${lifestyleInfo}
 
 ## 📊 EVALUACIÓN DE SALUD
 
@@ -283,9 +288,19 @@ interface HabitDesignerInput {
     summary: string;
     opportunities: string[];
     keyRisks: string[];
+    targetImprovements: string[];
   };
   healthAssessment: Record<string, boolean>;
   mentalHealth: Record<string, string>;
+  medicalData: {
+    typicalWeekday?: string;
+    typicalWeekend?: string;
+    currentActivityLevel?: string;
+    dislikedFoodsActivities?: string;
+  };
+  personalData: {
+    occupation?: string;
+  };
   weekNumbers: number[];
 }
 
@@ -296,7 +311,39 @@ export function buildHabitPrompt(input: HabitDesignerInput): string {
     .map(([key]) => `- ${key}`)
     .join("\n") || "Ninguna evaluación positiva";
 
-  return `Eres un experto en psicología del comportamiento y formación de hábitos. Tu tarea es diseñar un sistema de mejora continua basado en pequeños cambios acumulativos.
+  // Formatear datos de salud mental de manera más útil
+  const mentalHealthDetails: string[] = [];
+  if (input.mentalHealth.stressStrategies)
+    mentalHealthDetails.push(`- **Estrategias de estrés actuales:** ${input.mentalHealth.stressStrategies}`);
+  if (input.mentalHealth.sayingNo)
+    mentalHealthDetails.push(`- **Dificultad para decir no:** ${input.mentalHealth.sayingNo}`);
+  if (input.mentalHealth.internalDialogue)
+    mentalHealthDetails.push(`- **Diálogo interno:** ${input.mentalHealth.internalDialogue}`);
+  if (input.mentalHealth.failureReaction)
+    mentalHealthDetails.push(`- **Reacción al fracaso:** ${input.mentalHealth.failureReaction}`);
+  if (input.mentalHealth.purpose)
+    mentalHealthDetails.push(`- **Propósito vital:** ${input.mentalHealth.purpose}`);
+  if (input.mentalHealth.limitingBeliefs)
+    mentalHealthDetails.push(`- **Creencias limitantes:** ${input.mentalHealth.limitingBeliefs}`);
+  if (input.mentalHealth.selfConnection)
+    mentalHealthDetails.push(`- **Autoconexión:** ${input.mentalHealth.selfConnection}`);
+  if (input.mentalHealth.emotionIdentification)
+    mentalHealthDetails.push(`- **Identificación emocional:** ${input.mentalHealth.emotionIdentification}`);
+  if (input.mentalHealth.relationships)
+    mentalHealthDetails.push(`- **Relaciones interpersonales:** ${input.mentalHealth.relationships}`);
+
+  // Estilo de vida para adaptar hábitos
+  const lifestyleDetails: string[] = [];
+  if (input.medicalData.typicalWeekday)
+    lifestyleDetails.push(`- **Día típico entre semana:** ${input.medicalData.typicalWeekday.substring(0, 100)}`);
+  if (input.medicalData.typicalWeekend)
+    lifestyleDetails.push(`- **Día típico fin de semana:** ${input.medicalData.typicalWeekend.substring(0, 100)}`);
+  if (input.medicalData.currentActivityLevel)
+    lifestyleDetails.push(`- **Nivel de actividad física:** ${input.medicalData.currentActivityLevel}`);
+  if (input.personalData.occupation)
+    lifestyleDetails.push(`- **Ocupación:** ${input.personalData.occupation}`);
+
+  return `Eres un experto en psicología del comportamiento y formación de hábitos. Tu tarea es diseñar un sistema de mejora continua basado en pequeños cambios acumulativos que se integren armónicamente con la alimentación keto y el plan de ejercicios.
 
 ---
 
@@ -306,20 +353,42 @@ export function buildHabitPrompt(input: HabitDesignerInput): string {
 **Oportunidades de mejora:** ${input.clientInsights.opportunities.join(", ")}
 **Riesgos a mitigar:** ${input.clientInsights.keyRisks.join(", ")}
 
-## 🧠 INDICADORES DE SALUD EMOCIONAL
+## 🎯 OBJETIVOS DEL CLIENTE (alinear hábitos con metas)
+${input.clientInsights.targetImprovements.join(", ")}
 
-**Evaluaciones positivas:**
+## 🧠 PERFIL DE SALUD MENTAL Y EMOCIONAL
+${mentalHealthDetails.length > 0 ? mentalHealthDetails.join("\n") : "- Sin información detallada de salud mental"}
+
+### Implicaciones para diseño de hábitos:
+- Si tiene dificultades para identificar emociones → incluir ejercicios de reflexión/momentos de check-in
+- Si le cuesta decir no → hábitos de establecer límites y priorización
+- Si tiene diálogo interno negativo → hábitos de autocompasión y reencuadre cognitivo
+- Si teme al fracaso → hábitos de celebrar pequeños wins y normalize el error
+- Si falta propósito → hábitos de conexión con valores y "por qué" personal
+- Si tiene creencias limitantes → hábitos de cuestionamiento y nueva narrativa
+
+## 🌿 ESTILO DE VIDA (para adaptar hábitos a su rutina)
+${lifestyleDetails.length > 0 ? lifestyleDetails.join("\n") : "- No especificado"}
+
+## 📊 EVALUACIONES DE SALUD FÍSICA
 ${healthFlags}
 
-## 🎯 TU TAREA
+## TU TAREA
 
 Diseña un plan de hábitos para las semanas: ${weekList}
 
 ### Principios:
-1. **Micro-hábitos**: cambios pequeños pero efectivos
+1. **Micro-hábitos**: cambios pequeños pero efectivos (máx 2-3 hábitos nuevos por semana)
 2. **Acumulativos**: cada hábito construye sobre el anterior
-3. **Sostenibles**: protocolos a largo plazo
-4. **Prácticos**: ejemplos concretos y accionables
+3. **Sostenibles**: protocolos a largo plazo que se integren con alimentación y ejercicio
+4. **Prácticos**: ejemplos concretos y accionables según su rutina diaria
+5. **Personalizados**: adaptados a su perfil psicológico (cómo maneja estrés, fracaso, emociones)
+
+### Consideraciones de equilibrio:
+- Los hábitos NO deben competir con tiempo de ejercicio
+- Considerar horarios disponibles según su día típico (trabajo, familia)
+- Los hábitos de alimentación ya se manejan en el plan de nutrición
+- Enfocarse en hábitos de: regulación emocional, manejo del estrés, autocuidado, relaciones, propósito
 
 ### Para cada semana genera:
 
@@ -340,23 +409,21 @@ Diseña un plan de hábitos para las semanas: ${weekList}
     }
   ],
   "trackingMethod": "método para trackear el progreso",
-  "motivationTip": "consejo de motivación para esta semana"
+  "motivationTip": "consejo de motivación personalizado según perfil"
 }
 \`\`\`
 
-### Ejemplos de hábitos a considerar:
-- Exposición solar matutina (<30 min al despertar)
-- Respiración 4-7-8 antes de dormir
-- Sin teléfono 1h antes de dormir
-- Escribir 1 emoción + 1 acción diaria
-- Reducir notificaciones del celular
-- Caminata después de comer
-- Preparar comidas del día siguiente
-
 ### Progresión esperada:
-- **Semanas 1-4**: Fundamentos de regulación y consciencia
-- **Semanas 5-8**: Reestructuración y cambio de patrones
-- **Semanas 9-12**: Sostenibilidad y conexión con el propósito
+- **Semanas 1-4 (Base)**: Fundamentos de regulación emocional y consciencia
+- **Semanas 5-8 (Reestructuración)**: Cambio de patrones y construcción de nuevas narrativas
+- **Semanas 9-12 (Sostenibilidad)**: Integración con propósito y identidad
+
+### Ejemplos de hábitos según perfil psicológico:
+- Si tiene diálogo interno negativo → "Reencuadrar pensamiento negativo: ¿Qué aprendí?"
+- Si le cuesta decir no → "Pausar 10s antes de responder 'sí' automático"
+- Si teme al fracaso → "Celebrar 1 cosa lograda cada día (aunque sea mínima)"
+- Si falta propósito → "Escribir 1 acción alineada con mis valores"
+- Si tiene estrés crónico → "Respiración 4-7-8 al detectar tensión"
 
 Responde SOLO con un array JSON de objetos con la estructura especificada, sin texto adicional.`;
 }
@@ -479,10 +546,37 @@ function formatMedicalData(data: MedicalData): string {
   if (data.supplements)
     sections.push(`- **Suplementos:** ${data.supplements}`);
   if (data.surgeries) sections.push(`- **Cirugías:** ${data.surgeries}`);
+  if (data.physicalLimitations)
+    sections.push(`- **Limitaciones físicas:** ${data.physicalLimitations}`);
 
   return sections.length > 0
     ? sections.join("\n")
     : "- Sin datos médicos disponibles";
+}
+
+function formatLifestyleData(data: MedicalData): string {
+  const sections: string[] = [];
+
+  if (data.typicalWeekday)
+    sections.push(`- **Día entre semana:** ${data.typicalWeekday}`);
+  if (data.typicalWeekend)
+    sections.push(`- **Día fin de semana:** ${data.typicalWeekend}`);
+  if (data.currentActivityLevel)
+    sections.push(`- **Nivel de actividad física:** ${data.currentActivityLevel}`);
+  if (data.whoCooks)
+    sections.push(`- **Quién cocina:** ${data.whoCooks}`);
+  if (data.employmentHistory)
+    sections.push(`- **Historial laboral:** ${data.employmentHistory}`);
+  if (data.hobbies)
+    sections.push(`- **Hobbies:** ${data.hobbies}`);
+  if (data.housingHistory)
+    sections.push(`- **Vivienda:** ${data.housingHistory}`);
+  if (data.dislikedFoodsActivities)
+    sections.push(`- **Alimentos/actividades no deseadas:** ${data.dislikedFoodsActivities}`);
+
+  return sections.length > 0
+    ? sections.join("\n")
+    : "- Sin información de estilo de vida disponible";
 }
 
 function formatHealthAssessment(

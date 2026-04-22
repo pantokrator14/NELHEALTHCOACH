@@ -21,7 +21,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
     switch (difficulty) {
       case 'easy': return 'Fácil';
       case 'medium': return 'Media';
-      case 'hard': return 'Difícil';
+      case 'hard': return 'Complejo';
       default: return difficulty;
     }
   };

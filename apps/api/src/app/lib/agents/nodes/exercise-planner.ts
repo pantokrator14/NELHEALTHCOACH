@@ -4,6 +4,7 @@ import { createDeepSeekWithTools, createDeepSeekJSONLLM } from "../utils/llm";
 import type { RecommendationStateType } from "../state";
 import { searchExerciseTool, saveExerciseTool } from "../tools/exercise-tools";
 import { logger } from "../../logger";
+import { exercisePlannerGuard, applyGuardrails, validateAIResponse } from "../guard";
 
 /**
  * Exercise Planner Node with Tool Calling
@@ -47,10 +48,41 @@ export async function planExercise(
 
     logCtx.debug("AI", "Invoking LLM with tools for exercise planning");
 
-    // Run the tool-calling loop
-    const finalContent = await runToolCallingLoop(llmWithTools, systemPrompt, userPrompt, logCtx);
+    // Usar guardrails para planificación de ejercicios
+    const exercisePlan = await applyGuardrails(
+      exercisePlannerGuard,
+      { systemPrompt, userPrompt, clientData: state },
+      async (validatedInput) => {
+        // Run the tool-calling loop
+        const finalContent = await runToolCallingLoop(
+          llmWithTools, 
+          validatedInput.systemPrompt, 
+          validatedInput.userPrompt, 
+          logCtx
+        );
 
-    const exercisePlan = parseExerciseResponse(finalContent, weekNumbers);
+        // Validar respuesta final
+        const validation = await validateAIResponse(finalContent);
+        if (!validation.isValid) {
+          logCtx.warn("GUARDRAILS", "Problemas en plan de ejercicios", {
+            issues: validation.issues,
+            weekCount: weekNumbers.length,
+          });
+        }
+
+        const plan = parseExerciseResponse(validation.sanitizedResponse || finalContent, weekNumbers);
+        
+        // Asegurar que cada semana tenga disclaimer de seguridad
+        return plan.map(weekPlan => ({
+          ...weekPlan,
+          focus: weekPlan.focus + " | ⚠️ Consulte con profesional antes de comenzar",
+          routine: weekPlan.routine.map(exercise => ({
+            ...exercise,
+            exercise: exercise.exercise + " (realizar con técnica adecuada)",
+          })),
+        }));
+      }
+    );
 
     logCtx.info("AI", "Exercise planning completed", {
       weekCount: exercisePlan.length,
@@ -186,7 +218,26 @@ function buildExerciseUserPrompt(
   const insights = state.clientInsights;
   const personalData = state.personalData;
   const medicalData = state.medicalData;
+  const healthAssessment = state.healthAssessment;
+  const mentalHealth = state.mentalHealth;
   const weekList = weekNumbers.join(", ");
+
+  // Formatear evaluación de salud
+  const healthIssues: string[] = [];
+  if (healthAssessment.carbohydrateAddiction) healthIssues.push("Adicción a carbohidratos");
+  if (healthAssessment.leptinResistance) healthIssues.push("Resistencia a leptina");
+  if (healthAssessment.sleepHygiene) healthIssues.push("Problemas de higiene del sueño");
+  if (healthAssessment.circadianRhythms) healthIssues.push("Alteración de ritmos circadianos");
+  if (healthAssessment.electrosmogExposure) healthIssues.push("Exposición a electrosmog");
+  if (healthAssessment.generalToxicity) healthIssues.push("Toxicidad general");
+  if (healthAssessment.microbiotaHealth) healthIssues.push("Problemas de microbiota");
+
+  // Formatear aspectos relevantes de salud mental para ejercicio
+  const mentalFactors: string[] = [];
+  if (mentalHealth.stressStrategies) mentalFactors.push(`- Estrategias de estrés: ${mentalHealth.stressStrategies}`);
+  if (mentalHealth.purpose) mentalFactors.push(`- Propósito: ${mentalHealth.purpose}`);
+  if (mentalHealth.limitingBeliefs) mentalFactors.push(`- Creencias limitantes: ${mentalHealth.limitingBeliefs}`);
+  if (mentalHealth.failureReaction) mentalFactors.push(`- Reacción al fracaso: ${mentalHealth.failureReaction}`);
 
   return `## PERFIL DEL CLIENTE
 
@@ -198,14 +249,53 @@ function buildExerciseUserPrompt(
 - Edad: ${personalData.age ?? "N/A"} años
 - Peso: ${personalData.weight ?? "N/A"} kg
 - Altura: ${personalData.height ?? "N/A"} cm
+- Ocupación: ${personalData.occupation ?? "No especificada"}
 
 ## CONDICIONES MÉDICAS
 - Condiciones: ${medicalData.currentPastConditions ?? "Ninguna"}
 - Cirugías: ${medicalData.surgeries ?? "Ninguna"}
 - Alergias: ${medicalData.allergies ?? "Ninguna"}
+- Limitaciones físicas: ${medicalData.physicalLimitations ?? "Ninguna"}
+
+ ## ESTILO DE VIDA Y ACTIVIDAD FÍSICA
+- **Día típico entre semana:** ${medicalData.typicalWeekday ?? "No especificado"}
+- **Día típico fin de semana:** ${medicalData.typicalWeekend ?? "No especificado"}
+- **Nivel de actividad física actual:** ${medicalData.currentActivityLevel ?? "No especificado"}
+- **Historial laboral (tipo de trabajo):** ${medicalData.employmentHistory ?? "No especificado"}
+- **Hobbies y actividades:** ${medicalData.hobbies ?? "No especificado"}
+- **Vivienda (espacio disponible):** ${medicalData.housingHistory ?? "No especificado"}
+- **Acceso a equipos/gimnasio:** ${medicalData.gymAccess ?? "No especificado"}
+- **Detalles de equipos disponibles:** ${medicalData.gymAccessDetails ?? "No especificado"}
+- **Tipos de ejercicio preferidos:** ${medicalData.preferredExerciseTypes ?? "No especificado"}
+- **Disponibilidad de tiempo para ejercicio:** ${medicalData.exerciseTimeAvailability ?? "No especificado"}
+
+## EVALUACIONES DE SALUD RELEVANTES
+${healthIssues.length > 0 ? healthIssues.map(i => `- ${i}`).join("\n") : "- Sin problemas de salud identificados"}
+
+## ASPECTOS DE SALUD MENTAL (relevantes para adherencia al ejercicio)
+${mentalFactors.length > 0 ? mentalFactors.join("\n") : "- Sin información de salud mental disponible"}
+
+## OBJETIVOS DEL CLIENTE
+${insights?.targetImprovements?.join(", ") ?? "Mejorar composición corporal y salud general"}
 
 ## TU TAREA
 Diseña un plan de entrenamiento para las semanas: ${weekList}
+
+ ### Consideraciones especiales basadas en el perfil:
+- Si trabaja muchas horas sentado (< 9-5), priorizar ejercicios que contrarresten la postura sedentaria
+- Si tiene poco tiempo, diseñar rutinas cortas pero efectivas (20-30 min)
+- Si es principiante absoluto, comenzar con ejercicios muy básicos y progresión lenta
+- Si ya tiene actividad física, complementar y no duplicar lo que ya hace
+- Considerar limitaciones físicas para evitar ejercicios que agraven problemas existentes
+- Adaptar horarios de entrenamiento a su rutina (días entre semana vs fines de semana)
+- **ADAPTAR EJERCICIOS AL EQUIPO DISPONIBLE:** ${medicalData.gymAccess ? 
+  (medicalData.gymAccess === 'si-gimnasio' ? 'Usar equipos de gimnasio completos' :
+   medicalData.gymAccess === 'si-parque' ? 'Usar ejercicios de calistenia y parque' :
+   medicalData.gymAccess === 'equipos-casa' ? 'Usar equipos básicos disponibles en casa' :
+   medicalData.gymAccess === 'peso-corporal' ? 'Usar ejercicios de peso corporal (sin equipo)' :
+   'Usar ejercicios sin equipo (bodyweight)') : 'Usar ejercicios adaptables a cualquier entorno'}
+- Considerar preferencias de ejercicio: ${medicalData.preferredExerciseTypes ? 'Incluir tipos de ejercicio que disfruta' : 'Explorar variedad de opciones'}
+- Respetar disponibilidad de tiempo: ${medicalData.exerciseTimeAvailability ? 'Adaptar duración a su disponibilidad' : 'Mantener sesiones de 30-45 minutos'}
 
 ### Progresión esperada:
 - Semanas 1-4 (Base): 3 series, 12 reps, aprender patrones de movimiento

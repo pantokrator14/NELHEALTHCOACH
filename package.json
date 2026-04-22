@@ -13,7 +13,10 @@
     "dev:all": "concurrently \"npm run dev:landing\" \"npm run dev:form\" \"npm run dev:dashboard\"",
     "dev:api": "cd apps/api && npm run dev",
     "build": "turbo run build",
-    "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +"
+    "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +",
+    "security:scan-secrets": "echo 'Instala veilguard manualmente: npm install -g veilguard'",
+    "security:scan-code": "echo 'Instala kuzushi manualmente: npm install -g kuzushi'",
+    "security:check": "echo '=== Verificación de seguridad ===' && echo '1. Arcjet: Verifica ARCJET_KEY en apps/api/.env' && echo '2. Guardrails: Configurados en apps/api/src/lib/agents/guard.ts' && echo '3. Middleware: Protección activa en apps/api/src/middleware.ts'"
   },
   "devDependencies": {
     "@types/node": "^24.0.15",

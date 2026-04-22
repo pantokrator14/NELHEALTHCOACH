@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api';
 import { generateClientPDF } from '@/lib/pdfGenerator';
 import Image from 'next/image'
 import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
+import { useTranslation } from 'react-i18next';
 import {
   valueLabels,
   evaluationQuestions,
@@ -114,6 +115,7 @@ interface Client {
 }
 
 export default function ClientProfile() {
+  const { t } = useTranslation();
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('personal')
@@ -167,11 +169,11 @@ export default function ClientProfile() {
       }
     } catch (error) {
       console.error('Error fetching client:', error)
-      alert('Error al cargar los datos del cliente')
+      alert(t('clients.errorLoading'))
     } finally {
       setLoading(false)
     }
-  }, [clientId, aiGenerationStatus])
+  }, [clientId])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -207,10 +209,10 @@ export default function ClientProfile() {
       } catch {
         // Silently ignore polling errors
       }
-    }, 5000) // Check every 5 seconds
+    }, 10000) // Check every 10 seconds (reduced from 5 to avoid too many requests)
 
     return () => clearInterval(pollInterval)
-  }, [aiGenerationStatus, clientId, fetchClient])
+  }, [clientId]) // Removed fetchClient and aiGenerationStatus from deps to avoid loops
 
   const handleDelete = async () => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
@@ -219,20 +221,20 @@ export default function ClientProfile() {
       router.push('/dashboard/clients')
     } catch (error) {
       console.error('Error deleting client:', error)
-      alert('Error al eliminar el cliente')
+      alert(t('clients.errorDeleting'))
     }
   }
 
   const handleExportPDF = () => {
     if (!client) {
-      alert('No hay datos del cliente para exportar');
+      alert(t('clients.noDataForExport'));
       return;
     }
     try {
       generateClientPDF(client);
     } catch (error) {
       console.error('Error generando PDF:', error);
-      alert('Error al generar el PDF');
+      alert(t('clients.errorGeneratingPDF'));
     }
   }
 
@@ -300,11 +302,11 @@ export default function ClientProfile() {
         uploadResponse.uploadURL
       )
       await fetchClient()
-      alert('Foto de perfil actualizada exitosamente')
+      alert(t('clients.profilePhotoUpdated'))
       setIsProfilePhotoModalOpen(false)
     } catch (error) {
       console.error('Error actualizando foto de perfil:', error)
-      alert('Error al actualizar la foto de perfil')
+      alert(t('clients.errorUpdatingPhoto'))
     } finally {
       setUploading(false)
     }
@@ -315,10 +317,10 @@ export default function ClientProfile() {
     try {
       await apiClient.deleteDocument(clientId, document.key)
       await fetchClient()
-      alert('Documento eliminado')
+      alert(t('clients.documentDeleted'))
     } catch (error) {
       console.error('Error eliminando documento:', error)
-      alert('Error al eliminar el documento')
+      alert(t('clients.errorDeletingDocument'))
     }
   }
 
@@ -360,16 +362,16 @@ export default function ClientProfile() {
       const successful = results.filter(r => r.success).length
       const failed = results.filter(r => !r.success).length
       if (failed > 0) {
-        alert(`${successful} documentos subidos exitosamente, ${failed} fallaron.`)
+        alert(t('clients.documentsUploaded', { successful: successful.toString(), failed: failed.toString() }))
       } else {
-        alert('Todos los documentos se subieron exitosamente')
+        alert(t('clients.allDocumentsUploaded'))
       }
       await fetchClient()
       setSelectedFiles([])
       setIsDocumentsModalOpen(false)
     } catch (error) {
       console.error('Error subiendo documentos:', error)
-      alert('Error al subir los documentos')
+      alert(t('clients.errorUploadingDocuments'))
     } finally {
       setUploading(false)
     }

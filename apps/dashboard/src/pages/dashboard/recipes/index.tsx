@@ -8,8 +8,10 @@ import RecipeFilters, { FilterState, SortOption } from '../../../components/dash
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/api';
 import { Recipe } from '../../../../../../packages/types/src/recipe-types';
+import { useTranslation } from 'react-i18next';
 
 const RecipesPage = () => {
+  const { t } = useTranslation();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -56,12 +58,12 @@ const RecipesPage = () => {
         };
         setStats(statsData);
       } else {
-        console.error('Error al cargar recetas:', response.message);
-        showToast('Error al cargar las recetas', 'error');
+        console.error('Error loading recipes:', response.message);
+        showToast(t('recipes.errorLoading'), 'error');
       }
     } catch (err: unknown) {
       console.error('Error loading recipes:', err);
-      showToast('Error al cargar las recetas', 'error');
+      showToast(t('recipes.errorLoading'), 'error');
     } finally {
       setLoading(false);
     }
@@ -220,14 +222,14 @@ const RecipesPage = () => {
         for (const recipeId of selectedRecipes) {
           await apiClient.deleteRecipe(recipeId);
         }
-        showToast(`${selectedRecipes.length} receta(s) eliminada(s) exitosamente`, 'success');
+        showToast(t('recipes.deletedMultiple', { count: selectedRecipes.length.toString() }), 'success');
         await loadRecipes();
         // Salir del modo eliminar y limpiar selección
         setDeleteMode(false);
         setSelectedRecipes([]);
       } catch (err: unknown) {
         console.error('Error deleting recipes:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Error al eliminar recetas';
+        const errorMessage = err instanceof Error ? err.message : t('recipes.errorDeleting');
         showToast(errorMessage, 'error');
       }
     }
@@ -260,13 +262,13 @@ const RecipesPage = () => {
     if (window.confirm(`¿Estás seguro de eliminar la receta "${selectedRecipe.title}"? Esta acción no se puede deshacer.`)) {
       try {
         await apiClient.deleteRecipe(selectedRecipe.id);
-        showToast('Receta eliminada exitosamente', 'success');
+        showToast(t('recipes.deleted'), 'success');
         await loadRecipes();
         setIsDetailModalOpen(false);
         setSelectedRecipe(null);
       } catch (err: unknown) {
         console.error('Error deleting recipe:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Error al eliminar receta';
+        const errorMessage = err instanceof Error ? err.message : t('recipes.errorDeleting');
         showToast(errorMessage, 'error');
       }
     }
@@ -367,7 +369,7 @@ const RecipesPage = () => {
               </div>
               <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Difíciles: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
+                  Complejas: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
                 </div>
               </div>
             </div>

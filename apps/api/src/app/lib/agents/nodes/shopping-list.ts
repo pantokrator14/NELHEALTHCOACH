@@ -1,6 +1,7 @@
 import type { RunnableConfig } from "@langchain/core/runnables";
 import type { RecommendationStateType } from "../state";
 import { logger } from "../../logger";
+import { shoppingListGuard, applyGuardrails } from "../guard";
 
 /**
  * Shopping List Generator Node
@@ -18,66 +19,75 @@ export async function generateShoppingList(
   });
 
   try {
-    if (!state.nutritionPlan || state.nutritionPlan.length === 0) {
-      logCtx.warn("AI", "Nutrition plan is empty, using fallback shopping list");
-      return {
-        errors: ["generateShoppingList: nutritionPlan is empty. Run planNutrition first."],
-        shoppingList: generateFallbackShoppingList(state.nutritionPlan),
-      };
-    }
-
-    logCtx.info("AI", "Generating consolidated shopping list");
-
-    // Consolidate all shopping list items from nutrition plan
-    const itemMap = new Map<
-      string,
-      { total: number; unit: string; priority: "high" | "medium" | "low" }
-    >();
-
-    for (const weekPlan of state.nutritionPlan) {
-      for (const item of weekPlan.shoppingList) {
-        const key = item.item.toLowerCase();
-        const quantity = parseQuantity(item.quantity);
-
-        const existing = itemMap.get(key);
-        if (existing) {
-          existing.total += quantity.amount;
-          // Keep highest priority
-          if (
-            item.priority === "high" ||
-            (item.priority === "medium" && existing.priority === "low")
-          ) {
-            existing.priority = item.priority;
-          }
-        } else {
-          itemMap.set(key, {
-            total: quantity.amount,
-            unit: quantity.unit,
-            priority: item.priority,
-          });
+    // Usar guardrails para validar el plan de nutrición antes de procesarlo
+    const shoppingList = await applyGuardrails(
+      shoppingListGuard,
+      { 
+        nutritionPlan: state.nutritionPlan,
+        clientId: state.clientId 
+      },
+      async (validatedInput) => {
+        if (!validatedInput.nutritionPlan || validatedInput.nutritionPlan.length === 0) {
+          logCtx.warn("AI", "Nutrition plan is empty, using fallback shopping list");
+          return generateFallbackShoppingList(validatedInput.nutritionPlan);
         }
+
+        logCtx.info("AI", "Generating consolidated shopping list");
+
+        // Consolidate all shopping list items from nutrition plan
+        const itemMap = new Map<
+          string,
+          { total: number; unit: string; priority: "high" | "medium" | "low" }
+        >();
+
+        for (const weekPlan of validatedInput.nutritionPlan) {
+          for (const item of weekPlan.shoppingList) {
+            const key = item.item.toLowerCase();
+            const quantity = parseQuantity(item.quantity);
+
+            const existing = itemMap.get(key);
+            if (existing) {
+              existing.total += quantity.amount;
+              // Keep highest priority
+              if (
+                item.priority === "high" ||
+                (item.priority === "medium" && existing.priority === "low")
+              ) {
+                existing.priority = item.priority;
+              }
+            } else {
+              itemMap.set(key, {
+                total: quantity.amount,
+                unit: quantity.unit,
+                priority: item.priority,
+              });
+            }
+          }
+        }
+
+        // Convert map to shopping list array
+        const generatedList = Array.from(itemMap.entries()).map(
+          ([item, data]) => ({
+            item,
+            quantity: `${data.total} ${data.unit}`.trim(),
+            priority: data.priority,
+          })
+        );
+
+        // Sort by priority (high first)
+        const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+        generatedList.sort(
+          (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+        );
+
+        logCtx.info("AI", "Shopping list generated", {
+          itemCount: generatedList.length,
+          highPriorityCount: generatedList.filter((i) => i.priority === "high").length,
+        });
+
+        return generatedList;
       }
-    }
-
-    // Convert map to shopping list array
-    const shoppingList = Array.from(itemMap.entries()).map(
-      ([item, data]) => ({
-        item,
-        quantity: `${data.total} ${data.unit}`.trim(),
-        priority: data.priority,
-      })
     );
-
-    // Sort by priority (high first)
-    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    shoppingList.sort(
-      (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
-    );
-
-    logCtx.info("AI", "Shopping list generated", {
-      itemCount: shoppingList.length,
-      highPriorityCount: shoppingList.filter((i) => i.priority === "high").length,
-    });
 
     return {
       shoppingList,
@@ -85,6 +95,15 @@ export async function generateShoppingList(
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     logCtx.error("AI", `Shopping list generation failed: ${errorMessage}`);
+
+    // Si el error es de guardrails, usar lista de respaldo segura
+    if (errorMessage.includes('GUARDRAILS') || errorMessage.includes('seguridad')) {
+      logCtx.warn("GUARDRAILS", "Usando lista de compras de respaldo por fallo de seguridad");
+      return {
+        errors: [`generateShoppingList: Fallo de seguridad - ${errorMessage}`],
+        shoppingList: generateFallbackShoppingList(state.nutritionPlan),
+      };
+    }
 
     return {
       errors: [`generateShoppingList: ${errorMessage}`],

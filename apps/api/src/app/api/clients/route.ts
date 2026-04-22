@@ -36,6 +36,16 @@ interface MedicalData {
   mentalHealthSelfRelationship: string;
   mentalHealthLimitingBeliefs: string;
   mentalHealthIdealBalance: string;
+  // Nuevos campos
+  typicalWeekday?: string;
+  typicalWeekend?: string;
+  whoCooks?: string;
+  currentActivityLevel?: string;
+  physicalLimitations?: string;
+  gymAccess?: string;
+  gymAccessDetails?: string;
+  preferredExerciseTypes?: string;
+  exerciseTimeAvailability?: string;
   documents?: any[];
 }
 

@@ -4,11 +4,13 @@ import Head from 'next/head';
 import ExerciseCard from '../../../components/dashboard/ExerciseCard';
 import ExerciseModal from '../../../components/dashboard/ExerciseModal';
 import ExerciseDetailModal from '../../../components/dashboard/ExerciseDetailModal';
-import ExerciseFilters, { ExerciseFilterState, ExerciseSortOption } from '../../../components/dashboard/ExerciseFilters';
+import ExerciseFilters, { ExerciseFilterState } from '../../../components/dashboard/ExerciseFilters';
 import { useToast } from '../../../components/ui/Toast';
-import { apiClient, Exercise, ExerciseFormData } from '../../../lib/api';
+import { apiClient, Exercise } from '../../../lib/api';
+import { useTranslation } from 'react-i18next';
 
 const ExercisesPage = () => {
+  const { t } = useTranslation();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
@@ -54,12 +56,12 @@ const ExercisesPage = () => {
         };
         setStats(statsData);
       } else {
-        console.error('Error al cargar ejercicios:', response.message);
-        showToast('Error al cargar los ejercicios', 'error');
+        console.error('Error loading exercises:', response.message);
+        showToast(t('exercises.errorLoading'), 'error');
       }
     } catch (err: unknown) {
       console.error('Error loading exercises:', err);
-      showToast('Error al cargar los ejercicios', 'error');
+      showToast(t('exercises.errorLoading'), 'error');
     } finally {
       setLoading(false);
     }
@@ -76,14 +78,6 @@ const ExercisesPage = () => {
 
   const existingTags = useMemo(() => {
     return Array.from(new Set(exercises.flatMap(ex => ex.tags))).sort();
-  }, [exercises]);
-
-  const existingMuscleGroups = useMemo(() => {
-    return Array.from(new Set(exercises.flatMap(ex => ex.muscleGroups))).sort();
-  }, [exercises]);
-
-  const existingEquipment = useMemo(() => {
-    return Array.from(new Set(exercises.flatMap(ex => ex.equipment))).sort();
   }, [exercises]);
 
   // Filtrar y ordenar ejercicios
@@ -196,13 +190,13 @@ const ExercisesPage = () => {
     try {
       const response = await apiClient.deleteExercises(selectedExercises);
       if (response.success) {
-        showToast(`${response.data.deletedCount} ejercicio(s) eliminado(s)`, 'success');
+        showToast(t('exercises.deletedMultiple', { count: response.data.deletedCount.toString() }), 'success');
         setSelectedExercises([]);
         setDeleteMode(false);
         loadExercises();
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar ejercicios';
+      const errorMessage = err instanceof Error ? err.message : t('exercises.errorDeleting');
       showToast(errorMessage, 'error');
     }
   }, [selectedExercises, showToast, loadExercises]);
@@ -253,12 +247,12 @@ const ExercisesPage = () => {
     if (!confirm(`¿Eliminar "${exercise.name}"?`)) return;
     try {
       await apiClient.deleteExercises([exercise.id]);
-      showToast('Ejercicio eliminado', 'success');
+      showToast(t('exercises.deleted'), 'success');
       setIsDetailModalOpen(false);
       setSelectedExercise(null);
       loadExercises();
     } catch {
-      showToast('Error al eliminar el ejercicio', 'error');
+      showToast(t('exercises.errorDeleting'), 'error');
     }
   }, [showToast, loadExercises]);
 
@@ -269,7 +263,7 @@ const ExercisesPage = () => {
   }, []);
 
   // onSuccess del modal de edición/creación
-  const handleExerciseSuccess = useCallback((_exercise?: Exercise) => {
+  const handleExerciseSuccess = useCallback((exercise?: Exercise) => {
     loadExercises();
     setIsEditModalOpen(false);
     setSelectedExercise(null);
@@ -337,7 +331,7 @@ const ExercisesPage = () => {
               </div>
               <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Difíciles: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
+                  Complejos: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
                 </div>
               </div>
             </div>

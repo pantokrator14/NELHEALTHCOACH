@@ -71,6 +71,11 @@ export const lifestyleQuestions = {
   whoCooks: '¿Quién cocina en casa principalmente? ¿Con qué frecuencia comes fuera de casa o pides comida a domicilio?',
   currentActivityLevel: '¿Cuál es tu nivel de actividad física actual? ¿Qué tipo de ejercicio disfrutas o estarías dispuesto a probar?',
   physicalLimitations: '¿Tienes alguna lesión o limitación física que debamos tener en cuenta al recomendar ejercicios?',
+  // Nuevas preguntas sobre acceso a equipos de ejercicio
+  gymAccess: '¿Tienes acceso a un gimnasio, parque de calistenia o equipos de ejercicio en casa?',
+  gymAccessDetails: 'Describe los equipos o espacios disponibles (ej: tipo de máquinas, pesas libres, barras, etc.)',
+  preferredExerciseTypes: '¿Qué tipos de ejercicio disfrutas o estarías dispuesto a probar? (ej: cardio, fuerza, yoga, natación, etc.)',
+  exerciseTimeAvailability: '¿Cuánto tiempo puedes dedicar al ejercicio por sesión y cuántas veces por semana?',
 };
 
 // Preguntas de Evaluaciones de Salud
