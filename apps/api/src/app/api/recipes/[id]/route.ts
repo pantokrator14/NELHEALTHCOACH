@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { getRecipesCollection } from '@/app/lib/database';
+import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { S3Service } from '@/app/lib/s3';
+import { requireCoachAuth } from '@/app/lib/auth';
+import EditProposal from '@/app/models/EditProposal';
 
 export async function GET(
   request: NextRequest,
@@ -232,8 +234,45 @@ export async function PUT(
       if (data.image !== undefined) {
         updateData.image = data.image;
       }
-      
-      // ✅ 5. ACTUALIZAR EN MONGODB
+
+      // ✅ 5. VERIFICAR ROL: Admin edita directo, Coach crea propuesta
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        // Sin autenticación, actualizar directo (backward compat)
+        auth = null;
+      }
+
+      if (auth && auth.role !== 'admin') {
+        // Coach no-admin: crear propuesta de edición
+        await connectMongoose();
+        const proposal = await EditProposal.create({
+          targetType: 'recipe',
+          targetId: new ObjectId(id),
+          proposedChanges: updateData,
+          proposedBy: new ObjectId(auth.coachId),
+          proposedByName: auth.email,
+          status: 'pending',
+        });
+
+        logger.info('RECIPES', 'Propuesta de edición creada', {
+          recipeId: id,
+          proposalId: proposal._id.toString(),
+          coachId: auth.coachId,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Tu propuesta de edición ha sido enviada para revisión del administrador',
+          data: {
+            pendingApproval: true,
+            proposalId: proposal._id.toString(),
+          },
+        });
+      }
+
+      // ✅ 6. ACTUALIZAR EN MONGODB (admin o legacy)
       const result = await recipesCollection.findOneAndUpdate(
         { _id: new ObjectId(id) },
         { $set: updateData },
@@ -247,7 +286,7 @@ export async function PUT(
         );
       }
       
-      // ✅ 6. DESENCRIPTAR PARA RESPONSE
+      // ✅ 7. DESENCRIPTAR PARA RESPONSE
       const decryptedRecipe: any = {
         ...result,
         id: result._id.toString(),

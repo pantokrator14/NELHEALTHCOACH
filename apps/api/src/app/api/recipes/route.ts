@@ -3,6 +3,7 @@ import { getRecipesCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { MongoClient, ObjectId } from 'mongodb';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { requireCoachAuth } from '@/app/lib/auth';
 
 // GET: Obtener recetas
 export async function GET(request: NextRequest) {
@@ -85,6 +86,15 @@ export async function POST(request: NextRequest) {
     try {
       const recipesCollection = await getRecipesCollection();
       const data = await request.json();
+
+      // Obtener info del coach para el campo author
+      let authorName = 'NelHealthCoach';
+      try {
+        const auth = requireCoachAuth(request);
+        authorName = auth.email || 'NelHealthCoach';
+      } catch {
+        // Sin auth, usar default
+      }
       
       if (!data.title || !data.description) {
         return NextResponse.json(
@@ -109,7 +119,7 @@ export async function POST(request: NextRequest) {
         nutrition: data.nutrition || { protein: 0, carbs: 0, fat: 0, calories: 0 },
         cookTime: data.cookTime || 0,
         difficulty: encrypt(data.difficulty || 'easy'),
-        author: data.author ? encrypt(data.author) : encrypt('NelHealthCoach'),
+        author: data.author ? encrypt(data.author) : encrypt(authorName),
         isPublished: data.isPublished !== undefined ? data.isPublished : true,
         tags: Array.isArray(data.tags)
           ? data.tags.map((tag: string) => encrypt(tag))

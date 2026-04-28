@@ -26,6 +26,7 @@ export interface IExercise extends Document {
   };
   progressionOf?: mongoose.Types.ObjectId;
   progressesTo?: mongoose.Types.ObjectId[];
+  author?: string; // Coach name/email who created it
   isPublished: boolean;
   tags: string[];
   createdAt: Date;
@@ -66,6 +67,7 @@ const ExerciseSchema: Schema = new Schema({
   },
   progressionOf: { type: Schema.Types.ObjectId, ref: 'Exercise', default: null },
   progressesTo: [{ type: Schema.Types.ObjectId, ref: 'Exercise' }],
+  author: { type: String, default: 'NelHealthCoach' },
   isPublished: { type: Boolean, default: true },
   tags: { type: [String], default: [] },
 }, {

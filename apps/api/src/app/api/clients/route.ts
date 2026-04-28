@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHealthFormsCollection, getLeadsCollection } from '@/app/lib/database';
-import { encrypt, decrypt, decryptFileObject } from '@/app/lib/encryption';
+import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@/app/lib/database';
+import { encrypt, decrypt, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
+import { requireCoachAuth } from '@/app/lib/auth';
+import Coach from '@/app/models/Coach';
+import { EmailService } from '@/app/lib/email-service';
+import { inngest } from '@/app/inngest/client';
+import {
+  generateNewClientClientNotificationHTML,
+  generateNewClientCoachNotificationHTML,
+} from '@/app/lib/email-templates';
 
 interface MedicalData {
   mainComplaint: string;
@@ -70,7 +78,7 @@ interface ClientFormData {
   contractAccepted: boolean;
 }
 
-// GET: Listar todos los clientes (para dashboard)
+// GET: Listar clientes (dashboard, filtrado por coach)
 export async function GET(request: NextRequest) {
   return logger.time('CLIENTS', 'Obtener lista de clientes', async () => {
     try {
@@ -79,13 +87,31 @@ export async function GET(request: NextRequest) {
         method: 'GET'
       });
 
+      // Autenticar coach
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        // Si no hay token, devolver todos (backward compat para form)
+        auth = null;
+      }
+
       const healthForms = await getHealthFormsCollection();
-      
-      const totalCount = await healthForms.countDocuments();
-      logger.debug('CLIENTS', `Total documentos en BD: ${totalCount}`);
+
+      // Construir filtro
+      const filter: Record<string, unknown> = {};
+      if (auth && auth.role === 'coach') {
+        // Coach solo ve sus clientes
+        filter.coachId = auth.coachId;
+      }
+      // Admin ve todos (no filtra)
+      // Sin auth también ve todos (backward compat)
+
+      const totalCount = await healthForms.countDocuments(filter);
+      logger.debug('CLIENTS', `Total documentos en BD para este filtro: ${totalCount}`);
 
       const clients = await healthForms
-        .find({})
+        .find(filter)
         .sort({ submissionDate: -1 })
         .toArray();
 
@@ -201,10 +227,13 @@ export async function GET(request: NextRequest) {
 // POST: Crear nuevo cliente (desde formulario)
 export async function POST(request: NextRequest) {
   try {
-    const data: ClientFormData = await request.json();
+    const data = await request.json();
     const clientIP = request.headers.get('x-forwarded-for') || 
                     request.headers.get('x-real-ip') || 
                     'Unknown';
+
+    // Extraer coachId del body (enviado por el form)
+    const coachId = data.coachId || null;
 
     // Validar datos básicos
     if (!data.personalData || !data.medicalData) {
@@ -312,6 +341,7 @@ export async function POST(request: NextRequest) {
       medicalData: encryptedMedicalData,
       contractAccepted: encrypt(data.contractAccepted.toString()),
       ipAddress: encrypt(clientIP),
+      coachId: coachId || null,
       submissionDate: new Date()
     };
 
@@ -347,6 +377,83 @@ export async function POST(request: NextRequest) {
         // Solo logueamos el error, no interrumpimos el flujo principal
         console.error('❌ Error al eliminar lead:', leadError);
         logger.error('CLIENTS', 'Error al eliminar lead', leadError);
+      }
+
+      // 🔥 Disparar generación automática de recomendaciones IA
+      if (result.acknowledged) {
+        const newClientId = result.insertedId.toString();
+        try {
+          const jobId = `recommendations_${newClientId}_1_${Date.now()}`;
+          await inngest.send({
+            name: 'ai.recommendations.requested',
+            id: jobId,
+            data: {
+              clientId: newClientId,
+              monthNumber: 1,
+              coachNotes: coachId ? 'Cliente recién registrado. Primera evaluación.' : '',
+              maxRevisions: 2,
+            },
+          });
+          logger.info('CLIENTS', 'Evento Inngest enviado para generación automática de IA', {
+            clientId: newClientId,
+            jobId,
+          });
+        } catch (inngestError) {
+          logger.error('CLIENTS', 'Error enviando evento Inngest', inngestError);
+        }
+      }
+
+      // Enviar emails de notificación si hay coachId
+      if (coachId && result.acknowledged) {
+        try {
+          await connectMongoose();
+          const coach = await Coach.findById(coachId);
+          if (coach) {
+            const emailService = EmailService.getInstance();
+            const appUrl = process.env.APP_URL || 'https://dashboard.nelhealthcoach.com';
+
+            const clientName = decrypt(data.personalData.name || '');
+            const clientEmail = data.personalData.email;
+            const clientPhone = data.personalData.phone ? decrypt(data.personalData.phone) : '';
+            const coachName = `${decrypt(coach.firstName)} ${decrypt(coach.lastName)}`;
+            const coachEmail = decrypt(coach.email);
+            const coachPhone = coach.phone ? decrypt(coach.phone) : '';
+            const coachPhotoUrl = coach.profilePhoto?.url ? decrypt(coach.profilePhoto.url) : null;
+
+            await emailService.sendEmail({
+              to: [clientEmail],
+              subject: '¡Bienvenido a NELHEALTHCOACH!',
+              htmlBody: generateNewClientClientNotificationHTML({
+                clientName,
+                coachName,
+                coachEmail,
+                coachPhone,
+                coachPhoto: coachPhotoUrl,
+              }),
+            });
+
+            await emailService.sendEmail({
+              to: [coachEmail],
+              subject: `Nuevo cliente registrado: ${clientName} | NELHEALTHCOACH`,
+              htmlBody: generateNewClientCoachNotificationHTML({
+                coachName: decrypt(coach.firstName),
+                clientName,
+                clientEmail,
+                clientPhone: clientPhone || 'No disponible',
+                clientId: result.insertedId.toString(),
+                dashboardUrl: `${appUrl}/dashboard/clients/${result.insertedId}`,
+              }),
+            });
+
+            logger.info('CLIENTS', 'Emails de notificación enviados', {
+              clientId: result.insertedId.toString(),
+              coachId,
+            });
+          }
+        } catch (emailError) {
+          // No interrumpir el flujo si falla el email
+          logger.error('CLIENTS', 'Error enviando emails de notificación', emailError);
+        }
       }
     }
 

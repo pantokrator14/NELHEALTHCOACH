@@ -258,3 +258,84 @@ export interface ClientAIProgress {
     sleepQuality?: number;
   };
 }
+
+// ─────────────────────────────────────────────
+// Tipos para videollamadas y sesiones de coach
+// ─────────────────────────────────────────────
+
+export type VideoSessionStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface VideoSession {
+  /** ID único de la sesión de video */
+  sessionId: string;
+  /** Número de sesión (1, 2, 3...) */
+  sessionNumber: number;
+  /** Nombre de la sala en LiveKit */
+  roomName: string;
+  /** Fecha y hora programada para la sesión */
+  scheduledAt: Date;
+  /** Duración estimada en minutos */
+  durationMinutes: number;
+  /** Estado actual de la sesión */
+  status: VideoSessionStatus;
+  /** Enlace para que el cliente se una (token temporal incluido) */
+  clientJoinLink?: string;
+  /** Fecha real en que comenzó la sesión */
+  startedAt?: Date;
+  /** Fecha real en que terminó la sesión */
+  endedAt?: Date;
+  /** S3 key del archivo de grabación (audio/video) */
+  recordingS3Key?: string;
+  /** Notas del coach sobre la sesión */
+  coachNotes?: string;
+  /** Si se envió recordatorio al coach */
+  coachRemindedAt?: Date;
+  /** Si se envió recordatorio al cliente */
+  clientRemindedAt?: Date;
+}
+
+export interface Transcription {
+  /** ID único de la transcripción */
+  transcriptionId: string;
+  /** Sesión de video a la que pertenece */
+  sessionId: string;
+  /** Número de sesión para el nombre del archivo */
+  sessionNumber: number;
+  /** Contenido de texto completo de la transcripción (encriptado) */
+  fullText: string;
+  /** Resumen de puntos clave generado por DeepSeek (encriptado) */
+  summary: string;
+  /** Acuerdos y cambios en objetivos extraídos (encriptado) */
+  agreements: string;
+  /** Fecha de la transcripción */
+  createdAt: Date;
+  /** S3 key del archivo .txt de la transcripción */
+  txtFileS3Key: string;
+  /** Confianza de la transcripción (Deepgram) */
+  confidence: number;
+  /** Duración del audio transcrito en segundos */
+  audioDurationSeconds: number;
+  /** Resultado del Textract (si se aplicó) */
+  textractResult?: string;
+}
+
+export interface ClientProgressForm {
+  /** ID único del formulario de progreso */
+  formId: string;
+  /** Sesión a la que corresponde */
+  sessionId: string;
+  /** Fecha en que el cliente completó el formulario */
+  submittedAt: Date;
+  /** Cumplimiento de cada recomendación (itemId -> boolean) */
+  compliance: Record<string, boolean>;
+  /** Avances reportados por el cliente (texto, encriptado) */
+  progressNotes: string;
+  /** Peso actual reportado */
+  currentWeight?: string;
+  /** Nivel de energía (1-10) */
+  energyLevel?: number;
+  /** Calidad del sueño (1-10) */
+  sleepQuality?: number;
+  /** Observaciones adicionales */
+  additionalNotes?: string;
+}

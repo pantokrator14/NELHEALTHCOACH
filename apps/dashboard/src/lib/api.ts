@@ -1047,4 +1047,162 @@ export const apiClient = {
     }
     return response.json();
   },
+
+  // ─── NUEVOS: Auth multi-usuario ───
+
+  async register(data: { firstName: string; lastName: string; email: string; phone: string; password: string }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al registrarse');
+    return result;
+  },
+
+  async forgotPassword(email: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al solicitar recuperación');
+    return result;
+  },
+
+  async resetPassword(token: string, password: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al restablecer contraseña');
+    return result;
+  },
+
+  async getProfile() {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      if (response.status === 401) { window.location.href = '/login'; return null; }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener perfil');
+    }
+    return response.json();
+  },
+
+  async updateProfile(data: { firstName?: string; lastName?: string; phone?: string; profilePhoto?: unknown }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al actualizar perfil');
+    }
+    return response.json();
+  },
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al cambiar contraseña');
+    return result;
+  },
+
+  async getCoachLink() {
+    const response = await fetch(`${API_BASE_URL}/api/coaches/link`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener enlace');
+    }
+    return response.json();
+  },
+
+  async getEditProposals(params?: { targetType?: string; status?: string }) {
+    const query = new URLSearchParams();
+    if (params?.targetType) query.set('targetType', params.targetType);
+    if (params?.status) query.set('status', params.status);
+    const qs = query.toString();
+    const url = `${API_BASE_URL}/api/edit-proposals${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, { headers: getAuthHeaders() });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener propuestas');
+    }
+    return response.json();
+  },
+
+  async approveProposal(proposalId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/edit-proposals/${proposalId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action: 'approve' }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al aprobar propuesta');
+    }
+    return response.json();
+  },
+
+  async rejectProposal(proposalId: string, reviewNotes?: string) {
+    const response = await fetch(`${API_BASE_URL}/api/edit-proposals/${proposalId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action: 'reject', reviewNotes }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al rechazar propuesta');
+    }
+    return response.json();
+  },
+
+  async getCoaches() {
+    const response = await fetch(`${API_BASE_URL}/api/coaches`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener coaches');
+    }
+    return response.json();
+  },
+
+  async uploadCoachPhoto(file: File) {
+    const presignedRes = await fetch(`${API_BASE_URL}/api/coaches/upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+      }),
+    });
+    if (!presignedRes.ok) throw new Error('Error al obtener URL de subida');
+    const presignedData = await presignedRes.json();
+    const { uploadURL, fileKey, fileURL } = presignedData.data;
+
+    await fetch(uploadURL, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+
+    const confirmRes = await fetch(`${API_BASE_URL}/api/coaches/upload`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fileKey, fileName: file.name, fileType: file.type, fileSize: file.size, fileURL }),
+    });
+    if (!confirmRes.ok) throw new Error('Error al confirmar foto');
+    return confirmRes.json();
+  },
 };

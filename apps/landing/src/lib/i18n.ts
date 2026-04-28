@@ -94,17 +94,6 @@ const en = {
         step3: { title: 'Personalized Plan', description: 'Receive your custom nutrition and exercise plan' },
         step4: { title: 'Follow Up', description: 'Track progress with continuous support' }
       },
-      about: {
-        title: 'About Me',
-        subtitle: 'Your health journey starts here',
-        description1: 'I am a certified health coach dedicated to helping you achieve your wellness goals through personalized nutrition plans and exercise programs powered by artificial intelligence.',
-        description2: 'My philosophy is simple: every person is unique, and their health plan should be too.',
-        description3: '',
-        badge1: 'CERTIFIED NUTRITION COACH',
-        badge2: '+50 Clients Transformed',
-        badge3: 'Experience in evolutionary human nutrition',
-        cta: 'Start Your Journey'
-      },
       testimonials: {
         title: 'Testimonials',
         subtitle: 'What my clients say',
@@ -118,6 +107,18 @@ const en = {
         role3: 'Results in 3 months',
         content3: 'The combination of diet, exercise and mindset was key. Now I have energy all day and feel better than ever.'
       }
+    },
+    about: {
+      title: 'About Me',
+      subtitle: 'Your health journey starts here',
+      description1: 'I am a certified health coach dedicated to helping you achieve your wellness goals through personalized nutrition plans and exercise programs powered by artificial intelligence.',
+      description2: 'My philosophy is simple: every person is unique, and their health plan should be too.',
+      description3: '',
+      description4: 'With a holistic approach combining evolutionary nutrition, structured exercise, and mindset coaching, I guide you through a transformative journey tailored to your body\'s unique needs.',
+      description5: 'Whether you want to lose weight, gain muscle, or simply feel better every day, I\'m here to help you unlock your body\'s full potential.',
+      badge1: 'CERTIFIED NUTRITION COACH',
+      badge2: '+50 Clients Transformed',
+      badge3: 'Experience in evolutionary human nutrition',
     },
     pricing: {
       title: 'Pricing Plans',
@@ -332,17 +333,6 @@ const es = {
         step3: { title: 'Plan Personalizado', description: 'Recibe tu plan de nutricion y ejercicio personalizado' },
         step4: { title: 'Seguimiento', description: 'Monitorea tu progreso con apoyo continuo' }
       },
-      about: {
-        title: 'Sobre Mi',
-        subtitle: 'Tu viaje de salud comienza aqui',
-        description1: 'Soy un coach de salud certificado dedicado a ayudarte a lograr tus objetivos de bienestar a traves de planes de nutricion personalizados y programas de ejercicio impulsados por inteligencia artificial.',
-        description2: 'Mi filosofia es simple: cada persona es unica, y su plan de salud tambien deveria serlo.',
-        description3: '',
-        badge1: 'COACH CERTIFICADO EN NUTRICION MODERNA',
-        badge2: '+50 Clientes Transformados',
-        badge3: 'Experiencia en nutricion humana evolutiva',
-        cta: 'Comienza Tu Viaje'
-      },
       testimonials: {
         title: 'Testimonios',
         subtitle: 'Lo que dicen mis clientes',
@@ -356,6 +346,18 @@ const es = {
         role3: 'Resultados en 3 meses',
         content3: 'La combinacion de dieta, ejercicio y mentalidad fue clave. Ahora tengo energia todo el dia y me siento mejor que nunca.'
       }
+    },
+    about: {
+      title: 'Sobre Mi',
+      subtitle: 'Tu viaje de salud comienza aqui',
+      description1: 'Soy un coach de salud certificado dedicado a ayudarte a lograr tus objetivos de bienestar a traves de planes de nutricion personalizados y programas de ejercicio impulsados por inteligencia artificial.',
+      description2: 'Mi filosofia es simple: cada persona es unica, y su plan de salud tambien deveria serlo.',
+      description3: 'Con un enfoque holistico que combina nutricion evolutiva, ejercicio estructurado y coaching mental, te guio a traves de un viaje transformador adaptado a las necesidades unicas de tu cuerpo.',
+      description4: 'Ya sea que quieras perder peso, ganar musculo o simplemente sentirte mejor cada dia, estoy aqui para ayudarte a desbloquear el maximo potencial de tu cuerpo.',
+      description5: 'Descubre el poder de tu cuerpo y toma el control de tu vida.',
+      badge1: 'COACH CERTIFICADO EN NUTRICION MODERNA',
+      badge2: '+50 Clientes Transformados',
+      badge3: 'Experiencia en nutricion humana evolutiva',
     },
     pricing: {
       title: 'Planes de Precios',
@@ -381,7 +383,7 @@ const es = {
       success: 'Mensaje enviado exitosamente!',
       error: 'Error al enviar el mensaje. Por favor intenta de nuevo.',
       title2: 'Hablamos?',
-      subtitle2: 'Preparate para tomar el control de tu vida de una vez por todas.',
+      subtitle2: 'Descubre el poder de tu cuerpo y toma el control de tu vida.',
       benefit1: 'Sesion personalizada de 60 minutos',
       benefit2: 'Analisis inicial para establecer tu plan',
       benefit3: 'Plan de accion personalizado',
