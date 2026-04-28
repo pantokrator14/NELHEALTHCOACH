@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Head from 'next/head';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
@@ -60,7 +61,7 @@ export default function ResetPassword() {
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">
                 {success}
                 <div className="mt-3 text-center">
-                  <a href="/login" className="text-blue-600 hover:text-blue-800 font-medium">Ir al inicio de sesión</a>
+                  <Link href="/login" className="text-blue-600 hover:text-blue-800 font-medium">Ir al inicio de sesión</Link>
                 </div>
               </div>
             )}
@@ -84,7 +85,7 @@ export default function ResetPassword() {
             {!token && !success && (
               <div className="text-center text-gray-500">
                 <p>Token no válido o faltante.</p>
-                <a href="/forgot-password" className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block">Solicitar nuevo enlace</a>
+                <Link href="/forgot-password" className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block">Solicitar nuevo enlace</Link>
               </div>
             )}
           </div>

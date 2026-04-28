@@ -1,4 +1,4 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, MongoClientOptions } from 'mongodb';
 import mongoose from 'mongoose';
 import { logger } from './logger';
 
@@ -98,7 +98,7 @@ export async function connectToDatabase(): Promise<MongoConnection> {
     });
 
 
-    cached.promise = MongoClient.connect(MONGODB_URI, opts as any)
+    cached.promise = MongoClient.connect(MONGODB_URI, opts as MongoClientOptions)
         .then((client) => {
           logger.info('DATABASE', '✅ Conectado a MongoDB exitosamente');
           return {

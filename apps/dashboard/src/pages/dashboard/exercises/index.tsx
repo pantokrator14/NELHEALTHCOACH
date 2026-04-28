@@ -9,6 +9,13 @@ import { useToast } from '../../../components/ui/Toast';
 import { apiClient, Exercise } from '../../../lib/api';
 import { useTranslation } from 'react-i18next';
 
+interface Proposal {
+  id: string;
+  targetId: { toString(): string };
+  proposedByName?: string;
+  createdAt: string;
+}
+
 const ExercisesPage = () => {
   const { t } = useTranslation();
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -25,7 +32,7 @@ const ExercisesPage = () => {
 
   // Pestañas pendientes
   const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
-  const [proposals, setProposals] = useState<any[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [proposalsLoading, setProposalsLoading] = useState(false);
   const [proposalCount, setProposalCount] = useState(0);
 
@@ -108,8 +115,8 @@ const ExercisesPage = () => {
       showToast('Propuesta aprobada y cambios aplicados', 'success');
       loadProposals();
       loadExercises();
-    } catch (err: any) {
-      showToast(err.message || 'Error al aprobar', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Error al aprobar', 'error');
     }
   };
 
@@ -119,8 +126,8 @@ const ExercisesPage = () => {
       await apiClient.rejectProposal(proposalId, 'Rechazada por el administrador');
       showToast('Propuesta rechazada', 'success');
       loadProposals();
-    } catch (err: any) {
-      showToast(err.message || 'Error al rechazar', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Error al rechazar', 'error');
     }
   };
 
@@ -436,7 +443,7 @@ const ExercisesPage = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {proposals.map((proposal: any) => (
+                  {proposals.map((proposal) => (
                     <div key={proposal.id} className="bg-white rounded-xl shadow border border-orange-200 overflow-hidden">
                       <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex justify-between items-center">
                         <div>

@@ -96,7 +96,7 @@ export default function CoachesPage() {
                   <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 flex justify-center">
                     <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-orange-300 flex items-center justify-center">
                       {coach.profilePhoto?.url ? (
-                        <img src={coach.profilePhoto.url} alt={coach.firstName} className="w-full h-full object-cover" />
+                        <Image src={coach.profilePhoto.url} alt={coach.firstName} fill className="object-cover" unoptimized />
                       ) : (
                         <span className="text-white text-3xl font-bold">{coach.firstName.charAt(0).toUpperCase()}</span>
                       )}

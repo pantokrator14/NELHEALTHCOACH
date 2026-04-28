@@ -1,4 +1,5 @@
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Head from 'next/head';
 import Image from 'next/image';
 
@@ -38,9 +39,9 @@ export default function VerifyEmail() {
           <p id="msg" className="text-gray-600">
             {token ? 'Verificando tu email...' : 'Revisa tu bandeja de entrada y haz clic en el enlace de verificación.'}
           </p>
-          <a href="/login" className="inline-block mt-6 text-blue-600 hover:text-blue-800 font-medium">
+          <Link href="/login" className="inline-block mt-6 text-blue-600 hover:text-blue-800 font-medium">
             Ir al inicio de sesión
-          </a>
+          </Link>
         </div>
       </div>
     </>
