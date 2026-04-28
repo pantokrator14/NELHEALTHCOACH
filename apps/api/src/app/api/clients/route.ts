@@ -5,7 +5,6 @@ import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
 import Coach from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
-import { inngest } from '@/app/inngest/client';
 import {
   generateNewClientClientNotificationHTML,
   generateNewClientCoachNotificationHTML,
@@ -377,30 +376,6 @@ export async function POST(request: NextRequest) {
         // Solo logueamos el error, no interrumpimos el flujo principal
         console.error('❌ Error al eliminar lead:', leadError);
         logger.error('CLIENTS', 'Error al eliminar lead', leadError);
-      }
-
-      // 🔥 Disparar generación automática de recomendaciones IA
-      if (result.acknowledged) {
-        const newClientId = result.insertedId.toString();
-        try {
-          const jobId = `recommendations_${newClientId}_1_${Date.now()}`;
-          await inngest.send({
-            name: 'ai.recommendations.requested',
-            id: jobId,
-            data: {
-              clientId: newClientId,
-              monthNumber: 1,
-              coachNotes: coachId ? 'Cliente recién registrado. Primera evaluación.' : '',
-              maxRevisions: 2,
-            },
-          });
-          logger.info('CLIENTS', 'Evento Inngest enviado para generación automática de IA', {
-            clientId: newClientId,
-            jobId,
-          });
-        } catch (inngestError) {
-          logger.error('CLIENTS', 'Error enviando evento Inngest', inngestError);
-        }
       }
 
       // Enviar emails de notificación si hay coachId

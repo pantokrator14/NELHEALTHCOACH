@@ -163,8 +163,8 @@ export default function ClientProfile() {
         setAiGenerationStatus('ready')
         setIsGeneratingAI(false)
       } else {
-        // Cliente nuevo sin IA → Inngest está generando automáticamente
-        setAiGenerationStatus('queued')
+        // Sin sesiones de IA — esperando que el coach genere manualmente
+        setAiGenerationStatus('ready')
         setIsGeneratingAI(false)
       }
     } catch (error) {
