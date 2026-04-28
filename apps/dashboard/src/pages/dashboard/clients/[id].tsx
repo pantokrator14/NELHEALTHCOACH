@@ -131,7 +131,7 @@ export default function ClientProfile() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
-  const [aiGenerationStatus, setAiGenerationStatus] = useState<'queued' | 'ready'>('queued')
+  const [aiGenerationStatus, setAiGenerationStatus] = useState<'queued' | 'ready'>('ready')
   const [aiJobId, setAiJobId] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
@@ -163,9 +163,9 @@ export default function ClientProfile() {
         setAiGenerationStatus('ready')
         setIsGeneratingAI(false)
       } else {
-        // No sessions yet → Inngest is still processing (auto-triggered on registration)
+        // Cliente nuevo sin IA → Inngest está generando automáticamente
         setAiGenerationStatus('queued')
-        setIsGeneratingAI(true)
+        setIsGeneratingAI(false)
       }
     } catch (error) {
       console.error('Error fetching client:', error)
@@ -190,7 +190,11 @@ export default function ClientProfile() {
   useEffect(() => {
     if (aiGenerationStatus !== 'queued' || !clientId) return
 
+    let pollCount = 0;
+    const MAX_POLLS = 30; // 5 minutos máximo (30 × 10s)
+
     const pollInterval = setInterval(async () => {
+      pollCount++;
       try {
         const result = await apiClient.getAIProgress(clientId)
         const sessions = result.data?.aiProgress?.sessions
@@ -198,18 +202,26 @@ export default function ClientProfile() {
           setAiGenerationStatus('ready')
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
-          // Show toast notification
           const clientName = client?.personalData?.name ?? 'El cliente'
           setToastMessage(`✅ Las recomendaciones de IA para ${clientName} están listas para tu revisión.`)
           setShowToast(true)
           setTimeout(() => setShowToast(false), 8000)
-          // Refresh client data
           fetchClient()
+          return
+        }
+        // Si después de MAX_POLLS intentos no hay resultados, detener
+        if (pollCount >= MAX_POLLS) {
+          setAiGenerationStatus('ready')
+          setIsGeneratingAI(false)
+          clearInterval(pollInterval)
+          setToastMessage(`⚠️ La generación de IA está tardando más de lo esperado. Intenta de nuevo.`)
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 8000)
         }
       } catch {
         // Silently ignore polling errors
       }
-    }, 10000) // Check every 10 seconds (reduced from 5 to avoid too many requests)
+    }, 10000)
 
     return () => clearInterval(pollInterval)
   }, [clientId]) // Removed fetchClient and aiGenerationStatus from deps to avoid loops

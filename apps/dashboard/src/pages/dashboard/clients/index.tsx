@@ -12,20 +12,21 @@ interface Client {
   email: string
   phone: string
   createdAt: string
-  profilePhoto?: {  // ✅ Actualizar para que coincida con el backend
+  profilePhoto?: {
     url: string
     key: string
     name: string
     type: 'profile' | 'document'
     size: number
     uploadedAt?: string
-  } | null  // Puede ser null si no hay foto
+  } | null
 }
 
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [copyMsg, setCopyMsg] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -51,6 +52,18 @@ export default function Clients() {
 
   const handleClientClick = (clientId: string) => {
     router.push(`/dashboard/clients/${clientId}`)
+  }
+
+  const handleCopyRegisterLink = async () => {
+    try {
+      const res = await apiClient.getCoachLink()
+      await navigator.clipboard.writeText(res.data.link)
+      setCopyMsg('¡Enlace copiado al portapapeles!')
+      setTimeout(() => setCopyMsg(''), 3000)
+    } catch {
+      setCopyMsg('Error al obtener el enlace')
+      setTimeout(() => setCopyMsg(''), 3000)
+    }
   }
 
   // Filtrar clientes basado en la búsqueda
@@ -94,12 +107,36 @@ export default function Clients() {
               </div>
             </div>
             
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-              <div className="text-lg text-gray-700">
-                Total: <span className="font-semibold text-blue-600">{clients.length} clientes</span>
+            <div className="flex items-center gap-3">
+              {/* Botón Agregar nuevo cliente */}
+              <button
+                onClick={handleCopyRegisterLink}
+                title="Copiar enlace de registro"
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition duration-200 font-medium shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar nuevo cliente
+              </button>
+
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="text-lg text-gray-700">
+                  Total: <span className="font-semibold text-blue-600">{clients.length} clientes</span>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Toast de enlace copiado */}
+          {copyMsg && (
+            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {copyMsg}
+            </div>
+          )}
 
           {/* Barra de búsqueda */}
           <div className="mb-6">

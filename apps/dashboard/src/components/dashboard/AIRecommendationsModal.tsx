@@ -5,6 +5,8 @@ import SimpleItemModal from './SimpleItemModal';
 import RecipeDetailModal from './RecipeDetailModal';
 import AIRecipeEditModal, { AIRecipeData } from './AIRecipeEditModal';
 import OriginPin from './OriginPin';
+import SessionScheduler from './SessionScheduler';
+import VideoCallRoom from './VideoCallRoom';
 import { ChecklistItem } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation } from 'react-i18next';
@@ -217,6 +219,7 @@ interface ImportableAISessionData {
 // ===== COMPONENTE PRINCIPAL =====
 export default function AIRecommendationsModal({
   clientId,
+  _clientName,
   onClose,
   onRecommendationsGenerated
 }: AIRecommendationsModalProps) {
@@ -273,6 +276,14 @@ export default function AIRecommendationsModal({
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // ===== ESTADOS DE VIDEOLlAMADA =====
+  const [showSessionScheduler, setShowSessionScheduler] = useState(false);
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [videoRoomName, setVideoRoomName] = useState<string>('');
+  const [videoSessionId, setVideoSessionId] = useState<string>('');
+  const [clientSessionLink, setClientSessionLink] = useState<string>('');
+  const [schedulingSession, setSchedulingSession] = useState(false);
 
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
@@ -985,6 +996,103 @@ export default function AIRecommendationsModal({
       alert(t('common.error'));
     }
   }, [clientId, loadAIProgress]);
+
+  // ===== HANDLERS DE VIDEOLlAMADA =====
+
+  /**
+   * Abre el modal para agendar una nueva videollamada.
+   * Solo disponible cuando hay una sesión activa enviada al cliente.
+   */
+  const handleOpenScheduler = useCallback(() => {
+    setShowSessionScheduler(true);
+  }, []);
+
+  /**
+   * Callback cuando el SessionScheduler creó exitosamente la sala.
+   * Pregunta si se quiere unirse ahora o después.
+   */
+  const handleSessionCreated = useCallback(
+    (data: { roomName: string; sessionId: string; sessionNumber: number }): void => {
+      setShowSessionScheduler(false);
+      setVideoRoomName(data.roomName);
+      setVideoSessionId(data.sessionId);
+      // Opcional: generar enlace para el cliente automáticamente
+      generateClientJoinLink(data.sessionId);
+      // Preguntar si quiere unirse ahora
+      const joinNow = window.confirm(
+        `Sesión #${data.sessionNumber} agendada exitosamente.\n\n¿Deseas unirte a la videollamada ahora?`
+      );
+      if (joinNow) {
+        setShowVideoCall(true);
+      }
+    },
+    []
+  );
+
+  /**
+   * Genera el enlace con token temporal para que el cliente acceda a la sala.
+   */
+  const generateClientJoinLink = useCallback(
+    async (sessionId: string): Promise<void> => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/video/session-link`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ clientId, sessionId }),
+          }
+        );
+
+        if (response.ok) {
+          const data = (await response.json()) as {
+            success: boolean;
+            data: { joinLink: string };
+          };
+          setClientSessionLink(data.data.joinLink);
+        }
+      } catch (err: unknown) {
+        console.error('Error generating client join link:', err);
+      }
+    },
+    [clientId]
+  );
+
+  /**
+   * Abre la videollamada directamente (si hay una sala creada).
+   */
+  const handleJoinVideoCall = useCallback(() => {
+    setShowVideoCall(true);
+  }, []);
+
+  /**
+   * Cierra el modal de videollamada.
+   */
+  const handleCloseVideoCall = useCallback(() => {
+    setShowVideoCall(false);
+    // Recargar para reflejar el estado 'completed'
+    loadAIProgress();
+  }, [loadAIProgress]);
+
+  /**
+   * Copia el enlace del cliente al portapapeles.
+   */
+  const handleCopyClientLink = useCallback(async () => {
+    if (clientSessionLink) {
+      try {
+        await navigator.clipboard.writeText(clientSessionLink);
+        alert('Enlace copiado al portapapeles. Pégalo en un email para el cliente.');
+      } catch {
+        alert('No se pudo copiar el enlace. Copia manualmente:\n' + clientSessionLink);
+      }
+    }
+  }, [clientSessionLink]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     setUploadingFile(true);
@@ -1863,7 +1971,46 @@ export default function AIRecommendationsModal({
                     <button onClick={() => handleSendToClient(activeSession.sessionId)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base">Enviar al Cliente</button>
                   )}
                   {activeSession.status === 'sent' && (
-                    <div className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base text-center">✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}</div>
+                    <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                      <div className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base text-center">
+                        ✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}
+                      </div>
+                      {!videoRoomName ? (
+                        <button
+                          onClick={handleOpenScheduler}
+                          className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Agendar Videollamada
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleJoinVideoCall}
+                            className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Unirse a Videollamada
+                          </button>
+                          {clientSessionLink && (
+                            <button
+                              onClick={handleCopyClientLink}
+                              className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 border border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
+                              title="Copiar enlace para el cliente"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                              Copiar enlace
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   )}
                 </>
               )}
@@ -1971,6 +2118,28 @@ export default function AIRecommendationsModal({
         accept=".txt,.json,.doc,.docx,.pdf"
         className="hidden"
       />
+
+      {/* ===== MODALES DE VIDEOLlAMADA ===== */}
+
+      {/* Modal para agendar sesión */}
+      {showSessionScheduler && (
+        <SessionScheduler
+          clientId={clientId}
+          clientName={_clientName}
+          onClose={() => setShowSessionScheduler(false)}
+          onSessionCreated={handleSessionCreated}
+        />
+      )}
+
+      {/* Videollamada en curso */}
+      {showVideoCall && videoRoomName && (
+        <VideoCallRoom
+          roomName={videoRoomName}
+          role="coach"
+          onLeave={handleCloseVideoCall}
+          clientId={clientId}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { MongoClient, Db } from 'mongodb';
+import mongoose from 'mongoose';
 import { logger } from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
@@ -8,6 +9,29 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 if (!MONGODB_URI) {
   logger.error('DATABASE', 'MONGODB_URI no definida en las variables de entorno');
   throw new Error('❌ MONGODB_URI no definida en las variables de entorno');
+}
+
+// ─── Mongoose connection (para modelos Coach, EditProposal, etc.) ───
+let mongooseConnected = false;
+
+export async function connectMongoose(): Promise<void> {
+  if (mongooseConnected) return;
+
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      dbName: MONGODB_DB,
+      tls: true,
+      tlsAllowInvalidCertificates: isDevelopment,
+      tlsAllowInvalidHostnames: isDevelopment,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
+    });
+    mongooseConnected = true;
+    logger.info('DATABASE', '✅ Mongoose conectado exitosamente');
+  } catch (error) {
+    logger.error('DATABASE', 'Error conectando Mongoose', error as Error);
+    throw error;
+  }
 }
 
 interface MongoConnection {

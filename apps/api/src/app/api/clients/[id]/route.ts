@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
-import { requireAuth } from '@/app/lib/auth';
+import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
 import { TextractService } from '@/app/lib/textract';
@@ -23,15 +23,28 @@ export async function GET(
         clientId: id
       });
 
-      // Verificar autenticación
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Verificar autenticación con coachId
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        // Legacy: usar requireAuth viejo
+        const token = request.headers.get('authorization')?.replace('Bearer ', '');
+        requireAuth(token);
+        auth = null;
+      }
 
       const healthForms = await getHealthFormsCollection();
-      
+
+      // Verificar ownership si es coach no-admin
+      let filter: Record<string, unknown> = { _id: new ObjectId(id) };
+      if (auth && auth.role === 'coach') {
+        filter.coachId = auth.coachId;
+      }
+
       logger.debug('CLIENTS', 'Buscando cliente en la base de datos', { clientId: id });
 
-      const client = await healthForms.findOne({ _id: new ObjectId(id) });
+      const client = await healthForms.findOne(filter);
 
       if (!client) {
         logger.warn('CLIENTS', 'Cliente no encontrado', undefined, { clientId: id });

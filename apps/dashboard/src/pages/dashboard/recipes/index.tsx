@@ -24,6 +24,12 @@ const RecipesPage = () => {
     hard: 0,
   });
 
+  // Pestañas pendientes
+  const [activeTab, setActiveTab] = useState<'all' | 'pending'>('all');
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(false);
+  const [proposalCount, setProposalCount] = useState(0);
+
   // Estado para eliminación múltiple
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedRecipes, setSelectedRecipes] = useState<string[]>([]);
@@ -72,6 +78,53 @@ const RecipesPage = () => {
   useEffect(() => {
     loadRecipes();
   }, [loadRecipes]);
+
+  // Cargar propuestas pendientes
+  const loadProposals = useCallback(async () => {
+    try {
+      setProposalsLoading(true);
+      const res = await apiClient.getEditProposals({ targetType: 'recipe', status: 'pending' });
+      if (res.success) {
+        setProposals(res.data || []);
+        setProposalCount((res.data || []).length);
+      }
+    } catch (err) {
+      console.error('Error loading proposals:', err);
+    } finally {
+      setProposalsLoading(false);
+    }
+  }, []);
+
+  // Cargar propuestas cuando se cambia a la pestaña pending
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      loadProposals();
+    } else {
+      loadRecipes();
+    }
+  }, [activeTab, loadRecipes, loadProposals]);
+
+  const handleApproveProposal = async (proposalId: string) => {
+    try {
+      await apiClient.approveProposal(proposalId);
+      showToast('Propuesta aprobada y cambios aplicados', 'success');
+      loadProposals();
+      loadRecipes();
+    } catch (err: any) {
+      showToast(err.message || 'Error al aprobar', 'error');
+    }
+  };
+
+  const handleRejectProposal = async (proposalId: string) => {
+    if (!window.confirm('¿Rechazar esta propuesta de edición?')) return;
+    try {
+      await apiClient.rejectProposal(proposalId, 'Rechazada por el administrador');
+      showToast('Propuesta rechazada', 'success');
+      loadProposals();
+    } catch (err: any) {
+      showToast(err.message || 'Error al rechazar', 'error');
+    }
+  };
 
   // Obtener categorías y tags existentes para sugerencias
   const existingCategories = useMemo(() => {
@@ -375,6 +428,93 @@ const RecipesPage = () => {
             </div>
           </div>
 
+          {/* Pestañas: Todas / Pendientes */}
+          <div className="mb-6 border-b border-gray-200">
+            <nav className="flex space-x-4">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
+                  activeTab === 'all'
+                    ? 'border-green-600 text-green-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Todas las recetas
+              </button>
+              <button
+                onClick={() => setActiveTab('pending')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition relative ${
+                  activeTab === 'pending'
+                    ? 'border-orange-500 text-orange-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Pendientes por aprobar
+                {proposalCount > 0 && (
+                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {proposalCount}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+
+          {/* Contenido según pestaña */}
+          {activeTab === 'pending' ? (
+            /* Vista de propuestas pendientes */
+            <div>
+              {proposalsLoading ? (
+                <div className="flex justify-center py-16">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+                </div>
+              ) : proposals.length === 0 ? (
+                <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200">
+                  <div className="text-4xl mb-4">✅</div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay propuestas pendientes</h3>
+                  <p className="text-gray-500">Las ediciones propuestas por los coaches aparecerán aquí.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {proposals.map((proposal: any) => (
+                    <div key={proposal.id} className="bg-white rounded-xl shadow border border-orange-200 overflow-hidden">
+                      <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex justify-between items-center">
+                        <div>
+                          <span className="inline-block bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-medium mr-2">
+                            Pendiente
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            Propuesto por: {proposal.proposedByName || 'Coach'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(proposal.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <p className="text-sm text-gray-500 mb-3">Cambios propuestos en receta ID: {proposal.targetId?.toString().substring(0, 8)}...</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApproveProposal(proposal.id)}
+                            className="flex-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 transition font-medium"
+                          >
+                            ✓ Aprobar
+                          </button>
+                          <button
+                            onClick={() => handleRejectProposal(proposal.id)}
+                            className="flex-1 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-600 transition font-medium"
+                          >
+                            ✗ Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Vista normal de recetas */
+            <>
           {/* Filtros */}
           <RecipeFilters
             recipes={recipes}
@@ -506,9 +646,11 @@ const RecipesPage = () => {
               </button>
             </div>
           )}
-        </div>
 
-        {/* Botón flotante para eliminar seleccionados */}
+        </>
+          )}
+
+          {/* Botón flotante para eliminar seleccionados */}
         {deleteMode && selectedRecipes.length > 0 && (
           <div className="fixed bottom-6 right-6 z-50">
             <button
@@ -523,6 +665,8 @@ const RecipesPage = () => {
             </button>
           </div>
         )}
+
+        </div>
 
         {/* Modal de detalles */}
         {isDetailModalOpen && selectedRecipe && (

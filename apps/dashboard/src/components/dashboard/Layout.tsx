@@ -1,14 +1,44 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
+import { apiClient } from '@/lib/api'
 
 interface LayoutProps {
   children: ReactNode
 }
 
+interface CoachData {
+  firstName: string
+  lastName: string
+  email: string
+  role: string
+  profilePhoto?: { url: string } | null
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [coachData, setCoachData] = useState<CoachData | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
+
+  // Cargar datos completos del coach
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    // Extraer rol del token inmediatamente (para mostrar coaches)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      setIsAdmin(payload.role === 'admin')
+    } catch { /* ignore */ }
+
+    // Fetch completo del perfil (nombre, foto)
+    apiClient.getProfile().then(res => {
+      if (res?.data) {
+        setCoachData(res.data)
+      }
+    }).catch(() => { /* ignore */ })
+  }, [])
 
   // Cerrar sidebar al cambiar de ruta en móviles
   useEffect(() => {
@@ -35,6 +65,9 @@ export default function Layout({ children }: LayoutProps) {
       setIsSidebarOpen(false)
     }
   }
+
+  const fullName = coachData ? `${coachData.firstName} ${coachData.lastName}` : 'Coach'
+  const photoUrl = coachData?.profilePhoto?.url || null
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -121,16 +154,48 @@ export default function Layout({ children }: LayoutProps) {
               </div>
               <span className="font-medium">Ejercicios</span>
             </button>
+
+            {/* Coaches (solo admin) */}
+            {isAdmin && (
+              <button
+                onClick={() => navigateTo('/dashboard/coaches')}
+                className="w-full text-left px-4 py-3 rounded-lg hover:bg-orange-600 transition-all duration-200 flex items-center group"
+              >
+                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-orange-600 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </div>
+                <span className="font-medium">Coaches</span>
+              </button>
+            )}
           </div>
         </nav>
+
+        {/* Perfil — justo encima de la línea divisoria */}
+        <div className="p-4">
+          <button
+            onClick={() => navigateTo('/dashboard/profile')}
+            className="w-full px-4 py-3 rounded-lg hover:bg-blue-600 transition-all duration-200 flex items-center group"
+          >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 overflow-hidden bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
+              {photoUrl ? (
+                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-bold">{fullName.charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <span className="font-medium truncate">{fullName}</span>
+          </button>
+        </div>
 
         {/* Logout */}
         <div className="p-4 border-t border-blue-600">
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-3 rounded-lg hover:bg-red-600 transition-all duration-200 flex items-center justify-center group"
+            className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-600 transition-all duration-200 flex items-center group"
           >
-            <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center mr-2 group-hover:bg-white group-hover:text-red-600 transition-colors">
+            <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-red-600 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>

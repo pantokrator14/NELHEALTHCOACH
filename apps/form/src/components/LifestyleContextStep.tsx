@@ -74,7 +74,7 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
             {/* Nivel de actividad física actual */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
-                ¿Cuál es tu nivel de actividad física actual? ¿Qué tipo de ejercicio disfrutas o estarías dispuesto a probar?
+                ¿Cuál es tu nivel de actividad física actual?
               </label>
               <textarea
                 rows={3}

@@ -82,3 +82,31 @@ export class S3Service {
     }
   }
 }
+
+/**
+ * Sube contenido de texto directamente a S3 (sin URL prefirmada).
+ * Útil para transcripciones, logs y cualquier contenido generado
+ * en el servidor que necesite persistencia en S3.
+ */
+export async function uploadTextToS3(
+  key: string,
+  content: string,
+  contentType: string = 'text/plain; charset=utf-8'
+): Promise<string> {
+  const bucket = process.env.AWS_S3_BUCKET_NAME!;
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: content,
+    ContentType: contentType,
+    Metadata: {
+      'uploaded-at': new Date().toISOString(),
+    },
+  });
+
+  await s3Client.send(command);
+
+  const region = process.env.AWS_REGION || 'us-west-1';
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}

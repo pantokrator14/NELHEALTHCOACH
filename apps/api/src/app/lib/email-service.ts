@@ -3,7 +3,10 @@ import { logger } from './logger';
 import { 
   generateMonthlyPlanEmailHTML, 
   generateMonthlyPlanEmailText,
-  EmailTemplateData 
+  generateSessionInviteHTML,
+  generateCoachSessionNotificationHTML,
+  EmailTemplateData,
+  SessionEmailData,
 } from './email-templates';
 
 // 1. CONFIGURACIÓN INICIAL DE RESEND
@@ -218,6 +221,74 @@ export class EmailService {
       .replace(/\s+/g, ' ')
       .trim();
   }
+  /**
+   * Enviar invitación de videollamada al cliente.
+   */
+  public async sendSessionInviteEmail(
+    clientEmail: string,
+    data: SessionEmailData
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Preparando email de invitación a videollamada', {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
+      });
+
+      const htmlContent = generateSessionInviteHTML(data);
+      const subject = `📹 Sesión de Seguimiento #${data.sessionNumber} Agendada | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [clientEmail],
+        subject,
+        htmlBody: htmlContent,
+        replyTo: [this.fromEmail],
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando invitación de videollamada', error as Error, {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar notificación al coach cuando un cliente agenda/completa sesión.
+   */
+  public async sendCoachSessionNotification(
+    coachEmail: string,
+    data: {
+      clientName: string;
+      sessionNumber: number;
+      scheduledDate?: Date;
+      progressNotes?: string;
+      dashboardUrl?: string;
+    }
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Enviando notificación de sesión al coach', {
+        coachEmail,
+        clientName: data.clientName,
+        sessionNumber: data.sessionNumber,
+      });
+
+      const htmlContent = generateCoachSessionNotificationHTML(data);
+      const subject = `📋 Sesión #${data.sessionNumber} - ${data.clientName} | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [coachEmail],
+        subject,
+        htmlBody: htmlContent,
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando notificación al coach', error as Error, {
+        coachEmail,
+        clientName: data.clientName,
+      });
+      return false;
+    }
+  }
+
   /**
    * Verificar configuración
    */

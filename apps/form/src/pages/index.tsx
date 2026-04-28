@@ -1,5 +1,6 @@
 // apps/form/src/pages/index.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import ContractStep from '@/components/ContractStep';
 import PersonalDataStep from '@/components/PersonalDataStep';
 import BasicMedicalStep from '@/components/BasicMedicalStep';
@@ -80,13 +81,26 @@ const convertMedicalDataForApi = (data: MedicalDataFormValues): FormPayload['med
 };
 
 const FormPage: React.FC = () => {
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState<HealthFormData>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [coachId, setCoachId] = useState<string | null>(null);
 
-  const nextStep = () => setStep(step + 1);
-  const prevStep = () => setStep(step - 1);
+  // Leer coachId de query params al montar
+  useEffect(() => {
+    if (router.isReady) {
+      const coachParam = router.query.coach as string;
+      if (coachParam) {
+        setCoachId(coachParam);
+        console.log('🔗 Coach ID recibido via query param:', coachParam);
+      }
+    }
+  }, [router.isReady, router.query.coach]);
+
+  const nextStep = () => { setStep(step + 1); window.scrollTo(0, 0); };
+  const prevStep = () => { setStep(step - 1); window.scrollTo(0, 0); };
 
   const updateFormData = (newData: Partial<HealthFormData>) => {
     setFormData(prev => ({ ...prev, ...newData }));
@@ -307,7 +321,7 @@ const FormPage: React.FC = () => {
         documentTypes: Array.isArray(documents) ? documents.map(d => typeof d) : []
       });
 
-      const result = await apiClient.submitForm(formPayload);
+      const result = await apiClient.submitForm(formPayload, coachId || undefined);
 
       if (result.success) {
         nextStep();

@@ -1,7 +1,7 @@
 // apps/api/src/app/lib/logger.ts
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'GUARDRAILS' | 'INICIO' | 'ERROR' | 'FIN';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'GUARDRAILS' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION';
 
 // ✅ INTERFAZ ACTUALIZADA: Permite propiedades dinámicas
 interface LogMetadata {

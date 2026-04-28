@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
-import { getExerciseCollection } from '@/app/lib/database';
+import { getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, safeDecrypt } from '@/app/lib/encryption';
+import { requireCoachAuth } from '@/app/lib/auth';
+import EditProposal from '@/app/models/EditProposal';
 
 // GET: Obtener ejercicios
 export async function GET(request: NextRequest) {
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
           } : null,
           progressionOf: ex.progressionOf ? ex.progressionOf.toString() : null,
           progressesTo: (ex.progressesTo || []).map((id: ObjectId) => id.toString()),
+          author: ex.author ? safeDecrypt(ex.author) : 'NelHealthCoach',
           isPublished: ex.isPublished,
           tags: ex.tags.map((t: string) => safeDecrypt(t)),
           createdAt: ex.createdAt,
@@ -95,6 +98,15 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
       const collection = await getExerciseCollection();
 
+      // Obtener info del coach para el campo author
+      let authorName = 'NelHealthCoach';
+      try {
+        const auth = requireCoachAuth(request);
+        authorName = auth.email || 'NelHealthCoach';
+      } catch {
+        // Sin auth, usar default
+      }
+
       const exerciseDoc = {
         name: encrypt(body.name),
         description: encrypt(body.description),
@@ -121,6 +133,7 @@ export async function POST(request: NextRequest) {
         } : null,
         progressionOf: body.progressionOf ? new ObjectId(body.progressionOf) : null,
         progressesTo: (body.progressesTo || []).map((id: string) => new ObjectId(id)),
+        author: encrypt(body.author || authorName),
         isPublished: body.isPublished ?? true,
         tags: body.tags.map((t: string) => encrypt(t)),
       };
@@ -191,6 +204,43 @@ export async function PUT(request: NextRequest) {
 
       encryptedUpdate.updatedAt = new Date();
 
+      // Verificar rol: Admin actualiza directo, Coach crea propuesta
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        auth = null;
+      }
+
+      if (auth && auth.role !== 'admin') {
+        // Coach no-admin: crear propuesta
+        await connectMongoose();
+        const proposal = await EditProposal.create({
+          targetType: 'exercise',
+          targetId: new ObjectId(id),
+          proposedChanges: encryptedUpdate,
+          proposedBy: new ObjectId(auth.coachId),
+          proposedByName: auth.email,
+          status: 'pending',
+        });
+
+        logger.info('EXERCISES', 'Propuesta de edición creada', {
+          exerciseId: id,
+          proposalId: proposal._id.toString(),
+          coachId: auth.coachId,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Tu propuesta de edición ha sido enviada para revisión del administrador',
+          data: {
+            pendingApproval: true,
+            proposalId: proposal._id.toString(),
+          },
+        });
+      }
+
+      // Admin o legacy: actualizar directamente
       const result = await collection.updateOne(
         { _id: new ObjectId(id) },
         { $set: encryptedUpdate }
