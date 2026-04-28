@@ -144,7 +144,7 @@ export default function ProfilePage() {
           </h2>
           <div className="flex items-center">
             <div className="relative flex-shrink-0">
-              <div className="w-28 h-28 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white text-4xl font-bold">
+              <div className="w-28 h-28 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white text-4xl font-bold relative">
                 {profile?.profilePhoto?.url ? (
                   <Image src={profile.profilePhoto.url} alt="Foto de perfil" fill className="object-cover" unoptimized />
                 ) : (
