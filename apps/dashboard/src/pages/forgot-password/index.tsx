@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
 
@@ -45,7 +46,7 @@ export default function ForgotPassword() {
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">
                 {success}
                 <div className="mt-3 text-center">
-                  <a href="/login" className="text-blue-600 hover:text-blue-800 font-medium">Volver al inicio de sesión</a>
+                  <Link href="/login" className="text-blue-600 hover:text-blue-800 font-medium">Volver al inicio de sesión</Link>
                 </div>
               </div>
             )}
@@ -60,7 +61,7 @@ export default function ForgotPassword() {
                   {loading ? 'Enviando...' : 'Enviar enlace'}
                 </button>
                 <p className="text-center text-sm text-gray-500">
-                  <a href="/login" className="text-blue-600 hover:text-blue-800">Volver al inicio de sesión</a>
+                  <Link href="/login" className="text-blue-600 hover:text-blue-800">Volver al inicio de sesión</Link>
                 </p>
               </form>
             )}

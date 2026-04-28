@@ -178,9 +178,9 @@ export default function Layout({ children }: LayoutProps) {
             onClick={() => navigateTo('/dashboard/profile')}
             className="w-full px-4 py-3 rounded-lg hover:bg-blue-600 transition-all duration-200 flex items-center group"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 overflow-hidden bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 overflow-hidden bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all relative">
               {photoUrl ? (
-                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                <Image src={photoUrl} alt="" fill className="object-cover" unoptimized />
               ) : (
                 <span className="text-sm font-bold">{fullName.charAt(0).toUpperCase()}</span>
               )}

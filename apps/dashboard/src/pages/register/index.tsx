@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { apiClient } from '@/lib/api';
 
@@ -14,7 +15,6 @@ export default function Register() {
     password: '',
     confirmPassword: '',
   });
-  const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -31,7 +31,6 @@ export default function Register() {
         setError('La foto no debe superar 5MB');
         return;
       }
-      setPhoto(file);
       const reader = new FileReader();
       reader.onloadend = () => setPhotoPreview(reader.result as string);
       reader.readAsDataURL(file);
@@ -112,9 +111,9 @@ export default function Register() {
                 {/* Foto de perfil */}
                 <div className="flex flex-col items-center">
                   <label htmlFor="photo" className="cursor-pointer group">
-                    <div className="w-24 h-24 rounded-full bg-blue-100 border-2 border-dashed border-blue-400 flex items-center justify-center overflow-hidden group-hover:border-blue-600 transition">
+                    <div className="w-24 h-24 rounded-full bg-blue-100 border-2 border-dashed border-blue-400 flex items-center justify-center overflow-hidden group-hover:border-blue-600 transition relative">
                       {photoPreview ? (
-                        <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                        <Image src={photoPreview} alt="Preview" fill className="object-cover" />
                       ) : (
                         <div className="text-center text-blue-500">
                           <svg className="w-8 h-8 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,7 +166,7 @@ export default function Register() {
                 </button>
                 <p className="text-center text-sm text-gray-500">
                   ¿Ya tienes cuenta?{' '}
-                  <a href="/login" className="text-blue-600 hover:text-blue-800">Iniciar sesión</a>
+                  <Link href="/login" className="text-blue-600 hover:text-blue-800">Iniciar sesión</Link>
                 </p>
               </form>
             )}

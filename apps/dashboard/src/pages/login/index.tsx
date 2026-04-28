@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/router'
+import Link from 'next/link'
 import Head from 'next/head'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api';
@@ -141,21 +142,21 @@ export default function Login() {
               {/* Links de navegación */}
               <div className="mt-6 text-center space-y-3">
                 <div>
-                  <a
+                  <Link
                     href="/forgot-password"
                     className="text-sm text-blue-600 hover:text-blue-800 transition duration-200"
                   >
                     ¿Olvidaste tu contraseña?
-                  </a>
+                  </Link>
                 </div>
                 <div className="border-t border-gray-200 pt-3">
                   <p className="text-sm text-gray-500 mb-2">¿No tienes cuenta?</p>
-                  <a
+                  <Link
                     href="/register"
                     className="text-sm font-medium text-blue-600 hover:text-blue-800 transition duration-200"
                   >
                     Regístrate como coach
-                  </a>
+                  </Link>
                 </div>
               </div>
             </form>
