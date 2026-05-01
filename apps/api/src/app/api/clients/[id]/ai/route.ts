@@ -129,6 +129,32 @@ export async function GET(
         });
       }
 
+      // Si hay un error de generación pendiente (Inngest falló), incluirlo
+      const generationError = aiProgress.generationError || null;
+      if (generationError) {
+        loggerWithContext.warn('AI', 'Error de generación pendiente encontrado', {
+          errorMessage: generationError.message,
+          timestamp: generationError.timestamp,
+        });
+      }
+
+      // Si solo hay error y no sesiones, devolver el error sin intentar desencriptar
+      if (!aiProgress.sessions || aiProgress.sessions.length === 0) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            hasAIProgress: true,
+            aiProgress: {
+              sessions: [],
+              generationError,
+              overallProgress: aiProgress.overallProgress || 0,
+            },
+            generationError,
+          },
+          requestId,
+        });
+      }
+
       loggerWithContext.info('AI', 'Progreso de IA encontrado', {
         sessionCount: aiProgress.sessions?.length || 0,
         overallProgress: aiProgress.overallProgress,
@@ -150,8 +176,9 @@ export async function GET(
           hasAIProgress: true,
           aiProgress: {
             ...aiProgress,
-            sessions: decryptedSessions  // ✅ Ahora completamente desencriptadas
-          }
+            sessions: decryptedSessions,  // ✅ Ahora completamente desencriptadas
+          },
+          generationError,
         },
         requestId
       });

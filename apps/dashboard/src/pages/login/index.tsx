@@ -155,7 +155,7 @@ export default function Login() {
                     href="/register"
                     className="text-sm font-medium text-blue-600 hover:text-blue-800 transition duration-200"
                   >
-                    Regístrate como coach
+                    Regístrate como Asesor Independiente
                   </Link>
                 </div>
               </div>

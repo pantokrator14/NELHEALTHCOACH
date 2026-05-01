@@ -73,7 +73,7 @@ export default function Register() {
   return (
     <>
       <Head>
-        <title>Registro de Coach - NELHEALTHCOACH</title>
+        <title>Registro - NELHEALTHCOACH</title>
       </Head>
       <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -83,7 +83,7 @@ export default function Register() {
             </div>
           </div>
           <div className="px-8 pb-8">
-            <h1 className="text-2xl font-bold text-blue-700 text-center mb-6">Registro de Coach</h1>
+            <h1 className="text-2xl font-bold text-blue-700 text-center mb-6">Registro</h1>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">{error}</div>

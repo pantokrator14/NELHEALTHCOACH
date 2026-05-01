@@ -103,16 +103,22 @@ export async function validateQuality(
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     logCtx.error("AI", `Quality validation failed: ${errorMessage}`);
 
-    // On error, allow revision to retry
+    // Si ya alcanzamos el máximo de revisiones, NO forzar otra revisión
+    // para evitar loop infinito (GraphRecursionError).
+    const currentRevisionCount = state.revisionCount ?? 0;
+    const maxRevisions = state.maxRevisions ?? 2;
+    const shouldRetry = currentRevisionCount < maxRevisions;
+
     return {
       errors: [`validateQuality: ${errorMessage}`],
       validationResults: {
-        nutrition: { passed: false, issues: ["Validation error occurred"] },
-        exercise: { passed: false, issues: ["Validation error occurred"] },
-        habits: { passed: false, issues: ["Validation error occurred"] },
-        overall: { passed: false, needsRevision: true },
+        nutrition: { passed: false, issues: [errorMessage] },
+        exercise: { passed: false, issues: [errorMessage] },
+        habits: { passed: false, issues: [errorMessage] },
+        overall: { passed: false, needsRevision: shouldRetry },
       },
-      needsRevision: true,
+      needsRevision: shouldRetry,
+      revisionCount: shouldRetry ? currentRevisionCount + 1 : currentRevisionCount,
     };
   }
 }

@@ -152,7 +152,10 @@ interface AIRecommendationsModalProps {
   clientId: string;
   _clientName: string;
   onClose: () => void;
-  onRecommendationsGenerated?: () => void;
+  onRecommendationsGenerated?: (info?: { status: string; jobId?: string }) => void;
+  // El padre notifica al modal cuándo la generación asíncrona terminó o falló
+  generationStatus?: 'idle' | 'queued' | 'ready';
+  generationError?: string | null;
 }
 
 interface EditingField {
@@ -221,13 +224,17 @@ export default function AIRecommendationsModal({
   clientId,
   _clientName,
   onClose,
-  onRecommendationsGenerated
+  onRecommendationsGenerated,
+  generationStatus = 'idle',
+  generationError = null,
 }: AIRecommendationsModalProps) {
   const { t } = useTranslation();
   // ===== ESTADOS PRINCIPALES =====
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  // Error mostrado dentro del modal (se limpia al cerrar o al iniciar nueva generación)
+  const [displayError, setDisplayError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
 
   // ===== ESTADOS DE NAVEGACIÓN =====
@@ -495,15 +502,37 @@ export default function AIRecommendationsModal({
       }
     } catch {
       alert(t('ai.errorGenerating'));
-    } finally {
+      // En caso de error de red o del servidor, detener el estado "generando"
       setGenerating(false);
     }
+    // No usamos finally para setGenerating(false) porque cuando la respuesta
+    // es 'queued', el padre controla el estado generating vía generationStatus prop.
   }, [clientId, reprocessDocuments, coachNotes, loadAIProgress, onRecommendationsGenerated]);
 
   // ===== EFECTOS =====
   useEffect(() => {
     loadAIProgress();
   }, [loadAIProgress]);
+
+  // Reaccionar a cambios en generationStatus/generationError desde el padre
+  useEffect(() => {
+    if (generationStatus === 'queued') {
+      setGenerating(true);
+      setDisplayError(null);
+    } else if (generationStatus === 'ready') {
+      setGenerating(false);
+      // Recargar datos de IA (el polling del padre ya encontró resultados o error)
+      loadAIProgress();
+    }
+  }, [generationStatus, loadAIProgress]);
+
+  // Mostrar error de generación cuando el padre lo notifica
+  useEffect(() => {
+    if (generationError) {
+      setDisplayError(generationError);
+      setGenerating(false);
+    }
+  }, [generationError]);
 
   // useEffect removed - month tabs replaced with session tabs
   // activeMonthTab now represents month within active session (1,2,3) for 12-week plans
@@ -1719,6 +1748,52 @@ export default function AIRecommendationsModal({
             <button onClick={onClose} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
           </div>
         </div>
+
+        {/* Banner de estado: Generando... o Error */}
+        {generating && (
+          <div className="bg-blue-50 border border-blue-200 rounded-none px-6 py-4">
+            <div className="flex items-center">
+              <svg className="animate-spin h-5 w-5 text-blue-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con IA... Esto puede tomar hasta 2 minutos.</span>
+            </div>
+            <p className="text-blue-500 text-sm mt-1 ml-8">La IA está analizando los datos del cliente, planificando nutrición, ejercicio y hábitos. No cierres esta ventana.</p>
+          </div>
+        )}
+
+        {displayError && !generating && (
+          <div className="bg-red-50 border border-red-200 rounded-none px-6 py-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-red-700 font-medium">Error al generar recomendaciones</p>
+                <p className="text-red-600 text-sm mt-1">{displayError}</p>
+                <div className="flex gap-3 mt-3">
+                  <button
+                    onClick={() => {
+                      setDisplayError(null);
+                      handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    🔄 Reintentar
+                  </button>
+                  <button
+                    onClick={() => setDisplayError(null)}
+                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <p className="text-red-400 text-xs mt-2">Si el error persiste, notifica al equipo de desarrollo.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">

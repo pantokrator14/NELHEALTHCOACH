@@ -76,7 +76,12 @@ function buildRecommendationGraph() {
 /**
  * Compiled recommendation graph ready for invocation.
  */
-export const recommendationGraph = buildRecommendationGraph().compile();
+export const recommendationGraph = buildRecommendationGraph().compile({
+  // Aumentar el límite de recursión para dar margen al loop de revisión de calidad.
+  // Con maxRevisions=2, el grafo necesita ~19 pasos. Con 50 hay margen seguro
+  // incluso si la validación requiere más iteraciones.
+  recursionLimit: 50,
+});
 
 /**
  * Type-safe wrapper for invoking the graph with proper input type.

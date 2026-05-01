@@ -131,8 +131,9 @@ export default function ClientProfile() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
-  const [aiGenerationStatus, setAiGenerationStatus] = useState<'queued' | 'ready'>('ready')
+  const [aiGenerationStatus, setAiGenerationStatus] = useState<'idle' | 'queued' | 'ready'>('idle')
   const [aiJobId, setAiJobId] = useState<string | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
 
@@ -161,10 +162,12 @@ export default function ClientProfile() {
       const sessions = result.data?.aiProgress?.sessions
       if (sessions && sessions.length > 0) {
         setAiGenerationStatus('ready')
+        setAiError(null)
         setIsGeneratingAI(false)
       } else {
         // Sin sesiones de IA — esperando que el coach genere manualmente
-        setAiGenerationStatus('ready')
+        setAiGenerationStatus('idle')
+        setAiError(null)
         setIsGeneratingAI(false)
       }
     } catch (error) {
@@ -198,8 +201,24 @@ export default function ClientProfile() {
       try {
         const result = await apiClient.getAIProgress(clientId)
         const sessions = result.data?.aiProgress?.sessions
+        const genError = result.data?.generationError as { message?: string } | undefined
+
+        // ¿Error de generación reportado por Inngest?
+        if (genError?.message) {
+          setAiGenerationStatus('ready')
+          setAiError(genError.message)
+          setIsGeneratingAI(false)
+          clearInterval(pollInterval)
+          setToastMessage(`❌ Error generando recomendaciones: ${genError.message}`)
+          setShowToast(true)
+          setTimeout(() => setShowToast(false), 12000)
+          return
+        }
+
+        // ¿Sesiones encontradas?
         if (result.success && sessions && sessions.length > 0) {
           setAiGenerationStatus('ready')
+          setAiError(null)
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
           const clientName = client?.personalData?.name ?? 'El cliente'
@@ -224,7 +243,7 @@ export default function ClientProfile() {
     }, 10000)
 
     return () => clearInterval(pollInterval)
-  }, [clientId]) // Removed fetchClient and aiGenerationStatus from deps to avoid loops
+  }, [clientId, aiGenerationStatus]) // aiGenerationStatus es necesario para disparar/re-detener el polling
 
   const handleDelete = async () => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
@@ -1186,11 +1205,22 @@ export default function ClientProfile() {
             clientId={clientId}
             _clientName={client.personalData.name}
             onClose={() => setIsAIModalOpen(false)}
-            onRecommendationsGenerated={() => {
-              // Auto-flow: just refresh client data to show new sessions
-              setAiGenerationStatus('ready')
-              setIsGeneratingAI(false)
-              fetchClient()
+            generationStatus={aiGenerationStatus}
+            generationError={aiError}
+            onRecommendationsGenerated={(info?: { status: string; jobId?: string }) => {
+              // Si viene con status 'queued', Inngest está procesando → activar polling
+              if (info?.status === 'queued') {
+                setAiGenerationStatus('queued')
+                setAiJobId(info.jobId || null)
+                setAiError(null)
+                // setIsGeneratingAI se mantiene true hasta que el polling encuentre resultados
+              } else {
+                // Respuesta sincrónica (fallback del backend sin Inngest) → datos listos ya
+                setAiGenerationStatus('ready')
+                setIsGeneratingAI(false)
+                setAiError(null)
+                fetchClient()
+              }
             }}
           />
         )}

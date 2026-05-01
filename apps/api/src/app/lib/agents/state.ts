@@ -168,11 +168,15 @@ export const RecommendationState = Annotation.Root({
   }),
 
   // ── Control flow ──
+  // NOTA: Ambos usan reemplazo, NO acumulación. El nodo validateQuality ya calcula
+  // el valor correcto en base al estado previo (state.revisionCount + 1).
+  // Si se usan reducers acumulativos, el valor se duplica en cada iteración
+  // y el loop de revisión nunca termina correctamente (GraphRecursionError).
   needsRevision: Annotation<boolean>({
-    reducer: (current: boolean, next: boolean) => current || next,
+    reducer: (_current: boolean, next: boolean) => next,
   }),
   revisionCount: Annotation<number>({
-    reducer: (current: number, _next: number) => current + _next,
+    reducer: (_current: number, next: number) => next,
   }),
   maxRevisions: Annotation<number>(),
   coachReviewFeedback: Annotation<CoachReviewFeedback | undefined>(),
