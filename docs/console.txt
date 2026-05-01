@@ -1,0 +1,143 @@
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next 
+Object { code: "NO_I18NEXT_INSTANCE" }
+997-2cda6ee11fbe64ad.js:1:462
+🔍 getAIProgress llamado para cliente: 69ee30bdad8a833717292d58 893-11ac39a8c519e506.js:1:4662
+📡 Status de getAIProgress: 200 893-11ac39a8c519e506.js:1:4845
+📦 Respuesta completa getAIProgress: 
+Object { success: true, hasData: true, hasAIProgress: false, sessions: 0, firstSession: null }
+893-11ac39a8c519e506.js:1:5117
+🚀 generateAIRecommendations llamado: 
+Object { clientId: "69ee30bdad8a833717292d58", monthNumber: 1, API_BASE_URL: "https://api.nelhealthcoach.com", endpoint: "https://api.nelhealthcoach.com/api/clients/69ee30bdad8a833717292d58/ai" }
+​
+API_BASE_URL: "https://api.nelhealthcoach.com"
+​
+clientId: "69ee30bdad8a833717292d58"
+​
+endpoint: "https://api.nelhealthcoach.com/api/clients/69ee30bdad8a833717292d58/ai"
+​
+monthNumber: 1
+​
+<prototype>: Object { … }
+​​
+__defineGetter__: function __defineGetter__()
+​​
+__defineSetter__: function __defineSetter__()
+​​
+__lookupGetter__: function __lookupGetter__()
+​​
+__lookupSetter__: function __lookupSetter__()
+​​
+__proto__: 
+​​
+constructor: function Object()
+​​
+hasOwnProperty: function hasOwnProperty()
+​​
+isPrototypeOf: function isPrototypeOf()
+​​
+propertyIsEnumerable: function propertyIsEnumerable()
+​​
+toLocaleString: function toLocaleString()
+​​
+toString: function toString()
+​​
+valueOf: function valueOf()
+​​
+<get __proto__()>: function __proto__()
+​​
+<set __proto__()>: function __proto__()
+893-11ac39a8c519e506.js:1:3736
+
+893-11ac39a8c519e506.js:1:3736
+📡 Response status: 202 893-11ac39a8c519e506.js:1:4065
+📡 Response headers: 
+Object { "cache-control": "public, max-age=0, must-revalidate", "content-type": "application/json" }
+​
+"cache-control": "public, max-age=0, must-revalidate"
+​
+"content-type": "application/json"
+​
+<prototype>: Object { … }
+893-11ac39a8c519e506.js:1:4119
+
+✅ Response data: 
+Object { success: true, data: {…} }
+​
+data: Object { jobId: "recommendations_69ee30bdad8a833717292d58_1_1777482499463", status: "queued", message: "Recomendaciones en proceso. El resultado estará disponible pronto.", … }
+​​
+clientId: "69ee30bdad8a833717292d58"
+​​
+jobId: "recommendations_69ee30bdad8a833717292d58_1_1777482499463"
+​​
+message: "Recomendaciones en proceso. El resultado estará disponible pronto."
+​​
+monthNumber: 1
+​​
+requestId: "2e13c4b5-5331-4d2d-b828-36008541ffe0"
+​​
+status: "queued"
+​​
+<prototype>: Object { … }
+​​​
+__defineGetter__: function __defineGetter__()
+​​​
+__defineSetter__: function __defineSetter__()
+​​​
+__lookupGetter__: function __lookupGetter__()
+​​​
+__lookupSetter__: function __lookupSetter__()
+​​​
+__proto__: 
+​​​
+constructor: function Object()
+​​​
+hasOwnProperty: function hasOwnProperty()
+​​​
+isPrototypeOf: function isPrototypeOf()
+​​​
+propertyIsEnumerable: function propertyIsEnumerable()
+​​​
+toLocaleString: function toLocaleString()
+​​​
+toString: function toString()
+​​​
+valueOf: function valueOf()
+​​​
+<get __proto__()>: function __proto__()
+​​​
+<set __proto__()>: function __proto__()
+​
+success: true
+​
+<prototype>: Object { … }
+​​
+__defineGetter__: function __defineGetter__()
+​​
+__defineSetter__: function __defineSetter__()
+​​
+__lookupGetter__: function __lookupGetter__()
+​​
+__lookupSetter__: function __lookupSetter__()
+​​
+__proto__: 
+​​
+constructor: function Object()
+​​
+hasOwnProperty: function hasOwnProperty()
+​​
+isPrototypeOf: function isPrototypeOf()
+​​
+propertyIsEnumerable: function propertyIsEnumerable()
+​​
+toLocaleString: function toLocaleString()
+​​
+toString: function toString()
+​​
+valueOf: function valueOf()
+​​
+<get __proto__()>: function __proto__()
+​​
+<set __proto__()>: function __proto__()
+893-11ac39a8c519e506.js:1:4428
+
+893-11ac39a8c519e506.js:1:4428

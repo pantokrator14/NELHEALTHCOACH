@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { generateRecommendations } from "@/app/lib/agents";
 import type { RecommendationGraphInput } from "@/app/lib/agents/recommendation-graph";
+import type { RecommendationStateType } from "@/app/lib/agents";
 import { getHealthFormsCollection } from "@/app/lib/database";
 import { ObjectId } from "mongodb";
 import { decrypt, encrypt } from "@/app/lib/encryption";
@@ -12,7 +13,6 @@ import type {
   ChecklistItem,
 } from "../../../../../../packages/types";
 import { logger } from "@/app/lib/logger";
-import type { Handler } from "inngest";
 
 // ─────────────────────────────────────────────
 // Type-safe event data schema
@@ -389,32 +389,66 @@ export const generateRecommendationsFn = inngest.createFunction(
       }
     );
 
-    // Step 2: Execute LangGraph
-    const graphResult = await ctx.step.run(
-      "execute-langgraph",
-      async () => {
-        log.info("AI", "Executing LangGraph recommendation pipeline");
+    // Step 2: Execute LangGraph (con captura de errores)
+    let graphResult: RecommendationStateType | null = null;
+    let executionError: string | null = null;
 
-        const input = buildGraphInput(
-          clientId,
-          monthNumber,
-          clientData as unknown as ClientData,
-          coachNotes,
-          maxRevisions
-        );
+    try {
+      graphResult = await ctx.step.run(
+        "execute-langgraph",
+        async () => {
+          log.info("AI", "Executing LangGraph recommendation pipeline");
 
-        return generateRecommendations(input, {
-          configurable: { thread_id: clientId },
-        });
-      }
-    );
+          const input = buildGraphInput(
+            clientId,
+            monthNumber,
+            clientData as unknown as ClientData,
+            coachNotes,
+            maxRevisions
+          );
 
+          return generateRecommendations(input, {
+            configurable: { thread_id: clientId },
+          });
+        }
+      );
+    } catch (graphError: unknown) {
+      const errorMessage =
+        graphError instanceof Error ? graphError.message : "Unknown LangGraph error";
+      log.error("AI", `LangGraph execution failed: ${errorMessage}`);
+      executionError = errorMessage;
+
+      // Guardar el error en la DB para que el frontend pueda leerlo
+      await ctx.step.run("save-error-to-db", async () => {
+        await saveErrorToDB(clientId, errorMessage, monthNumber);
+      });
+
+      // Notificar al dashboard del error
+      await ctx.step.run("notify-dashboard-error", async () => {
+        await notifyDashboardError(clientId, errorMessage, monthNumber);
+      });
+
+      return {
+        success: false,
+        clientId,
+        sessionId: null,
+        monthNumber,
+        weekCount: 0,
+        errors: [errorMessage],
+      };
+    }
+
+    // El resto del flujo solo se ejecuta si LangGraph tuvo éxito
     // Step 3: Save to database
     const saveResult = await ctx.step.run(
       "save-recommendations",
       async () => {
         log.info("AI", "Saving recommendations to database");
-        return saveRecommendationsToDB(clientId, graphResult as unknown as GraphResult, monthNumber);
+        return saveRecommendationsToDB(
+          clientId,
+          graphResult as unknown as GraphResult,
+          monthNumber
+        );
       }
     );
 
@@ -430,48 +464,12 @@ export const generateRecommendationsFn = inngest.createFunction(
 
     // Step 5: Notify dashboard via webhook
     await ctx.step.run("notify-dashboard", async () => {
-      const dashboardUrl = process.env.DASHBOARD_WEBHOOK_URL
-        ?? (process.env.NODE_ENV === "production"
-          ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
-          : "http://localhost:3002/api/webhooks/inngest");
-
-      const weekCount = (graphResult as Record<string, unknown>).nutritionPlan
-        ? ((graphResult as Record<string, unknown>).nutritionPlan as Array<unknown>).length
-        : 0;
-
-      const errors = (graphResult as Record<string, unknown>).errors
-        ? ((graphResult as Record<string, unknown>).errors as string[])
-        : [];
-
-      try {
-        const response = await fetch(dashboardUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "recommendations_ready",
-            clientId,
-            sessionId: saveResult.sessionId,
-            monthNumber,
-            weekCount,
-            errors,
-            timestamp: new Date().toISOString(),
-          }),
-        });
-
-        if (!response.ok) {
-          log.warn("AI", "Dashboard webhook returned non-OK status", {
-            status: response.status,
-          });
-        } else {
-          log.info("AI", "Dashboard notified of recommendations ready");
-        }
-      } catch (webhookError: unknown) {
-        const errorMsg = webhookError instanceof Error
-          ? webhookError.message
-          : "Unknown webhook error";
-        log.warn("AI", `Failed to notify dashboard: ${errorMsg}`);
-        // Don't fail the whole function for a webhook failure
-      }
+      await notifyDashboardSuccess(
+        clientId,
+        saveResult.sessionId,
+        monthNumber,
+        graphResult as unknown as GraphResult
+      );
     });
 
     return {
@@ -487,3 +485,110 @@ export const generateRecommendationsFn = inngest.createFunction(
     };
   }
 ) as unknown as ReturnType<typeof inngest.createFunction<never>>;
+
+// ─────────────────────────────────────────────
+// Helpers para guardar y notificar errores
+// ─────────────────────────────────────────────
+
+/**
+ * Guarda un error de generación en el documento del cliente para que
+ * el frontend pueda leerlo vía GET /api/clients/:id/ai y mostrar
+ * el mensaje de error al coach.
+ */
+async function saveErrorToDB(
+  clientId: string,
+  errorMessage: string,
+  monthNumber: number
+): Promise<void> {
+  try {
+    const collection = await getHealthFormsCollection();
+    await collection.updateOne(
+      { _id: new ObjectId(clientId) },
+      {
+        $set: {
+          "aiProgress.generationError": {
+            message: errorMessage,
+            monthNumber,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      }
+    );
+    logger.info("AI", `Error de generación guardado en DB para cliente ${clientId}`);
+  } catch (dbError) {
+    logger.error("AI", `Error guardando error de generación en DB: ${dbError}`);
+  }
+}
+
+/**
+ * Notifica al dashboard que hubo un error en la generación.
+ */
+async function notifyDashboardError(
+  clientId: string,
+  errorMessage: string,
+  monthNumber: number
+): Promise<void> {
+  const dashboardUrl =
+    process.env.DASHBOARD_WEBHOOK_URL ??
+    (process.env.NODE_ENV === "production"
+      ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
+      : "http://localhost:3002/api/webhooks/inngest");
+
+  try {
+    await fetch(dashboardUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "recommendations_error",
+        clientId,
+        error: errorMessage,
+        monthNumber,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch {
+    // No failing on webhook errors
+  }
+}
+
+/**
+ * Notifica al dashboard que las recomendaciones están listas.
+ */
+async function notifyDashboardSuccess(
+  clientId: string,
+  sessionId: string,
+  monthNumber: number,
+  graphResult: GraphResult
+): Promise<void> {
+  const dashboardUrl =
+    process.env.DASHBOARD_WEBHOOK_URL ??
+    (process.env.NODE_ENV === "production"
+      ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
+      : "http://localhost:3002/api/webhooks/inngest");
+
+  const weekCount = (graphResult as unknown as Record<string, unknown>).nutritionPlan
+    ? ((graphResult as unknown as Record<string, unknown>).nutritionPlan as Array<unknown>).length
+    : 0;
+
+  const errors = (graphResult as unknown as Record<string, unknown>).errors
+    ? ((graphResult as unknown as Record<string, unknown>).errors as string[])
+    : [];
+
+  try {
+    await fetch(dashboardUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "recommendations_ready",
+        clientId,
+        sessionId,
+        monthNumber,
+        weekCount,
+        errors,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch {
+    // No failing on webhook errors
+  }
+}

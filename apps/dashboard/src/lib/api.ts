@@ -165,6 +165,11 @@ interface AIProgressResponse {
         }>;
       }>;
     };
+    generationError?: {
+      message: string;
+      monthNumber?: number;
+      timestamp?: string;
+    };
   };
 }
 
@@ -464,6 +469,7 @@ export const apiClient = {
         hasData: !!result.data,
         hasAIProgress: result.data?.hasAIProgress,
         sessions: result.data?.aiProgress?.sessions?.length || 0,
+        generationError: result.data?.generationError?.message || null,
         firstSession: result.data?.aiProgress?.sessions?.[0] ? {
           sessionId: result.data.aiProgress.sessions[0].sessionId,
           summary: result.data.aiProgress.sessions[0].summary?.substring(0, 50),
