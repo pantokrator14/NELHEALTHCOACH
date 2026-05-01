@@ -76,12 +76,7 @@ function buildRecommendationGraph() {
 /**
  * Compiled recommendation graph ready for invocation.
  */
-export const recommendationGraph = buildRecommendationGraph().compile({
-  // Aumentar el límite de recursión para dar margen al loop de revisión de calidad.
-  // Con maxRevisions=2, el grafo necesita ~19 pasos. Con 50 hay margen seguro
-  // incluso si la validación requiere más iteraciones.
-  recursionLimit: 50,
-});
+export const recommendationGraph = buildRecommendationGraph().compile();
 
 /**
  * Type-safe wrapper for invoking the graph with proper input type.
@@ -148,5 +143,10 @@ export async function generateRecommendations(
     errors: [],
   };
 
-  return recommendationGraph.invoke(graphInput, config);
+  return recommendationGraph.invoke(graphInput, {
+    ...config,
+    // Aumentar el límite de recursión para dar margen al loop de revisión de calidad.
+    // Con maxRevisions=2, el grafo necesita ~19 pasos. Con 50 hay margen seguro.
+    recursionLimit: config?.recursionLimit ?? 50,
+  });
 }
