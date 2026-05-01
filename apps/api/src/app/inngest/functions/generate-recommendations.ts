@@ -1,7 +1,6 @@
 import { inngest } from "../client";
 import { generateRecommendations } from "@/app/lib/agents";
 import type { RecommendationGraphInput } from "@/app/lib/agents/recommendation-graph";
-import type { RecommendationStateType } from "@/app/lib/agents";
 import { getHealthFormsCollection } from "@/app/lib/database";
 import { ObjectId } from "mongodb";
 import { decrypt, encrypt } from "@/app/lib/encryption";
@@ -390,7 +389,10 @@ export const generateRecommendationsFn = inngest.createFunction(
     );
 
     // Step 2: Execute LangGraph (con captura de errores)
-    let graphResult: RecommendationStateType | null = null;
+    // Nota: ctx.step.run serializa el resultado a JSON (Date → string, etc.),
+    // por lo que el tipo resultante es JsonifyObject<...>, no RecommendationStateType puro.
+    // Usamos Record<string, unknown> para evitar errores de tipo y casteamos al usar.
+    let graphResult: Record<string, unknown> | null = null;
     let executionError: string | null = null;
 
     try {
@@ -411,7 +413,7 @@ export const generateRecommendationsFn = inngest.createFunction(
             configurable: { thread_id: clientId },
           });
         }
-      );
+      ) as unknown as Record<string, unknown>;
     } catch (graphError: unknown) {
       const errorMessage =
         graphError instanceof Error ? graphError.message : "Unknown LangGraph error";
@@ -456,8 +458,8 @@ export const generateRecommendationsFn = inngest.createFunction(
     await ctx.step.run("log-completion", async () => {
       log.info("AI", "Recommendation generation completed", {
         sessionId: saveResult.sessionId,
-        errors: (graphResult as Record<string, unknown>).errors
-          ? ((graphResult as Record<string, unknown>).errors as string[]).length
+        errors: graphResult.errors
+          ? (graphResult.errors as string[]).length
           : 0,
       });
     });
@@ -468,7 +470,7 @@ export const generateRecommendationsFn = inngest.createFunction(
         clientId,
         saveResult.sessionId,
         monthNumber,
-        graphResult as unknown as GraphResult
+        graphResult
       );
     });
 
@@ -476,11 +478,11 @@ export const generateRecommendationsFn = inngest.createFunction(
       success: true,
       clientId,
       sessionId: saveResult.sessionId,
-      weekCount: (graphResult as Record<string, unknown>).nutritionPlan
-        ? ((graphResult as Record<string, unknown>).nutritionPlan as Array<unknown>).length
+      weekCount: graphResult.nutritionPlan
+        ? (graphResult.nutritionPlan as Array<unknown>).length
         : 0,
-      errors: (graphResult as Record<string, unknown>).errors
-        ? ((graphResult as Record<string, unknown>).errors as string[])
+      errors: graphResult.errors
+        ? (graphResult.errors as string[])
         : [],
     };
   }
@@ -558,7 +560,7 @@ async function notifyDashboardSuccess(
   clientId: string,
   sessionId: string,
   monthNumber: number,
-  graphResult: GraphResult
+  graphResult: Record<string, unknown>
 ): Promise<void> {
   const dashboardUrl =
     process.env.DASHBOARD_WEBHOOK_URL ??
@@ -566,12 +568,12 @@ async function notifyDashboardSuccess(
       ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
       : "http://localhost:3002/api/webhooks/inngest");
 
-  const weekCount = (graphResult as unknown as Record<string, unknown>).nutritionPlan
-    ? ((graphResult as unknown as Record<string, unknown>).nutritionPlan as Array<unknown>).length
+  const weekCount = graphResult.nutritionPlan
+    ? (graphResult.nutritionPlan as Array<unknown>).length
     : 0;
 
-  const errors = (graphResult as unknown as Record<string, unknown>).errors
-    ? ((graphResult as unknown as Record<string, unknown>).errors as string[])
+  const errors = graphResult.errors
+    ? (graphResult.errors as string[])
     : [];
 
   try {
