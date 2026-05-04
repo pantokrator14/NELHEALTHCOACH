@@ -23,11 +23,11 @@ export function createDeepSeekLLM(
   if (!baseURL) throw new Error("DEEPSEEK_API_URL is required");
 
   return new ChatOpenAI({
-    modelName: options.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+    modelName: options.model ?? process.env.DEEPSEEK_MODEL ?? "deepseek-v4-pro",
     temperature: options.temperature ?? 0.7,
     maxTokens: options.maxTokens ?? 8000,
     streaming: options.streaming ?? false,
-    openAIApiKey: apiKey,
+    apiKey,
     configuration: { baseURL },
   });
 }

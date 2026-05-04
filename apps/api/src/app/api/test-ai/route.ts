@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 100,
         response_format: { type: 'json_object' }

@@ -154,7 +154,7 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
     temperature: 0.7,
     maxTokens: 30000, // Aumentado significativamente para planes de 12 semanas
     apiKey: process.env.DEEPSEEK_API_KEY,
@@ -1119,7 +1119,7 @@ ${responseSchema}
       const startTime = Date.now();
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos para deepseek-reasoner
+      const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos para modelos de razonamiento
       
         try {
           const response = await fetch(`${this.config.baseURL}/chat/completions`, {
