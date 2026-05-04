@@ -202,7 +202,7 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
   private static async callDeepSeekForNutrition(prompt: string): Promise<string> {
     // Reutilizar la configuración de AIService
     const requestBody = {
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       messages: [
         {
           role: 'system',
