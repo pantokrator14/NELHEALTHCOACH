@@ -80,16 +80,19 @@ export const searchExerciseTool = tool(
       logCtx.info("AI", "Searching exercises in database");
 
       const collection = await getExerciseCollection();
-      const allExercises = await collection.find({}).toArray();
+      const allExercises = await collection
+        .find({ isPublished: true })
+        .limit(input.limit)
+        .toArray();
 
       const decrypted: DecryptedExercise[] = allExercises.map((doc) => {
         const docRecord = doc as Record<string, unknown>;
         return {
           id: String(docRecord._id),
           name: decrypt(docRecord.name as string),
-          description: decrypt(docRecord.description as string),
+          description: decrypt(docRecord.description as string).substring(0, 200), // Descripción corta
           category: (docRecord.category as string[]).map((c: string) => decrypt(c)),
-          instructions: (docRecord.instructions as string[]).map((i: string) => decrypt(i)),
+          instructions: [], // No enviar instrucciones completas (la IA usa getExerciseById para eso)
           equipment: (docRecord.equipment as string[]).map((e: string) => decrypt(e)),
           difficulty: decrypt(docRecord.difficulty as string),
           clientLevel: decrypt(docRecord.clientLevel as string),
@@ -189,7 +192,7 @@ export const saveExerciseTool = tool(
         },
         progressionOf: null,
         progressesTo: [],
-        isPublished: false,
+        isPublished: true,
         tags: input.tags.map((t: string) => encrypt(t)),
       };
 

@@ -52,6 +52,102 @@ function mapMentalHealthValue(field: string, value: string | undefined): string 
 }
 
 // ─────────────────────────────────────────────
+// Mapa de preguntas para evaluaciones de salud
+// (Cada posición del array corresponde a una pregunta específica)
+// ─────────────────────────────────────────────
+
+const EVALUATION_QUESTIONS: Record<string, string[]> = {
+  carbohydrateAddiction: [
+    "¿El primer alimento que consumes en el día es de sabor dulce?",
+    "¿Consumes alimentos procesados (los que tienen más de 5 ingredientes)?",
+    "En el último año, ¿has comido más azúcar de lo que pretendías?",
+    "¿Has dejado de hacer actividades cotidianas por comer alimentos con azúcar?",
+    "¿Sientes que deberías reducir tu consumo de azúcar?",
+    "¿Has comido alimentos con azúcar para calmar una emoción (fatiga, tristeza, enojo, aburrimiento)?",
+    "¿Haces más de 5 comidas al día? ¿Comes cada 3-4 horas?",
+    "¿Te da dolor de cabeza si pasas más de 4 horas sin comer?",
+    "¿Piensas constantemente en alimentos con azúcar?",
+    "¿Crees que debes terminar la comida con un alimento dulce?",
+    "¿Sientes que no tienes control en lo que comes?",
+  ],
+  leptinResistance: [
+    "¿Tienes sobrepeso u obesidad?",
+    "¿Tienes hambre constantemente?",
+    "¿Tienes antojos por carbohidratos, especialmente por las noches?",
+    "¿Tienes problemas para dormir (insomnio)?",
+    "¿Te sientes sin energía durante el día?",
+    "¿Sientes que al despertar no descansaste bien?",
+    "¿Te ejercitas menos de 30 minutos al día?",
+    "¿Te saltas el desayuno?",
+  ],
+  circadianRhythms: [
+    "¿Lo primero que ves al despertar es tu celular?",
+    "¿Estás expuesto a luz artificial después del atardecer? (pantallas, TV, celular, focos)",
+    "¿Utilizas tecnología Wifi, 2G/3G/4G/5G o luz artificial durante la noche?",
+    "¿Exponerte al sol te hace daño (sufres quemadas)?",
+    "¿Utilizas gafas o lentes solares?",
+    "¿Utilizas cremas o protectores solares?",
+    "¿Comes pocos pescados, moluscos o crustáceos (menos de 1 vez por semana)?",
+    "¿Comes cuando ya no hay luz del sol?",
+    "¿Tu exposición al sol es de menos de 30 minutos al día?",
+    "¿Haces grounding (caminar descalzo sobre hierba, tierra o arena) menos de 30 min al día?",
+    "¿Utilizas filtros de luz azul en tus dispositivos electrónicos por la noche?",
+  ],
+  sleepHygiene: [
+    "¿Duermes con el celular encendido cerca de ti?",
+    "¿Te despiertas con la alarma del celular?",
+    "¿La temperatura de tu habitación es muy caliente o muy fría?",
+    "¿Entra luz artificial a tu habitación al momento de dormir?",
+    "¿La cabecera de tu cama está pegada a la pared?",
+    "¿Duermes con el wifi de tu casa encendido?",
+    "¿Te duermes después de las 11 pm?",
+    "Cuando te despiertas, ¿ya amaneció?",
+    "¿Duermes menos de 4 horas?",
+    "¿Haces cenas copiosas?",
+    "¿Te acuestas inmediatamente después de cenar?",
+    "¿Tu horario de sueño es regular? (misma hora todos los días, incluso fines de semana)",
+  ],
+  electrosmogExposure: [
+    "Al hacer llamadas por celular, ¿te lo pegas a la oreja?",
+    "¿Llevas el celular cerca de tu cuerpo (bolsillo del pantalón, etc.)?",
+    "¿Vives cerca de líneas de alta tensión?",
+    "¿Utilizas el microondas?",
+    "¿Presentas cansancio general durante el día o duermes en exceso?",
+    "¿Tienes piel sensible o con erupciones?",
+    "¿Tienes taquicardia o arritmia?",
+    "¿Tienes problemas de presión arterial?",
+    "¿Tienes colon irritable?",
+    "¿Tienes pérdida auditiva, oyes un zumbido (tinnitus) o te duelen los oídos?",
+  ],
+  generalToxicity: [
+    "¿Bebes agua embotellada?",
+    "¿Utilizas protector solar convencional?",
+    "¿Algún familiar ha sido diagnosticado con fibromialgia, fatiga crónica o sensibilidades químicas?",
+    "¿Tienes historial de disfunción renal?",
+    "¿Tienes antecedentes de cáncer (tú o familiar inmediato)?",
+    "¿Tienes historial de enfermedad cardíaca, infarto o accidente cerebrovascular?",
+    "¿Te han diagnosticado trastorno bipolar, esquizofrenia o depresión?",
+    "¿Te han diagnosticado diabetes o tiroiditis?",
+    "¿Fumas o consumes vapeador?",
+    "¿Consumes alcohol?",
+  ],
+  microbiotaHealth: [
+    "¿Sufres de estreñimiento o diarrea?",
+    "¿Sientes distensión, hinchazón o ruidos intestinales después de comer verduras?",
+    "¿Tienes gases con olor desagradable frecuentemente?",
+    "¿Alguna vez has sido vegano o vegetariano por un período prolongado?",
+    "¿Tienes intolerancia a la carne?",
+    "¿Has usado antiácidos o inhibidores de bomba de protones?",
+    "Cuando consumes alcohol, ¿tienes confusión mental o sensación tóxica incluso con 1 porción?",
+    "¿Has tomado antibióticos con frecuencia o por períodos prolongados?",
+    "¿Naciste por cesárea?",
+    "¿Tomaste leche de fórmula en lugar de ser amamantado?",
+    "¿Consumes alimentos fermentados con regularidad (kéfir, chucrut, kombucha, kimchi)?",
+    "¿Crees que consumes suficiente fibra de frutas, verduras y legumbres?",
+  ],
+};
+
+// ─────────────────────────────────────────────
 // Helper: Fetch and decrypt client data
 // ─────────────────────────────────────────────
 
@@ -130,16 +226,22 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     mentalHealthLimitingBeliefs: typeof rawMedical?.mentalHealthLimitingBeliefs === "string" ? decrypt(rawMedical.mentalHealthLimitingBeliefs) : "",
     mentalHealthIdealBalance: typeof rawMedical?.mentalHealthIdealBalance === "string" ? decrypt(rawMedical.mentalHealthIdealBalance) : "",
     documents: Array.isArray(rawMedical?.documents)
-      ? (rawMedical.documents as Array<NonNullable<PersonalData["profilePhoto"]>>)
+      ? (rawMedical.documents as Array<NonNullable<PersonalData["profilePhoto"]>>).map((doc) => ({
+          ...doc,
+          url: typeof doc.url === "string" ? decrypt(doc.url) : doc.url,
+          name: typeof doc.name === "string" ? decrypt(doc.name) : doc.name,
+          type: typeof doc.type === "string" ? decrypt(doc.type) : doc.type,
+          key: typeof doc.key === "string" ? decrypt(doc.key) : doc.key,
+        }))
       : undefined,
     processedDocuments: rawMedical?.processedDocuments as MedicalData["processedDocuments"],
     lastDocumentProcessed: rawMedical?.lastDocumentProcessed as MedicalData["lastDocumentProcessed"],
   };
 
-  // ── Evaluaciones: parsear JSON arrays y normalizar códigos kebab-case ──
+  // ── Evaluaciones: parsear JSON arrays y convertirlos a {pregunta, respuesta} ──
   // Las evaluaciones como carbohydrateAddiction se almacenan como arrays JSON stringificados
   // con valores como "si", "no", "nunca", "rara-vez", "a-veces", "casi-siempre", "siempre"
-  // Aquí los convertimos a arrays legibles con espacios en lugar de guiones.
+  // Aquí los convertimos a arrays de objetos con la pregunta y respuesta legible.
   const evalKeys = [
     "carbohydrateAddiction", "leptinResistance", "circadianRhythms",
     "sleepHygiene", "electrosmogExposure", "generalToxicity", "microbiotaHealth",
@@ -150,8 +252,12 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          (medicalData as unknown as Record<string, unknown>)[key] = parsed.map((v: string) =>
-            typeof v === "string" ? v.replace(/-/g, " ") : v
+          const questions = EVALUATION_QUESTIONS[key] || [];
+          (medicalData as unknown as Record<string, unknown>)[key] = parsed.map(
+            (v: string, idx: number) => ({
+              pregunta: questions[idx] || `Pregunta ${idx + 1}`,
+              respuesta: typeof v === "string" ? v.replace(/-/g, " ") : v,
+            })
           );
         }
       } catch {
