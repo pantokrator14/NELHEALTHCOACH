@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { Exercise } from '../../lib/api';
 
 interface ExerciseDetailModalProps {
@@ -10,6 +10,8 @@ interface ExerciseDetailModalProps {
   onNext: () => void;
   hasPrevious: boolean;
   hasNext: boolean;
+  /** Callback al hacer clic en un ejercicio de progresión */
+  onSelectExercise?: (exerciseId: string) => void;
 }
 
 export default function ExerciseDetailModal({
@@ -21,8 +23,16 @@ export default function ExerciseDetailModal({
   onNext,
   hasPrevious,
   hasNext,
+  onSelectExercise,
 }: ExerciseDetailModalProps) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll al tope cada vez que cambia el ejercicio
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setShowConfirmDelete(false);
+  }, [exercise.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -77,7 +87,7 @@ export default function ExerciseDetailModal({
         </div>
 
         {/* Scroll content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
 
           <div className="space-y-4 sm:space-y-6">
             {/* Demo/Video */}
@@ -197,9 +207,65 @@ export default function ExerciseDetailModal({
               </div>
             )}
 
-            {/* Progresión */}
+            {/* Progresiones: Más fácil / Más difícil */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ProgressionOf — Ejercicio más fácil */}
+              <div className="bg-white rounded-lg border border-green-200 p-4 sm:p-6 shadow-sm min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-green-700 mb-3 flex items-center gap-1">
+                  <span>⬇️</span> Progresión más fácil
+                </h3>
+                {!exercise.progressionOf || exercise.progressionOf === 'null' || exercise.progressionOf === '' ? (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-sm font-medium">Es un ejercicio básico</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onSelectExercise?.(exercise.progressionOf!)}
+                    className="w-full text-left text-green-600 hover:text-green-800 hover:underline font-medium text-sm break-words transition-colors p-1 rounded hover:bg-green-50"
+                  >
+                    {exercise.progressionOfName || exercise.progressionOf}
+                  </button>
+                )}
+              </div>
+
+              {/* ProgressesTo — Ejercicios más difíciles */}
+              <div className="bg-white rounded-lg border border-red-200 p-4 sm:p-6 shadow-sm min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-red-700 mb-3 flex items-center gap-1">
+                  <span>⬆️</span> Progresiones más difíciles
+                </h3>
+                {(!exercise.progressesTo || exercise.progressesTo.length === 0) ? (
+                  <div className="flex items-center gap-2 text-red-600">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    <span className="text-sm font-medium">Este ejercicio es el máximo</span>
+                  </div>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {exercise.progressesTo.map((id: string, i: number) => {
+                      const name = exercise.progressesToNames?.[i] || id;
+                      return (
+                        <li key={i}>
+                          <button
+                            onClick={() => onSelectExercise?.(id)}
+                            className="w-full text-left text-red-600 hover:text-red-800 hover:underline font-medium text-sm break-words transition-colors p-1 rounded hover:bg-red-50"
+                          >
+                            {name}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Progresión — Descripción textual */}
             <div className="bg-white rounded-lg border border-amber-200 p-4 sm:p-6 shadow-sm">
-              <h3 className="text-base sm:text-lg font-semibold text-amber-700 mb-2">📈 Progresión</h3>
+              <h3 className="text-base sm:text-lg font-semibold text-amber-700 mb-2">📈 Estrategia de progresión</h3>
               <p className="text-gray-600 text-sm sm:text-base">{exercise.progression}</p>
             </div>
 

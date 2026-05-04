@@ -29,6 +29,9 @@ export interface Exercise {
   } | null;
   progressionOf: string | null;
   progressesTo: string[];
+  // Nombres resueltos por el backend (para mostrar en el frontend sin ObjectIds)
+  progressionOfName?: string | null;
+  progressesToNames?: string[];
   isPublished: boolean;
   tags: string[];
   createdAt: string;

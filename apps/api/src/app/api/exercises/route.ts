@@ -79,6 +79,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, data: searchResults });
       }
 
+      // Resolver nombres de progresiones (mapeo id → name)
+      for (const ex of decryptedExercises) {
+        if (ex.progressionOf) {
+          const parent = decryptedExercises.find((e) => e.id === ex.progressionOf);
+          (ex as Record<string, unknown>).progressionOfName = parent?.name || null;
+        }
+        if (ex.progressesTo && ex.progressesTo.length > 0) {
+          (ex as Record<string, unknown>).progressesToNames = ex.progressesTo
+            .map((id: string) => decryptedExercises.find((e) => e.id === id)?.name || null)
+            .filter(Boolean);
+        }
+      }
+
       return NextResponse.json({ success: true, data: results });
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Error desconocido';
