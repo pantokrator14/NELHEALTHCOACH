@@ -1,5 +1,5 @@
 import type { RunnableConfig } from "@langchain/core/runnables";
-import { createDeepSeekJSONLLM } from "../utils/llm";
+import { createDeepSeekJSONLLM, robustJsonParse } from "../utils/llm";
 import {
   buildClientAnalysisPrompt,
 } from "../utils/prompt-builders";
@@ -113,15 +113,7 @@ export async function analyzeClient(
  * Handles JSON extraction and validation.
  */
 function parseInsightsResponse(content: string): ClientInsights {
-  let jsonStr = content;
-
-  // Extract JSON from code blocks if present
-  const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  if (codeBlockMatch) {
-    jsonStr = codeBlockMatch[1];
-  }
-
-  const parsed: Record<string, unknown> = JSON.parse(jsonStr);
+  const parsed = robustJsonParse<Record<string, unknown>>(content);
 
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "No summary available",

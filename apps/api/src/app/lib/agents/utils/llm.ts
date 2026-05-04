@@ -66,8 +66,27 @@ export function createDeepSeekWithTools(
 }
 
 /**
- * Type-safe invoke helper for chat models with tool calling.
+ * Parsea un string a JSON extrayendo el primer bloque JSON válido,
+ * ignorando texto extra antes/después (ej: reasoning_content, markdown, notas).
  */
+export function robustJsonParse<T>(raw: string): T {
+  const trimmed = raw.trim();
+  // 1. Intentar directo
+  try { return JSON.parse(trimmed) as T; } catch { /* continuar */ }
+  // 2. Bloque ```json ... ```
+  const jsonBlock = trimmed.match(/```(?:json)?\s*[\n\r]([\s\S]*?)\n?\s*```/);
+  if (jsonBlock) try { return JSON.parse(jsonBlock[1].trim()) as T; } catch { /* continuar */ }
+  // 3. Cualquier bloque ```
+  const anyBlock = trimmed.match(/```\s*[\n\r]([\s\S]*?)\n?\s*```/);
+  if (anyBlock) try { return JSON.parse(anyBlock[1].trim()) as T; } catch { /* continuar */ }
+  // 4. Primer objeto {} de la respuesta
+  const objMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objMatch) try { return JSON.parse(objMatch[0]) as T; } catch { /* continuar */ }
+  // 5. Primer array []
+  const arrMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (arrMatch) try { return JSON.parse(arrMatch[0]) as T; } catch { /* continuar */ }
+  throw new Error(`Unexpected non-whitespace character after JSON at position ${raw.length}`);
+}
 export async function invokeWithTools(
   model: BaseChatModel,
   messages: BaseMessage[]
