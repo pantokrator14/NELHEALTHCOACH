@@ -649,6 +649,13 @@ const ExercisesPage = () => {
             onNext={() => { if (hasNext) handleNext(); }}
             hasPrevious={hasPrevious}
             hasNext={hasNext}
+            onSelectExercise={(exerciseId) => {
+              const found = exercises.find(e => e.id === exerciseId);
+              if (found) {
+                setSelectedExercise(found);
+                setIsDetailModalOpen(true);
+              }
+            }}
           />
         )}
 
