@@ -300,7 +300,7 @@ export async function POST(
             clientId: id,
             monthNumber,
             coachNotes: coachNotes,
-            maxRevisions: 2,
+            maxRevisions: 1,
           },
         });
 
