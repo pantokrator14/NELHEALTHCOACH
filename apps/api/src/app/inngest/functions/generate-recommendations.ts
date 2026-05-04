@@ -25,6 +25,33 @@ interface GenerateRecommendationsEventData {
 }
 
 // ─────────────────────────────────────────────
+// Mapa de salud mental: código de letra → texto legible
+// (Los valores vienen del formulario MentalHealthStep.tsx)
+// ─────────────────────────────────────────────
+
+const MENTAL_HEALTH_MAP: Record<string, Record<string, string>> = {
+  emotionIdentification: { a: "Casi siempre identifico mis emociones", b: "A veces identifico mis emociones", c: "Rara vez identifico mis emociones" },
+  emotionIntensity: { a: "Mis emociones son muy intensas y me desbordan", b: "Mis emociones son moderadas y las puedo manejar", c: "Mis emociones son poco intensas, casi no las noto" },
+  uncomfortableEmotion: { a: "Evito o reprimo las emociones incómodas", b: "Me dejo llevar sin control por las emociones incómodas", c: "Acepto las emociones incómodas y entiendo su mensaje" },
+  internalDialogue: { a: '"Siempre me pasa a mí", "No sirvo"', b: '"Es una oportunidad para aprender"', c: '"No puedo hacer nada"' },
+  stressStrategies: { a: "Como, fumo o uso pantallas cuando estoy estresado", b: "Hablo, respiro o hago deporte cuando estoy estresado", c: "Me bloqueo y no hago nada cuando estoy estresado" },
+  sayingNo: { a: "Me cuesta mucho decir que no", b: "Solo digo que no en algunas situaciones", c: "Digo que no sin problema, priorizo mis necesidades" },
+  relationships: { a: "Sí, con frecuencia doy más de lo que recibo", b: "A veces doy más de lo que recibo", c: "No, hay equilibrio en mis relaciones" },
+  expressThoughts: { a: "Casi nunca expreso mis pensamientos abiertamente", b: "Depende de la situación si expreso mis pensamientos", c: "Sí, expreso mis pensamientos de manera asertiva" },
+  emotionalDependence: { a: "Sí, tengo dependencia emocional", b: "No estoy seguro si tengo dependencia emocional", c: "No tengo dependencia emocional" },
+  purpose: { a: "Sí, tengo propósito y motivación claros", b: "Estoy en proceso de definir mi propósito", c: "No, me siento perdido y sin motivación" },
+  failureReaction: { a: "Me hundo y tardo en recuperarme ante el fracaso", b: "Me frustro pero sigo adelante", c: "Veo el fracaso como aprendizaje" },
+  selfConnection: { a: "Sí, practico la autoconexión regularmente", b: "Ocasionalmente me conecto conmigo mismo", c: "No practico la autoconexión" },
+};
+
+function mapMentalHealthValue(field: string, value: string | undefined): string {
+  if (!value) return "";
+  const mapping = MENTAL_HEALTH_MAP[field];
+  if (mapping && mapping[value]) return mapping[value];
+  return value; // Si no hay mapeo, devolver el valor original
+}
+
+// ─────────────────────────────────────────────
 // Helper: Fetch and decrypt client data
 // ─────────────────────────────────────────────
 
@@ -109,31 +136,65 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     lastDocumentProcessed: rawMedical?.lastDocumentProcessed as MedicalData["lastDocumentProcessed"],
   };
 
-  // Extract health assessment booleans
+  // ── Evaluaciones: parsear JSON arrays y normalizar códigos kebab-case ──
+  // Las evaluaciones como carbohydrateAddiction se almacenan como arrays JSON stringificados
+  // con valores como "si", "no", "nunca", "rara-vez", "a-veces", "casi-siempre", "siempre"
+  // Aquí los convertimos a arrays legibles con espacios en lugar de guiones.
+  const evalKeys = [
+    "carbohydrateAddiction", "leptinResistance", "circadianRhythms",
+    "sleepHygiene", "electrosmogExposure", "generalToxicity", "microbiotaHealth",
+  ] as const;
+  for (const key of evalKeys) {
+    const raw = medicalData[key as keyof MedicalData] as string | undefined;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          (medicalData as unknown as Record<string, unknown>)[key] = parsed.map((v: string) =>
+            typeof v === "string" ? v.replace(/-/g, " ") : v
+          );
+        }
+      } catch {
+        // Si no es JSON válido, dejar el valor original
+      }
+    }
+  }
+
+  // Extract health assessment booleans — parseando los arrays JSON
+  // Cada evaluación es un array de respuestas (ej: ["si","no","rara-vez",...])
+  // Determinamos que hay un problema si al menos una respuesta es "si" o "siempre"
+  const evalHasPositive = (val: string | undefined): boolean => {
+    if (!val) return false;
+    try {
+      const arr = JSON.parse(val);
+      if (Array.isArray(arr)) return arr.some((v) => v === "si" || v === "siempre");
+    } catch { /* ignore */ }
+    return val === "true";
+  };
   const healthAssessment: Record<string, boolean> = {
-    carbohydrateAddiction: medicalData.carbohydrateAddiction === "true",
-    leptinResistance: medicalData.leptinResistance === "true",
-    circadianRhythms: medicalData.circadianRhythms === "true",
-    sleepHygiene: medicalData.sleepHygiene === "true",
-    electrosmogExposure: medicalData.electrosmogExposure === "true",
-    generalToxicity: medicalData.generalToxicity === "true",
-    microbiotaHealth: medicalData.microbiotaHealth === "true",
+    carbohydrateAddiction: evalHasPositive(medicalData.carbohydrateAddiction),
+    leptinResistance: evalHasPositive(medicalData.leptinResistance),
+    circadianRhythms: evalHasPositive(medicalData.circadianRhythms),
+    sleepHygiene: evalHasPositive(medicalData.sleepHygiene),
+    electrosmogExposure: evalHasPositive(medicalData.electrosmogExposure),
+    generalToxicity: evalHasPositive(medicalData.generalToxicity),
+    microbiotaHealth: evalHasPositive(medicalData.microbiotaHealth),
   };
 
-  // Extract mental health fields
+  // Extract mental health fields (mapeando códigos a/b/c a texto legible)
   const mentalHealth: Record<string, string> = {
-    emotionIdentification: medicalData.mentalHealthEmotionIdentification ?? "",
-    emotionIntensity: medicalData.mentalHealthEmotionIntensity ?? "",
-    uncomfortableEmotion: medicalData.mentalHealthUncomfortableEmotion ?? "",
-    internalDialogue: medicalData.mentalHealthInternalDialogue ?? "",
-    stressStrategies: medicalData.mentalHealthStressStrategies ?? "",
-    sayingNo: medicalData.mentalHealthSayingNo ?? "",
-    relationships: medicalData.mentalHealthRelationships ?? "",
-    expressThoughts: medicalData.mentalHealthExpressThoughts ?? "",
-    emotionalDependence: medicalData.mentalHealthEmotionalDependence ?? "",
-    purpose: medicalData.mentalHealthPurpose ?? "",
-    failureReaction: medicalData.mentalHealthFailureReaction ?? "",
-    selfConnection: medicalData.mentalHealthSelfConnection ?? "",
+    emotionIdentification: mapMentalHealthValue("emotionIdentification", medicalData.mentalHealthEmotionIdentification),
+    emotionIntensity: mapMentalHealthValue("emotionIntensity", medicalData.mentalHealthEmotionIntensity),
+    uncomfortableEmotion: mapMentalHealthValue("uncomfortableEmotion", medicalData.mentalHealthUncomfortableEmotion),
+    internalDialogue: mapMentalHealthValue("internalDialogue", medicalData.mentalHealthInternalDialogue),
+    stressStrategies: mapMentalHealthValue("stressStrategies", medicalData.mentalHealthStressStrategies),
+    sayingNo: mapMentalHealthValue("sayingNo", medicalData.mentalHealthSayingNo),
+    relationships: mapMentalHealthValue("relationships", medicalData.mentalHealthRelationships),
+    expressThoughts: mapMentalHealthValue("expressThoughts", medicalData.mentalHealthExpressThoughts),
+    emotionalDependence: mapMentalHealthValue("emotionalDependence", medicalData.mentalHealthEmotionalDependence),
+    purpose: mapMentalHealthValue("purpose", medicalData.mentalHealthPurpose),
+    failureReaction: mapMentalHealthValue("failureReaction", medicalData.mentalHealthFailureReaction),
+    selfConnection: mapMentalHealthValue("selfConnection", medicalData.mentalHealthSelfConnection),
     selfRelationship: medicalData.mentalHealthSelfRelationship ?? "",
     limitingBeliefs: medicalData.mentalHealthLimitingBeliefs ?? "",
     idealBalance: medicalData.mentalHealthIdealBalance ?? "",
