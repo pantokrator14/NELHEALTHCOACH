@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { generateRecommendations } from "@/app/lib/agents";
 import type { RecommendationGraphInput } from "@/app/lib/agents/recommendation-graph";
+import type { RecommendationStateType } from "@/app/lib/agents";
 import { getHealthFormsCollection } from "@/app/lib/database";
 import { ObjectId } from "mongodb";
 import { decrypt, encrypt } from "@/app/lib/encryption";
@@ -238,42 +239,13 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     lastDocumentProcessed: rawMedical?.lastDocumentProcessed as MedicalData["lastDocumentProcessed"],
   };
 
-  // ── Evaluaciones: parsear JSON arrays y convertirlos a {pregunta, respuesta} ──
-  // Las evaluaciones como carbohydrateAddiction se almacenan como arrays JSON stringificados
-  // con valores como "si", "no", "nunca", "rara-vez", "a-veces", "casi-siempre", "siempre"
-  // Aquí los convertimos a arrays de objetos con la pregunta y respuesta legible.
-  const evalKeys = [
-    "carbohydrateAddiction", "leptinResistance", "circadianRhythms",
-    "sleepHygiene", "electrosmogExposure", "generalToxicity", "microbiotaHealth",
-  ] as const;
-  for (const key of evalKeys) {
-    const raw = medicalData[key as keyof MedicalData] as string | undefined;
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const questions = EVALUATION_QUESTIONS[key] || [];
-          (medicalData as unknown as Record<string, unknown>)[key] = parsed.map(
-            (v: string, idx: number) => ({
-              pregunta: questions[idx] || `Pregunta ${idx + 1}`,
-              respuesta: typeof v === "string" ? v.replace(/-/g, " ") : v,
-            })
-          );
-        }
-      } catch {
-        // Si no es JSON válido, dejar el valor original
-      }
-    }
-  }
-
-  // Extract health assessment booleans — parseando los arrays JSON
-  // Cada evaluación es un array de respuestas (ej: ["si","no","rara-vez",...])
-  // Determinamos que hay un problema si al menos una respuesta es "si" o "siempre"
-  const evalHasPositive = (val: string | undefined): boolean => {
-    if (!val) return false;
+  // ── Health assessment: extraer ANTES de parsear los arrays de evaluación ──
+  // (necesita que medicalData.carbohydrateAddiction etc. sean strings para JSON.parse)
+  const evalHasPositive = (val: string | unknown): boolean => {
+    if (!val || typeof val !== "string") return false;
     try {
       const arr = JSON.parse(val);
-      if (Array.isArray(arr)) return arr.some((v) => v === "si" || v === "siempre");
+      if (Array.isArray(arr)) return arr.some((v: string) => v === "si" || v === "siempre");
     } catch { /* ignore */ }
     return val === "true";
   };
@@ -286,6 +258,34 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     generalToxicity: evalHasPositive(medicalData.generalToxicity),
     microbiotaHealth: evalHasPositive(medicalData.microbiotaHealth),
   };
+
+  // ── Evaluaciones: parsear JSON arrays a {pregunta, respuesta} ──
+  // Lo hacemos sobre una copia del medicalData para no mutar el original
+  // (el medicalData original se usa en prompts con su estructura correcta)
+  const enrichedMedical: Record<string, unknown> = { ...medicalData };
+  const evalKeys = [
+    "carbohydrateAddiction", "leptinResistance", "circadianRhythms",
+    "sleepHygiene", "electrosmogExposure", "generalToxicity", "microbiotaHealth",
+  ] as const;
+  for (const key of evalKeys) {
+    const raw = medicalData[key as keyof MedicalData] as string | undefined;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const questions = EVALUATION_QUESTIONS[key] || [];
+          enrichedMedical[key] = parsed.map(
+            (v: string, idx: number) => ({
+              pregunta: questions[idx] || `Pregunta ${idx + 1}`,
+              respuesta: typeof v === "string" ? v.replace(/-/g, " ") : v,
+            })
+          );
+        }
+      } catch {
+        // Si no es JSON válido, mantener original
+      }
+    }
+  }
 
   // Extract mental health fields (mapeando códigos a/b/c a texto legible)
   const mentalHealth: Record<string, string> = {
@@ -555,44 +555,122 @@ export const generateRecommendationsFn = inngest.createFunction(
       }
     );
 
-    // Step 2: Execute LangGraph (con captura de errores)
-    // Nota: ctx.step.run serializa el resultado a JSON (Date → string, etc.),
-    // por lo que el tipo resultante es JsonifyObject<...>, no RecommendationStateType puro.
-    // Usamos Record<string, unknown> para evitar errores de tipo y casteamos al usar.
-    let graphResult: Record<string, unknown> | null = null;
+    // Step 2: Ejecutar LangGraph en pasos separados (cada uno con su propio timeout)
+    // En vez de correr todo en un solo step que excede el timeout de Vercel,
+    // partimos en steps individuales: análisis → planners → finalización.
+
+    // 2a. Analizar cliente
+    const { analyzeClient } = await import("@/app/lib/agents/nodes/nutrition-planner");
+    const { RecommendationState } = await import("@/app/lib/agents/state");
+
+    // Construir el estado inicial
+    const initialState = {
+      clientId,
+      monthNumber,
+      personalData: clientData.personalData,
+      medicalData: clientData.medicalData,
+      healthAssessment: clientData.healthAssessment,
+      mentalHealth: clientData.mentalHealth,
+      processedDocuments: clientData.processedDocuments as RecommendationStateType["processedDocuments"],
+      coachNotes,
+      previousSessions: clientData.previousSessions as unknown as RecommendationStateType["previousSessions"],
+      maxRevisions,
+      clientInsights: {
+        summary: "", keyRisks: [], opportunities: [],
+        experienceLevel: "principiante" as const,
+        idealWeight: "", idealBodyFat: "", targetImprovements: [],
+      },
+      nutritionPlan: [], exercisePlan: [], habitPlan: [],
+      recipeMatches: [], shoppingList: [],
+      validationResults: {
+        nutrition: { passed: false, issues: [] },
+        exercise: { passed: false, issues: [] },
+        habits: { passed: false, issues: [] },
+        overall: { passed: false, needsRevision: false },
+      },
+      session: {}, checklist: [],
+      needsRevision: false, revisionCount: 0,
+      coachReviewFeedback: undefined, errors: [],
+    };
+
+    let stateRef = initialState as Record<string, unknown>;
     let executionError: string | null = null;
 
     try {
-      graphResult = await ctx.step.run(
-        "execute-langgraph",
-        async () => {
-          log.info("AI", "Executing LangGraph recommendation pipeline");
+      // 2a. Análisis del cliente (~2-4s)
+      const analysisResult = await ctx.step.run("run-analyze-client", async () => {
+        log.info("AI", "Analizando cliente");
+        const result = await analyzeClient(initialState as RecommendationStateType);
+        return result as Record<string, unknown>;
+      });
+      stateRef = { ...stateRef, ...analysisResult };
 
-          const input = buildGraphInput(
-            clientId,
-            monthNumber,
-            clientData as unknown as ClientData,
-            coachNotes,
-            maxRevisions
-          );
+      // 2b. Planes de nutrición, ejercicio y hábitos (~5-10s cada uno, en paralelo)
+      const { planNutrition } = await import("@/app/lib/agents/nodes/nutrition-planner");
+      const { planExercise } = await import("@/app/lib/agents/nodes/exercise-planner");
+      const { planHabits } = await import("@/app/lib/agents/nodes/habit-designer");
 
-          return generateRecommendations(input, {
-            configurable: { thread_id: clientId },
-          });
-        }
-      ) as unknown as Record<string, unknown>;
+      const plansResult = await ctx.step.run("run-all-planners", async () => {
+        log.info("AI", "Ejecutando planificadores (nutrición, ejercicio, hábitos)");
+        const currentState = stateRef as unknown as RecommendationStateType;
+        const [nutrition, exercise, habits] = await Promise.all([
+          planNutrition(currentState),
+          planExercise(currentState),
+          planHabits(currentState),
+        ]);
+        return { ...nutrition, ...exercise, ...habits } as Record<string, unknown>;
+      });
+      stateRef = { ...stateRef, ...plansResult };
+
+      // 2c. Matcheo de recetas, lista de compras y validación (~5-8s)
+      const { matchRecipes } = await import("@/app/lib/agents/nodes/recipe-matcher");
+      const { generateShoppingList: genShoppingList } = await import("@/app/lib/agents/nodes/shopping-list");
+      const { validateQuality } = await import("@/app/lib/agents/nodes/quality-validator");
+
+      const finalResult = await ctx.step.run("run-matchers-validator", async () => {
+        log.info("AI", "Ejecutando matchers y validador");
+        let s = stateRef as unknown as RecommendationStateType;
+        const recipes = await matchRecipes(s);
+        s = { ...s, ...recipes } as RecommendationStateType;
+        const shopping = await genShoppingList(s);
+        s = { ...s, ...shopping } as RecommendationStateType;
+        const validation = await validateQuality(s);
+        return { ...s, ...validation } as Record<string, unknown>;
+      });
+      stateRef = { ...stateRef, ...finalResult };
+
+      // Revisión: si necesita revisión y hay margen, ejecutar una iteración más
+      // (simplificado: solo 1 revisión extra si es necesario)
+      if (stateRef.needsRevision && (stateRef.revisionCount as number) < maxRevisions) {
+        stateRef = await ctx.step.run("run-revision-loop", async () => {
+          log.info("AI", "Ejecutando loop de revisión");
+          let s = stateRef as unknown as RecommendationStateType;
+          const nutrition = await planNutrition(s);
+          s = { ...s, ...nutrition } as RecommendationStateType;
+          const exercise = await planExercise(s);
+          s = { ...s, ...exercise } as RecommendationStateType;
+          const habits = await planHabits(s);
+          s = { ...s, ...habits } as RecommendationStateType;
+          const recipes = await matchRecipes(s);
+          s = { ...s, ...recipes } as RecommendationStateType;
+          const shopping = await genShoppingList(s);
+          s = { ...s, ...shopping } as RecommendationStateType;
+          const validation = await validateQuality(s);
+          return { ...s, ...validation } as Record<string, unknown>;
+        });
+      }
+
+      log.info("AI", "LangGraph pipeline completado en steps");
     } catch (graphError: unknown) {
       const errorMessage =
         graphError instanceof Error ? graphError.message : "Unknown LangGraph error";
       log.error("AI", `LangGraph execution failed: ${errorMessage}`);
       executionError = errorMessage;
 
-      // Guardar el error en la DB para que el frontend pueda leerlo
       await ctx.step.run("save-error-to-db", async () => {
         await saveErrorToDB(clientId, errorMessage, monthNumber);
       });
 
-      // Notificar al dashboard del error
       await ctx.step.run("notify-dashboard-error", async () => {
         await notifyDashboardError(clientId, errorMessage, monthNumber);
       });
@@ -606,6 +684,9 @@ export const generateRecommendationsFn = inngest.createFunction(
         errors: [errorMessage],
       };
     }
+
+    // El resultado final es stateRef
+    const graphResult = stateRef;
 
     // El resto del flujo solo se ejecuta si LangGraph tuvo éxito
     // Step 3: Save to database
