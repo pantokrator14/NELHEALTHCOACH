@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React from 'react';
 import { apiClient } from '@/lib/api';
 import RecipeSearchModal from './RecipeSearchModal';
 import SimpleItemModal from './SimpleItemModal';
@@ -1958,43 +1959,381 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
 
-              {/* Semanas agrupadas por meses */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-green-700">📅 Plan Semanal</h3>
-                  <div className="flex gap-2">
-                    <button onClick={toggleAllMonths} className="text-sm text-green-600 hover:text-green-800">
-                      {expandedMonths.length === sessionMonths.length ? 'Contraer todos los meses' : 'Expandir todos los meses'}
-                    </button>
-                    <button onClick={toggleAllWeeks} className="text-sm text-blue-600 hover:text-blue-800">
-                      {expandedWeeks.length === activeSession.weeks.length ? 'Contraer todas las semanas' : 'Expandir todas las semanas'}
-                    </button>
-                  </div>
+              {/* === 4 ACORDEONES: Nutrición, Ejercicios, Hábitos, Checklist === */}
+
+              {/* 🟢 NUTRICIÓN */}
+              <div className="bg-white rounded-xl border border-green-300 overflow-hidden">
+                <div
+                  className="p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white cursor-pointer hover:from-green-700 transition-colors flex justify-between items-center"
+                  onClick={() => {
+                    const key = 'accordion-nutrition';
+                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
+                >
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <span>🥗</span> Plan de Nutrición
+                  </h3>
+                  <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-nutrition') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
-                {sessionMonths.map(month => {
-                  const monthId = `${activeSession.sessionId}_month_${month.monthNumber}`;
-                  const isMonthExpanded = expandedMonths.includes(monthId);
-                  return (
-                    <div key={monthId} className="bg-white rounded-xl border border-green-300 overflow-hidden">
-                      <div
-                        className="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-b border-green-300 cursor-pointer hover:from-green-200 transition-colors flex justify-between items-center"
-                        onClick={() => toggleMonthExpansion(monthId)}
-                      >
-                        <h4 className="font-bold text-green-800 text-lg">{month.label} (Semanas {month.startWeek}-{month.endWeek})</h4>
-                        <button className="text-green-700 p-1 hover:bg-green-300 rounded-full transition-colors">
-                          <svg className={`w-6 h-6 transform transition-transform ${isMonthExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
-                      {isMonthExpanded && (
-                        <div className="p-4 space-y-4">
-                          {month.weeks.map(({ week, originalIndex }) => renderWeek(week, originalIndex, activeSession.sessionId, activeSession))}
-                        </div>
-                      )}
+                {expandedMonths.includes('accordion-nutrition') && activeSession.weeks.length > 0 && (
+                  <div className="p-4 space-y-6">
+                    {/* Tabla semanal de comidas */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-green-50">
+                            <th className="border border-green-200 p-2 text-left w-16">Sem.</th>
+                            <th className="border border-green-200 p-2 text-left">Comida</th>
+                            <th className="border border-green-200 p-2 text-left">Receta</th>
+                            <th className="border border-green-200 p-2 text-center w-16">⏱</th>
+                            <th className="border border-green-200 p-2 text-center w-16">Nivel</th>
+                            <th className="border border-green-200 p-2 w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeSession.weeks.map((week, wi) => {
+                            const weekRecipes = activeSession.checklist.filter(
+                              item => item.category === 'nutrition' && item.weekNumber === week.weekNumber
+                            );
+                            const meals = ['desayuno', 'almuerzo', 'cena'];
+                            return meals.map((mealType, mi) => {
+                              const mealRecipes = weekRecipes.filter(r => r.type === mealType);
+                              const hasItems = mealRecipes.length > 0;
+                              return (
+                                <React.Fragment key={`${wi}-${mi}`}>
+                                  {hasItems ? mealRecipes.map((item, ri) => (
+                                    <tr key={ri} className="hover:bg-green-50/50 group">
+                                      {ri === 0 && mi === 0 && (
+                                        <td className="border border-green-200 p-2 font-medium bg-green-50" rowSpan={meals.length * (weekRecipes.length || 1)}>
+                                          Sem {week.weekNumber}
+                                        </td>
+                                      )}
+                                      {ri === 0 && (
+                                        <td className="border border-green-200 p-2 text-xs font-semibold capitalize bg-green-50/30">
+                                          {mealType === 'desayuno' ? '🌅' : mealType === 'almuerzo' ? '☀️' : '🌙'} {mealType}
+                                        </td>
+                                      )}
+                                      <td className="border border-green-200 p-2">
+                                        <div className="relative group/tooltip">
+                                          <button
+                                            onClick={async () => {
+                                              if (item.recipeId) {
+                                                try {
+                                                  const res = await apiClient.getRecipe(item.recipeId);
+                                                  if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                                } catch { /* fallback */ }
+                                              }
+                                            }}
+                                            className="text-left hover:text-green-700 hover:underline cursor-pointer font-medium"
+                                          >
+                                            {item.description}
+                                          </button>
+                                          {/* Tooltip hover */}
+                                          {item.details?.recipe && (
+                                            <div className="absolute z-50 left-0 bottom-full mb-2 hidden group-hover/tooltip:block bg-white border border-gray-300 rounded-lg shadow-xl p-3 w-72">
+                                              <p className="text-xs font-bold text-gray-800 mb-1">{item.description}</p>
+                                              {item.details.recipe.preparation && (
+                                                <p className="text-xs text-gray-500 line-clamp-2">{item.details.recipe.preparation}</p>
+                                              )}
+                                              {item.recipeId && (
+                                                <p className="text-xs text-green-600 mt-1 cursor-pointer hover:underline"
+                                                  onClick={() => {
+                                                    apiClient.getRecipe(item.recipeId!).then(res => {
+                                                      if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                                    }).catch(() => {});
+                                                  }}
+                                                >🔍 Ver detalles completos</p>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="border border-green-200 p-2 text-center text-xs">
+                                        {item.details?.recipe?.preparation ? '~30 min' : '-'}
+                                      </td>
+                                      <td className="border border-green-200 p-2 text-center">
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                          item.type === 'easy' ? 'bg-green-100 text-green-700' :
+                                          item.type === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                          'bg-green-100 text-green-700'
+                                        }`}>{item.type || 'easy'}</span>
+                                      </td>
+                                      <td className="border border-green-200 p-2">
+                                        {activeSession.status === 'draft' && (
+                                          <button
+                                            onClick={() => handleDeleteItem(item.id)}
+                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                                            title="Eliminar receta"
+                                          >✕</button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )) : (
+                                    <tr>
+                                      {mi === 0 && (
+                                        <td className="border border-green-200 p-2 font-medium bg-green-50" rowSpan={3}>Sem {week.weekNumber}</td>
+                                      )}
+                                      <td className="border border-green-200 p-2 text-xs font-semibold capitalize bg-green-50/30">
+                                        {mealType === 'desayuno' ? '🌅' : mealType === 'almuerzo' ? '☀️' : '🌙'} {mealType}
+                                      </td>
+                                      <td className="border border-green-200 p-2" colSpan={3}>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-gray-400 italic">Sin receta asignada</span>
+                                          {activeSession.status === 'draft' && (
+                                            <button
+                                              onClick={() => { setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
+                                              className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-sm"
+                                              title="Agregar receta"
+                                            >+</button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  );
-                })}
+
+                    {/* Lista de compras semanal */}
+                    {activeSession.weeks.some(w => w.nutrition.shoppingList?.length > 0) && (
+                      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                            <span>🛒</span> Lista de compras
+                          </h4>
+                          <button
+                            onClick={() => handleUpdateShoppingList(activeSession.sessionId, 1)}
+                            disabled={loadingShoppingList[1]}
+                            className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {loadingShoppingList[1] ? 'Actualizando...' : 'Actualizar'}
+                          </button>
+                        </div>
+                        {activeSession.weeks.map((week, wi) => (
+                          week.nutrition.shoppingList?.length > 0 && (
+                            <div key={wi} className="mb-2">
+                              <p className="text-xs font-medium text-green-700 mb-1">Semana {week.weekNumber}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                                {week.nutrition.shoppingList.map((item, si) => (
+                                  <div key={si} className="flex items-center gap-1 text-xs">
+                                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                      item.priority === 'high' ? 'bg-red-400' : item.priority === 'medium' ? 'bg-yellow-400' : 'bg-green-400'
+                                    }`} />
+                                    <span>{item.item} <span className="text-gray-400">({item.quantity})</span></span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Alternativas sugeridas */}
+                    <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                      <h4 className="font-semibold text-amber-800 text-sm mb-2">💡 Alternativas sugeridas por la IA</h4>
+                      <p className="text-xs text-amber-600 mb-2">Para variar el plan, puedes reemplazar cualquier receta por una de estas alternativas con perfil nutricional similar.</p>
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {activeSession.checklist
+                          .filter(item => item.category === 'nutrition' && item.isRecurring)
+                          .slice(0, 5)
+                          .map((item, ai) => (
+                            <div key={ai} className="flex-shrink-0 bg-white rounded-lg border border-amber-200 p-2 w-40 text-xs">
+                              <p className="font-medium text-amber-800 truncate">{item.description}</p>
+                              <p className="text-gray-400 mt-0.5">Alternativa</p>
+                            </div>
+                          ))}
+                        {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && (
+                          <p className="text-xs text-amber-500 italic">No hay alternativas generadas aún.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {expandedMonths.includes('accordion-nutrition') && activeSession.weeks.length === 0 && (
+                  <div className="p-6 text-center text-gray-500">Sin datos de nutrición para esta sesión.</div>
+                )}
+              </div>
+
+              {/* 🔵 EJERCICIOS */}
+              <div className="bg-white rounded-xl border border-blue-300 overflow-hidden">
+                <div
+                  className="p-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white cursor-pointer hover:from-blue-700 transition-colors flex justify-between items-center"
+                  onClick={() => {
+                    const key = 'accordion-exercise';
+                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
+                >
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <span>🏋️</span> Plan de Ejercicios
+                  </h3>
+                  <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-exercise') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {expandedMonths.includes('accordion-exercise') && activeSession.weeks.length > 0 && (
+                  <div className="p-4 overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-blue-50">
+                          <th className="border border-blue-200 p-2 text-left w-24">Semana</th>
+                          <th className="border border-blue-200 p-2 text-left">Día</th>
+                          <th className="border border-blue-200 p-2 text-left">Ejercicio</th>
+                          <th className="border border-blue-200 p-2 text-center">Series</th>
+                          <th className="border border-blue-200 p-2 text-center">Reps</th>
+                          <th className="border border-blue-200 p-2 text-center">TUT</th>
+                          <th className="border border-blue-200 p-2 text-left">Progresión</th>
+                          <th className="border border-blue-200 p-2 text-left">Equipo</th>
+                          <th className="border border-blue-200 p-2 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeSession.weeks.map((week, wi) => (
+                          <React.Fragment key={wi}>
+                            <tr className="bg-blue-50">
+                              <td className="border border-blue-200 p-2 font-medium" rowSpan={1}>Sem {week.weekNumber}</td>
+                              <td className="border border-blue-200 p-2 italic text-gray-500" colSpan={8}>{week.exercise.focus}</td>
+                            </tr>
+                            {activeSession.checklist
+                              .filter(item => item.category === 'exercise' && item.weekNumber === week.weekNumber)
+                              .map((item, ei) => (
+                                <tr key={ei} className="hover:bg-blue-50 group">
+                                  <td className="border border-blue-200"></td>
+                                  <td className="border border-blue-200 p-2">{item.details?.frequency || 'L/M/V'}</td>
+                                  <td className="border border-blue-200 p-2">
+                                    <div className="relative">
+                                      <span className="cursor-help font-medium text-blue-700">{item.description}</span>
+                                      {/* Tooltip hover */}
+                                      <div className="absolute z-50 left-0 bottom-full mb-2 hidden group-hover:block bg-white border border-gray-300 rounded-lg shadow-xl p-3 w-64">
+                                        <p className="text-xs font-bold text-gray-800 mb-1">{item.description}</p>
+                                        {item.details?.duration && <p className="text-xs text-gray-600">⏱ {item.details.duration}</p>}
+                                        {item.details?.equipment && <p className="text-xs text-gray-600">🎒 {item.details.equipment.join(', ')}</p>}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="border border-blue-200 p-2 text-center">{item.type || '-'}</td>
+                                  <td className="border border-blue-200 p-2 text-center">{item.frequency || '-'}</td>
+                                  <td className="border border-blue-200 p-2 text-center text-xs">-</td>
+                                  <td className="border border-blue-200 p-2 text-xs text-gray-500">-</td>
+                                  <td className="border border-blue-200 p-2 text-xs text-gray-500">
+                                    {week.exercise.equipment?.join(', ') || '-'}
+                                  </td>
+                                  <td className="border border-blue-200 p-2">
+                                    {activeSession.status === 'draft' && (
+                                      <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">✕</button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-xs text-gray-400 mt-3 italic">💡 Los ejercicios y rutinas se enriquecerán cuando la IA tenga acceso a la colección de ejercicios.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 🟣 HÁBITOS */}
+              <div className="bg-white rounded-xl border border-purple-300 overflow-hidden">
+                <div
+                  className="p-4 bg-gradient-to-r from-purple-600 to-violet-600 text-white cursor-pointer hover:from-purple-700 transition-colors flex justify-between items-center"
+                  onClick={() => {
+                    const key = 'accordion-habits';
+                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
+                >
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <span>🧠</span> Plan de Hábitos
+                  </h3>
+                  <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-habits') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {expandedMonths.includes('accordion-habits') && (
+                  <div className="p-4 space-y-4">
+                    {activeSession.weeks.map((week, wi) => (
+                      <div key={wi} className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                        <h4 className="font-semibold text-purple-800 mb-2">Semana {week.weekNumber}</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-medium text-purple-600 mb-1">✅ A ADOPTAR</p>
+                            {activeSession.checklist
+                              .filter(item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type !== 'toEliminate')
+                              .map((item, hi) => (
+                                <div key={hi} className="flex items-center justify-between bg-white p-2 rounded border border-purple-100 mb-1 group">
+                                  <span className="text-sm">{item.description}</span>
+                                  {activeSession.status === 'draft' && (
+                                    <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-2">✕</button>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-red-600 mb-1">❌ A ELIMINAR</p>
+                            {activeSession.checklist
+                              .filter(item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type === 'toEliminate')
+                              .map((item, hi) => (
+                                <div key={hi} className="flex items-center justify-between bg-white p-2 rounded border border-red-100 mb-1 group">
+                                  <span className="text-sm">{item.description}</span>
+                                  {activeSession.status === 'draft' && (
+                                    <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-2">✕</button>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            <p>📊 Tracking: {week.habits.trackingMethod || 'No especificado'}</p>
+                            <p>💡 Tip: {week.habits.motivationTip || 'No especificado'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 🟠 CHECKLIST (solo lectura, auto-generado) */}
+              <div className="bg-white rounded-xl border border-orange-300 overflow-hidden">
+                <div
+                  className="p-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white cursor-pointer hover:from-orange-600 transition-colors flex justify-between items-center"
+                  onClick={() => {
+                    const key = 'accordion-checklist';
+                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
+                >
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <span>📋</span> Checklist Semanal (control del cliente)
+                  </h3>
+                  <span className="text-xs bg-white/20 rounded-full px-2 py-1">{activeSession.checklist.length} items</span>
+                </div>
+                {expandedMonths.includes('accordion-checklist') && activeSession.checklist.length > 0 && (
+                  <div className="p-4">
+                    <p className="text-xs text-gray-400 mb-3 italic">📝 Checklist auto-generado — solo lectura. Los cambios en nutrición/ejercicios/hábitos se reflejan automáticamente.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {activeSession.checklist.map((item, ci) => (
+                        <div key={ci} className="flex items-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100 text-sm">
+                          <span className={`w-5 h-5 border-2 rounded flex-shrink-0 flex items-center justify-center ${item.completed ? 'bg-orange-400 border-orange-400 text-white' : 'border-orange-300'}`}>
+                            {item.completed ? '✓' : ''}
+                          </span>
+                          <span className="text-gray-700">
+                            <span className="text-xs text-orange-500 font-medium">{item.weekNumber && `Sem ${item.weekNumber} · `}{item.category === 'nutrition' ? '🥗' : item.category === 'exercise' ? '🏋️' : '🧠'} </span>
+                            {item.description}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {expandedMonths.includes('accordion-checklist') && activeSession.checklist.length === 0 && (
+                  <div className="p-6 text-center text-gray-500">Sin items en el checklist para esta sesión.</div>
+                )}
               </div>
             </div>
           )}

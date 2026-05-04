@@ -82,52 +82,42 @@ export const searchRecipeTool = tool(
 
       const collection = await getRecipesCollection();
 
-      const results = await collection
+      // NOTA: No podemos usar $text porque los campos están encriptados.
+      // Buscamos TODAS las recetas publicadas, desencriptamos y devolvemos
+      // metadatos (sin ingredientes/instrucciones completos para no saturar).
+      // La IA luego usa get_recipe_by_id si necesita una en específico.
+      const allRecipes = await collection
         .find(
-          { $text: { $search: input.query } },
+          { isPublished: true },
           {
             projection: {
-              score: { $meta: "textScore" },
-              _id: 1,
-              title: 1,
-              description: 1,
-              ingredients: 1,
-              category: 1,
-              tags: 1,
-              difficulty: 1,
-              cookTime: 1,
+              _id: 1, title: 1, description: 1,
+              category: 1, tags: 1, difficulty: 1,
+              cookTime: 1, nutrition: 1,
             },
           }
         )
-        .sort({ score: { $meta: "textScore" } })
         .limit(input.limit)
         .toArray();
 
-      logCtx.info("AI", `Found ${results.length} recipes matching query`);
+      logCtx.info("AI", `Retrieved ${allRecipes.length} recipes from database`);
 
-      const decrypted: DecryptedRecipe[] = results.map((doc) => {
-        const docRecord = doc as Record<string, unknown>;
+      const decrypted = allRecipes.map((doc) => {
+        const d = doc as Record<string, unknown>;
         return {
-          _id: String(docRecord._id),
-          title: decrypt(docRecord.title as string),
-          description: decrypt(docRecord.description as string),
-          ingredients: (docRecord.ingredients as string[]).map((ing: string) =>
-            decrypt(ing)
-          ),
-          instructions: [],
-          difficulty: (docRecord.difficulty as string) ?? "medium",
-          cookTime: (docRecord.cookTime as string) ?? "",
-          category: Array.isArray(docRecord.category)
-            ? docRecord.category.map((c: string) => decrypt(c))
+          _id: String(d._id),
+          title: decrypt(d.title as string),
+          description: decrypt(d.description as string).substring(0, 200), // Descripción corta
+          difficulty: decrypt(d.difficulty as string) || "easy",
+          cookTime: (d.cookTime as number) || 0,
+          nutrition: d.nutrition || { protein: 0, carbs: 0, fat: 0, calories: 0 },
+          category: Array.isArray(d.category)
+            ? d.category.map((c: string) => decrypt(c))
             : [],
-          tags: Array.isArray(docRecord.tags)
-            ? docRecord.tags.map((t: string) => decrypt(t))
+          tags: Array.isArray(d.tags)
+            ? d.tags.map((t: string) => decrypt(t))
             : [],
         };
-      });
-
-      logCtx.debug("AI", "Recipes decrypted successfully", {
-        recipeCount: decrypted.length,
       });
 
       return JSON.stringify(decrypted);
@@ -140,7 +130,7 @@ export const searchRecipeTool = tool(
   {
     name: "search_recipe",
     description:
-      "Search for recipes in the database by keywords. Returns matching recipes with decrypted ingredients and metadata. Use clientLevel to filter by difficulty.",
+      "Search for recipes in the database. Returns matching recipes with decrypted titles, descriptions, categories, tags, and nutrition info. Use clientLevel to filter by difficulty.",
     schema: SearchRecipeInput,
   }
 );
@@ -254,7 +244,7 @@ export const saveRecipeTool = tool(
         cookTime: input.cookTime ?? "",
         difficulty: input.difficulty,
         author: "ai-generated",
-        isPublished: false,
+        isPublished: true,
         createdAt: new Date(),
         updatedAt: new Date(),
         image: {
