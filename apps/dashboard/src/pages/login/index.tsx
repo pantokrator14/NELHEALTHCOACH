@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -22,8 +23,10 @@ export default function Login() {
 
       localStorage.setItem('token', result.token);
       router.push('/dashboard');
-    } catch {
-      setError('Error de conexión. Intenta nuevamente.');
+    } catch (err: unknown) {
+      // Mostrar el mensaje real del backend (ej. "Debes verificar tu email antes de iniciar sesión")
+      const message = err instanceof Error ? err.message : 'Error de conexión. Intenta nuevamente.';
+      setError(message);
     } finally {
       setLoading(false)
     }
@@ -93,25 +96,49 @@ export default function Login() {
                   </svg>
                   Contraseña
                 </label>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
-                  required
                   placeholder="Ingresa tu contraseña"
+                  required
                   disabled={loading}
                 />
               </div>
 
               {/* Mensaje de error */}
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {error}
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {error}
+                  </div>
+                  {error.toLowerCase().includes('verificar') && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          setLoading(true);
+                          await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/resend-verification`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email }),
+                          });
+                          setError('');
+                          alert('Se ha reenviado el enlace de verificación a tu email.');
+                        } catch {
+                          alert('No se pudo reenviar la verificación. Intenta de nuevo.');
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      className="mt-2 text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      📧 Reenviar enlace de verificación
+                    </button>
+                  )}
                 </div>
               )}
 

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { apiClient } from '@/lib/api';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function Register() {
   const router = useRouter();
@@ -155,11 +156,11 @@ export default function Register() {
                 </div>
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                  <input id="password" type="password" value={form.password} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required disabled={loading} placeholder="Mínimo 6 caracteres" />
+                  <PasswordInput id="password" value={form.password} onChange={handleChange} placeholder="Mínimo 6 caracteres" required disabled={loading} />
                 </div>
                 <div>
                   <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
-                  <input id="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required disabled={loading} />
+                  <PasswordInput id="confirmPassword" value={form.confirmPassword} onChange={handleChange} required disabled={loading} />
                 </div>
                 <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
                   {loading ? 'Creando cuenta...' : 'Crear cuenta'}

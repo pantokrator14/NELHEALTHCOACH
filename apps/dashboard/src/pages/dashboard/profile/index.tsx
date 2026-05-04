@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
 import Layout from '@/components/dashboard/Layout';
+import PasswordInput from '@/components/PasswordInput';
 
 interface CoachProfile {
   id: string;
@@ -228,15 +229,15 @@ export default function ProfilePage() {
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Contraseña actual</label>
-              <input type="password" value={passForm.current} onChange={(e) => setPassForm({ ...passForm, current: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition" required />
+              <PasswordInput value={passForm.current} onChange={(e) => setPassForm({ ...passForm, current: e.target.value })} required />
             </div>
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Nueva contraseña</label>
-              <input type="password" value={passForm.newPass} onChange={(e) => setPassForm({ ...passForm, newPass: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition" required placeholder="Mínimo 6 caracteres" />
+              <PasswordInput value={passForm.newPass} onChange={(e) => setPassForm({ ...passForm, newPass: e.target.value })} placeholder="Mínimo 6 caracteres" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Confirmar nueva contraseña</label>
-              <input type="password" value={passForm.confirm} onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition" required />
+              <PasswordInput value={passForm.confirm} onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })} required />
             </div>
             <button type="submit" disabled={changingPass} className="bg-orange-500 text-white px-6 py-2.5 rounded-lg hover:bg-orange-600 transition font-medium disabled:opacity-50 shadow-sm">
               {changingPass ? 'Cambiando...' : 'Cambiar contraseña'}
