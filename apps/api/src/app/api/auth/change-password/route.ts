@@ -4,6 +4,8 @@ import Coach from '@/app/models/Coach';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { EmailService } from '@/app/lib/email-service';
+import { decrypt } from '@/app/lib/encryption';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,6 +52,33 @@ export async function POST(request: NextRequest) {
     const salt = await bcrypt.genSalt(10);
     coach.passwordHash = await bcrypt.hash(newPassword, salt);
     await coach.save();
+
+    // Enviar notificación por email al coach (usando email del JWT, que está en texto plano)
+    const emailService = EmailService.getInstance();
+    const coachName = decrypt(coach.firstName) || 'Coach';
+    await emailService.sendEmail({
+      to: [auth.email],
+      subject: 'NELHealthCoach - Tu contraseña ha sido cambiada',
+      htmlBody: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #059669, #047857); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Contraseña actualizada</h1>
+          </div>
+          <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <p style="font-size: 16px; color: #374151;">Hola <strong>${coachName}</strong>,</p>
+            <p style="font-size: 16px; color: #374151;">Tu contraseña de <strong>NELHealthCoach</strong> ha sido cambiada exitosamente.</p>
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;">
+                ⚠️ Si no fuiste tú quien realizó este cambio, contacta al administrador inmediatamente.
+              </p>
+            </div>
+            <p style="font-size: 14px; color: #6b7280; margin-top: 24px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+          </div>
+        </div>
+      `,
+    }).catch((err) => {
+      logger.warn('AUTH', 'Error enviando notificación de cambio de contraseña', err);
+    });
 
     logger.info('AUTH', 'Contraseña actualizada', {
       coachId: coach._id.toString(),
