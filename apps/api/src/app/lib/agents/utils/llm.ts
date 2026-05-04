@@ -29,9 +29,7 @@ export function createDeepSeekLLM(
     streaming: options.streaming ?? false,
     apiKey,
     configuration: { baseURL },
-    // Desactivar thinking mode de DeepSeek V4 (activo por defecto desde V4).
-    // Sin esto, el modelo devuelve reasoning_content que rompe el parseo de JSON
-    // y causa errores "Unexpected non-whitespace character after JSON".
+    // Desactivar thinking mode DeepSeek V4 — LangChain spreadea modelKwargs al body
     modelKwargs: {
       thinking: { type: "disabled" },
     },
