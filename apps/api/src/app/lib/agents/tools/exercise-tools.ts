@@ -22,19 +22,19 @@ const GetExerciseByIdInput = z.object({
 const SaveExerciseInput = z.object({
   name: z.string().describe("Exercise name"),
   description: z.string().describe("Brief description of the exercise"),
-  instructions: z.array(z.string()).describe("Step-by-step instructions"),
-  category: z.array(z.string()).describe("Categories (e.g., 'piernas', 'fuerza')"),
-  equipment: z.array(z.string()).describe("Required equipment"),
+  instructions: z.union([z.string(), z.array(z.string())]).describe("Step-by-step instructions"),
+  category: z.union([z.string(), z.array(z.string())]).describe("Categories (e.g., 'piernas', 'fuerza')"),
+  equipment: z.union([z.string(), z.array(z.string())]).describe("Required equipment"),
   difficulty: z.enum(["easy", "medium", "hard"]),
   clientLevel: z.enum(["principiante", "intermedio", "avanzado"]),
-  muscleGroups: z.array(z.string()).describe("Target muscle groups"),
-  contraindications: z.array(z.string()).optional().describe("Contraindications (e.g., 'knee pain')"),
+  muscleGroups: z.union([z.string(), z.array(z.string())]).describe("Target muscle groups"),
+  contraindications: z.union([z.string(), z.array(z.string())]).optional().describe("Contraindications"),
   sets: z.number().int().positive().default(3),
   repetitions: z.string().describe("e.g., '12' or '10-15'"),
   timeUnderTension: z.string().default("3-1-1"),
   restBetweenSets: z.string().default("45-60 segundos"),
   progression: z.string().describe("How to progress (increase weight, reps, etc.)"),
-  tags: z.array(z.string()).describe("Search tags"),
+  tags: z.union([z.string(), z.array(z.string())]).describe("Search tags"),
 });
 
 // ─────────────────────────────────────────────
@@ -166,16 +166,22 @@ export const saveExerciseTool = tool(
 
       const collection = await getExerciseCollection();
 
+      // Normalizar campos que pueden venir como string o array (DeepSeek tool calling)
+      const toArray = (v: string | string[] | undefined | null): string[] => {
+        if (v == null) return [];
+        return Array.isArray(v) ? v : [v];
+      };
+
       const exerciseDoc = {
         name: encrypt(input.name),
         description: encrypt(input.description),
-        instructions: input.instructions.map((i: string) => encrypt(i)),
-        category: input.category.map((c: string) => encrypt(c)),
-        equipment: input.equipment.map((e: string) => encrypt(e)),
+        instructions: toArray(input.instructions).map((i: string) => encrypt(i)),
+        category: toArray(input.category).map((c: string) => encrypt(c)),
+        equipment: toArray(input.equipment).map((e: string) => encrypt(e)),
         difficulty: encrypt(input.difficulty),
         clientLevel: encrypt(input.clientLevel),
-        muscleGroups: input.muscleGroups.map((m: string) => encrypt(m)),
-        contraindications: (input.contraindications || []).map((c: string) => encrypt(c)),
+        muscleGroups: toArray(input.muscleGroups).map((m: string) => encrypt(m)),
+        contraindications: toArray(input.contraindications).map((c: string) => encrypt(c)),
         sets: input.sets,
         repetitions: encrypt(input.repetitions),
         timeUnderTension: encrypt(input.timeUnderTension),
@@ -193,7 +199,7 @@ export const saveExerciseTool = tool(
         progressionOf: null,
         progressesTo: [],
         isPublished: true,
-        tags: input.tags.map((t: string) => encrypt(t)),
+        tags: toArray(input.tags).map((t: string) => encrypt(t)),
       };
 
       const result = await collection.insertOne(exerciseDoc);
