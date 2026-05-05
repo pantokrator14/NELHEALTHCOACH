@@ -1,6 +1,7 @@
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { createDeepSeekJSONLLM } from "../utils/llm";
+import { createDeepSeekJSONLLM } from "../utils/llm"
+import { robustJsonParse } from "../utils/llm";
 import { buildHabitPrompt } from "../utils/prompt-builders";
 import type { RecommendationStateType } from "../state";
 import { logger } from "../../logger";
@@ -118,7 +119,7 @@ function parseHabitResponse(
     jsonStr = codeBlockMatch[1];
   }
 
-  const parsed: unknown = JSON.parse(jsonStr);
+  const parsed: unknown = robustJsonParse<unknown>(jsonStr);
 
   if (!Array.isArray(parsed)) {
     return generateFallbackHabits(expectedWeeks.length / 4);

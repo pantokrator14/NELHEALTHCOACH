@@ -1,6 +1,6 @@
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage, ToolMessage, type BaseMessage, type AIMessageChunk } from "@langchain/core/messages";
-import { createDeepSeekWithTools, createDeepSeekJSONLLM } from "../utils/llm";
+import { createDeepSeekWithTools, createDeepSeekJSONLLM, robustJsonParse } from "../utils/llm";
 import type { RecommendationStateType } from "../state";
 import { searchExerciseTool, saveExerciseTool } from "../tools/exercise-tools";
 import { logger } from "../../logger";
@@ -348,7 +348,7 @@ function parseExerciseResponse(
     jsonStr = codeBlockMatch[1];
   }
 
-  const parsed: unknown = JSON.parse(jsonStr);
+  const parsed: unknown = robustJsonParse<unknown>(jsonStr);
 
   if (!Array.isArray(parsed)) {
     return generateFallbackExercise(expectedWeeks.length / 4);

@@ -98,14 +98,40 @@ export async function analyzeClient(
   }
 }
 
-function parseInsightsResponse(content: string): ClientInsights {
-  let jsonStr = content;
-  const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+function robustJsonParse<T>(raw: string): T {
+  // 1. Intentar parse directo
+  const trimmed = raw.trim();
+  try { return JSON.parse(trimmed) as T; } catch { /* continuar */ }
+
+  // 2. Buscar bloque ```json ... ```
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*[\n\r]([\s\S]*?)\n?\s*```/);
   if (codeBlockMatch) {
-    jsonStr = codeBlockMatch[1];
+    try { return JSON.parse(codeBlockMatch[1].trim()) as T; } catch { /* continuar */ }
   }
 
-  const parsed: Record<string, unknown> = JSON.parse(jsonStr);
+  // 3. Buscar bloque ``` ... ``` sin specifier
+  const anyCodeBlock = trimmed.match(/```\s*[\n\r]([\s\S]*?)\n?\s*```/);
+  if (anyCodeBlock) {
+    try { return JSON.parse(anyCodeBlock[1].trim()) as T; } catch { /* continuar */ }
+  }
+
+  // 4. Extraer el primer objeto JSON {} de la respuesta
+  const objMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]) as T; } catch { /* continuar */ }
+  }
+
+  // 5. Extraer el primer array JSON [] de la respuesta
+  const arrMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try { return JSON.parse(arrMatch[0]) as T; } catch { /* continuar */ }
+  }
+
+  throw new Error(`Unexpected non-whitespace character after JSON at position ${raw.length}`);
+}
+
+function parseInsightsResponse(content: string): ClientInsights {
+  const parsed = robustJsonParse<Record<string, unknown>>(content);
 
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "No summary available",
@@ -417,7 +443,7 @@ function parseNutritionResponse(
     jsonStr = codeBlockMatch[1];
   }
 
-  const parsed: unknown = JSON.parse(jsonStr);
+  const parsed: unknown = robustJsonParse<unknown>(jsonStr);
   if (!Array.isArray(parsed)) {
     return generateFallbackNutrition(expectedWeeks.length / 4);
   }

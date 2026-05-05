@@ -1,6 +1,7 @@
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { createDeepSeekJSONLLM } from "../utils/llm";
+import { createDeepSeekJSONLLM } from "../utils/llm"
+import { robustJsonParse } from "../utils/llm";
 import { buildValidationPrompt } from "../utils/prompt-builders";
 import type {
   RecommendationStateType,
@@ -134,7 +135,7 @@ function parseValidationResponse(content: string): ValidationResult {
     jsonStr = codeBlockMatch[1];
   }
 
-  const parsed: Record<string, unknown> = JSON.parse(jsonStr);
+  const parsed: Record<string, unknown> = robustJsonParse<Record<string, unknown>>(jsonStr);
 
   const nutrition = parsed.nutrition as Record<string, unknown> | undefined;
   const exercise = parsed.exercise as Record<string, unknown> | undefined;
