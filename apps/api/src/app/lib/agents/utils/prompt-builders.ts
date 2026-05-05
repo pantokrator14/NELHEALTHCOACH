@@ -610,7 +610,7 @@ function formatDocuments(
     confidence: number;
   }>
 ): string {
-  if (documents.length === 0)
+  if (!documents || documents.length === 0)
     return "- Sin documentos procesados";
 
   return documents
