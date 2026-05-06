@@ -7,9 +7,9 @@ import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
 import { TextractService } from '@/app/lib/textract';
-import { ChecklistItem } from '../../../../../../../../packages/types/src/healthForm';
+import { ChecklistItem, AIRecommendationSession } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
-import { inngest } from '@/app/inngest/client';
+import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
 
 function decryptAISessionCompletely(session: any): any {
   try {
@@ -287,62 +287,229 @@ export async function POST(
         aiInput.currentProgress = client.aiProgress;
       }
 
-      // 5. Enviar evento a Inngest para procesamiento asíncrono
-      loggerWithContext.info('AI', 'Enviando evento a Inngest para procesamiento asíncrono');
+      // 5. Generar recomendaciones con prompt compuesto (DIRECTO, sin Inngest)
+      loggerWithContext.info('AI', 'Generando recomendaciones con prompt compuesto');
 
-      const jobId = `recommendations_${id}_${monthNumber}_${Date.now()}`;
+      const {
+        mentalHealth,
+        healthAssessment,
+        processedDocuments,
+      } = aiInput;
 
-      try {
-        await inngest.send({
-          name: 'ai.recommendations.requested',
-          id: jobId,
-          data: {
-            clientId: id,
-            monthNumber,
-            coachNotes: coachNotes,
-            maxRevisions: 1,
-          },
-        });
+      const compositeResult = await generateCompositeRecommendation({
+        personalData: aiInput.personalData || {},
+        medicalData: aiInput.medicalData || {},
+        healthAssessment: healthAssessment || {},
+        mentalHealth: mentalHealth || {},
+        processedDocuments: (processedDocuments || []).map((d: { title?: string; content?: string; documentType?: string; confidence?: number }) => ({
+          title: d.title || '',
+          content: d.content || '',
+          documentType: d.documentType || 'other',
+          confidence: d.confidence || 0,
+        })),
+        previousSessions: aiInput.previousSessions || [],
+        coachNotes: aiInput.coachNotes || '',
+        monthNumber,
+      });
 
-        loggerWithContext.info('AI', 'Evento enviado exitosamente a Inngest', {
-          jobId,
-          clientId: id,
-          monthNumber,
-        });
+      loggerWithContext.info('AI', 'Recomendaciones generadas exitosamente', {
+        weekCount: compositeResult.nutritionPlan?.weeklyPlan?.length || 7,
+      });
 
-        // Retornar 202 Accepted con información del job
-        return NextResponse.json({
-          success: true,
-          data: {
-            jobId,
-            status: 'queued',
-            message: 'Recomendaciones en proceso. El resultado estará disponible pronto.',
-            clientId: id,
-            monthNumber,
-            requestId,
-          },
-        }, { status: 202 });
-      } catch (inngestError) {
-        loggerWithContext.error('AI', 'Error enviando evento a Inngest, usando fallback directo', inngestError as Error);
+      // IDs de recetas y ejercicios encontrados en la DB
+      const recipeIds: Record<string, string> = compositeResult._recipeIds || {};
+      const exerciseIds: Record<string, string> = compositeResult._exerciseIds || {};
 
-        // Fallback: ejecutar AIService directamente si Inngest falla
-        loggerWithContext.warn('AI', 'Ejecutando AIService como fallback');
-        const recommendations = await AIService.analyzeClientAndGenerateRecommendations(
-          aiInput,
-          monthNumber,
-          { requestId, clientId: id }
-        );
+      // 6. Construir sesión y guardar en DB
+      const sessionId = `session_${Date.now()}_${monthNumber}`;
 
-        return saveAndReturnRecommendations(
-          recommendations as unknown as Record<string, unknown>,
-          healthForms,
-          id,
-          monthNumber,
-          requestId,
-          loggerWithContext,
-          client
-        );
+      // Construir checklist items desde el plan semanal
+      const checklistItems: ChecklistItem[] = [];
+      const dayTranslations: Record<string, string> = { Monday: 'Lunes', Tuesday: 'Martes', Wednesday: 'Miércoles', Thursday: 'Jueves', Friday: 'Viernes', Saturday: 'Sábado', Sunday: 'Domingo' };
+
+      // Items de nutrición (desayuno/almuerzo/cena para cada día)
+      if (compositeResult.nutritionPlan?.weeklyPlan) {
+        for (const day of compositeResult.nutritionPlan.weeklyPlan) {
+          const dayName = dayTranslations[day.day] || day.day;
+          for (const meal of ['breakfast', 'lunch', 'dinner'] as const) {
+            const mealName = meal === 'breakfast' ? 'Desayuno' : meal === 'lunch' ? 'Almuerzo' : 'Cena';
+            const recipe = day[meal];
+            if (recipe) {
+              const recipeId = recipeIds[recipe] || '';
+              checklistItems.push({
+                id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                description: `${dayName} ${mealName}: ${recipe}`,
+                completed: false,
+                weekNumber: 1,
+                category: 'nutrition',
+              type: mealName.toLowerCase(),
+              recipeId,
+              details: recipeId ? undefined : { recipe: { ingredients: [], preparation: recipe } },
+              isRecurring: false,
+            } as ChecklistItem);
+          }
+        }
       }
+    }
+
+    // Items de ejercicios
+      if (compositeResult.exercisePlan?.weeklyRoutine) {
+        for (const day of compositeResult.exercisePlan.weeklyRoutine) {
+          const dayName = dayTranslations[day.day] || day.day;
+          if (day.exercises) {
+            for (const ex of day.exercises) {
+              const exerciseId = exerciseIds[ex.name] || '';
+              checklistItems.push({
+                id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                description: `${dayName}: ${ex.name}`,
+                completed: false,
+                weekNumber: 1,
+                category: 'exercise',
+                type: 'ejercicio',
+                recipeId: exerciseId,
+                details: {
+                  duration: `${ex.sets || 3} series x ${ex.repetitions || '12'} reps`,
+                  equipment: compositeResult.exercisePlan?.equipment,
+                  frequency: day.day,
+                },
+                isRecurring: false,
+
+
+              });
+            }
+          }
+        }
+      }
+
+      // Items de hábitos (adoptar)
+      if (compositeResult.habitPlan?.toAdopt) {
+        for (const h of compositeResult.habitPlan.toAdopt) {
+          checklistItems.push({
+            id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            description: h.habit || 'Nuevo hábito',
+            completed: false,
+            weekNumber: 1,
+            category: 'habit',
+            type: 'toAdopt',
+            isRecurring: true,
+            details: { trigger: h.trigger || undefined },
+          } as ChecklistItem);
+        }
+      }
+      if (compositeResult.habitPlan?.toEliminate) {
+        for (const h of compositeResult.habitPlan.toEliminate) {
+          checklistItems.push({
+            id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            description: h.habit ? (h.replacement ? `${h.habit} → ${h.replacement}` : h.habit) : 'Eliminar hábito',
+            completed: false,
+            weekNumber: 1,
+            category: 'habit',
+            type: 'toEliminate',
+            isRecurring: true,
+          } as ChecklistItem);
+        }
+      }
+
+      // Items de alternativas
+      if (compositeResult.alternatives) {
+        for (const alt of compositeResult.alternatives) {
+          const mealLabel = alt.meal || 'comida';
+          const recipeLabel = alt.recipe || 'receta';
+          checklistItems.push({
+            id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            description: `🔄 Alternativa - ${mealLabel}: ${recipeLabel}`,
+            completed: false,
+            weekNumber: 1,
+            category: 'nutrition',
+            type: 'alternativa',
+            notes: alt.description || '',
+            isRecurring: false,
+          });
+        }
+      }
+
+      // Construir weeks[] con los datos desencriptados
+      const shopList = compositeResult.nutritionPlan?.shoppingList || [];
+      const exerciseRoutine = compositeResult.exercisePlan?.weeklyRoutine || [];
+
+      const weeks = [{
+        weekNumber: 1,
+        nutrition: {
+          focus: encrypt(`Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`),
+          shoppingList: shopList.filter((item: { item?: string; quantity?: string }) => item?.item && item?.quantity).map((item: { item?: string; quantity?: string; priority?: string }) => ({
+            item: encrypt(item.item!),
+            quantity: encrypt(item.quantity!),
+            priority: item.priority || 'medium',
+          })),
+        },
+        exercise: {
+          focus: encrypt(compositeResult.exercisePlan?.notes || 'Rutina semanal'),
+          equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => encrypt(eq || '')),
+        },
+        habits: {
+          trackingMethod: compositeResult.habitPlan?.trackingMethod ? encrypt(compositeResult.habitPlan.trackingMethod) : undefined,
+          motivationTip: compositeResult.habitPlan?.motivationTip ? encrypt(compositeResult.habitPlan.motivationTip) : undefined,
+        },
+      }];
+
+      const encryptedSession = {
+        sessionId,
+        monthNumber,
+        totalWeeks: 12,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        status: 'draft',
+        summary: encrypt(compositeResult.clientInsights?.summary || ''),
+        vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+        baselineMetrics: {
+          currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
+          targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
+        },
+        weeks,
+        checklist: checklistItems,
+        regenerationCount: 0,
+        regenerationHistory: [],
+      };
+
+      const updateData: Record<string, unknown> = {
+        $set: {
+          updatedAt: new Date(),
+          'aiProgress': {
+            clientId: id,
+            currentSessionId: sessionId,
+            sessions: [encryptedSession],
+            overallProgress: 0,
+            lastEvaluation: new Date(),
+            nextEvaluation: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            metrics: {
+              nutritionAdherence: 0,
+              exerciseConsistency: 0,
+              habitFormation: 0,
+            },
+          },
+        },
+      };
+
+      await healthForms.updateOne(
+        { _id: new ObjectId(id) },
+        updateData
+      );
+
+      loggerWithContext.info('AI', 'Recomendaciones guardadas exitosamente', {
+        sessionId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          sessionId,
+          monthNumber,
+          status: 'completed',
+          message: 'Recomendaciones generadas exitosamente.',
+          clientId: id,
+          requestId,
+        },
+      });
 
     } catch (error: unknown) {
       const errorObj = error instanceof Error ? error : new Error('Unknown error');
@@ -1400,67 +1567,219 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       });
     }
 
-    // 5. Generar NUEVAS recomendaciones con la IA
-    loggerWithContext.info('AI_REGEN', '🤖 Llamando a IA para generar nuevas recomendaciones', {
+    // 5. Generar NUEVAS recomendaciones con generateCompositeRecommendation (NUEVA FORMA)
+    loggerWithContext.info('AI_REGEN', '🤖 Llamando a generateCompositeRecommendation', {
       monthNumber: existingSession.monthNumber,
       hasPreviousSessions: aiInput.previousSessions?.length || 0
     });
 
-    const newRecommendations = await AIService.analyzeClientAndGenerateRecommendations(
-      aiInput,
-      existingSession.monthNumber,
-      {
-        requestId,
-        clientId,
-        isRegeneration: true, // <-- Nuevo flag
-        previousSessionId: sessionId // <-- ID de la sesión anterior
-      }
-    );
+    const {
+      mentalHealth,
+      healthAssessment,
+      processedDocuments,
+    } = aiInput;
 
-    loggerWithContext.info('AI_REGEN', '✅ Nuevas recomendaciones generadas', {
-      newSessionId: newRecommendations.sessionId,
-      monthNumber: newRecommendations.monthNumber,
-      weekCount: newRecommendations.weeks?.length || 0,
-      summaryLength: newRecommendations.summary?.length || 0
+    const compositeResult = await generateCompositeRecommendation({
+      personalData: aiInput.personalData || {},
+      medicalData: aiInput.medicalData || {},
+      healthAssessment: healthAssessment || {},
+      mentalHealth: mentalHealth || {},
+      processedDocuments: (processedDocuments || []).map((d: any) => ({
+        title: d.title || '',
+        content: d.content || '',
+        documentType: d.documentType || 'other',
+        confidence: d.confidence || 0,
+      })),
+      previousSessions: aiInput.previousSessions || [],
+      coachNotes: aiInput.coachNotes || '',
+      monthNumber: existingSession.monthNumber,
     });
 
-    // 6. Actualizar la sesión en la base de datos (REEMPLAZAR)
-    // Mantener el mismo sessionId? O crear uno nuevo?
-    // Vamos a crear uno nuevo para mantener historial de regeneraciones
-    const updateData: any = {
-      $set: {
-        'aiProgress.sessions.$.sessionId': newRecommendations.sessionId, // Nuevo ID
-        'aiProgress.sessions.$.summary': newRecommendations.summary,
-        'aiProgress.sessions.$.vision': newRecommendations.vision,
-        'aiProgress.sessions.$.baselineMetrics': newRecommendations.baselineMetrics,
-        'aiProgress.sessions.$.weeks': newRecommendations.weeks,
-        'aiProgress.sessions.$.checklist': newRecommendations.checklist,
-        'aiProgress.sessions.$.status': 'draft', // Mantener en draft
-        'aiProgress.sessions.$.updatedAt': new Date(),
-        'aiProgress.sessions.$.regeneratedAt': new Date(),
-        'aiProgress.sessions.$.regenerationCount': (existingSession.regenerationCount || 0) + 1,
-        'aiProgress.currentSessionId': newRecommendations.sessionId,
-        'aiProgress.lastEvaluation': new Date(),
-        updatedAt: new Date()
-      }
+    loggerWithContext.info('AI_REGEN', '✅ Nuevas recomendaciones generadas con generateCompositeRecommendation', {
+      weekCount: compositeResult.nutritionPlan?.weeklyPlan?.length || 7,
+    });
+
+    // IDs de recetas y ejercicios encontrados en la DB
+    const recipeIds: Record<string, string> = compositeResult._recipeIds || {};
+    const exerciseIds: Record<string, string> = compositeResult._exerciseIds || {};
+
+    // 6. Construir nueva sesión (mismo formato que POST handler)
+    const newSessionId = `regen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const dayTranslations: Record<string, string> = {
+      Monday: 'Lunes', Tuesday: 'Martes', Wednesday: 'Miércoles',
+      Thursday: 'Jueves', Friday: 'Viernes', Saturday: 'Sábado', Sunday: 'Domingo'
     };
 
-    // Agregar notas del coach si las hay
-    if (coachNotes && coachNotes.trim().length > 0) {
-      updateData.$set['aiProgress.sessions.$.coachNotes'] = coachNotes;
-      updateData.$set['aiProgress.sessions.$.lastCoachNotes'] = coachNotes;
+    const newChecklistItems: ChecklistItem[] = [];
+
+    // Items de nutrición (desayuno/almuerzo/cena para cada día)
+    if (compositeResult.nutritionPlan?.weeklyPlan) {
+      for (const day of compositeResult.nutritionPlan.weeklyPlan) {
+        const dayName = dayTranslations[day.day] || day.day;
+        for (const meal of ['breakfast', 'lunch', 'dinner'] as const) {
+          const mealName = meal === 'breakfast' ? 'Desayuno' : meal === 'lunch' ? 'Almuerzo' : 'Cena';
+          const recipe = day[meal];
+          if (recipe) {
+            const recipeId = recipeIds[recipe] || '';
+            newChecklistItems.push({
+              id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              description: `${dayName} ${mealName}: ${recipe}`,
+              completed: false,
+              weekNumber: 1,
+              category: 'nutrition',
+              type: mealName.toLowerCase(),
+              recipeId,
+              details: recipeId ? undefined : { recipe: { ingredients: [], preparation: recipe } },
+              isRecurring: false,
+            } as ChecklistItem);
+          }
+        }
+      }
     }
 
-    // Agregar historial de regeneración
-    const regenerationHistory = {
-      timestamp: new Date(),
-      previousSessionId: existingSession.sessionId,
-      coachNotes: coachNotes || null,
-      triggeredBy: 'coach'
+    // Items de ejercicios
+    if (compositeResult.exercisePlan?.weeklyRoutine) {
+      for (const day of compositeResult.exercisePlan.weeklyRoutine) {
+        const dayName = dayTranslations[day.day] || day.day;
+        if (day.exercises) {
+          for (const ex of day.exercises) {
+            const exerciseId = exerciseIds[ex.name] || '';
+            newChecklistItems.push({
+              id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              description: `${dayName}: ${ex.name}`,
+              completed: false,
+              weekNumber: 1,
+              category: 'exercise',
+              type: 'ejercicio',
+              recipeId: exerciseId,
+              details: {
+                duration: `${ex.sets || 3} series x ${ex.repetitions || '12'} reps`,
+                equipment: compositeResult.exercisePlan?.equipment,
+                frequency: day.day,
+              },
+              isRecurring: false,
+            } as ChecklistItem);
+          }
+        }
+      }
+    }
+
+    // Items de hábitos (adoptar)
+    if (compositeResult.habitPlan?.toAdopt) {
+      for (const h of compositeResult.habitPlan.toAdopt) {
+        newChecklistItems.push({
+          id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          description: h.habit || 'Nuevo hábito',
+          completed: false,
+          weekNumber: 1,
+          category: 'habit',
+          type: 'toAdopt',
+          isRecurring: true,
+          details: { trigger: h.trigger || undefined },
+        } as ChecklistItem);
+      }
+    }
+
+    // Items de hábitos (eliminar)
+    if (compositeResult.habitPlan?.toEliminate) {
+      for (const h of compositeResult.habitPlan.toEliminate) {
+        newChecklistItems.push({
+          id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          description: h.habit ? (h.replacement ? `${h.habit} → ${h.replacement}` : h.habit) : 'Eliminar hábito',
+          completed: false,
+          weekNumber: 1,
+          category: 'habit',
+          type: 'toEliminate',
+          isRecurring: true,
+        } as ChecklistItem);
+      }
+    }
+
+    // Items de alternativas
+    if (compositeResult.alternatives) {
+      for (const alt of compositeResult.alternatives) {
+        newChecklistItems.push({
+          id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          description: `🔄 Alternativa - ${alt.meal}: ${alt.recipe}`,
+          completed: false,
+          weekNumber: 1,
+          category: 'nutrition',
+          type: 'alternativa',
+          notes: alt.description || '',
+          isRecurring: false,
+        } as ChecklistItem);
+      }
+    }
+
+    // Construir weeks[] con datos encriptados
+    const shopList = compositeResult.nutritionPlan?.shoppingList || [];
+    const newWeeks = [{
+      weekNumber: 1 as const,
+      nutrition: {
+        focus: encrypt(`Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`),
+        shoppingList: shopList.filter((item: any) => item?.item && item?.quantity).map((item: any) => ({
+          item: encrypt(item.item!),
+          quantity: encrypt(item.quantity!),
+          priority: item.priority || 'medium',
+        })),
+      },
+      exercise: {
+        focus: encrypt(compositeResult.exercisePlan?.notes || 'Rutina de ejercicios'),
+        equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => encrypt(eq || '')),
+      },
+      habits: {
+        trackingMethod: compositeResult.habitPlan?.trackingMethod ? encrypt(compositeResult.habitPlan.trackingMethod) : undefined,
+        motivationTip: compositeResult.habitPlan?.motivationTip ? encrypt(compositeResult.habitPlan.motivationTip) : undefined,
+      },
+    }];
+
+    // Construir objeto de sesión completo (mismo formato que POST handler)
+    const newSession: AIRecommendationSession = {
+      sessionId: newSessionId,
+      monthNumber: existingSession.monthNumber,
+      totalWeeks: 12,
+      createdAt: existingSession.createdAt,
+      updatedAt: new Date(),
+      status: 'draft',
+      summary: encrypt(compositeResult.clientInsights?.summary || ''),
+      vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+      baselineMetrics: {
+        currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
+        targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
+      },
+      weeks: newWeeks,
+      checklist: newChecklistItems,
+      coachNotes: (coachNotes && coachNotes.trim().length > 0) ? coachNotes : (existingSession.coachNotes || undefined),
+      lastCoachNotes: (coachNotes && coachNotes.trim().length > 0) ? coachNotes : undefined,
+      regenerationCount: (existingSession.regenerationCount || 0) + 1,
+      regenerationHistory: [
+        ...(existingSession.regenerationHistory || []),
+        {
+          timestamp: new Date(),
+          previousSessionId: existingSession.sessionId,
+          coachNotes: coachNotes || null,
+          triggeredBy: 'coach',
+        }
+      ],
+      regeneratedAt: new Date(),
     };
 
-    updateData.$push = {
-      'aiProgress.sessions.$.regenerationHistory': regenerationHistory
+    loggerWithContext.info('AI_REGEN', '✅ Nueva sesión construida y guardando en BD', {
+      newSessionId,
+      monthNumber: existingSession.monthNumber,
+      weekCount: newWeeks.length,
+      checklistItemCount: newChecklistItems.length,
+    });
+
+    // 7. Actualizar la sesión en la base de datos (REEMPLAZAR)
+    const updateData: Record<string, Record<string, unknown> | Date> = {
+      $set: {
+        'aiProgress.sessions.$': newSession,
+        'aiProgress.currentSessionId': newSessionId,
+        'aiProgress.lastEvaluation': new Date(),
+        updatedAt: new Date(),
+      }
     };
 
     const result = await healthForms.updateOne(
@@ -1475,13 +1794,13 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       matchedCount: result.matchedCount,
       modifiedCount: result.modifiedCount,
       oldSessionId: sessionId,
-      newSessionId: newRecommendations.sessionId
+      newSessionId: newSessionId
     });
 
     if (result.modifiedCount > 0) {
       loggerWithContext.info('AI_REGEN', '🎉 Regeneración completada exitosamente', {
         oldSessionId: sessionId,
-        newSessionId: newRecommendations.sessionId,
+        newSessionId: newSessionId,
         monthNumber: existingSession.monthNumber,
         regenerationNumber: (existingSession.regenerationCount || 0) + 1
       });

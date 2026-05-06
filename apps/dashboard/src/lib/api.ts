@@ -493,7 +493,7 @@ export const apiClient = {
     }
   },
 
-  updateAIChecklist: async (
+  updateSessionItems: async (
     clientId: string,
     sessionId: string,
     checklistItems: ChecklistItem[]
@@ -521,7 +521,7 @@ export const apiClient = {
       return responseData as ApiResponse<unknown>;
 
     } catch (error) {
-      console.error('💥 Error en updateAIChecklist:', error);
+      console.error('💥 Error en updateSessionItems:', error);
       if (error instanceof Error) {
         throw error;
       }

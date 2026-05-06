@@ -79,12 +79,32 @@ export function robustJsonParse<T>(raw: string): T {
   // 3. Cualquier bloque ```
   const anyBlock = trimmed.match(/```\s*[\n\r]([\s\S]*?)\n?\s*```/);
   if (anyBlock) try { return JSON.parse(anyBlock[1].trim()) as T; } catch { /* continuar */ }
-  // 4. Primer objeto {} de la respuesta
-  const objMatch = trimmed.match(/\{[\s\S]*\}/);
-  if (objMatch) try { return JSON.parse(objMatch[0]) as T; } catch { /* continuar */ }
-  // 5. Primer array []
-  const arrMatch = trimmed.match(/\[[\s\S]*\]/);
-  if (arrMatch) try { return JSON.parse(arrMatch[0]) as T; } catch { /* continuar */ }
+  // 4. Buscar { ... } balanceando (más robusto que regex greedy)
+  const firstBrace = trimmed.indexOf('{');
+  if (firstBrace !== -1) {
+    let depth = 0;
+    let start = -1;
+    for (let i = firstBrace; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (ch === '{') { if (depth === 0) start = i; depth++; }
+      else if (ch === '}') { depth--; if (depth === 0 && start !== -1) {
+        try { return JSON.parse(trimmed.slice(start, i + 1)) as T; } catch { start = -1; }
+      }}
+    }
+  }
+  // 5. Buscar [ ... ] balanceando
+  const firstBracket = trimmed.indexOf('[');
+  if (firstBracket !== -1) {
+    let depth = 0;
+    let start = -1;
+    for (let i = firstBracket; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (ch === '[') { if (depth === 0) start = i; depth++; }
+      else if (ch === ']') { depth--; if (depth === 0 && start !== -1) {
+        try { return JSON.parse(trimmed.slice(start, i + 1)) as T; } catch { start = -1; }
+      }}
+    }
+  }
   throw new Error(`Unexpected non-whitespace character after JSON at position ${raw.length}`);
 }
 export async function invokeWithTools(

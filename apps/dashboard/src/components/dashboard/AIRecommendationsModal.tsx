@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import React from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, Exercise } from '@/lib/api';
 import RecipeSearchModal from './RecipeSearchModal';
+import ExerciseSearchModal from './ExerciseSearchModal';
 import SimpleItemModal from './SimpleItemModal';
 import RecipeDetailModal from './RecipeDetailModal';
+import ExerciseDetailModal from './ExerciseDetailModal';
 import AIRecipeEditModal, { AIRecipeData } from './AIRecipeEditModal';
 import OriginPin from './OriginPin';
 import SessionScheduler from './SessionScheduler';
@@ -264,8 +266,11 @@ export default function AIRecommendationsModal({
 
   // ===== ESTADOS PARA MODALES DE EDICIÓN =====
   const [showRecipeSearch, setShowRecipeSearch] = useState(false);
+  const [showExerciseSearch, setShowExerciseSearch] = useState(false);
   const [searchCategory, setSearchCategory] = useState<'nutrition' | 'exercise' | 'habit'>('nutrition');
   const [searchWeek, setSearchWeek] = useState<number>(1);
+  const [searchDay, setSearchDay] = useState<string>('');
+  const [searchMeal, setSearchMeal] = useState<string>('');
   const [editingItem, setEditingItem] = useState<{
     item: ChecklistItem;
     weekNumber: number;
@@ -274,6 +279,9 @@ export default function AIRecommendationsModal({
   const [showEditItemModal, setShowEditItemModal] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeWithDetails | null>(null);
   const [showRecipeDetail, setShowRecipeDetail] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [showExerciseDetail, setShowExerciseDetail] = useState(false);
+  const [exerciseCache, setExerciseCache] = useState<Record<string, Exercise>>({});
   const [editingAIRecipe, setEditingAIRecipe] = useState<{
     item: ChecklistItem;
     weekNumber: number;
@@ -556,7 +564,7 @@ export default function AIRecommendationsModal({
     );
 
     try {
-      const response = await apiClient.updateAIChecklist(clientId, sessionId, updatedChecklist);
+      const response = await apiClient.updateSessionItems(clientId, sessionId, updatedChecklist);
       if (
         response.success &&
         response.data &&
@@ -588,7 +596,7 @@ export default function AIRecommendationsModal({
     })));
     if (!aiProgress) return;
     try {
-      const response = await apiClient.updateAIChecklist(clientId, sessionId, updatedChecklist);
+      const response = await apiClient.updateSessionItems(clientId, sessionId, updatedChecklist);
       if (response.success && (response.data as { session?: AIRecommendationSession }).session) {
         const sessionData = (response.data as { session: AIRecommendationSession }).session;
         setAiProgress(prev => {
@@ -782,7 +790,7 @@ export default function AIRecommendationsModal({
     const updatedChecklist = activeSession.checklist.filter(i => i.id !== itemId);
 
     try {
-      const response = await apiClient.updateAIChecklist(clientId, activeSession.sessionId, updatedChecklist);
+      const response = await apiClient.updateSessionItems(clientId, activeSession.sessionId, updatedChecklist);
       if (
         response.success &&
         response.data &&
@@ -837,15 +845,23 @@ export default function AIRecommendationsModal({
       };
     } else if (searchCategory === 'exercise') {
       const exerciseData = data as NewExerciseItemData;
+      // Inherit searchDay into details.frequency if not provided
+      const dayForItem = searchDay || exerciseData.details?.frequency;
+      const descriptionWithDay = dayForItem && !exerciseData.description.startsWith(dayForItem)
+        ? `${dayForItem}: ${exerciseData.description}`
+        : exerciseData.description;
       newItem = {
         id: newItemId,
         groupId: undefined,
-        description: exerciseData.description,
+        description: descriptionWithDay,
         completed: false,
         weekNumber: week,
         category: 'exercise',
         type: exerciseData.type,
-        details: exerciseData.details,
+        details: {
+          ...exerciseData.details,
+          frequency: dayForItem || exerciseData.details?.frequency,
+        },
         isRecurring: false,
         updatedAt: new Date(),
       };
@@ -873,7 +889,7 @@ export default function AIRecommendationsModal({
     const updatedChecklist = [...session.checklist, newItem];
 
     try {
-      const response = await apiClient.updateAIChecklist(clientId, activeSession.sessionId, updatedChecklist);
+      const response = await apiClient.updateSessionItems(clientId, activeSession.sessionId, updatedChecklist);
       if (
         response.success &&
         response.data &&
@@ -1373,7 +1389,7 @@ export default function AIRecommendationsModal({
                         {item.details.recipe.ingredients.map((ingredient, idx) => (
                           <li key={idx} className="text-sm text-gray-600 break-words">
                             <span className="font-medium">{ingredient.name}</span>: {ingredient.quantity}
-                            {ingredient.notes && <span className="text-gray-500 text-xs ml-2">({ingredient.notes})</span>}
+                            {ingredient.notes && <span className="text-gray-700 text-xs ml-2">({ingredient.notes})</span>}
                           </li>
                         ))}
                       </ul>
@@ -1701,7 +1717,7 @@ export default function AIRecommendationsModal({
                 </div>
               )}
               {week.habits.trackingMethod && (
-                <p className="text-xs text-gray-500 mt-2">📋 <span className="font-medium">Método de seguimiento:</span> {week.habits.trackingMethod}</p>
+                 <p className="text-xs text-gray-700 mt-2">📋 <span className="font-medium">Método de seguimiento:</span> {week.habits.trackingMethod}</p>
               )}
             </div>
           </div>
@@ -1842,7 +1858,7 @@ export default function AIRecommendationsModal({
                   <p className="text-red-700 text-sm">Error: {uploadError}</p>
                 </div>
               )}
-               <p className="text-gray-500 text-sm mt-4">Formatos aceptados: .txt (texto plano), .json (estructura de sesión AI), .doc/.docx (documento Word) o .pdf (documento PDF)</p>
+                <p className="text-gray-700 text-sm mt-4">Formatos aceptados: .txt (texto plano), .json (estructura de sesión AI), .doc/.docx (documento Word) o .pdf (documento PDF)</p>
             </div>
           ) : !activeSession ? (
              <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión seleccionada</p></div>
@@ -1897,9 +1913,9 @@ export default function AIRecommendationsModal({
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed p-3 bg-gray-50 rounded-lg border border-gray-100">
-                          {activeSession.summary}
-                        </p>
+                      <p className="text-sm md:text-base text-gray-900 whitespace-pre-line leading-relaxed p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        {activeSession.summary}
+                      </p>
                       )}
                     </div>
                   </div>
@@ -1948,7 +1964,7 @@ export default function AIRecommendationsModal({
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-sm md:text-base text-gray-900 whitespace-pre-line leading-relaxed p-3 bg-gray-50 rounded-lg border border-gray-100">
                           {activeSession.vision}
                         </p>
                       )}
@@ -1977,125 +1993,151 @@ export default function AIRecommendationsModal({
                 </div>
                 {expandedMonths.includes('accordion-nutrition') && activeSession.weeks.length > 0 && (
                   <div className="p-4 space-y-6">
-                    {/* Tabla semanal de comidas */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="bg-green-50">
-                            <th className="border border-green-200 p-2 text-left w-16">Sem.</th>
-                            <th className="border border-green-200 p-2 text-left">Comida</th>
-                            <th className="border border-green-200 p-2 text-left">Receta</th>
-                            <th className="border border-green-200 p-2 text-center w-16">⏱</th>
-                            <th className="border border-green-200 p-2 text-center w-16">Nivel</th>
-                            <th className="border border-green-200 p-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeSession.weeks.map((week, wi) => {
-                            const weekRecipes = activeSession.checklist.filter(
-                              item => item.category === 'nutrition' && item.weekNumber === week.weekNumber
-                            );
-                            const meals = ['desayuno', 'almuerzo', 'cena'];
-                            return meals.map((mealType, mi) => {
-                              const mealRecipes = weekRecipes.filter(r => r.type === mealType);
-                              const hasItems = mealRecipes.length > 0;
-                              return (
-                                <React.Fragment key={`${wi}-${mi}`}>
-                                  {hasItems ? mealRecipes.map((item, ri) => (
-                                    <tr key={ri} className="hover:bg-green-50/50 group">
-                                      {ri === 0 && mi === 0 && (
-                                        <td className="border border-green-200 p-2 font-medium bg-green-50" rowSpan={meals.length * (weekRecipes.length || 1)}>
-                                          Sem {week.weekNumber}
-                                        </td>
-                                      )}
-                                      {ri === 0 && (
-                                        <td className="border border-green-200 p-2 text-xs font-semibold capitalize bg-green-50/30">
-                                          {mealType === 'desayuno' ? '🌅' : mealType === 'almuerzo' ? '☀️' : '🌙'} {mealType}
-                                        </td>
-                                      )}
-                                      <td className="border border-green-200 p-2">
-                                        <div className="relative group/tooltip">
-                                          <button
-                                            onClick={async () => {
-                                              if (item.recipeId) {
-                                                try {
-                                                  const res = await apiClient.getRecipe(item.recipeId);
-                                                  if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
-                                                } catch { /* fallback */ }
-                                              }
-                                            }}
-                                            className="text-left hover:text-green-700 hover:underline cursor-pointer font-medium"
-                                          >
-                                            {item.description}
-                                          </button>
-                                          {/* Tooltip hover */}
-                                          {item.details?.recipe && (
-                                            <div className="absolute z-50 left-0 bottom-full mb-2 hidden group-hover/tooltip:block bg-white border border-gray-300 rounded-lg shadow-xl p-3 w-72">
-                                              <p className="text-xs font-bold text-gray-800 mb-1">{item.description}</p>
-                                              {item.details.recipe.preparation && (
-                                                <p className="text-xs text-gray-500 line-clamp-2">{item.details.recipe.preparation}</p>
-                                              )}
-                                              {item.recipeId && (
-                                                <p className="text-xs text-green-600 mt-1 cursor-pointer hover:underline"
-                                                  onClick={() => {
-                                                    apiClient.getRecipe(item.recipeId!).then(res => {
-                                                      if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
-                                                    }).catch(() => {});
-                                                  }}
-                                                >🔍 Ver detalles completos</p>
-                                              )}
-                                            </div>
-                                          )}
+                    {/* Tarjetas de recetas: Columnas por día fijo Lunes→Domingo */}
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                      {activeSession.weeks.map((week) => {
+                        const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                        const meals = ['desayuno', 'almuerzo', 'cena'] as const;
+                        const mealIcons: Record<string, string> = { desayuno: '🌅', almuerzo: '☀️', cena: '🌙' };
+                        const mealLabels: Record<string, string> = { desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena' };
+                        const nutritionItems = activeSession.checklist.filter(
+                          item => item.category === 'nutrition' && item.weekNumber === week.weekNumber
+                        );
+
+                        return dayOrder.map((day) => (
+                          <div key={day} className="flex-shrink-0 w-36 flex flex-col">
+                            {/* Day header */}
+                            <div className="bg-green-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">{day}</div>
+                            {/* Meal cards */}
+                            <div className="bg-green-50 rounded-b-lg border border-green-200 border-t-0 p-1.5 space-y-1.5 min-h-[60px]">
+                              {meals.map((mealType) => {
+                                const item = nutritionItems.find(it => it.description.startsWith(day) && it.type === mealType);
+                                const recipeName = item ? item.description.split(': ').slice(1).join(': ') : '';
+                                return (
+                                  <div
+                                    key={`${day}-${mealType}`}
+                                    className={`group/nut relative rounded-lg border p-1.5 shadow-sm transition-all ${
+                                      item
+                                        ? 'bg-white border-green-200 hover:shadow-md cursor-pointer cursor-grab active:cursor-grabbing'
+                                        : 'bg-green-50/50 border-dashed border-green-300 min-h-[64px] flex flex-col items-center justify-center'
+                                    }`}
+                                    draggable={!!item && activeSession.status === 'draft'}
+                                    onDragStart={(e) => {
+                                      if (!item) return;
+                                      e.dataTransfer.setData('application/nutrition-drag', JSON.stringify({ day, mealType, itemId: item.id }));
+                                      e.currentTarget.classList.add('opacity-50');
+                                    }}
+                                    onDragEnd={(e) => { e.currentTarget.classList.remove('opacity-50'); }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      (e.currentTarget as HTMLElement).classList.add('ring-2', 'ring-green-400');
+                                    }}
+                                    onDragLeave={(e) => {
+                                      (e.currentTarget as HTMLElement).classList.remove('ring-2', 'ring-green-400');
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      (e.currentTarget as HTMLElement).classList.remove('ring-2', 'ring-green-400');
+                                      try {
+                                        const dragData = JSON.parse(e.dataTransfer.getData('application/nutrition-drag'));
+                                        if (!dragData?.itemId || !activeSession) return;
+                                        const sourceItem = nutritionItems.find(it => it.id === dragData.itemId);
+                                        if (!sourceItem || (dragData.day === day && dragData.mealType === mealType)) return;
+                                        const targetItem = nutritionItems.find(it => it.description.startsWith(day) && it.type === mealType);
+                                        // Swap descriptions and details
+                                        const updatedItems = activeSession.checklist.map(ci => {
+                                          if (ci.id === sourceItem.id) {
+                                            // Move source to target position
+                                            return {
+                                              ...ci,
+                                              description: targetItem
+                                                ? targetItem.description
+                                                : `${day} ${mealLabels[mealType]}: ${sourceItem.description.split(': ').slice(1).join(': ') || sourceItem.description}`,
+                                              type: mealType,
+                                            };
+                                          }
+                                          if (targetItem && ci.id === targetItem.id) {
+                                            // Move target to source position
+                                            return {
+                                              ...ci,
+                                              description: `${dragData.day} ${mealLabels[dragData.mealType as string]}: ${targetItem.description.split(': ').slice(1).join(': ') || targetItem.description}`,
+                                              type: dragData.mealType,
+                                            };
+                                          }
+                                          return ci;
+                                        });
+                                        apiClient.updateSessionItems(clientId, activeSession.sessionId, updatedItems).then((res) => {
+                                          if (res?.success && res?.data && typeof res.data === 'object' && res.data !== null && 'session' in res.data) {
+                                            setAiProgress(prev => prev ? { ...prev, sessions: prev.sessions.map(s => s.sessionId === activeSession.sessionId ? (res.data as { session: AIRecommendationSession }).session : s) } : prev);
+                                          }
+                                        }).catch(() => {});
+                                      } catch { /* ignore parse errors */ }
+                                    }}
+                                  >
+                                    {item ? (
+                                      <>
+                                        {/* Delete on hover */}
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                          className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/nut:opacity-100 transition-opacity text-[10px] z-10"
+                                          title="Eliminar"
+                                        >✕</button>
+                                        {/* Image placeholder */}
+                                        <div
+                                          onClick={async () => {
+                                            if (item.recipeId) {
+                                              try {
+                                                const res = await apiClient.getRecipe(item.recipeId);
+                                                if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                              } catch { /* fallback */ }
+                                            }
+                                          }}
+                                          className="w-full h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded mb-1 flex items-center justify-center text-green-400 text-lg overflow-hidden"
+                                        >
+                                          <span>🍳</span>
                                         </div>
-                                      </td>
-                                      <td className="border border-green-200 p-2 text-center text-xs">
-                                        {item.details?.recipe?.preparation ? '~30 min' : '-'}
-                                      </td>
-                                      <td className="border border-green-200 p-2 text-center">
-                                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                                          item.type === 'easy' ? 'bg-green-100 text-green-700' :
-                                          item.type === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                          'bg-green-100 text-green-700'
-                                        }`}>{item.type || 'easy'}</span>
-                                      </td>
-                                      <td className="border border-green-200 p-2">
+                                        {/* Meal label + recipe name */}
+                                        <p className="text-[10px] font-semibold text-gray-900 line-clamp-1 leading-snug mb-0.5">
+                                          {mealIcons[mealType]} {mealLabels[mealType]}
+                                        </p>
+                                        <p
+                                          onClick={async () => {
+                                            if (item.recipeId) {
+                                              try {
+                                                const res = await apiClient.getRecipe(item.recipeId);
+                                                if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                              } catch { /* fallback */ }
+                                            }
+                                          }}
+                                          className="text-[11px] text-gray-800 line-clamp-2 leading-snug hover:text-green-700 hover:underline cursor-pointer"
+                                        >
+                                          {recipeName}
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <p className="text-[10px] font-semibold text-gray-500 mb-1">
+                                          {mealIcons[mealType]} {mealLabels[mealType]}
+                                        </p>
+                                        <span className="text-[10px] text-gray-400 italic">Vacío</span>
                                         {activeSession.status === 'draft' && (
                                           <button
-                                            onClick={() => handleDeleteItem(item.id)}
-                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-                                            title="Eliminar receta"
-                                          >✕</button>
+                                            onClick={() => { setSearchDay(day); setSearchMeal(mealType); setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
+                                            className="mt-1 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-[10px]"
+                                            title="Agregar receta"
+                                          >+</button>
                                         )}
-                                      </td>
-                                    </tr>
-                                  )) : (
-                                    <tr>
-                                      {mi === 0 && (
-                                        <td className="border border-green-200 p-2 font-medium bg-green-50" rowSpan={3}>Sem {week.weekNumber}</td>
-                                      )}
-                                      <td className="border border-green-200 p-2 text-xs font-semibold capitalize bg-green-50/30">
-                                        {mealType === 'desayuno' ? '🌅' : mealType === 'almuerzo' ? '☀️' : '🌙'} {mealType}
-                                      </td>
-                                      <td className="border border-green-200 p-2" colSpan={3}>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-gray-400 italic">Sin receta asignada</span>
-                                          {activeSession.status === 'draft' && (
-                                            <button
-                                              onClick={() => { setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
-                                              className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-sm"
-                                              title="Agregar receta"
-                                            >+</button>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
-                              );
-                            });
-                          })}
-                        </tbody>
-                      </table>
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ));
+                      })}
                     </div>
 
                     {/* Lista de compras semanal */}
@@ -2123,7 +2165,7 @@ export default function AIRecommendationsModal({
                                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                                       item.priority === 'high' ? 'bg-red-400' : item.priority === 'medium' ? 'bg-yellow-400' : 'bg-green-400'
                                     }`} />
-                                    <span>{item.item} <span className="text-gray-400">({item.quantity})</span></span>
+                                    <span>{item.item} <span className="text-gray-600">({item.quantity})</span></span>
                                   </div>
                                 ))}
                               </div>
@@ -2144,7 +2186,7 @@ export default function AIRecommendationsModal({
                           .map((item, ai) => (
                             <div key={ai} className="flex-shrink-0 bg-white rounded-lg border border-amber-200 p-2 w-40 text-xs">
                               <p className="font-medium text-amber-800 truncate">{item.description}</p>
-                              <p className="text-gray-400 mt-0.5">Alternativa</p>
+                              <p className="text-gray-600 mt-0.5">Alternativa</p>
                             </div>
                           ))}
                         {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && (
@@ -2155,7 +2197,7 @@ export default function AIRecommendationsModal({
                   </div>
                 )}
                 {expandedMonths.includes('accordion-nutrition') && activeSession.weeks.length === 0 && (
-                  <div className="p-6 text-center text-gray-500">Sin datos de nutrición para esta sesión.</div>
+                    <div className="p-6 text-center text-gray-700">Sin datos de nutrición para esta sesión.</div>
                 )}
               </div>
 
@@ -2176,64 +2218,223 @@ export default function AIRecommendationsModal({
                   </svg>
                 </div>
                 {expandedMonths.includes('accordion-exercise') && activeSession.weeks.length > 0 && (
-                  <div className="p-4 overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-blue-50">
-                          <th className="border border-blue-200 p-2 text-left w-24">Semana</th>
-                          <th className="border border-blue-200 p-2 text-left">Día</th>
-                          <th className="border border-blue-200 p-2 text-left">Ejercicio</th>
-                          <th className="border border-blue-200 p-2 text-center">Series</th>
-                          <th className="border border-blue-200 p-2 text-center">Reps</th>
-                          <th className="border border-blue-200 p-2 text-center">TUT</th>
-                          <th className="border border-blue-200 p-2 text-left">Progresión</th>
-                          <th className="border border-blue-200 p-2 text-left">Equipo</th>
-                          <th className="border border-blue-200 p-2 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeSession.weeks.map((week, wi) => (
+                  <div className="p-4">
+                    {/* Tarjetas de ejercicios: Columnas por día fijo Lunes→Domingo */}
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                      {activeSession.weeks.map((week, wi) => {
+                        const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                        const dayMapEN: Record<string, string> = { Lunes: 'Monday', Martes: 'Tuesday', Miércoles: 'Wednesday', Jueves: 'Thursday', Viernes: 'Friday', Sábado: 'Saturday', Domingo: 'Sunday' };
+                        const exerciseItems = activeSession.checklist.filter(
+                          item => item.category === 'exercise' && item.weekNumber === week.weekNumber
+                        );
+                        // Group items by day
+                        const byDay: Record<string, typeof exerciseItems> = {};
+                        exerciseItems.forEach(item => {
+                          let day = item.details?.frequency || '';
+                          if (!day) {
+                            const match = item.description?.match(/^(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/);
+                            day = match ? match[1] : '';
+                          } else {
+                            day = Object.entries(dayMapEN).find(([, en]) => en === day)?.[0] || day;
+                          }
+                          if (day) { byDay[day] = byDay[day] || []; byDay[day].push(item); }
+                        });
+
+                        return (
                           <React.Fragment key={wi}>
-                            <tr className="bg-blue-50">
-                              <td className="border border-blue-200 p-2 font-medium" rowSpan={1}>Sem {week.weekNumber}</td>
-                              <td className="border border-blue-200 p-2 italic text-gray-500" colSpan={8}>{week.exercise.focus}</td>
-                            </tr>
-                            {activeSession.checklist
-                              .filter(item => item.category === 'exercise' && item.weekNumber === week.weekNumber)
-                              .map((item, ei) => (
-                                <tr key={ei} className="hover:bg-blue-50 group">
-                                  <td className="border border-blue-200"></td>
-                                  <td className="border border-blue-200 p-2">{item.details?.frequency || 'L/M/V'}</td>
-                                  <td className="border border-blue-200 p-2">
-                                    <div className="relative">
-                                      <span className="cursor-help font-medium text-blue-700">{item.description}</span>
-                                      {/* Tooltip hover */}
-                                      <div className="absolute z-50 left-0 bottom-full mb-2 hidden group-hover:block bg-white border border-gray-300 rounded-lg shadow-xl p-3 w-64">
-                                        <p className="text-xs font-bold text-gray-800 mb-1">{item.description}</p>
-                                        {item.details?.duration && <p className="text-xs text-gray-600">⏱ {item.details.duration}</p>}
-                                        {item.details?.equipment && <p className="text-xs text-gray-600">🎒 {item.details.equipment.join(', ')}</p>}
+                            {dayOrder.map((day, idx) => {
+                              const items = byDay[day] || [];
+                              return (
+                                <div
+                                  key={day}
+                                  className="flex-shrink-0 w-36 flex flex-col group/col"
+                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-blue-400'); }}
+                                  onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-blue-400'); }}
+                                  onDrop={(e) => {
+                                    e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
+                                    const dragId = e.dataTransfer.getData('text/plain');
+                                    if (!dragId || !activeSession) return;
+                                    const draggedItem = exerciseItems.find(it => it.id === dragId);
+                                    if (!draggedItem) return;
+                                    // Only handle if dropping on empty area (card drops are handled by card onDrop with stopPropagation)
+                                    // Move item to this day and append at end
+                                    const otherItems = exerciseItems.filter(it => it.id !== dragId);
+                                    const updatedDragged = {
+                                      ...draggedItem,
+                                      description: draggedItem.description.replace(/^(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/, day),
+                                      details: { ...draggedItem.details, frequency: day },
+                                    };
+                                    otherItems.push(updatedDragged);
+                                    // Rebuild full checklist with NEW order
+                                    const nonExerciseItems = activeSession.checklist.filter(ci => ci.category !== 'exercise');
+                                    const firstExIdx = activeSession.checklist.findIndex(ci => ci.category === 'exercise');
+                                    const insertPos = firstExIdx >= 0 ? firstExIdx : nonExerciseItems.length;
+                                    const allItems = [...nonExerciseItems];
+                                    allItems.splice(insertPos, 0, ...otherItems);
+                                    apiClient.updateSessionItems(clientId, activeSession.sessionId, allItems).then((res) => {
+                                      if (res?.success && res?.data && typeof res.data === 'object' && res.data !== null && 'session' in res.data) {
+                                        const sessionData = (res.data as { session: AIRecommendationSession }).session;
+                                        setAiProgress(prev => prev ? { ...prev, sessions: prev.sessions.map(s => s.sessionId === activeSession.sessionId ? sessionData : s) } : prev);
+                                      }
+                                    }).catch(() => {});
+                                  }}
+                                >
+                                  {/* Day header */}
+                                  <div className="bg-blue-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">
+                                    {day}
+                                  </div>
+                                  {/* Exercise cards */}
+                                  <div className="relative bg-blue-50 rounded-b-lg border border-blue-200 border-t-0 p-1.5 space-y-1.5 min-h-[60px]">
+                                    {items.map((item, ei) => (
+                                      <div
+                                        key={item.id}
+                                        draggable={activeSession.status === 'draft'}
+                                        onDragStart={(e) => {
+                                          e.dataTransfer.setData('text/plain', item.id);
+                                          e.currentTarget.classList.add('opacity-50');
+                                        }}
+                                        onDragEnd={(e) => { e.currentTarget.classList.remove('opacity-50'); }}
+                                        onDragOver={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          (e.currentTarget as HTMLElement).classList.add('border-t-2', 'border-blue-500', '-mt-0.5');
+                                        }}
+                                        onDragLeave={(e) => {
+                                          (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-blue-500', '-mt-0.5');
+                                        }}
+                                        onDrop={(e) => {
+                                          e.stopPropagation();
+                                          (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-blue-500', '-mt-0.5');
+                                          const dragId = e.dataTransfer.getData('text/plain');
+                                          if (!dragId || !activeSession) return;
+                                          // Find dragged item in all exercise items
+                                          const draggedItem = exerciseItems.find(it => it.id === dragId);
+                                          if (!draggedItem || item.id === dragId) return;
+                                          // Create new ordered list
+                                          const allExerciseItems = [...exerciseItems];
+                                          const dragIdx = allExerciseItems.findIndex(it => it.id === dragId);
+                                          if (dragIdx === -1) return;
+                                          const [dragged] = allExerciseItems.splice(dragIdx, 1);
+                                          // Update dragged item's day to target day
+                                          const updatedDragged = {
+                                            ...dragged,
+                                            description: dragged.description.replace(/^(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/, day),
+                                            details: { ...dragged.details, frequency: day },
+                                          };
+                                          // Find insert position for target item in the updated array (after removing dragged)
+                                          let insertIdx = allExerciseItems.findIndex(it => it.id === item.id);
+                                          if (insertIdx === -1) insertIdx = allExerciseItems.length;
+                                          allExerciseItems.splice(insertIdx, 0, updatedDragged);
+                                          // Rebuild full checklist with NEW order
+                                          const nonExerciseItems = activeSession.checklist.filter(ci => ci.category !== 'exercise');
+                                          const firstExIdx = activeSession.checklist.findIndex(ci => ci.category === 'exercise');
+                                          const insertPos = firstExIdx >= 0 ? firstExIdx : nonExerciseItems.length;
+                                          const allItems = [...nonExerciseItems];
+                                          allItems.splice(insertPos, 0, ...allExerciseItems);
+                                          apiClient.updateSessionItems(clientId, activeSession.sessionId, allItems).then((res) => {
+                                            if (res?.success && res?.data && typeof res.data === 'object' && res.data !== null && 'session' in res.data) {
+                                              const sessionData = (res.data as { session: AIRecommendationSession }).session;
+                                              setAiProgress(prev => prev ? { ...prev, sessions: prev.sessions.map(s => s.sessionId === activeSession.sessionId ? sessionData : s) } : prev);
+                                            }
+                                          }).catch(() => {});
+                                        }}
+                                        className="group/ex relative bg-white rounded-lg border border-blue-200 p-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer cursor-grab active:cursor-grabbing"
+                                      >
+                                        {/* Delete on hover */}
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                          className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/ex:opacity-100 transition-opacity text-[10px] z-10"
+                                          title="Eliminar"
+                                        >✕</button>
+                                        {/* Image placeholder */}
+                                        <div
+                                          onClick={async () => {
+                                            if (item.recipeId) {
+                                              // Check cache first
+                                              if (exerciseCache[item.recipeId]) {
+                                                setSelectedExercise(exerciseCache[item.recipeId]);
+                                                setShowExerciseDetail(true);
+                                                return;
+                                              }
+                                              try {
+                                                const res = await apiClient.getExercises();
+                                                if (res.success && res.data) {
+                                                  const found = res.data.find((ex: Exercise) => ex.id === item.recipeId);
+                                                  if (found) {
+                                                    setExerciseCache(prev => ({ ...prev, [item.recipeId!]: found }));
+                                                    setSelectedExercise(found);
+                                                    setShowExerciseDetail(true);
+                                                  }
+                                                }
+                                              } catch { /* fallback */ }
+                                            }
+                                          }}
+                                          className="w-full h-14 bg-gradient-to-br from-blue-100 to-cyan-100 rounded mb-1 flex items-center justify-center text-blue-400 text-xl overflow-hidden"
+                                        >
+                                          <span>🏋️</span>
+                                        </div>
+                                        {/* Title */}
+                                        <p
+                                          onClick={async () => {
+                                            if (item.recipeId) {
+                                              if (exerciseCache[item.recipeId]) {
+                                                setSelectedExercise(exerciseCache[item.recipeId]);
+                                                setShowExerciseDetail(true);
+                                                return;
+                                              }
+                                              try {
+                                                const res = await apiClient.getExercises();
+                                                if (res.success && res.data) {
+                                                  const found = res.data.find((ex: Exercise) => ex.id === item.recipeId);
+                                                  if (found) {
+                                                    setExerciseCache(prev => ({ ...prev, [item.recipeId!]: found }));
+                                                    setSelectedExercise(found);
+                                                    setShowExerciseDetail(true);
+                                                  }
+                                                }
+                                              } catch { /* fallback */ }
+                                            }
+                                          }}
+                                          className="text-[11px] font-semibold text-gray-900 line-clamp-2 leading-snug"
+                                        >
+                                          {item.description.includes(': ') ? item.description.split(': ').slice(1).join(': ') : item.description}
+                                        </p>
+                                        {/* Basic info */}
+                                        {item.details?.duration && (
+                                          <p className="text-[10px] text-gray-600 mt-0.5">{item.details.duration}</p>
+                                        )}
+                                        {item.details?.equipment && item.details.equipment.length > 0 && (
+                                          <p className="text-[10px] text-gray-600 truncate">{item.details.equipment.join(', ')}</p>
+                                        )}
                                       </div>
-                                    </div>
-                                  </td>
-                                  <td className="border border-blue-200 p-2 text-center">{item.type || '-'}</td>
-                                  <td className="border border-blue-200 p-2 text-center">{item.frequency || '-'}</td>
-                                  <td className="border border-blue-200 p-2 text-center text-xs">-</td>
-                                  <td className="border border-blue-200 p-2 text-xs text-gray-500">-</td>
-                                  <td className="border border-blue-200 p-2 text-xs text-gray-500">
-                                    {week.exercise.equipment?.join(', ') || '-'}
-                                  </td>
-                                  <td className="border border-blue-200 p-2">
+                                    ))}
+                                    {/* Add exercise button */}
                                     {activeSession.status === 'draft' && (
-                                      <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">✕</button>
+                                      <button
+                                        onClick={() => { setSearchCategory('exercise'); setSearchWeek(week.weekNumber); setSearchDay(day); setShowExerciseSearch(true); }}
+                                        className="w-full py-1 border border-dashed border-blue-300 rounded text-blue-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-100 transition-colors text-[10px] font-medium flex items-center justify-center gap-0.5"
+                                      >
+                                        <span className="text-xs leading-none">+</span> Ejercicio
+                                      </button>
                                     )}
-                                  </td>
-                                </tr>
-                              ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-                    <p className="text-xs text-gray-400 mt-3 italic">💡 Los ejercicios y rutinas se enriquecerán cuando la IA tenga acceso a la colección de ejercicios.</p>
+                        );
+                      })}
+                    </div>
+                    {/* Recommendations box */}
+                    <div className="mt-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
+                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones</h4>
+                      <ul className="space-y-1 text-sm text-blue-800">
+                        <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
+                        <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
+                        <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
+                        <li>• 5-10 min de calentamiento antes de cada sesión.</li>
+                      </ul>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2256,83 +2457,137 @@ export default function AIRecommendationsModal({
                 </div>
                 {expandedMonths.includes('accordion-habits') && (
                   <div className="p-4 space-y-4">
-                    {activeSession.weeks.map((week, wi) => (
-                      <div key={wi} className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                        <h4 className="font-semibold text-purple-800 mb-2">Semana {week.weekNumber}</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-xs font-medium text-purple-600 mb-1">✅ A ADOPTAR</p>
-                            {activeSession.checklist
-                              .filter(item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type !== 'toEliminate')
-                              .map((item, hi) => (
-                                <div key={hi} className="flex items-center justify-between bg-white p-2 rounded border border-purple-100 mb-1 group">
-                                  <span className="text-sm">{item.description}</span>
-                                  {activeSession.status === 'draft' && (
-                                    <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-2">✕</button>
-                                  )}
-                                </div>
-                              ))}
+                    {activeSession.weeks.map((week, wi) => {
+                      const adoptItems = activeSession.checklist.filter(
+                        item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type !== 'toEliminate'
+                      );
+                      const eliminateItems = activeSession.checklist.filter(
+                        item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type === 'toEliminate'
+                      );
+                      const hasHabits = adoptItems.length > 0 || eliminateItems.length > 0 || activeSession.status === 'draft';
+
+                      if (!hasHabits) return null;
+
+                      return (
+                        <div key={wi} className="space-y-3">
+                          {/* Desktop: side by side | Mobile: stacked */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* A ADOPTAR */}
+                            <div className="bg-white rounded-lg p-3 border border-purple-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-semibold text-purple-800">✅ A adoptar</p>
+                                {activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    className="w-5 h-5 rounded-full bg-purple-500 text-white flex items-center justify-center hover:bg-purple-600 transition-colors text-xs"
+                                    title="Agregar hábito a adoptar"
+                                  >+</button>
+                                )}
+                              </div>
+                              <div className="space-y-1.5">
+                                {adoptItems.length > 0 ? adoptItems.map((item, hi) => (
+                                  <div key={hi} className="flex items-center justify-between bg-purple-50 rounded px-2.5 py-1.5 group border border-purple-100">
+                                    <button
+                                      onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                      className="text-left flex-1 text-sm text-gray-900 hover:text-purple-700 leading-snug"
+                                    >{item.description}</button>
+                                    <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                        className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                        title="Editar hábito"
+                                      >✏️</button>
+                                      <button
+                                        onClick={() => handleDeleteItem(item.id)}
+                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                        title="Eliminar hábito"
+                                      >✕</button>
+                                    </div>
+                                  </div>
+                                )) : (
+                                  <p className="text-xs text-gray-600 italic py-2">Sin hábitos a adoptar</p>
+                                )}
+                                {/* Add item at end of list */}
+                                {activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-purple-300 text-purple-500 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-colors text-xs"
+                                  >
+                                    <span className="text-sm leading-none">+</span> Agregar hábito a adoptar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* A ELIMINAR */}
+                            <div className="bg-white rounded-lg p-3 border border-red-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-semibold text-red-800">❌ A eliminar</p>
+                                {activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors text-xs"
+                                    title="Agregar hábito a eliminar"
+                                  >+</button>
+                                )}
+                              </div>
+                              <div className="space-y-1.5">
+                                {eliminateItems.length > 0 ? eliminateItems.map((item, hi) => (
+                                  <div key={hi} className="flex items-center justify-between bg-red-50 rounded px-2.5 py-1.5 group border border-red-100">
+                                    <button
+                                      onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                      className="text-left flex-1 text-sm text-gray-900 hover:text-red-700 leading-snug"
+                                    >{item.description}</button>
+                                    <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                        className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                        title="Editar hábito"
+                                      >✏️</button>
+                                      <button
+                                        onClick={() => handleDeleteItem(item.id)}
+                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                        title="Eliminar hábito"
+                                      >✕</button>
+                                    </div>
+                                  </div>
+                                )) : (
+                                  <p className="text-xs text-gray-600 italic py-2">Sin hábitos a eliminar</p>
+                                )}
+                                {/* Add item at end of list */}
+                                {activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-red-300 text-red-500 hover:text-red-700 hover:border-red-400 hover:bg-red-50 transition-colors text-xs"
+                                  >
+                                    <span className="text-sm leading-none">+</span> Agregar hábito a eliminar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-medium text-red-600 mb-1">❌ A ELIMINAR</p>
-                            {activeSession.checklist
-                              .filter(item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type === 'toEliminate')
-                              .map((item, hi) => (
-                                <div key={hi} className="flex items-center justify-between bg-white p-2 rounded border border-red-100 mb-1 group">
-                                  <span className="text-sm">{item.description}</span>
-                                  {activeSession.status === 'draft' && (
-                                    <button className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-2">✕</button>
-                                  )}
-                                </div>
-                              ))}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            <p>📊 Tracking: {week.habits.trackingMethod || 'No especificado'}</p>
-                            <p>💡 Tip: {week.habits.motivationTip || 'No especificado'}</p>
-                          </div>
+
+                          {/* Recommendations box */}
+                          {(week.habits.trackingMethod || week.habits.motivationTip) && (
+                            <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-lg p-3 border border-purple-200">
+                              <h5 className="font-semibold text-purple-900 text-xs mb-2">💡 Recomendaciones de hábitos</h5>
+                              <ul className="space-y-1 text-xs text-purple-800">
+                                {week.habits.trackingMethod && (
+                                  <li>📊 Seguimiento: {week.habits.trackingMethod}</li>
+                                )}
+                                {week.habits.motivationTip && (
+                                  <li>💡 Tip: {week.habits.motivationTip}</li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* 🟠 CHECKLIST (solo lectura, auto-generado) */}
-              <div className="bg-white rounded-xl border border-orange-300 overflow-hidden">
-                <div
-                  className="p-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white cursor-pointer hover:from-orange-600 transition-colors flex justify-between items-center"
-                  onClick={() => {
-                    const key = 'accordion-checklist';
-                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-                  }}
-                >
-                  <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span>📋</span> Checklist Semanal (control del cliente)
-                  </h3>
-                  <span className="text-xs bg-white/20 rounded-full px-2 py-1">{activeSession.checklist.length} items</span>
-                </div>
-                {expandedMonths.includes('accordion-checklist') && activeSession.checklist.length > 0 && (
-                  <div className="p-4">
-                    <p className="text-xs text-gray-400 mb-3 italic">📝 Checklist auto-generado — solo lectura. Los cambios en nutrición/ejercicios/hábitos se reflejan automáticamente.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {activeSession.checklist.map((item, ci) => (
-                        <div key={ci} className="flex items-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100 text-sm">
-                          <span className={`w-5 h-5 border-2 rounded flex-shrink-0 flex items-center justify-center ${item.completed ? 'bg-orange-400 border-orange-400 text-white' : 'border-orange-300'}`}>
-                            {item.completed ? '✓' : ''}
-                          </span>
-                          <span className="text-gray-700">
-                            <span className="text-xs text-orange-500 font-medium">{item.weekNumber && `Sem ${item.weekNumber} · `}{item.category === 'nutrition' ? '🥗' : item.category === 'exercise' ? '🏋️' : '🧠'} </span>
-                            {item.description}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {expandedMonths.includes('accordion-checklist') && activeSession.checklist.length === 0 && (
-                  <div className="p-6 text-center text-gray-500">Sin items en el checklist para esta sesión.</div>
-                )}
-              </div>
             </div>
           )}
 
@@ -2355,12 +2610,12 @@ export default function AIRecommendationsModal({
             <div className="w-full md:w-auto flex items-center justify-between md:justify-start">
               {activeSession ? (
                 <div className="flex flex-col md:flex-row md:items-center">
-                  <div className="flex items-center"><span className="text-sm text-gray-500">Estado: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <div className="flex items-center"><span className="text-sm text-gray-700">Estado: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                     {activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
                   </span></div>
-                   <span className="text-sm text-gray-500 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
+                   <span className="text-sm text-gray-700 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
                 </div>
-              ) : <span className="text-sm text-gray-500">Sin sesiones activas</span>}
+              ) : <span className="text-sm text-gray-700">Sin sesiones activas</span>}
               <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">
                 <svg className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
               </button>
@@ -2433,15 +2688,19 @@ export default function AIRecommendationsModal({
       {/* Modales */}
       {showRecipeSearch && (
         <RecipeSearchModal
-          onSelect={async (recipe, frequency) => {
+          onSelect={async (recipe) => {
             try {
               const fullRecipe = await apiClient.getRecipeById(recipe.id);
               if (fullRecipe.success) {
                 const recipeData = fullRecipe.data as RecipeWithDetails;
+                const mealLabel = searchMeal === 'desayuno' ? 'Desayuno' : searchMeal === 'almuerzo' ? 'Almuerzo' : searchMeal === 'cena' ? 'Cena' : '';
+                const description = searchDay && mealLabel
+                  ? `${searchDay} ${mealLabel}: ${recipeData.title}`
+                  : recipeData.title;
                 handleSaveNewItem({
-                  description: recipeData.title,
-                  type: 'meal',
-                  frequency,
+                  description,
+                  type: searchMeal || 'meal',
+                  frequency: 1,
                   recipeId: recipeData.id,
                   details: {
                     recipe: {
@@ -2452,13 +2711,47 @@ export default function AIRecommendationsModal({
                   },
                 });
               } else {
-                alert(t('recipes.errorLoading'));
+                alert('Error al cargar la receta');
               }
             } catch {
-              alert(t('recipes.errorLoading'));
+              alert('Error al cargar la receta');
             }
           }}
           onClose={() => setShowRecipeSearch(false)}
+        />
+      )}
+
+      {showExerciseSearch && (
+        <ExerciseSearchModal
+          onSelect={(exercise) => {
+            const dayForItem = searchDay || '';
+            const description = dayForItem ? `${dayForItem}: ${exercise.name}` : exercise.name;
+            handleSaveNewItem({
+              description,
+              type: 'ejercicio',
+              frequency: 1,
+              recipeId: exercise.id,
+              details: {
+                duration: `${exercise.sets || 3} series x ${exercise.repetitions || '12'} reps`,
+                frequency: dayForItem,
+                equipment: exercise.equipment || [],
+              },
+            });
+          }}
+          onClose={() => setShowExerciseSearch(false)}
+        />
+      )}
+
+      {showExerciseDetail && selectedExercise && (
+        <ExerciseDetailModal
+          exercise={selectedExercise}
+          onClose={() => { setShowExerciseDetail(false); setSelectedExercise(null); }}
+          onEdit={() => {}}
+          onDelete={() => {}}
+          onPrevious={() => {}}
+          onNext={() => {}}
+          hasPrevious={false}
+          hasNext={false}
         />
       )}
 
