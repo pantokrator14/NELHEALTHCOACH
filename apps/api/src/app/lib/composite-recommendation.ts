@@ -178,7 +178,7 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 - SELECCIÓN POR CONTEXTO: elige ejercicios que el cliente PUEDA hacer según su acceso a gimnasio, equipo disponible y preferencias (mira los datos de Salud y estilo de vida)
 - Si el cliente NO tiene acceso a gym, usa SOLO ejercicios de peso corporal (sin equipo). Si tiene gym, puedes usar ejercicios con equipo
 - Considera las limitaciones físicas del cliente (NO asignes ejercicios que no pueda hacer)
-- equipment y notes: describe el contexto recomendado (casa, parque, gym)
+- equipment y notes: en "notes" incluye recomendaciones personalizadas de horarios según la disponibilidad del cliente (mira "Disponibilidad para ejercicio" en los datos), calentamiento, descanso y progresión
 
 ### 4. habitPlan — HÁBITOS 
 - toAdopt: array de objetos con: "habit" (nombre descriptivo del hábito, ej: "Beber 2L de agua al día"), "frequency" (diario/semanal), "trigger" (cuándo activarlo)
@@ -186,7 +186,10 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 - trackingMethod: método de seguimiento
 - motivationTip: consejo motivacional
 
-### 5. alternatives (opcional) — alternativas para variar
+### 5. alternatives — alternativas de recetas (OBLIGATORIO: generar al menos 3)
+- alternatives: array de objetos con: "meal" (desayuno/almuerzo/cena), "recipe" (TÍTULO EXACTO de la receta de la lista), "description" (por qué es buena alternativa)
+- DEBES generar al menos 3 alternativas variadas usando recetas de la lista disponible
+- Las alternativas son recetas diferentes a las del plan principal, para dar variedad al cliente
 
 \`\`\`json
 {

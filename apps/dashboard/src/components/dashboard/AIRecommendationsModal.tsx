@@ -2525,15 +2525,23 @@ export default function AIRecommendationsModal({
                         );
                       })}
                     </div>
-                    {/* Recommendations box */}
+                    {/* Recommendations box — usa las notas generadas por IA */}
                     <div className="mt-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones</h4>
-                      <ul className="space-y-1 text-sm text-blue-800">
-                        <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
-                        <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
-                        <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
-                        <li>• 5-10 min de calentamiento antes de cada sesión.</li>
-                      </ul>
+                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones personalizadas</h4>
+                      {activeSession.weeks.map((week, wi) => {
+                        const focus = week.exercise?.focus || '';
+                        return focus ? (
+                          <p key={wi} className="text-sm text-blue-800 leading-relaxed whitespace-pre-line">{focus}</p>
+                        ) : null;
+                      })}
+                      {!activeSession.weeks.some(w => w.exercise?.focus) && (
+                        <ul className="space-y-1 text-sm text-blue-800">
+                          <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
+                          <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
+                          <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
+                          <li>• 5-10 min de calentamiento antes de cada sesión.</li>
+                        </ul>
+                      )}
                     </div>
                   </div>
                 )}
