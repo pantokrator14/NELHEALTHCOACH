@@ -324,7 +324,12 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error generando URL de upload');
     }
-    return response.json() as Promise<UploadResponse>;
+    const responseData = await response.json();
+    return {
+      uploadURL: responseData.data?.uploadURL || responseData.uploadURL,
+      fileKey: responseData.data?.fileKey || responseData.fileKey,
+      fileURL: responseData.data?.fileURL || responseData.fileURL,
+    } as UploadResponse;
   },
 
   async confirmUpload(
@@ -368,6 +373,16 @@ export const apiClient = {
       }
       throw new Error('Error confirmando upload');
     }
+  },
+
+  async getDocumentDownloadURL(clientId: string, fileKey: string): Promise<string> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/clients/${clientId}/upload?fileKey=${encodeURIComponent(fileKey)}`,
+      { headers: getAuthHeaders() }
+    );
+    const data = await response.json();
+    if (data.success && data.data?.downloadURL) return data.data.downloadURL;
+    throw new Error(data.message || 'Error obteniendo URL de descarga');
   },
 
   async deleteDocument(clientId: string, fileKey: string): Promise<ApiResponse<unknown>> {

@@ -155,15 +155,26 @@ export async function GET(
         }
       };
 
-      // Desencriptar datos del cliente
+      // Desencriptar datos del cliente (PERO documents y processedDocuments se manejan aparte)
+      const rawMedicalData = { ...client.medicalData };
+      // Extraer y limpiar campos que se manejan aparte para evitar doble desencriptado
+      const rawDocuments = rawMedicalData.documents;
+      const rawProcessedDocuments = rawMedicalData.processedDocuments;
+      delete rawMedicalData.documents;
+      delete rawMedicalData.processedDocuments;
+
       const decryptedClient = {
         _id: client._id.toString(),
         personalData: decryptObject(client.personalData),
-        medicalData: decryptObject(client.medicalData),
+        medicalData: decryptObject(rawMedicalData),
         contractAccepted: safeDecrypt(client.contractAccepted) === 'true',
         ipAddress: safeDecrypt(client.ipAddress),
         submissionDate: client.submissionDate
       };
+
+      // Restaurar documents y processedDocuments para procesarlos aparte
+      (decryptedClient.medicalData as Record<string, unknown>).documents = rawDocuments;
+      (decryptedClient.medicalData as Record<string, unknown>).processedDocuments = rawProcessedDocuments;
 
       logger.debug('CLIENTS', 'Verificación de datos desencriptados', {
         clientId: id,

@@ -271,6 +271,7 @@ export default function AIRecommendationsModal({
   const [searchWeek, setSearchWeek] = useState<number>(1);
   const [searchDay, setSearchDay] = useState<string>('');
   const [searchMeal, setSearchMeal] = useState<string>('');
+  const [addingAlternative, setAddingAlternative] = useState(false);
   const [editingItem, setEditingItem] = useState<{
     item: ChecklistItem;
     weekNumber: number;
@@ -282,6 +283,18 @@ export default function AIRecommendationsModal({
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [showExerciseDetail, setShowExerciseDetail] = useState(false);
   const [exerciseCache, setExerciseCache] = useState<Record<string, Exercise>>({});
+  const [recipeCache, setRecipeCache] = useState<Record<string, { title: string; image?: { url: string }; cookTime?: number }>>({});
+  const [isMaximized, setIsMaximized] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aiModalMaximized') === 'true';
+    }
+    return false;
+  });
+
+  // Persist maximized state
+  useEffect(() => {
+    localStorage.setItem('aiModalMaximized', String(isMaximized));
+  }, [isMaximized]);
   const [editingAIRecipe, setEditingAIRecipe] = useState<{
     item: ChecklistItem;
     weekNumber: number;
@@ -481,6 +494,23 @@ export default function AIRecommendationsModal({
       setLoading(false);
     }
   }, [clientId, activeSessionId, convertApiDataToClientAIProgress]);
+
+  // Load recipe images for nutrition items and alternatives
+  useEffect(() => {
+    if (!activeSession?.checklist) return;
+    const nutritionItems = activeSession.checklist.filter(
+      item => (item.category === 'nutrition') && item.recipeId
+    );
+    const recipeIds = [...new Set(nutritionItems.map(item => item.recipeId!))];
+    for (const id of recipeIds) {
+      if (recipeCache[id]) continue;
+      apiClient.getRecipeById(id).then(res => {
+        if (res.data) {
+          setRecipeCache(prev => ({ ...prev, [id]: { title: res.data.title, image: res.data.image, cookTime: res.data.cookTime } }));
+        }
+      }).catch(() => {});
+    }
+  }, [activeSession?.sessionId]);
 
   const handleGenerateRecommendations = useCallback(async (monthNumber: number = 1) => {
     try {
@@ -840,7 +870,7 @@ export default function AIRecommendationsModal({
         details: {
           recipe: nutritionData.details.recipe,
         },
-        isRecurring: false, // No recurrente
+        isRecurring: addingAlternative, // true si es alternativa
         updatedAt: new Date(),
       };
     } else if (searchCategory === 'exercise') {
@@ -908,14 +938,16 @@ export default function AIRecommendationsModal({
         setExpandedWeeks(prev => [...prev]); // Forzar actualización
         setShowRecipeSearch(false);
         setShowEditItemModal(false);
+        setAddingAlternative(false);
       } else {
         throw new Error(response.message || t('common.error'));
       }
     } catch {
       alert(t('common.error'));
       await loadAIProgress();
+      setAddingAlternative(false);
     }
-  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress]);
+  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative]);
 
   const handleUpdateItem = useCallback(async (
     itemId: string,
@@ -1741,8 +1773,14 @@ export default function AIRecommendationsModal({
     : 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl my-8 flex flex-col border border-green-200 max-h-[90vh]">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${
+        isMaximized ? 'p-0 overflow-hidden' : 'p-4 overflow-y-auto'
+      }`}>
+      <div className={`bg-white shadow-2xl flex flex-col border border-green-200 ${
+        isMaximized
+          ? 'fixed inset-2 rounded-xl'
+          : 'rounded-xl w-full max-w-6xl my-8 max-h-[90vh]'
+      }`}>
         <div className="p-4 md:p-6 border-b border-green-200 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1 pr-4">
@@ -1760,7 +1798,18 @@ export default function AIRecommendationsModal({
               <div className="w-48 bg-green-800 bg-opacity-30 rounded-full h-4 mt-1"><div className="bg-white h-4 rounded-full transition-all duration-500" style={{ width: `${cumulativeProgress}%` }}></div></div>
               <p className="text-white font-bold text-lg mt-1">{cumulativeProgress}%</p>
             </div>
-            <button onClick={onClose} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <div className="hidden md:flex items-center">
+              {isMaximized ? (
+                <button onClick={() => setIsMaximized(false)} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0" title="Minimizar">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" /></svg>
+                </button>
+              ) : (
+                <button onClick={() => setIsMaximized(true)} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0" title="Maximizar">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                </button>
+              )}
+            </div>
+            <button onClick={onClose} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0" title="Cerrar"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
           </div>
         </div>
 
@@ -2005,7 +2054,7 @@ export default function AIRecommendationsModal({
                         );
 
                         return dayOrder.map((day) => (
-                          <div key={day} className="flex-shrink-0 w-36 flex flex-col">
+                          <div key={day} className={`flex-shrink-0 ${isMaximized ? 'w-64' : 'w-36'} flex flex-col`}>
                             {/* Day header */}
                             <div className="bg-green-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">{day}</div>
                             {/* Meal cards */}
@@ -2089,14 +2138,18 @@ export default function AIRecommendationsModal({
                                           onClick={async () => {
                                             if (item.recipeId) {
                                               try {
-                                                const res = await apiClient.getRecipe(item.recipeId);
+                                                const res = await apiClient.getRecipeById(item.recipeId);
                                                 if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
                                               } catch { /* fallback */ }
                                             }
                                           }}
-                                          className="w-full h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded mb-1 flex items-center justify-center text-green-400 text-lg overflow-hidden"
+                                          className="w-full h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded mb-1 flex items-center justify-center text-green-400 text-lg overflow-hidden"
                                         >
-                                          <span>🍳</span>
+                                          {item.recipeId && recipeCache[item.recipeId]?.image?.url ? (
+                                            <img src={recipeCache[item.recipeId].image!.url} alt="" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <span>🍳</span>
+                                          )}
                                         </div>
                                         {/* Meal label + recipe name */}
                                         <p className="text-[10px] font-semibold text-gray-900 line-clamp-1 leading-snug mb-0.5">
@@ -2106,7 +2159,7 @@ export default function AIRecommendationsModal({
                                           onClick={async () => {
                                             if (item.recipeId) {
                                               try {
-                                                const res = await apiClient.getRecipe(item.recipeId);
+                                                const res = await apiClient.getRecipeById(item.recipeId);
                                                 if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
                                               } catch { /* fallback */ }
                                             }
@@ -2177,20 +2230,67 @@ export default function AIRecommendationsModal({
 
                     {/* Alternativas sugeridas */}
                     <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                      <h4 className="font-semibold text-amber-800 text-sm mb-2">💡 Alternativas sugeridas por la IA</h4>
-                      <p className="text-xs text-amber-600 mb-2">Para variar el plan, puedes reemplazar cualquier receta por una de estas alternativas con perfil nutricional similar.</p>
-                      <div className="flex gap-2 overflow-x-auto pb-2">
+                      <h4 className="font-semibold text-amber-800 text-sm mb-1">💡 Alternativas sugeridas</h4>
+                      <p className="text-xs text-amber-600 mb-3">Para variar el plan, puedes reemplazar cualquier receta por una alternativa con perfil nutricional similar.</p>
+                      <div className="flex flex-wrap gap-3">
                         {activeSession.checklist
                           .filter(item => item.category === 'nutrition' && item.isRecurring)
-                          .slice(0, 5)
                           .map((item, ai) => (
-                            <div key={ai} className="flex-shrink-0 bg-white rounded-lg border border-amber-200 p-2 w-40 text-xs">
-                              <p className="font-medium text-amber-800 truncate">{item.description}</p>
-                              <p className="text-gray-600 mt-0.5">Alternativa</p>
+                            <div key={ai} className="group/alt relative bg-white rounded-lg border border-amber-200 p-2 w-36 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                              {/* Delete on hover */}
+                              {activeSession.status === 'draft' && (
+                                <button
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="absolute top-1 right-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/alt:opacity-100 transition-opacity text-[10px] z-10"
+                                  title="Eliminar"
+                                >✕</button>
+                              )}
+                              {/* Image / Placeholder */}
+                              <div
+                                onClick={async () => {
+                                  if (item.recipeId) {
+                                    try {
+                                      const res = await apiClient.getRecipeById(item.recipeId);
+                                      if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                    } catch { /* fallback */ }
+                                  }
+                                }}
+                                 className="w-full h-20 bg-gradient-to-br from-amber-100 to-yellow-100 rounded mb-1.5 flex items-center justify-center text-amber-400 text-xl overflow-hidden cursor-pointer"
+                              >
+                                {item.recipeId && recipeCache[item.recipeId]?.image?.url ? (
+                                  <img src={recipeCache[item.recipeId].image!.url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span>🍳</span>
+                                )}
+                              </div>
+                              {/* Recipe name */}
+                              <p
+                                onClick={async () => {
+                                  if (item.recipeId) {
+                                    try {
+                                      const res = await apiClient.getRecipeById(item.recipeId);
+                                      if (res.data) { setSelectedRecipe(res.data); setShowRecipeDetail(true); }
+                                    } catch { /* fallback */ }
+                                  }
+                                }}
+                                className="text-[11px] font-medium text-amber-900 line-clamp-2 leading-snug"
+                              >
+                                {item.description}
+                              </p>
                             </div>
                           ))}
-                        {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && (
-                          <p className="text-xs text-amber-500 italic">No hay alternativas generadas aún.</p>
+                        {/* Add button card-sized like items */}
+                        {activeSession.status === 'draft' && (
+                          <button
+                            onClick={() => { setAddingAlternative(true); setSearchCategory('nutrition'); setSearchWeek(1); setShowRecipeSearch(true); }}
+                            className="h-[120px] w-36 rounded-lg border-2 border-dashed border-amber-300 p-2 text-xs flex flex-col items-center justify-center gap-1 text-amber-600 hover:text-amber-800 hover:border-amber-400 hover:bg-amber-100/50 transition-colors"
+                          >
+                            <span className="text-lg leading-none">+</span>
+                            <span>Agregar</span>
+                          </button>
+                        )}
+                        {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && activeSession.status !== 'draft' && (
+                          <p className="text-xs text-amber-500 italic">Sin alternativas generadas aún.</p>
                         )}
                       </div>
                     </div>
@@ -2247,7 +2347,7 @@ export default function AIRecommendationsModal({
                               return (
                                 <div
                                   key={day}
-                                  className="flex-shrink-0 w-36 flex flex-col group/col"
+                                  className={`flex-shrink-0 ${isMaximized ? 'w-64' : 'w-36'} flex flex-col group/col`}
                                   onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-blue-400'); }}
                                   onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-blue-400'); }}
                                   onDrop={(e) => {
@@ -2369,7 +2469,7 @@ export default function AIRecommendationsModal({
                                               } catch { /* fallback */ }
                                             }
                                           }}
-                                          className="w-full h-14 bg-gradient-to-br from-blue-100 to-cyan-100 rounded mb-1 flex items-center justify-center text-blue-400 text-xl overflow-hidden"
+                                          className="w-full h-20 bg-gradient-to-br from-blue-100 to-cyan-100 rounded mb-1 flex items-center justify-center text-blue-400 text-xl overflow-hidden"
                                         >
                                           <span>🏋️</span>
                                         </div>
@@ -2425,15 +2525,23 @@ export default function AIRecommendationsModal({
                         );
                       })}
                     </div>
-                    {/* Recommendations box */}
+                    {/* Recommendations box — usa las notas generadas por IA */}
                     <div className="mt-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones</h4>
-                      <ul className="space-y-1 text-sm text-blue-800">
-                        <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
-                        <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
-                        <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
-                        <li>• 5-10 min de calentamiento antes de cada sesión.</li>
-                      </ul>
+                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones personalizadas</h4>
+                      {activeSession.weeks.map((week, wi) => {
+                        const focus = week.exercise?.focus || '';
+                        return focus ? (
+                          <p key={wi} className="text-sm text-blue-800 leading-relaxed whitespace-pre-line">{focus}</p>
+                        ) : null;
+                      })}
+                      {!activeSession.weeks.some(w => w.exercise?.focus) && (
+                        <ul className="space-y-1 text-sm text-blue-800">
+                          <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
+                          <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
+                          <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
+                          <li>• 5-10 min de calentamiento antes de cada sesión.</li>
+                        </ul>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2476,13 +2584,6 @@ export default function AIRecommendationsModal({
                             <div className="bg-white rounded-lg p-3 border border-purple-200">
                               <div className="flex items-center justify-between mb-2">
                                 <p className="text-sm font-semibold text-purple-800">✅ A adoptar</p>
-                                {activeSession.status === 'draft' && (
-                                  <button
-                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
-                                    className="w-5 h-5 rounded-full bg-purple-500 text-white flex items-center justify-center hover:bg-purple-600 transition-colors text-xs"
-                                    title="Agregar hábito a adoptar"
-                                  >+</button>
-                                )}
                               </div>
                               <div className="space-y-1.5">
                                 {adoptItems.length > 0 ? adoptItems.map((item, hi) => (
@@ -2523,13 +2624,6 @@ export default function AIRecommendationsModal({
                             <div className="bg-white rounded-lg p-3 border border-red-200">
                               <div className="flex items-center justify-between mb-2">
                                 <p className="text-sm font-semibold text-red-800">❌ A eliminar</p>
-                                {activeSession.status === 'draft' && (
-                                  <button
-                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
-                                    className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors text-xs"
-                                    title="Agregar hábito a eliminar"
-                                  >+</button>
-                                )}
                               </div>
                               <div className="space-y-1.5">
                                 {eliminateItems.length > 0 ? eliminateItems.map((item, hi) => (
