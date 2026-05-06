@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { TextractService } from '@/app/lib/textract';
+
+// GET: Obtener URL firmada de descarga para un documento
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const fileKey = request.nextUrl.searchParams.get('fileKey');
+  if (!fileKey) {
+    return NextResponse.json({ success: false, message: 'fileKey requerido' }, { status: 400 });
+  }
+  try {
+    const s3 = new S3Client({
+      region: process.env.AWS_REGION! || 'us-west-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+    const bucket = process.env.AWS_S3_BUCKET_NAME! || 'nelhealthcoach-bucket';
+    const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
+    const downloadURL = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    return NextResponse.json({ success: true, data: { downloadURL } });
+  } catch (error) {
+    logger.error('UPLOAD', 'Error generando URL de descarga', error as Error, { fileKey });
+    return NextResponse.json({ success: false, message: 'Error generando URL' }, { status: 500 });
+  }
+}
 
 // POST: Obtener URLs para upload (ACCESO PÚBLICO COMPLETO - SIN AUTENTICACIÓN)
 export async function POST(
@@ -113,9 +143,16 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return logger.time('UPLOAD', 'Confirmar upload y guardar referencia', async () => {
+    let body: { fileKey?: string; fileName?: string; fileType?: string; fileSize?: number; fileCategory?: string; fileURL?: string } | undefined;
     try {
       const { id } = await params;
-      const { fileKey, fileName, fileType, fileSize, fileCategory, fileURL } = await request.json();
+      body = await request.json();
+      const fileKey = (body?.fileKey || '') as string;
+      const fileName = (body?.fileName || '') as string;
+      const fileType = (body?.fileType || '') as string;
+      const fileSize = (body?.fileSize || 0) as number;
+      const fileCategory = (body?.fileCategory || '') as string;
+      const fileURL = (body?.fileURL || '') as string;
 
       const healthForms = await getHealthFormsCollection();
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
@@ -294,14 +331,21 @@ export async function PUT(
         data: uploadedFile
       });
 
-    } catch (error: any) {
-      console.error('❌ Error en PUT /upload:', error);
-      logger.error('UPLOAD', 'Error guardando referencia de archivo', error, {
-        fileName: (await request.json()).fileName,
-        fileCategory: (await request.json()).fileCategory
-      }, {
-        clientId: (await params).id
-      });
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('❌ Error en PUT /upload:', err);
+      try {
+        logger.error('UPLOAD', 'Error guardando referencia de archivo', err, {
+          fileName: body?.fileName || 'unknown',
+          fileCategory: body?.fileCategory || 'unknown'
+        }, {
+          clientId: (await params).id
+        });
+      } catch {
+        logger.error('UPLOAD', 'Error guardando referencia de archivo', err, undefined, {
+          clientId: (await params).id
+        });
+      }
       return NextResponse.json(
         { success: false, message: 'Error interno del servidor' },
         { status: 500 }

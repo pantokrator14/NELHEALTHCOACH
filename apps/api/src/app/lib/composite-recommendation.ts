@@ -16,7 +16,7 @@ import { logger } from "./logger";
 export interface CompositeInput {
   personalData: Record<string, unknown>;
   medicalData: Record<string, unknown>;
-  healthAssessment: Record<string, boolean>;
+  healthAssessment: Record<string, string>;
   mentalHealth: Record<string, string>;
   processedDocuments: Array<{ title: string; content: string; documentType: string; confidence: number }>;
   previousSessions: Array<Record<string, unknown>>;
@@ -89,17 +89,29 @@ function formatMedicalSummary(data: Record<string, unknown>): string {
     mainComplaint: "Motivo", currentPastConditions: "Condiciones", allergies: "Alergias",
     medications: "Medicamentos", supplements: "Suplementos", surgeries: "Cirugías",
     employmentHistory: "Trabajo", hobbies: "Hobbies", physicalLimitations: "Limitaciones físicas",
-    gymAccess: "Acceso a gym", preferredExerciseTypes: "Ejercicios preferidos",
+    gymAccess: "Acceso a gym", gymAccessDetails: "Detalles de acceso a gym",
+    preferredExerciseTypes: "Ejercicios preferidos", exerciseTimeAvailability: "Disponibilidad para ejercicio",
+    currentActivityLevel: "Nivel de actividad actual", whoCooks: "Quién cocina",
+    dislikedFoodsActivities: "Comidas/actividades que NO le gustan",
+    typicalWeekday: "Día de semana típico", typicalWeekend: "Fin de semana típico",
   };
   return Object.entries(labels).map(([k, v]) => data[k] ? `- ${v}: ${data[k]}` : "").filter(Boolean).join("\n") || "- Sin datos médicos";
 }
 
-function formatHealthAssess(data: Record<string, boolean>): string {
-  return Object.entries(data).map(([k, v]) => `- ${k}: ${v ? "Positivo" : "Normal"}`).join("\n");
+function formatHealthAssess(data: Record<string, string>): string {
+  if (!data || Object.keys(data).length === 0) return "- Sin evaluaciones";
+  return Object.entries(data)
+    .filter(([, v]) => v && v.trim())
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join("\n") || "- Sin evaluaciones";
 }
 
 function formatMental(data: Record<string, string>): string {
-  return Object.entries(data).filter(([, v]) => v).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- Sin datos";
+  if (!data || Object.keys(data).length === 0) return "- Sin datos";
+  return Object.entries(data)
+    .filter(([, v]) => v && v.trim())
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join("\n") || "- Sin datos";
 }
 
 function formatDocs(docs: Array<{ title: string; content: string }>): string {

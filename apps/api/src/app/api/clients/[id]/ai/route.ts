@@ -293,7 +293,7 @@ export async function POST(
       const {
         mentalHealth,
         healthAssessment,
-        processedDocuments,
+        documents: processedDocuments,
       } = aiInput;
 
       const compositeResult = await generateCompositeRecommendation({
@@ -986,6 +986,43 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     }
   }
 
+  // Extraer evaluaciones de salud y salud mental con contexto legible
+  const healthLabels: Record<string, string> = {
+    carbohydrateAddiction: 'Adicción a carbohidratos (¿Sientes ansiedad por comer carbohidratos?)',
+    leptinResistance: 'Resistencia a leptina (¿Tienes problemas para sentirte satisfecho al comer?)',
+    circadianRhythms: 'Ritmos circadianos (¿Tus hábitos de sueño/comida son regulares?)',
+    sleepHygiene: 'Higiene del sueño (Calidad y hábitos de sueño)',
+    electrosmogExposure: 'Exposición a electrosmog (Exposición a campos electromagnéticos)',
+    generalToxicity: 'Toxicidad general (Exposición a toxinas ambientales)',
+    microbiotaHealth: 'Salud de microbiota (Salud digestiva e intestinal)',
+  };
+  const healthAssessment: Record<string, string> = {};
+  for (const [key, label] of Object.entries(healthLabels)) {
+    if (medicalData[key]) { healthAssessment[label] = medicalData[key]; }
+  }
+
+  const mentalLabels: Record<string, string> = {
+    mentalHealthEmotionIdentification: 'Identificación de emociones (¿Identificas tus emociones?)',
+    mentalHealthEmotionIntensity: 'Intensidad emocional (¿Manejas emociones intensas?)',
+    mentalHealthUncomfortableEmotion: 'Emociones incómodas (¿Cómo enfrentas emociones difíciles?)',
+    mentalHealthInternalDialogue: 'Diálogo interno (¿Cómo es tu diálogo interno?)',
+    mentalHealthStressStrategies: 'Estrategias de estrés (¿Qué haces ante el estrés?)',
+    mentalHealthSayingNo: 'Decir no (¿Puedes establecer límites?)',
+    mentalHealthRelationships: 'Relaciones (Relaciones interpersonales)',
+    mentalHealthExpressThoughts: 'Expresar pensamientos (¿Expresas lo que piensas?)',
+    mentalHealthEmotionalDependence: 'Dependencia emocional (¿Eres emocionalmente independiente?)',
+    mentalHealthPurpose: 'Propósito (¿Tienes claro tu propósito?)',
+    mentalHealthFailureReaction: 'Reacción al fracaso (¿Cómo reaccionas ante fracasos?)',
+    mentalHealthSelfConnection: 'Conexión personal (¿Estás conectado contigo mismo?)',
+    mentalHealthSelfRelationship: 'Relación personal (Relación contigo mismo)',
+    mentalHealthLimitingBeliefs: 'Creencias limitantes (¿Identificas creencias limitantes?)',
+    mentalHealthIdealBalance: 'Equilibrio ideal (Describe tu equilibrio ideal)',
+  };
+  const mentalHealth: Record<string, string> = {};
+  for (const [key, label] of Object.entries(mentalLabels)) {
+    if (medicalData[key]) { mentalHealth[label] = medicalData[key]; }
+  }
+
   loggerWithContext.debug('AI', 'Entrada para IA preparada', {
     personalDataKeys: Object.keys(personalData),
     medicalDataKeys: Object.keys(medicalData),
@@ -998,6 +1035,8 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
   return {
     personalData,
     medicalData,
+    healthAssessment,
+    mentalHealth,
     documents: allDocuments, // ✅ Ahora incluye documentos procesados y legacy
     documentHistory, // ✅ Historial de procesamientos
     previousChecklistStatus,
@@ -1576,7 +1615,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     const {
       mentalHealth,
       healthAssessment,
-      processedDocuments,
+      documents: processedDocuments,
     } = aiInput;
 
     const compositeResult = await generateCompositeRecommendation({

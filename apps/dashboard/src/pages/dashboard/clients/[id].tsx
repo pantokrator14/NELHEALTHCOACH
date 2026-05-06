@@ -125,6 +125,14 @@ export default function ClientProfile() {
   const { id } = router.query
   const [selectedDocument, setSelectedDocument] = useState<UploadedFile | null>(null)
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false)
+  const [docViewUrl, setDocViewUrl] = useState('')
+  const [loadingDocUrl, setLoadingDocUrl] = useState(false)
+
+  // Documents list for navigation
+  const documents = client?.medicalData?.documents || []
+  const currentDocIndex = selectedDocument ? documents.findIndex(d => d.key === selectedDocument.key) : -1
+  const hasPrevDoc = currentDocIndex > 0
+  const hasNextDoc = currentDocIndex >= 0 && currentDocIndex < documents.length - 1
   const [isProfilePhotoModalOpen, setIsProfilePhotoModalOpen] = useState(false)
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -306,6 +314,37 @@ export default function ClientProfile() {
     }
     return []
   }
+
+  // Keyboard navigation for document modal
+  useEffect(() => {
+    if (!isDocumentModalOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setIsDocumentModalOpen(false); setSelectedDocument(null); }
+      if (e.key === 'ArrowLeft') {
+        const idx = documents.findIndex(d => d.key === selectedDocument?.key);
+        if (idx > 0) { setSelectedDocument(documents[idx - 1]); setDocViewUrl(''); }
+      }
+      if (e.key === 'ArrowRight') {
+        const idx = documents.findIndex(d => d.key === selectedDocument?.key);
+        if (idx >= 0 && idx < documents.length - 1) { setSelectedDocument(documents[idx + 1]); setDocViewUrl(''); }
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [isDocumentModalOpen, selectedDocument, documents]);
+
+  // Fetch fresh download URL when selected document changes
+  useEffect(() => {
+    if (selectedDocument?.key && clientId) {
+      setLoadingDocUrl(true)
+      apiClient.getDocumentDownloadURL(clientId, selectedDocument.key)
+        .then(url => setDocViewUrl(url))
+        .catch(() => setDocViewUrl(selectedDocument.url || ''))
+        .finally(() => setLoadingDocUrl(false))
+    } else {
+      setDocViewUrl('')
+    }
+  }, [selectedDocument?.key, clientId])
 
   const handleProfilePhotoChange = async (file: File) => {
     if (!clientId) return
@@ -1063,55 +1102,75 @@ export default function ClientProfile() {
         )}
         {isDocumentModalOpen && selectedDocument && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            {/* Navigation arrows outside the modal (fixed on overlay) */}
+            {documents.length > 1 && hasPrevDoc && (
+              <button
+                onClick={() => { const idx = documents.findIndex(d => d.key === selectedDocument?.key); if (idx > 0) { setSelectedDocument(documents[idx - 1]); setDocViewUrl(''); } }}
+                className="fixed left-4 top-1/2 -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
+                aria-label="Documento anterior"
+              >
+                <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+            )}
+            {documents.length > 1 && hasNextDoc && (
+              <button
+                onClick={() => { const idx = documents.findIndex(d => d.key === selectedDocument?.key); if (idx >= 0 && idx < documents.length - 1) { setSelectedDocument(documents[idx + 1]); setDocViewUrl(''); } }}
+                className="fixed right-4 top-1/2 -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
+                aria-label="Siguiente documento"
+              >
+                <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            )}
             <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+              {/* Header */}
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">{selectedDocument.name}</h3>
-                  <p className="text-sm text-gray-600">{Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl font-bold text-gray-800 truncate">{selectedDocument.name}</h3>
+                  <p className="text-sm text-gray-600">
+                    {Math.round(selectedDocument.size / 1024)} KB • {selectedDocument.type}
+                    {documents.length > 1 && (
+                      <span className="ml-3 text-gray-400">
+                        {currentDocIndex + 1} / {documents.length}
+                      </span>
+                    )}
+                  </p>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <a href={selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center" download>
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
+                <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
+                  <a href={docViewUrl || selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center text-sm" download>
+                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Descargar
                   </a>
-                  <button onClick={() => { setIsDocumentModalOpen(false); setSelectedDocument(null); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                  <button onClick={() => { setIsDocumentModalOpen(false); setSelectedDocument(null); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition" title="Cerrar (ESC)">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               </div>
+              {/* Body */}
               <div className="flex-1 overflow-auto p-6">
-                {selectedDocument.type.includes('image') ? (
-                  <div className="flex justify-center">
-                    <Image src={selectedDocument.url} alt={selectedDocument.name} width={800} height={600} className="max-w-full max-h-full object-contain" />
-                  </div>
-                ) : selectedDocument.name.includes('.pdf') ? (
-                  <iframe src={selectedDocument.url} className="w-full h-[70vh] border-0" title={selectedDocument.name} />
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
+                  {selectedDocument.type.includes('image') ? (
+                    <div className="flex justify-center">
+                      <Image src={docViewUrl || selectedDocument.url} alt={selectedDocument.name} width={800} height={600} className="max-w-full max-h-full object-contain" />
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
-                    <p className="text-gray-600 mb-6">Este tipo de archivo no se puede previsualizar en el navegador.</p>
-                    <a href={selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium inline-flex items-center" download>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Descargar Archivo
-                    </a>
-                  </div>
-                )}
+                  ) : selectedDocument.name.includes('.pdf') ? (
+                    <iframe src={docViewUrl || selectedDocument.url} className="w-full h-[70vh] border-0 rounded" title={selectedDocument.name} />
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
+                      <p className="text-gray-600 mb-6">Este tipo de archivo no se puede previsualizar en el navegador.</p>
+                      <a href={docViewUrl || selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium inline-flex items-center" download>
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Descargar Archivo
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        {isProfilePhotoModalOpen && (
+          )}
+          {isProfilePhotoModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
