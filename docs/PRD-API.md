@@ -72,43 +72,54 @@ apps/api/
 - **Historial** de sesiones y progreso
 - **Documentos médicos** (PDF, imágenes)
 
-### 4.2 Agentes de IA Especializados
+### 4.2 Generación de Recomendaciones (Sistema Compuesto)
 
-#### 4.2.1 Client Analyzer
-- **Entrada**: Datos personales, médicos, objetivos
-- **Proceso**: Análisis integral de perfil
-- **Salida**: Insights, nivel de experiencia, riesgos, oportunidades
-- **Uso**: Dashboard del coach
+> *Nota: El sistema actual utiliza un **prompt compuesto único** que reemplazó el pipeline multi-agente anterior (Client Analyzer, Exercise Planner, Nutrition Planner, Habit Designer, Quality Validator) por un enfoque más eficiente y fiable.*
 
-#### 4.2.2 Exercise Planner
-- **Entrada**: Perfil del cliente + objetivos
-- **Proceso**: Diseño de rutinas personalizadas
-- **Salida**: Plan semanal de ejercicios
-- **Características**: Considera acceso a equipos, lesiones, experiencia
+#### 4.2.1 Proceso de Generación
+1. **Preparación de datos**: El backend recolecta y descifra toda la información del cliente (datos personales, médicos, evaluaciones de salud, salud mental, documentos procesados, notas del coach, sesiones previas)
+2. **Consulta a base de datos**: Obtiene recetas y ejercicios disponibles (hasta 80 de cada uno) para pasarlos como referencia a la IA
+3. **Prompt compuesto único**: Se construye un prompt que incluye:
+   - Datos personales y médicos del cliente (descifrados)
+   - Evaluaciones de salud (7 preguntas con etiquetas legibles)
+   - Salud mental (15 preguntas con etiquetas legibles)  
+   - Documentos extraídos por Textract (o nombres de documentos fallidos como referencia)
+   - Notas del coach
+   - Número de sesiones previas para determinar nivel aproximado
+   - Recetas disponibles en la BD (con IDs, títulos, tiempo de cocción)
+   - Ejercicios disponibles en la BD (con IDs, nombres, nivel, equipo, grupos musculares)
+4. **Modelo**: DeepSeek V4 Flash (vía LangChain ChatOpenAI) con `temperature: 0.3`, `maxTokens: 16000`
+5. **Respuesta**: JSON único estructurado con:
+   - `clientInsights`: summary extenso + vision igualmente extensa + riesgos + oportunidades + nivel
+   - `nutritionPlan`: weeklyPlan (7 días × desayuno/almuerzo/cena) + shoppingList
+   - `exercisePlan`: weeklyRoutine (días específicos con ejercicios) + equipment + notes personalizadas
+   - `habitPlan`: toAdopt + toEliminate + trackingMethod + motivationTip
+   - `alternatives` (obligatorio: ≥3 alternativas de recetas)
 
-#### 4.2.3 Nutrition Planner
-- **Entrada**: Datos nutricionales, preferencias, restricciones
-- **Proceso**: Creación de plan alimenticio
-- **Salida**: Plan semanal de nutrición + lista de compras
-- **Características**: Adaptado a objetivos (pérdida/ganancia peso)
+#### 4.2.2 Regeneración de Recomendaciones
+- Usa el **mismo prompt compuesto** que la generación inicial
+- Incluye sesiones previas como contexto (excluyendo la sesión actual)
+- Preserva historial de regeneración (`regenerationCount`, `regenerationHistory`)
+- Notas del coach opcionales para influir en la regeneración
 
-#### 4.2.4 Habit Designer
-- **Entrada**: Rutina actual, objetivos, desafíos
-- **Proceso**: Diseño de hábitos progresivos
-- **Salida**: Plan de implementación de hábitos
-- **Características**: Enfoque en cambios sostenibles
-
-#### 4.2.5 Quality Validator
-- **Entrada**: Planes generados por otros agentes
-- **Proceso**: Validación de calidad y seguridad
-- **Salida**: Puntuación de calidad + sugerencias
-- **Características**: Múltiples rondas de revisión
+#### 4.2.3 Criterios de Selección de Ejercicios
+- **Por nivel**: `clientLevel` del ejercicio debe coincidir con el nivel de experiencia del cliente
+- **Por contexto**: Acceso a gimnasio, equipo disponible en casa vs peso corporal
+- **Por limitaciones**: Respeta limitaciones físicas del cliente
+- **Por preferencias**: Considera tipos de ejercicio preferidos y disponibilidad horaria
+- **Notas personalizadas**: Incluye recomendaciones de horario según disponibilidad del cliente
 
 ### 4.3 Procesamiento de Documentos
-- **Extracción de texto** (Textract AWS)
-- **Análisis de documentos médicos**
-- **Almacenamiento seguro** en S3
-- **Procesamiento asíncrono** con Inngest
+- **Extracción de texto** con AWS Textract (AnalyzeDocument con TABLES + FORMS)
+- **Fallback futuro a Gemini** para documentos que Textract no soporta (UnsupportedDocumentException)
+- **Almacenamiento dual**: 
+  - `medicalData.documents`: Metadatos del archivo (url, key, nombre, tipo, tamaño) + `textractAnalysis` (estado)
+  - `medicalData.processedDocuments`: Contenido extraído (encriptado) con confidence, pageCount, extractionStatus
+- **Procesamiento asíncrono**: Textract corre en segundo plano (fire-and-forget) tras la subida
+- **Actualización de estado**: Al completar/fallecer Textract, se actualiza el `textractAnalysis.extractionStatus` del documento original
+- **Limpieza en eliminación**: Al borrar un documento, también se eliminan sus `processedDocuments` asociados
+- **Vista previa**: URLs prefirmadas GET (1 hora de expiración) para visualizar documentos desde el frontend
+- **Pendiente (Gemini)**: Para documentos no soportados por Textract, se usará Gemini API para extracción por visión
 
 ### 4.4 Sistema de Seguridad
 - **Guardrails personalizados** para IA
@@ -156,15 +167,25 @@ Formulario → API → Base de datos → Agentes IA → Dashboard
   cliente    seguridad   seguro          personal.  coach
 ```
 
-### 6.2 Pipeline de Agentes IA
+### 6.2 Pipeline de Generación de Recomendaciones (Actual)
 ```
-Client Analyzer → Exercise Planner → Nutrition Planner
-        ↓               ↓                  ↓
-   Análisis        Rutinas ejerc.    Plan alimenticio
-   perfil          ↓                  ↓
-              Habit Designer   Quality Validator
-                    ↓                  ↓
-              Plan hábitos      Validación calidad
+prepareAIInput() → generateCompositeRecommendation()
+      ↓                       ↓
+  Descifrar datos        Prompt compuesto único
+  + extraer salud         → DeepSeek V4 Flash
+  + extraer mental          (maxTokens: 16000)
+  + procesar docs        → JSON estructurado
+  + recetas/ejerc. DB      con todos los planes
+```
+
+### 6.3 Pipeline de Documentos
+```
+Subida archivo → S3 (PUT presigned) → PUT /upload → MongoDB → Textract (background) → processedDocuments
+      ↓                                                         ↓                    ↓
+  Frontend sube a S3                                    Análisis con            Almacenamiento
+  + confirma upload                                     AnalyzeDocument         contenido extraído
+                                                                                 + actualización
+                                                                                 badge status
 ```
 
 ---
@@ -211,15 +232,23 @@ Client Analyzer → Exercise Planner → Nutrition Planner
 
 ### Fase 1 (Completado)
 - [x] API básica con CRUD clientes
-- [x] Agentes IA fundamentales
+- [x] Agentes IA fundamentales → **reemplazados por prompt compuesto único**
 - [x] Sistema de seguridad básico
 - [x] Integración con formulario
+- [x] Generación de recomendaciones con prompt compuesto (nutrition + exercise + habits + alternatives)
+- [x] Regeneración de sesiones con historial
+- [x] Procesamiento de documentos con Textract (extracción de texto, tablas, formularios)
+- [x] Cache de recetas y ejercicios para envío a IA
+- [x] Encriptación campo a campo de datos médicos
+- [x] Subida/descarga/eliminación de documentos con S3 + URLs prefirmadas
+- [x] Limpieza de processedDocuments al eliminar documentos
+- [x] Badge de estado de Textract en UI
 
 ### Fase 2 (En progreso)
+- [ ] Fallback a Gemini cuando Textract no soporte el formato
 - [ ] Sistema de notificaciones push
 - [ ] API para dispositivos wearables
 - [ ] Análisis avanzado de progreso
-- [ ] Integración con calendarios
 
 ### Fase 3 (Futuro)
 - [ ] Machine learning predictivo
@@ -261,6 +290,6 @@ Client Analyzer → Exercise Planner → Nutrition Planner
 
 ---
 
-*Documento actualizado: Abril 2026*
-*Versión: 2.0*
+*Documento actualizado: Mayo 2026*
+*Versión: 3.0*
 *Propietario: Equipo Backend NELHEALTHCOACH*

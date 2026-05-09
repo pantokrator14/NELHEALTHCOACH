@@ -88,23 +88,42 @@ apps/dashboard/
 - **Documentos**: Archivos subidos, consentimientos
 - **Historial de sesiones**: Notas, planes, progreso
 
-### 4.3 Planes y Recomendaciones
-#### 4.3.1 Planes de Ejercicio
-- **Visualización**: Semana a semana, por mes
-- **Detalles**: Ejercicios, series, repeticiones, descansos
-- **Adaptaciones**: Modificar ejercicios según necesidades
-- **Compartir**: Exportar a PDF/app del cliente
+### 4.3 Planes y Recomendaciones (Modal AIRecommendationsModal)
 
-#### 4.3.2 Planes de Nutrición
-- **Visualización**: Plan semanal de comidas
-- **Detalles**: Ingredientes, preparación, macros
-- **Lista de compras**: Generada automáticamente
-- **Sustituciones**: Alternativas por preferencias/restricciones
+El modal de recomendaciones IA fue completamente rediseñado con un sistema de **tarjetas, drag & drop y búsqueda visual** para cada categoría:
+
+#### 4.3.1 Planes de Nutrición
+- **Visualización**: Columnas fijas Lunes→Domingo, cada columna contiene 3 tarjetas (Desayuno, Almuerzo, Cena)
+- **Tarjetas**: Muestran foto de la receta (desde recipeCache), nombre, emoji de comida
+- **Drag & drop**: Intercambiar (swap) recetas entre celdas de diferentes días
+- **Click**: Abre RecipeDetailModal con la receta completa
+- **✕ al hover**: Elimina la receta de la celda
+- **Celda vacía**: Muestra botón + para buscar y agregar receta
+- **Búsqueda de recetas**: Modal RecipeSearchModal con tarjetas grid (imagen, nombre, tiempo, dificultad, categoría)
+- **Lista de compras**: Generada automáticamente con prioridades (alta/media/baja)
+- **Alternativas**: Sección con tarjetas de recetas alternativas, botón + con borde dashed para agregar, ✕ al hover para eliminar
+
+#### 4.3.2 Planes de Ejercicio
+- **Visualización**: Columnas fijas Lunes→Domingo con tarjetas de ejercicios
+- **Tarjetas**: Placeholder de imagen, nombre, series × repeticiones, equipo
+- **Drag & drop**: Reordenar ejercicios dentro del mismo día (vertical) y mover entre días (horizontal)
+- **Click**: Abre ExerciseDetailModal (carga ejercicio desde cache o BD)
+- **✕ al hover**: Elimina el ejercicio de la columna
+- **+ Ejercicio**: Botón con borde dashed al final de cada columna para agregar desde ExerciseSearchModal
+- **Búsqueda de ejercicios**: Modal ExerciseSearchModal con tarjetas grid (imagen, nombre, dificultad, series, músculos)
+- **Recomendaciones personalizadas**: Caja con notas generadas por IA según disponibilidad horaria del cliente
 
 #### 4.3.3 Planes de Hábitos
-- **Visualización**: Progreso semanal de hábitos
-- **Seguimiento**: Check-ins del cliente
-- **Ajustes**: Modificar dificultad/progresión
+- **Visualización**: Desktop side-by-side (toAdopt | toEliminate), mobile stacked
+- **Items**: Cada hábito como card clickeable con ✏️ (editar) y ✕ (eliminar) al hover
+- **+ Agregar**: Botón con borde dashed al final de cada lista (morado para adoptar, rojo para eliminar)
+- **Recomendaciones**: Caja con trackingMethod y motivationTip generados por IA
+
+#### 4.3.4 Características Generales del Modal
+- **Maximizar**: Botón para expandir el modal a pantalla completa (solo desktop, persistido en localStorage)
+- **Navegación por teclado**: ESC para cerrar, flechas para navegar entre documentos
+- **Recarga automática**: Al cerrar/reabrir el modal se obtienen datos frescos de MongoDB
+- **Persistencia**: Todos los cambios (add/edit/delete/drag-drop) se guardan vía `updateSessionItems` → MongoDB
 
 ### 4.4 Sistema de Notas y Seguimiento
 - **Notas de sesión**: Fecha, contenido, objetivos discutidos
@@ -153,10 +172,18 @@ Revisar progreso → Actualizar notas → Ajustar planes → Programar siguiente
 
 ### 5.3 Generación de Planes
 ```
-Seleccionar cliente → Elegir tipo plan → Configurar → Generar IA → Revisar
-      ↓                 ↓               ↓           ↓           ↓
-  Datos contexto    Ejercicio/Nutri  Parámetros  Procesamiento  Ajustes
-  disponibles                         específicos  agentes IA    manuales
+Dashboard → Click "Generar Recomendaciones" → POST /api/clients/[id]/ai → generateCompositeRecommendation()
+    ↓                       ↓                           ↓                           ↓
+  Seleccionar             Modal carga                  Prompt compuesto           DeepSeek V4 Flash
+  mes y opciones          mientras procesa              + datos cliente            maxTokens 16000
+                                                       + recetas DB               
+                                                       + ejercicios DB            
+                                                       → JSON con todos los planes
+    ↓                       ↓                           ↓                           ↓
+  Revisión en             Modal con tarjetas            Datos guardados             Recomendaciones
+  AIRecommendationsModal  interactivas                  en MongoDB                  listas
+                          (nutrición, ejercicio,         (aiProgress.sessions)
+                          hábitos, alternativas)
 ```
 
 ---
@@ -252,8 +279,17 @@ Seleccionar cliente → Elegir tipo plan → Configurar → Generar IA → Revis
 ### Fase 1 (Completado)
 - [x] Dashboard básico con lista clientes
 - [x] Visualización de datos formulario
-- [x] Generación planes IA básica
+- [x] Generación planes IA básica → **rediseñado con modal de tarjetas interactivas**
 - [x] Sistema de notas simple
+- [x] Modal de recomendaciones IA con tarjetas, drag & drop y búsqueda visual
+- [x] ExerciseSearchModal para búsqueda de ejercicios desde BD
+- [x] RecipeSearchModal rediseñado con grid de tarjetas
+- [x] ExerciseDetailModal y RecipeDetailModal para vista detallada
+- [x] Drag & drop en nutrición (swap) y ejercicios (reordenar/mover)
+- [x] Manejo de hábitos: adoptar/eliminar con edición en línea
+- [x] Maximizar modal (persistido, solo desktop)
+- [x] Visor de documentos con flechas de navegación y teclado
+- [x] Descarga de documentos con URLs prefirmadas GET
 
 ### Fase 2 (En progreso)
 - [ ] Biblioteca ejercicios/recetas
@@ -317,6 +353,6 @@ Seleccionar cliente → Elegir tipo plan → Configurar → Generar IA → Revis
 
 ---
 
-*Documento actualizado: Abril 2026*
-*Versión: 2.0*
+*Documento actualizado: Mayo 2026*
+*Versión: 3.0*
 *Propietario: Equipo Producto NELHEALTHCOACH*
