@@ -123,13 +123,16 @@ export function decryptFileObject(encryptedFileObj: any): any {
   }
   
   if (typeof encryptedFileObj === 'object') {
+    // Preserve additional fields (textractAnalysis, etc.) that aren't encrypted
+    const { url, key, name, type, size, uploadedAt, ...additionalFields } = encryptedFileObj;
     return {
-      url: decrypt(encryptedFileObj.url),
-      key: decrypt(encryptedFileObj.key),
-      name: decrypt(encryptedFileObj.name),
-      type: decrypt(encryptedFileObj.type),
-      size: encryptedFileObj.size,
-      uploadedAt: encryptedFileObj.uploadedAt
+      url: decrypt(url),
+      key: decrypt(key),
+      name: decrypt(name),
+      type: decrypt(type),
+      size: size,
+      uploadedAt: uploadedAt,
+      ...additionalFields, // Keep textractAnalysis etc.
     };
   }
   

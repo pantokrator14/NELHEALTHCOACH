@@ -37,7 +37,7 @@ export function createDeepSeekLLM(
 }
 
 export function createDeepSeekJSONLLM(): BaseChatModel {
-  return createDeepSeekLLM({ temperature: 0.3, maxTokens: 4000 });
+  return createDeepSeekLLM({ temperature: 0.3, maxTokens: 16000 });
 }
 
 export function createDeepSeekAnalyticalLLM(): BaseChatModel {
