@@ -518,14 +518,36 @@ export async function DELETE(
           });
 
           // ✅ ACTUALIZACIÓN DIRECTA DEL ARRAY (sin encriptar el array completo)
+          // También limpiar processedDocuments que correspondan a este fileKey
+          const updateData: Record<string, unknown> = { 
+            $set: { 
+              'medicalData.documents': documents as never[],
+              updatedAt: new Date()
+            } 
+          };
+
+          // Limpiar processedDocuments: buscar y remover los que tengan s3Key = fileKey
+          const processedDocs: never[] = (client.medicalData?.processedDocuments || []) as never[];
+          const remainingProcessed: never[] = processedDocs.filter((pd: Record<string, unknown>) => {
+            try {
+              const pdS3Key = pd.s3Key ? safeDecrypt(pd.s3Key as string) : '';
+              return pdS3Key !== fileKey;
+            } catch {
+              return true;
+            }
+          }) as never[];
+          if (remainingProcessed.length !== processedDocs.length) {
+            (updateData.$set as Record<string, unknown>)['medicalData.processedDocuments'] = remainingProcessed;
+            logger.debug('UPLOAD', '🧹 Procesados eliminados con el documento', {
+              clientId: id,
+              removed: processedDocs.length - remainingProcessed.length,
+              fileKey
+            });
+          }
+
           const updateResult = await healthForms.updateOne(
             { _id: new ObjectId(id) },
-            { 
-              $set: { 
-                'medicalData.documents': documents, // ✅ Guardar el array directamente
-                updatedAt: new Date()
-              } 
-            }
+            updateData
           );
 
           logger.debug('UPLOAD', '📝 Resultado de actualización en BD', {
@@ -682,22 +704,47 @@ async function processDocumentWithTextract(clientId: string, fileKey: string, fi
     };
 
     // Agregar al array de processedDocuments (o crear si no existe)
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       $set: {
         'medicalData.lastDocumentProcessed': new Date(),
         updatedAt: new Date()
       }
     };
-
-    // Si processedDocuments no existe, crearlo
-    const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
-    // Asegurarse de que `client` no sea null antes de acceder a sus propiedades
-    if (!client || !client.medicalData?.processedDocuments) {
-      updateData.$set['medicalData.processedDocuments'] = [processedDoc];
+    // ... processedDocuments push
+    const pdUpdate: Record<string, unknown> = {};
+    const clientForPd = await healthForms.findOne({ _id: new ObjectId(clientId) });
+    if (!clientForPd || !clientForPd.medicalData?.processedDocuments) {
+      pdUpdate['medicalData.processedDocuments'] = [processedDoc];
     } else {
-      updateData.$push = {
-        'medicalData.processedDocuments': processedDoc
-      };
+      pdUpdate.$push = { 'medicalData.processedDocuments': processedDoc };
+    }
+    Object.assign(updateData, pdUpdate);
+
+    // ✅ Actualizar el textractAnalysis del documento original (tanto si completó como si falló)
+    try {
+      const docs = clientForPd?.medicalData?.documents;
+      const newStatus = analysis.status === 'completed' ? 'completed' : 'failed';
+      if (Array.isArray(docs)) {
+        for (let i = 0; i < docs.length; i++) {
+          const doc = docs[i];
+          if (doc && typeof doc === 'object') {
+            let currentKey = doc.key;
+            if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
+              currentKey = decrypt(currentKey);
+            }
+            if (currentKey === fileKey) {
+              (updateData.$set as Record<string, unknown>)[`medicalData.documents.${i}.textractAnalysis.extractionStatus`] = newStatus;
+              (updateData.$set as Record<string, unknown>)[`medicalData.documents.${i}.textractAnalysis.extractionDate`] = new Date().toISOString();
+              logger.debug('TEXTRACT', `🔄 Documento original actualizado a ${newStatus}`, {
+                clientId, fileKey, index: i
+              });
+              break;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('TEXTRACT', '⚠️ No se pudo actualizar el documento original', err as Error, { fileKey });
     }
 
     const result = await healthForms.updateOne(

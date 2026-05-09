@@ -853,7 +853,7 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
 
             processedDocs.push({
               title: docTitle,
-              content: docContent.substring(0, 2000), // Limitar longitud para no saturar el prompt
+              content: docContent.substring(0, 2000),
               processedAt: procDoc.processedAt,
               confidence,
               type: procDoc.metadata?.documentType || 'unknown',
@@ -868,10 +868,28 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
               contentLength: docContent.length
             });
           } else {
-            loggerWithContext.debug('AI', 'Documento procesado excluido por baja confianza o estado', {
-              extractionStatus,
-              confidence
-            });
+            // Incluir documentos fallidos con solo el título (para que la IA sepa que existen)
+            try {
+              const docTitle = safeDecrypt(procDoc.title || '');
+              if (docTitle && docTitle.trim()) {
+                processedDocs.push({
+                  title: docTitle,
+                  content: `[Documento no disponible: ${extractionStatus === 'failed' ? 'error de extracción' : 'pendiente de procesar'}]`,
+                  processedAt: procDoc.processedAt,
+                  confidence: 0,
+                  type: procDoc.metadata?.documentType || 'unknown',
+                  source: 'textract_failed',
+                  pageCount: 0,
+                  language: 'es'
+                });
+                loggerWithContext.debug('AI', 'Documento fallido incluido como referencia', {
+                  title: docTitle.substring(0, 50),
+                  extractionStatus
+                });
+              }
+            } catch {
+              // Si no se puede desencriptar el título, omitirlo
+            }
           }
         } catch (error) {
           loggerWithContext.error('AI', 'Error desencriptando documento procesado', error as Error);

@@ -393,14 +393,6 @@ export default function AIRecommendationsModal({
   }, [clientId, convertToNewStructure]);
 
   // ===== CÁLCULOS Y MEMOS =====
-  const calculateCumulativeProgress = useCallback((): number => {
-    if (!aiProgress || !aiProgress.sessions || aiProgress.sessions.length === 0) return 0;
-    const allChecklistItems = aiProgress.sessions.flatMap(session => session.checklist);
-    const completedItems = allChecklistItems.filter(item => item.completed).length;
-    const totalItems = allChecklistItems.length;
-    return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-  }, [aiProgress]);
-
   const activeSession = useMemo(() => {
     if (!aiProgress?.sessions || !activeSessionId) {
       if (aiProgress?.sessions && aiProgress.sessions.length > 0) {
@@ -1767,7 +1759,6 @@ export default function AIRecommendationsModal({
     );
   }
 
-  const cumulativeProgress = calculateCumulativeProgress();
   const activeSessionNumber = aiProgress?.sessions && activeSessionId
     ? aiProgress.sessions.findIndex(s => s.sessionId === activeSessionId) + 1
     : 0;
@@ -1788,15 +1779,6 @@ export default function AIRecommendationsModal({
                 <svg className="w-6 h-6 md:w-8 md:h-8 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                 <div className="flex-1"><h2 className="text-xl md:text-2xl font-bold">Recomendaciones de IA</h2></div>
               </div>
-              <div className="md:hidden mt-3">
-                <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
-                <div className="flex items-center space-x-2"><div className="flex-1 bg-green-800 bg-opacity-30 rounded-full h-3"><div className="bg-white h-3 rounded-full transition-all duration-500" style={{ width: `${cumulativeProgress}%` }}></div></div><p className="text-white font-bold text-base min-w-[40px]">{cumulativeProgress}%</p></div>
-              </div>
-            </div>
-            <div className="hidden md:flex flex-col items-end min-w-[200px] ml-4">
-              <p className="text-green-100 text-sm mb-1">Progreso Acumulado</p>
-              <div className="w-48 bg-green-800 bg-opacity-30 rounded-full h-4 mt-1"><div className="bg-white h-4 rounded-full transition-all duration-500" style={{ width: `${cumulativeProgress}%` }}></div></div>
-              <p className="text-white font-bold text-lg mt-1">{cumulativeProgress}%</p>
             </div>
             <div className="hidden md:flex items-center">
               {isMaximized ? (

@@ -25,6 +25,11 @@ interface UploadedFile {
   type: 'profile' | 'document';
   size: number;
   uploadedAt?: string;
+  textractAnalysis?: {
+    extractionStatus?: string;
+    extractionDate?: string;
+    documentType?: string;
+  };
 }
 
 interface Client {
