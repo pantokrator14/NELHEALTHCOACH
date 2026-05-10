@@ -162,12 +162,34 @@ export class EmailService {
         });
 
         // Preparar datos para el template (igual que antes)
+        // Reconstruir checklistItems dentro de cada semana desde el flat checklist
+        const weeksWithItems = (sessionData.weeks || []).map((week: any) => {
+          const weekItems = (sessionData.checklist || []).filter(
+            (item: any) => item.weekNumber === week.weekNumber
+          );
+          return {
+            ...week,
+            nutrition: {
+              ...week.nutrition,
+              checklistItems: weekItems.filter((i: any) => i.category === 'nutrition'),
+            },
+            exercise: {
+              ...week.exercise,
+              checklistItems: weekItems.filter((i: any) => i.category === 'exercise'),
+            },
+            habits: {
+              ...week.habits,
+              checklistItems: weekItems.filter((i: any) => i.category === 'habit'),
+            },
+          };
+        });
+
         const templateData: EmailTemplateData = {
         clientName,
         monthNumber,
         summary: sessionData.summary || '',
         vision: sessionData.vision || '',
-        weeks: sessionData.weeks || [],
+        weeks: weeksWithItems,
         baselineMetrics: sessionData.baselineMetrics,
         coachName: this.fromName,
         coachEmail: this.fromEmail,

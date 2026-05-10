@@ -91,7 +91,8 @@ function formatMedicalSummary(data: Record<string, unknown>): string {
     employmentHistory: "Trabajo", hobbies: "Hobbies", physicalLimitations: "Limitaciones físicas",
     gymAccess: "Acceso a gym", gymAccessDetails: "Detalles de acceso a gym",
     preferredExerciseTypes: "Ejercicios preferidos", exerciseTimeAvailability: "Disponibilidad para ejercicio",
-    currentActivityLevel: "Nivel de actividad actual", whoCooks: "Quién cocina",
+    currentActivityLevel: "Nivel de actividad actual", whoCooks: "Quién cocina y con quién vive",
+    housingHistory: "Historial de vivienda (exposición ambiental)",
     dislikedFoodsActivities: "Comidas/actividades que NO le gustan",
     typicalWeekday: "Día de semana típico", typicalWeekend: "Fin de semana típico",
   };
@@ -231,6 +232,7 @@ IMPORTANTE:
 - USA SOLO recetas y ejercicios de las listas proporcionadas
 - Copia los títulos/nombres EXACTAMENTE como aparecen (incluyendo mayúsculas, paréntesis, etc.)
 - vision DEBE ser tan extensa y detallada como summary
+- NO asumas el estado civil ni tipo de relación del cliente — usa la información de 'Quién cocina y con quién vive' para entender su contexto real
 - Responde SOLO con el JSON, sin texto adicional`;
 }
 
