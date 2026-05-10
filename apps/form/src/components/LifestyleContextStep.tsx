@@ -48,52 +48,52 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
             {/* Día típico fin de semana */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
-                ¿Cómo es un día típico de fin de semana? ¿Es muy diferente al de entre semana?
+                ¿Cómo es un día típico de fin de semana? ¿Es muy diferente al de entre semana? Describe actividades, horarios, comidas y si sales o te quedas en casa.
               </label>
               <textarea
                 rows={4}
                 {...register('typicalWeekend')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
-                placeholder="Describe tu fin de semana típico..."
+                placeholder="Ej: Los sábados me levanto más tarde (9am), desayuno ligero, hago compras o visito familia. Los domingos cocino para la semana, veo películas. Como más relajado, a veces pido pizza. Salgo con amigos el sábado por la noche..."
               />
             </div>
 
             {/* Quién cocina */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
-                ¿Quién cocina en casa principalmente? ¿Con qué frecuencia comes fuera de casa o pides comida a domicilio?
+                ¿Quién cocina en casa? Describe quiénes viven contigo y cómo se organizan con las comidas. ¿Con qué frecuencia comes fuera o pides comida a domicilio?
               </label>
               <textarea
                 rows={3}
                 {...register('whoCooks')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
-                placeholder="Ej: Yo cocino, pero como fuera 2 veces por semana..."
+                placeholder="Ej: Vivo con mi papá. Entre los dos cocinamos: yo preparo el desayuno y cena, él hace el almuerzo. Comemos fuera los viernes. No pedimos delivery casi nunca..."
               />
             </div>
 
             {/* Nivel de actividad física actual */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
-                ¿Cuál es tu nivel de actividad física actual?
+                ¿Cuál es tu nivel de actividad física actual? Sé lo más detallado posible: ¿caminas? ¿subes escaleras? ¿tienes un trabajo activo o sedentario?
               </label>
               <textarea
                 rows={3}
                 {...register('currentActivityLevel')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
-                placeholder="Ej: Sedentario, me gustaría caminar o probar yoga..."
+                placeholder="Ej: Trabajo en oficina todo el día sentado. Camino 15 min para llegar al trabajo. No hago ejercicio actualmente pero antes iba al gym 2 veces por semana. Subo 3 pisos de escaleras en casa..."
               />
             </div>
 
             {/* Limitaciones físicas */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
-                ¿Tienes alguna lesión o limitación física que debamos tener en cuenta al recomendar ejercicios?
+                ¿Tienes alguna lesión, operación o limitación física que debamos considerar al diseñar tus ejercicios? Describe cuándo ocurrió, cómo te afecta y si has recibido tratamiento.
               </label>
               <textarea
                 rows={3}
                 {...register('physicalLimitations')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
-                placeholder="Ej: Problemas de rodilla, dolor de espalda..."
+                placeholder="Ej: Me lastimé la rodilla izquierda jugando fútbol hace 2 años. Me operaron en 2024. Todavía me duele al correr más de 10 minutos. El médico me recomendó evitar impacto pero puedo hacer natación y bicicleta. También tengo dolor de espalda baja ocasional por mi trabajo de oficina..."
               />
             </div>
 

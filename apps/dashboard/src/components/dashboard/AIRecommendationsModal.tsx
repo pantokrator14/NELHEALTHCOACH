@@ -10,6 +10,7 @@ import AIRecipeEditModal, { AIRecipeData } from './AIRecipeEditModal';
 import OriginPin from './OriginPin';
 import SessionScheduler from './SessionScheduler';
 import VideoCallRoom from './VideoCallRoom';
+import { useToast } from '@/components/ui/Toast';
 import { ChecklistItem } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation } from 'react-i18next';
@@ -232,6 +233,7 @@ export default function AIRecommendationsModal({
   generationError = null,
 }: AIRecommendationsModalProps) {
   const { t } = useTranslation();
+  const { showToast, ToastComponent } = useToast();
   // ===== ESTADOS PRINCIPALES =====
   const [aiProgress, setAiProgress] = useState<ClientAIProgress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -272,6 +274,7 @@ export default function AIRecommendationsModal({
   const [searchDay, setSearchDay] = useState<string>('');
   const [searchMeal, setSearchMeal] = useState<string>('');
   const [addingAlternative, setAddingAlternative] = useState(false);
+  const [newHabitType, setNewHabitType] = useState<'toAdopt' | 'toEliminate'>('toAdopt');
   const [editingItem, setEditingItem] = useState<{
     item: ChecklistItem;
     weekNumber: number;
@@ -481,7 +484,7 @@ export default function AIRecommendationsModal({
         setAiProgress(null);
       }
     } catch {
-      alert(t('ai.errorGenerating'));
+      showToast(t('ai.errorGenerating'), 'error');
     } finally {
       setLoading(false);
     }
@@ -530,7 +533,7 @@ export default function AIRecommendationsModal({
         throw new Error(response.message);
       }
     } catch {
-      alert(t('ai.errorGenerating'));
+      showToast(t('ai.errorGenerating'), 'error');
       // En caso de error de red o del servidor, detener el estado "generando"
       setGenerating(false);
     }
@@ -604,7 +607,7 @@ export default function AIRecommendationsModal({
         throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
   }, [aiProgress, clientId, loadAIProgress]);
@@ -634,7 +637,7 @@ export default function AIRecommendationsModal({
         throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
   }, [aiProgress, clientId, loadAIProgress]);
@@ -730,7 +733,7 @@ export default function AIRecommendationsModal({
       setEditText('');
     } catch (error) {
       console.error('💥 Error en handleSaveEdit:', error);
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
     }
   }, [editMode, editingField, aiProgress, editText, clientId, updateItemViaFullChecklist]);
 
@@ -755,7 +758,7 @@ export default function AIRecommendationsModal({
       }
     } catch (error) {
       console.error('Error actualizando lista de compras', error);
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
     } finally {
       setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
     }
@@ -833,7 +836,7 @@ export default function AIRecommendationsModal({
         throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
   }, [activeSession, aiProgress, clientId, loadAIProgress]);
@@ -896,7 +899,7 @@ export default function AIRecommendationsModal({
         completed: false,
         weekNumber: week,
         category: 'habit',
-        type: habitData.type,
+        type: newHabitType || habitData.type || 'toAdopt',
         isRecurring: false,
         updatedAt: new Date(),
       };
@@ -935,11 +938,11 @@ export default function AIRecommendationsModal({
         throw new Error(response.message || t('common.error'));
       }
     } catch {
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
       await loadAIProgress();
       setAddingAlternative(false);
     }
-  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative]);
+  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative, newHabitType]);
 
   const handleUpdateItem = useCallback(async (
     itemId: string,
@@ -1036,8 +1039,8 @@ export default function AIRecommendationsModal({
     try {
       await apiClient.approveAISession(clientId, sessionId);
       await loadAIProgress();
-    } catch {
-      alert(t('common.error'));
+    } catch (e) {
+      showToast((e as Error).message || 'Error', 'error');
     }
   }, [clientId, loadAIProgress]);
 
@@ -1048,9 +1051,8 @@ export default function AIRecommendationsModal({
     try {
       await apiClient.regenerateAISession(clientId, activeSession.sessionId, notes || '');
       await loadAIProgress();
-    } catch {
-      alert(t('common.error'));
-    } finally {
+    } catch (e) {
+      showToast((e as Error).message || 'Error', 'error');
       setLoading(false);
     }
   }, [activeSession, clientId, loadAIProgress]);
@@ -1059,9 +1061,9 @@ export default function AIRecommendationsModal({
     try {
       await apiClient.sendAISessionToClient(clientId, sessionId);
       await loadAIProgress();
-      alert(t('common.success'));
-    } catch {
-      alert(t('common.error'));
+      showToast(t('common.success'), 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Error', 'error');
     }
   }, [clientId, loadAIProgress]);
 
@@ -1155,9 +1157,9 @@ export default function AIRecommendationsModal({
     if (clientSessionLink) {
       try {
         await navigator.clipboard.writeText(clientSessionLink);
-        alert('Enlace copiado al portapapeles. Pégalo en un email para el cliente.');
+        showToast('Enlace copiado al portapapeles. Pégalo en un email para el cliente.', 'success');
       } catch {
-        alert('No se pudo copiar el enlace. Copia manualmente:\n' + clientSessionLink);
+        showToast('No se pudo copiar el enlace. Copia manualmente:\n' + clientSessionLink, 'error');
       }
     }
   }, [clientSessionLink]);
@@ -1257,7 +1259,7 @@ export default function AIRecommendationsModal({
         await loadAIProgress();
         setUploadError(null);
         // Opcional: cerrar el modal o mostrar mensaje de éxito
-        alert(t('ai.sessionImported'));
+        showToast(t('ai.sessionImported'), 'success');
       } else {
         throw new Error(response.message || 'Error desconocido al importar sesión');
       }
@@ -1266,7 +1268,7 @@ export default function AIRecommendationsModal({
       console.error('Error subiendo archivo:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setUploadError(errorMessage || 'Error procesando el archivo');
-      alert(t('ai.sessionImportError', { error: errorMessage || '' }));
+      showToast(t('ai.sessionImportError', { error: errorMessage || '' }), 'error');
     } finally {
       setUploadingFile(false);
     }
@@ -1328,7 +1330,7 @@ export default function AIRecommendationsModal({
           await handleUpdateShoppingList(sessionId, weekNumber);
         } catch (error) {
           console.error('Error generando lista automática', error);
-          alert(t('ai.shoppingListError'));
+          showToast(t('ai.shoppingListError'), 'error');
         } finally {
           setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
         }
@@ -2593,7 +2595,7 @@ export default function AIRecommendationsModal({
                                 {/* Add item at end of list */}
                                 {activeSession.status === 'draft' && (
                                   <button
-                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    onClick={() => { setNewHabitType('toAdopt'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-purple-300 text-purple-500 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-colors text-xs"
                                   >
                                     <span className="text-sm leading-none">+</span> Agregar hábito a adoptar
@@ -2633,7 +2635,7 @@ export default function AIRecommendationsModal({
                                 {/* Add item at end of list */}
                                 {activeSession.status === 'draft' && (
                                   <button
-                                    onClick={() => { setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
+                                    onClick={() => { setNewHabitType('toEliminate'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-red-300 text-red-500 hover:text-red-700 hover:border-red-400 hover:bg-red-50 transition-colors text-xs"
                                   >
                                     <span className="text-sm leading-none">+</span> Agregar hábito a eliminar
@@ -2787,10 +2789,10 @@ export default function AIRecommendationsModal({
                   },
                 });
               } else {
-                alert('Error al cargar la receta');
+                showToast('Error al cargar la receta', 'error');
               }
             } catch {
-              alert('Error al cargar la receta');
+              showToast('Error al cargar la receta', 'error');
             }
           }}
           onClose={() => setShowRecipeSearch(false)}
@@ -2920,6 +2922,7 @@ export default function AIRecommendationsModal({
           clientId={clientId}
         />
       )}
+      <ToastComponent />
     </div>
   );
 }
