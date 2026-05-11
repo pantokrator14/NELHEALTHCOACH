@@ -9,6 +9,7 @@ import { generateClientPDF } from '@/lib/pdfGenerator';
 import Image from 'next/image'
 import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../../../components/ui/Toast';
 import {
   valueLabels,
   evaluationQuestions,
@@ -147,8 +148,7 @@ export default function ClientProfile() {
   const [aiGenerationStatus, setAiGenerationStatus] = useState<'idle' | 'queued' | 'ready'>('idle')
   const [aiJobId, setAiJobId] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [showToast, setShowToast] = useState(false)
-  const [toastMessage, setToastMessage] = useState('')
+  const { showToast, ToastComponent } = useToast();
 
   // Función auxiliar para parsear campos que pueden ser string JSON o array
   const parseArrayField = (field: unknown): string[] => {
@@ -185,7 +185,7 @@ export default function ClientProfile() {
       }
     } catch (error) {
       console.error('Error fetching client:', error)
-      alert(t('clients.errorLoading'))
+      showToast(t('clients.errorLoading'), 'error')
     } finally {
       setLoading(false)
     }
@@ -222,9 +222,7 @@ export default function ClientProfile() {
           setAiError(genError.message)
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
-          setToastMessage(`❌ Error generando recomendaciones: ${genError.message}`)
-          setShowToast(true)
-          setTimeout(() => setShowToast(false), 12000)
+          showToast(`❌ Error generando recomendaciones: ${genError.message}`, 'error')
           return
         }
 
@@ -235,9 +233,7 @@ export default function ClientProfile() {
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
           const clientName = client?.personalData?.name ?? 'El cliente'
-          setToastMessage(`✅ Las recomendaciones de IA para ${clientName} están listas para tu revisión.`)
-          setShowToast(true)
-          setTimeout(() => setShowToast(false), 8000)
+          showToast(`✅ Las recomendaciones de IA para ${clientName} están listas para tu revisión.`, 'success')
           fetchClient()
           return
         }
@@ -246,9 +242,7 @@ export default function ClientProfile() {
           setAiGenerationStatus('ready')
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
-          setToastMessage(`⚠️ La generación de IA está tardando más de lo esperado. Intenta de nuevo.`)
-          setShowToast(true)
-          setTimeout(() => setShowToast(false), 8000)
+          showToast(`⚠️ La generación de IA está tardando más de lo esperado. Intenta de nuevo.`, 'warning')
         }
       } catch {
         // Silently ignore polling errors
@@ -265,20 +259,20 @@ export default function ClientProfile() {
       router.push('/dashboard/clients')
     } catch (error) {
       console.error('Error deleting client:', error)
-      alert(t('clients.errorDeleting'))
+      showToast(t('clients.errorDeleting'), 'error')
     }
   }
 
   const handleExportPDF = () => {
     if (!client) {
-      alert(t('clients.noDataForExport'));
+      showToast(t('clients.noDataForExport'), 'warning');
       return;
     }
     try {
       generateClientPDF(client);
     } catch (error) {
       console.error('Error generando PDF:', error);
-      alert(t('clients.errorGeneratingPDF'));
+      showToast(t('clients.errorGeneratingPDF'), 'error');
     }
   }
 
@@ -377,11 +371,11 @@ export default function ClientProfile() {
         uploadResponse.uploadURL
       )
       await fetchClient()
-      alert(t('clients.profilePhotoUpdated'))
+      showToast(t('clients.profilePhotoUpdated'), 'success')
       setIsProfilePhotoModalOpen(false)
     } catch (error) {
       console.error('Error actualizando foto de perfil:', error)
-      alert(t('clients.errorUpdatingPhoto'))
+      showToast(t('clients.errorUpdatingPhoto'), 'error')
     } finally {
       setUploading(false)
     }
@@ -392,10 +386,10 @@ export default function ClientProfile() {
     try {
       await apiClient.deleteDocument(clientId, document.key)
       await fetchClient()
-      alert(t('clients.documentDeleted'))
+      showToast(t('clients.documentDeleted'), 'success')
     } catch (error) {
       console.error('Error eliminando documento:', error)
-      alert(t('clients.errorDeletingDocument'))
+      showToast(t('clients.errorDeletingDocument'), 'error')
     }
   }
 
@@ -437,16 +431,16 @@ export default function ClientProfile() {
       const successful = results.filter(r => r.success).length
       const failed = results.filter(r => !r.success).length
       if (failed > 0) {
-        alert(t('clients.documentsUploaded', { successful: successful.toString(), failed: failed.toString() }))
+        showToast(t('clients.documentsUploaded', { successful: successful.toString(), failed: failed.toString() }), 'warning')
       } else {
-        alert(t('clients.allDocumentsUploaded'))
+        showToast(t('clients.allDocumentsUploaded'), 'success')
       }
       await fetchClient()
       setSelectedFiles([])
       setIsDocumentsModalOpen(false)
     } catch (error) {
       console.error('Error subiendo documentos:', error)
-      alert(t('clients.errorUploadingDocuments'))
+      showToast(t('clients.errorUploadingDocuments'), 'error')
     } finally {
       setUploading(false)
     }
@@ -499,22 +493,7 @@ export default function ClientProfile() {
         <title>{firstName} {lastName} - NELHEALTHCOACH</title>
       </Head>
       <Layout>
-        {/* Toast notification */}
-        {showToast && (
-          <div className="fixed top-4 right-4 z-[100] animate-bounce">
-            <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 max-w-md">
-              <svg className="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <p className="text-sm font-medium">{toastMessage}</p>
-              <button onClick={() => setShowToast(false)} className="ml-2 text-green-200 hover:text-white flex-shrink-0">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
+        <ToastComponent />
 
         <div className="p-8 flex flex-col lg:flex-row gap-8 min-h-full">
           {/* Columna izquierda - 30% */}

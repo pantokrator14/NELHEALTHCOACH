@@ -1517,4 +1517,31 @@ const de = {
   }
 };
 
+i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    fallbackLng: 'en',
+    supportedLngs: ['en', 'es', 'fr', 'it', 'pt', 'de'],
+    detection: {
+      order: ['navigator', 'htmlTag', 'localStorage', 'cookie'],
+      caches: ['localStorage', 'cookie'],
+      cookieMinutes: 10080
+    },
+    resources: {
+      en: { translation: en },
+      es: { translation: es },
+      fr: { translation: fr },
+      it: { translation: it },
+      pt: { translation: pt },
+      de: { translation: de }
+    },
+    interpolation: {
+      escapeValue: false
+    },
+    react: {
+      useSuspense: false
+    }
+  });
+
 export default i18n;

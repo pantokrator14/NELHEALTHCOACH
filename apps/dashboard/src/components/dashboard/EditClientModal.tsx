@@ -8,6 +8,7 @@ import {
   lifestyleQuestions,
 } from '../../lib/formConstants';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../ui/Toast';
 
 interface UploadedFile {
   url: string;
@@ -249,6 +250,7 @@ const parseStringArray = (field: unknown): string[] => {
 
 export default function EditClientModal({ client, onClose, onSave }: EditClientModalProps) {
   const { t } = useTranslation();
+  const { showToast, ToastComponent } = useToast();
   const [activeTab, setActiveTab] = useState('personal')
   const [footerExpanded, setFooterExpanded] = useState(false)
 
@@ -328,7 +330,8 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
   const handleSave = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/clients/${formData._id}`, {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/clients/${formData._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -338,14 +341,15 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
       })
       const responseData = await response.json();
       if (response.ok) {
+        showToast(t('common.saveSuccess'), 'success');
         onSave();
         onClose();
       } else {
-        alert(t('clients.errorSaving', { error: responseData.message || '' }));
+        showToast(t('clients.errorSaving', { error: responseData.message || '' }), 'error');
       }
     } catch (error) {
       console.error('Error guardando cliente:', error);
-      alert(t('common.error'));
+      showToast(t('common.error'), 'error');
     }
   };
 
@@ -869,6 +873,7 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
           </div>
         </div>
       </div>
+      <ToastComponent />
     </div>
   )
 }

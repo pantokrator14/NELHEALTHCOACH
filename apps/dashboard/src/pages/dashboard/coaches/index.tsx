@@ -53,7 +53,7 @@ export default function CoachesPage() {
   return (
     <>
       <Head>
-        <title>Coaches - NELHEALTHCOACH</title>
+        <title>Asesores - NELHEALTHCOACH</title>
       </Head>
       <Layout>
         <div className="p-8">
@@ -66,14 +66,14 @@ export default function CoachesPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-orange-700">Coaches Registrados</h1>
-                <p className="text-orange-600 mt-1">Administra los coaches del sistema</p>
+                <h1 className="text-3xl font-bold text-orange-700">Asesores Registrados</h1>
+                <p className="text-orange-600 mt-1">Administra los asesores del sistema</p>
               </div>
             </div>
 
             <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
               <div className="text-lg text-gray-700">
-                Total: <span className="font-semibold text-orange-600">{coaches.length} coaches</span>
+                Total: <span className="font-semibold text-orange-600">{coaches.length} asesores</span>
               </div>
             </div>
           </div>
@@ -82,8 +82,8 @@ export default function CoachesPage() {
           {coaches.length === 0 ? (
             <div className="text-center py-16 bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl border border-orange-200">
               <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay coaches registrados</h3>
-              <p className="text-gray-500">Los coaches aparecerán aquí cuando se registren.</p>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay asesores registrados</h3>
+              <p className="text-gray-500">Los asesores aparecerán aquí cuando se registren.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -108,7 +108,7 @@ export default function CoachesPage() {
                     <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
                       coach.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
                     }`}>
-                      {coach.role === 'admin' ? 'Admin' : 'Coach'}
+                      {coach.role === 'admin' ? 'Admin' : 'Asesor'}
                     </span>
                   </div>
                 </div>
@@ -133,7 +133,7 @@ export default function CoachesPage() {
                 <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${
                   selectedCoach.role === 'admin' ? 'bg-purple-200 text-purple-800' : 'bg-white text-orange-700'
                 }`}>
-                  {selectedCoach.role === 'admin' ? 'Administrador' : 'Coach'}
+                  {selectedCoach.role === 'admin' ? 'Administrador' : 'Asesor'}
                 </span>
               </div>
               <div className="p-6 space-y-4">
