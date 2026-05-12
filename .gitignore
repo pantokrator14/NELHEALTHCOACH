@@ -13,3 +13,5 @@ scripts/
 # Engram AI agent memory
 
 /prompts
+apps/api/preview-email.mjs
+apps/api/src/app/lib/recommendation-pdf.ts

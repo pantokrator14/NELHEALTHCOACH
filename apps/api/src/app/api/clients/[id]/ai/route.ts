@@ -1,7 +1,7 @@
 // apps/api/src/app/api/clients/[id]/ai/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { getHealthFormsCollection } from '@/app/lib/database';
+import { getHealthFormsCollection, connectMongoose } from '@/app/lib/database';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
@@ -10,6 +10,7 @@ import { TextractService } from '@/app/lib/textract';
 import { ChecklistItem, AIRecommendationSession } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
+import Coach from '@/app/models/Coach';
 
 function decryptAISessionCompletely(session: any): any {
   try {
@@ -1432,7 +1433,27 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       return false;
     }
 
-    // 7. Enviar email con el plan mensual usando EmailService
+    // 7. Obtener datos del coach asignado
+    let coachName = '';
+    let coachEmail = '';
+    let coachPhone = '';
+    let coachPhotoUrl: string | null = null;
+    try {
+      if (client.coachId) {
+        await connectMongoose();
+        const coach = await Coach.findById(client.coachId);
+        if (coach) {
+          coachName = `${decrypt(coach.firstName)} ${decrypt(coach.lastName)}`.trim();
+          coachEmail = decrypt(coach.email);
+          coachPhone = coach.phone ? decrypt(coach.phone) : '';
+          coachPhotoUrl = coach.profilePhoto?.url ? decrypt(coach.profilePhoto.url) : null;
+        }
+      }
+    } catch (coachErr) {
+      loggerWithContext.warn('AI', 'No se pudieron obtener datos del coach', coachErr as Error);
+    }
+
+    // 8. Enviar email con el plan mensual usando EmailService
     let emailSent = false;
     let emailError: any = null;
 
@@ -1456,12 +1477,18 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
         });
       }
 
+      // Construir URL de descarga del PDF
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.APP_URL || 'http://localhost:3001';
+      const pdfDownloadUrl = `${apiBaseUrl}/api/clients/${clientId}/ai/${sessionId}/pdf`;
+
       emailSent = await emailService.sendMonthlyPlanEmail(
         clientEmail,
         clientName,
         decryptedSession,
         session.monthNumber,
-        { clientId, sessionId, requestId }
+        { clientId, sessionId, requestId },
+        { coachName, coachEmail, coachPhone, coachPhotoUrl },
+        pdfDownloadUrl
       );
 
       if (emailSent) {

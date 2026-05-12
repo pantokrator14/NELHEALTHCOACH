@@ -150,7 +150,14 @@ export class EmailService {
         clientId?: string;
         sessionId?: string;
         requestId?: string;
-    }
+    },
+    coachInfo?: {
+      coachName: string;
+      coachEmail: string;
+      coachPhone: string;
+      coachPhotoUrl?: string | null;
+    },
+    pdfDownloadUrl?: string
   ): Promise<boolean> {
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
 
@@ -161,52 +168,32 @@ export class EmailService {
         monthNumber,
         });
 
-        // Preparar datos para el template (igual que antes)
-        // Reconstruir checklistItems dentro de cada semana desde el flat checklist
-        const weeksWithItems = (sessionData.weeks || []).map((week: any) => {
-          const weekItems = (sessionData.checklist || []).filter(
-            (item: any) => item.weekNumber === week.weekNumber
-          );
-          return {
-            ...week,
-            nutrition: {
-              ...week.nutrition,
-              checklistItems: weekItems.filter((i: any) => i.category === 'nutrition'),
-            },
-            exercise: {
-              ...week.exercise,
-              checklistItems: weekItems.filter((i: any) => i.category === 'exercise'),
-            },
-            habits: {
-              ...week.habits,
-              checklistItems: weekItems.filter((i: any) => i.category === 'habit'),
-            },
-          };
-        });
-
         const templateData: EmailTemplateData = {
         clientName,
         monthNumber,
         summary: sessionData.summary || '',
         vision: sessionData.vision || '',
-        weeks: weeksWithItems,
+        weeks: [],
         baselineMetrics: sessionData.baselineMetrics,
-        coachName: this.fromName,
-        coachEmail: this.fromEmail,
+        coachName: coachInfo?.coachName || this.fromName,
+        coachEmail: coachInfo?.coachEmail || this.fromEmail,
+        coachPhone: coachInfo?.coachPhone || '',
+        coachPhotoUrl: coachInfo?.coachPhotoUrl,
         replyToEmail: this.fromEmail,
         websiteUrl: 'https://nelhealthcoach.com',
+        pdfDownloadUrl,
         logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://nelhealthcoach.com/images/logo-white.png',
         logoBlueUrl: process.env.LOGO_BLUE_URL || 'https://nelhealthcoach.com/images/logo-blue.png',
         };
 
-        // Generar contenido (usando tus mismos templates)
+        // Generar contenido
         const htmlContent = generateMonthlyPlanEmailHTML(templateData);
         const textContent = generateMonthlyPlanEmailText(templateData);
 
         // Enviar usando el método central sendEmail
         const result = await this.sendEmail({
         to: [clientEmail],
-        subject: `📋 Tu Plan de Salud Personalizado - Mes ${monthNumber} | NEL Health Coach`,
+        subject: `📋 Tus Recomendaciones de Salud | NEL Health Coach`,
         htmlBody: htmlContent,
         textBody: textContent,
         replyTo: [this.fromEmail]
