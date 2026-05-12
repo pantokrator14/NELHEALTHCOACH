@@ -270,8 +270,11 @@ export class EmailService {
       clientName: string;
       sessionNumber: number;
       scheduledDate?: Date;
+      scheduledTime?: string;
+      durationMinutes?: number;
       progressNotes?: string;
       dashboardUrl?: string;
+      joinLink?: string;
     }
   ): Promise<boolean> {
     try {
@@ -281,7 +284,16 @@ export class EmailService {
         sessionNumber: data.sessionNumber,
       });
 
-      const htmlContent = generateCoachSessionNotificationHTML(data);
+      const htmlContent = generateCoachSessionNotificationHTML({
+        clientName: data.clientName,
+        sessionNumber: data.sessionNumber,
+        scheduledDate: data.scheduledDate,
+        scheduledTime: data.scheduledTime,
+        durationMinutes: data.durationMinutes,
+        progressNotes: data.progressNotes,
+        dashboardUrl: data.dashboardUrl,
+        joinLink: data.joinLink,
+      });
       const subject = `📋 Sesión #${data.sessionNumber} - ${data.clientName} | NELHealthCoach`;
 
       return await this.sendEmail({

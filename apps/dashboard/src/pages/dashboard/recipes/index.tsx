@@ -123,7 +123,6 @@ const RecipesPage = () => {
   };
 
   const handleRejectProposal = async (proposalId: string) => {
-    if (!window.confirm('¿Rechazar esta propuesta de edición?')) return;
     try {
       await apiClient.rejectProposal(proposalId, 'Rechazada por el administrador');
       showToast('Propuesta rechazada', 'success');
@@ -276,10 +275,9 @@ const RecipesPage = () => {
   const handleDeleteMultipleRecipes = async () => {
     if (selectedRecipes.length === 0) return;
 
-    if (window.confirm(`¿Estás seguro de eliminar ${selectedRecipes.length} receta(s)? Esta acción no se puede deshacer.`)) {
-      try {
-        // Eliminar cada receta individualmente
-        for (const recipeId of selectedRecipes) {
+    try {
+      // Eliminar cada receta individualmente
+      for (const recipeId of selectedRecipes) {
           await apiClient.deleteRecipe(recipeId);
         }
         showToast(t('recipes.deletedMultiple', { count: selectedRecipes.length.toString() }), 'success');
@@ -292,7 +290,6 @@ const RecipesPage = () => {
         const errorMessage = err instanceof Error ? err.message : t('recipes.errorDeleting');
         showToast(errorMessage, 'error');
       }
-    }
   };
 
   // Función para alternar selección de una receta
@@ -318,10 +315,9 @@ const RecipesPage = () => {
 
   const handleDeleteRecipe = async () => {
     if (!selectedRecipe) return;
-    
-    if (window.confirm(`¿Estás seguro de eliminar la receta "${selectedRecipe.title}"? Esta acción no se puede deshacer.`)) {
-      try {
-        await apiClient.deleteRecipe(selectedRecipe.id);
+
+    try {
+      await apiClient.deleteRecipe(selectedRecipe.id);
         showToast(t('recipes.deleted'), 'success');
         await loadRecipes();
         setIsDetailModalOpen(false);
@@ -331,7 +327,6 @@ const RecipesPage = () => {
         const errorMessage = err instanceof Error ? err.message : t('recipes.errorDeleting');
         showToast(errorMessage, 'error');
       }
-    }
   };
 
   const handleResetFilters = () => {

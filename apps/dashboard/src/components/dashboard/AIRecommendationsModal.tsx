@@ -313,6 +313,7 @@ export default function AIRecommendationsModal({
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [videoRoomName, setVideoRoomName] = useState<string>('');
   const [videoSessionId, setVideoSessionId] = useState<string>('');
+  const [joinNowOffer, setJoinNowOffer] = useState(false);
   const [clientSessionLink, setClientSessionLink] = useState<string>('');
   const [schedulingSession, setSchedulingSession] = useState(false);
 
@@ -809,7 +810,6 @@ export default function AIRecommendationsModal({
     if (!activeSession || !aiProgress) return;
     const item = activeSession.checklist.find(i => i.id === itemId);
     if (!item) return;
-    if (!confirm(t('common.confirmDelete'))) return;
 
     // Eliminar solo el ítem con ese ID (sin importar el grupo)
     const updatedChecklist = activeSession.checklist.filter(i => i.id !== itemId);
@@ -1079,24 +1079,65 @@ export default function AIRecommendationsModal({
 
   /**
    * Callback cuando el SessionScheduler creó exitosamente la sala.
-   * Pregunta si se quiere unirse ahora o después.
+   * Envía email de invitación al cliente y notificación al coach.
+   * Si la sesión es para ahora (dentro de 5 min), ofrece unirse.
    */
   const handleSessionCreated = useCallback(
-    (data: { roomName: string; sessionId: string; sessionNumber: number }): void => {
+    (data: { roomName: string; sessionId: string; sessionNumber: number; scheduledAt: string }): void => {
       setShowSessionScheduler(false);
       setVideoRoomName(data.roomName);
       setVideoSessionId(data.sessionId);
-      // Opcional: generar enlace para el cliente automáticamente
-      generateClientJoinLink(data.sessionId);
-      // Preguntar si quiere unirse ahora
-      const joinNow = window.confirm(
-        `Sesión #${data.sessionNumber} agendada exitosamente.\n\n¿Deseas unirte a la videollamada ahora?`
-      );
-      if (joinNow) {
-        setShowVideoCall(true);
+      // Enviar invitación por email al cliente y notificación al coach
+      sendSessionInvite(data.sessionId);
+
+      const scheduledTime = new Date(data.scheduledAt).getTime();
+      const now = Date.now();
+      const fiveMinutesFromNow = now + 5 * 60 * 1000;
+
+      // Solo ofrecer unirse si la sesión es ahora o dentro de los próximos 5 minutos
+      if (scheduledTime <= fiveMinutesFromNow) {
+        setJoinNowOffer(true);
       }
     },
-    []
+    [clientId]
+  );
+
+  /**
+   * Envía la invitación por email al cliente y notificación al coach
+   * vía el endpoint send-invite.
+   */
+  const sendSessionInvite = useCallback(
+    async (sessionId: string): Promise<void> => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/video/send-invite`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ clientId, sessionId }),
+          }
+        );
+
+        if (response.ok) {
+          const data = (await response.json()) as {
+            success: boolean;
+            data: { joinLink: string; clientEmail: string; emailSent: boolean };
+          };
+          if (data.success) {
+            setClientSessionLink(data.data.joinLink);
+          }
+        }
+      } catch (err: unknown) {
+        console.error('Error sending session invite:', err);
+      }
+    },
+    [clientId]
   );
 
   /**
@@ -2911,6 +2952,35 @@ export default function AIRecommendationsModal({
           onClose={() => setShowSessionScheduler(false)}
           onSessionCreated={handleSessionCreated}
         />
+      )}
+
+      {/* Ofrecimiento no-blocking para unirse a la sesión (solo si es ahora) */}
+      {joinNowOffer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Sesión agendada</h3>
+            <p className="text-gray-600 mb-6">
+              La sesión de videollamada está disponible ahora. ¿Deseas unirte?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setJoinNowOffer(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={() => {
+                  setJoinNowOffer(false);
+                  setShowVideoCall(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Unirme ahora
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Videollamada en curso */}

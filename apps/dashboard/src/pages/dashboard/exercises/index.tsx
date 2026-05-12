@@ -121,7 +121,6 @@ const ExercisesPage = () => {
   };
 
   const handleRejectProposal = async (proposalId: string) => {
-    if (!window.confirm('¿Rechazar esta propuesta de edición?')) return;
     try {
       await apiClient.rejectProposal(proposalId, 'Rechazada por el administrador');
       showToast('Propuesta rechazada', 'success');
@@ -246,7 +245,6 @@ const ExercisesPage = () => {
 
   const handleDeleteMultipleExercises = useCallback(async () => {
     if (selectedExercises.length === 0) return;
-    if (!confirm(`¿Estás seguro de que deseas eliminar ${selectedExercises.length} ejercicio(s)? Esta acción no se puede deshacer.`)) return;
     try {
       const response = await apiClient.deleteExercises(selectedExercises);
       if (response.success) {
@@ -304,7 +302,6 @@ const ExercisesPage = () => {
   }, []);
 
   const handleDeleteExercise = useCallback(async (exercise: Exercise) => {
-    if (!confirm(`¿Eliminar "${exercise.name}"?`)) return;
     try {
       await apiClient.deleteExercises([exercise.id]);
       showToast(t('exercises.deleted'), 'success');

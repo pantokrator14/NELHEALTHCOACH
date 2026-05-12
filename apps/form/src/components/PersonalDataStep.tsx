@@ -51,8 +51,9 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
   };
 
   const onSubmitWithPhoto = async (formData: PersonalDataFormValues) => {
-    // Validar manualmente que haya una foto
-    if (!formData.profilePhoto || (!(formData.profilePhoto instanceof File) && typeof formData.profilePhoto !== 'string')) {
+    // Validar manualmente que haya una foto (salteable con flag de testing)
+    const skipPhoto = process.env.NEXT_PUBLIC_SKIP_PHOTO === 'true';
+    if (!skipPhoto && (!formData.profilePhoto || (!(formData.profilePhoto instanceof File) && typeof formData.profilePhoto !== 'string'))) {
       setPhotoError('La foto de rostro es requerida');
       return;
     }

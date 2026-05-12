@@ -14,6 +14,10 @@ const nextConfig = {
       },
     ];
   },
+  // Incluir fuentes .afm de pdfkit en el bundle serverless para generar PDFs
+  outputFileTracingIncludes: {
+    '/api/clients/[id]/ai/[sessionId]/pdf': ['./node_modules/pdfkit/js/data/**'],
+  },
 };
 
 export default nextConfig;
