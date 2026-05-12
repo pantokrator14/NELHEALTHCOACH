@@ -5,12 +5,13 @@
 // Solo accesible por el coach autenticado.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/app/lib/auth';
+import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
 import { generateClientSessionLink, getVideoSession } from '@/app/lib/video-service';
 import { EmailService } from '@/app/lib/email-service';
-import { getHealthFormsCollection } from '@/app/lib/database';
+import { getHealthFormsCollection, connectToDatabase } from '@/app/lib/database';
 import { decrypt } from '@/app/lib/encryption';
 import { ObjectId } from 'mongodb';
+import crypto from 'crypto';
 import { logger } from '@/app/lib/logger';
 
 interface SendInviteRequest {
@@ -116,6 +117,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sessionId: body.sessionId,
       emailSent,
     });
+
+    // También enviar notificación al coach con enlace para unirse
+    try {
+      const coachAuth = requireCoachAuth(request);
+      const coachEmail = coachAuth.email;
+
+      if (coachEmail) {
+        // Obtener colección de coaches para el nombre
+        const { db } = await connectToDatabase();
+        const coachDoc = await db.collection('coaches').findOne(
+          { emailHash: crypto.createHash('sha256').update(coachEmail.toLowerCase().trim()).digest('hex') }
+        );
+        const coachName = coachDoc?.firstName 
+          ? `${coachDoc.firstName} ${coachDoc.lastName || ''}`
+          : 'Coach';
+
+        // Generar un join link para el coach (reutilizando el mismo link o generando uno nuevo)
+        const coachJoinLink = joinLink; // El mismo link funciona para ambos
+
+        await emailService.sendCoachSessionNotification(coachEmail, {
+          clientName,
+          sessionNumber: session.sessionNumber,
+          scheduledDate,
+          scheduledTime: timeString,
+          durationMinutes: session.durationMinutes,
+          joinLink: coachJoinLink,
+          dashboardUrl: `${process.env.DASHBOARD_URL || 'http://localhost:3002'}/dashboard/clients/${body.clientId}`,
+        });
+
+        logger.info('VIDEO', 'Coach notification email sent', {
+          coachEmail,
+          sessionId: body.sessionId,
+        });
+      }
+    } catch (coachError: unknown) {
+      // No fallar si el email al coach no se envía
+      logger.warn('VIDEO', 'Failed to send coach notification', coachError as Error);
+    }
 
     return NextResponse.json({
       success: true,

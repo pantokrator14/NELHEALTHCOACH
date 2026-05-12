@@ -19,6 +19,7 @@ interface SessionSchedulerProps {
     roomName: string;
     sessionId: string;
     sessionNumber: number;
+    scheduledAt: string;
   }) => void;
   /** Sesión de recomendaciones actual (para asociar la videollamada) */
   recommendationSessionId?: string;
@@ -107,6 +108,7 @@ export default function SessionScheduler({
         roomName: data.data.roomName,
         sessionId: data.data.sessionId,
         sessionNumber: data.data.sessionNumber,
+        scheduledAt: data.data.scheduledAt,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al agendar la sesión');

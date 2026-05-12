@@ -1,0 +1,1068 @@
+[
+  {
+    "id": "TC001",
+    "title": "Submit the completed intake and reach the thank-you page",
+    "description": "This verifies that a client can complete the full intake and submit it successfully to reach the post-submission confirmation.",
+    "category": "Coaching Service Contract",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step"
+      },
+      {
+        "type": "action",
+        "description": "Continue through the documents step"
+      },
+      {
+        "type": "action",
+        "description": "Submit the completed intake"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the thank-you page is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Complete the full intake and reach the thank-you page",
+    "description": "This verifies that a new client can accept the contract, complete every required step in order, submit the intake, and land on the thank-you page.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Continue through the documents step without adding files"
+      },
+      {
+        "type": "action",
+        "description": "Submit the completed intake"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the thank-you page is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the intake completion confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Accept the coaching contract and enter the intake",
+    "description": "This verifies that a new client can review the contract, accept it, and proceed into the intake flow.",
+    "category": "Coaching Service Contract",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the next intake step is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Progress through the contract gate only after accepting",
+    "description": "This verifies that accepting the contract is required before the intake flow can proceed.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Review the contract"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the objectives step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the contract screen is no longer displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Prevent skipping ahead without required inputs",
+    "description": "This verifies that required-step gating keeps a client from advancing past incomplete sections.",
+    "category": "Coaching Service Contract",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to continue without completing the required objectives inputs"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the current step remains blocked and validation feedback is shown"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Reject the coaching contract and exit the intake",
+    "description": "This verifies that a new client can reject the contract and leave the intake flow without progressing.",
+    "category": "Coaching Service Contract",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Reject the coaching service contract"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the intake flow is exited"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Complete objectives and continue to personal data",
+    "description": "This verifies that a client can select goals, set commitment, choose prior coaching experience, and move to the personal data step.",
+    "category": "Objectives and Expectations",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Select one or more motivation goals"
+      },
+      {
+        "type": "action",
+        "description": "Adjust the commitment level"
+      },
+      {
+        "type": "action",
+        "description": "Select prior coaching experience"
+      },
+      {
+        "type": "action",
+        "description": "Set a target date for the goals"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the personal data step is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Complete the objectives step and move forward",
+    "description": "This verifies that a client can provide goals, motivation, commitment, prior coaching experience, and target date, then continue to the next step.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the personal data step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the personal data step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the objectives step is completed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Complete personal data and continue to medical history",
+    "description": "This verifies that a client can enter personal and demographic information and proceed to the basic medical step.",
+    "category": "Personal Data Collection",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the name field with a unique value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the contact details with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the demographic and background fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the basic medical step is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Complete personal data with optional photo skipped",
+    "description": "This verifies that a client can enter identity and contact details, skip the optional photo when available, and continue to the next step.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses and skip the optional photo"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the basic medical history step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the basic medical history step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the personal data step is completed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Upload a profile photo from personal data",
+    "description": "This verifies that a client can optionally upload a profile photo and see it added before continuing.",
+    "category": "Personal Data Collection",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the personal data fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Upload a valid profile photo"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded photo is shown in the personal data step"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Upload medical documents and continue without files",
+    "description": "Verifies a client can reach the documents step, upload optional medical files, see them listed, and continue whether or not files are added.",
+    "category": "Medical Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step"
+      },
+      {
+        "type": "action",
+        "description": "Add a valid medical document through the upload control"
+      },
+      {
+        "type": "action",
+        "description": "Add a second valid medical document through drag and drop"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded document list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the intake proceeds to the final review step"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Upload medical documents and see them listed",
+    "description": "This verifies that a client can add one or more medical documents on the documents step and see the uploaded file list before continuing.",
+    "category": "Medical Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Add one or more medical documents on the documents step"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded document list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the flow can continue past the documents step"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Upload medical documents and continue",
+    "description": "This verifies that a client can add medical documents, see them listed, and continue without blocking progress.",
+    "category": "Medical Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step"
+      },
+      {
+        "type": "action",
+        "description": "Upload a valid medical document by clicking or dragging it into the upload area"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded document is listed and the intake advances"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Complete mental health assessment and continue",
+    "description": "Verifies a client can answer the mental health questionnaire and advance to the lifestyle context step.",
+    "category": "Mental Health Assessment",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Answer all multiple-choice wellbeing questions"
+      },
+      {
+        "type": "action",
+        "description": "Write responses about feelings, support systems, and stress management"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lifestyle context assessment step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC016",
+    "title": "Complete lifestyle context with routine and exercise preferences",
+    "description": "This verifies that a client can describe routines, cooking, activity, limitations, gym access, preferred exercises, and available exercise time before continuing.",
+    "category": "Lifestyle Context Assessment",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the lifestyle context step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the documents step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the documents step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lifestyle context step is completed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC017",
+    "title": "Complete the basic medical history and continue",
+    "description": "This verifies that a client can enter basic medical history information and move forward in the intake.",
+    "category": "Basic Medical History",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the basic medical history fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the health evaluations step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC018",
+    "title": "Complete all health evaluation answers and continue",
+    "description": "Verifies a client can answer the full health evaluations questionnaire and advance to the next step.",
+    "category": "Health Evaluations Questionnaire",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Answer all frequency-based health questions for the seven health domains"
+      },
+      {
+        "type": "action",
+        "description": "Select yes, no, or maybe for each evaluation item"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mental health assessment step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC019",
+    "title": "Move through basic medical history after entering valid information",
+    "description": "This verifies that a client can complete the basic medical history step and reach the health evaluations step.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the health evaluations step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the health evaluations step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the basic medical history step is completed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "Submit detailed mental health responses and proceed",
+    "description": "Verifies a client can complete the mental health step with open-ended responses and continue successfully.",
+    "category": "Mental Health Assessment",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Provide complete responses for the mental health assessment questions"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lifestyle context assessment step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC021",
+    "title": "Complete health evaluations across domains and continue",
+    "description": "This verifies that a client can answer the health evaluations questionnaire across the listed domains and proceed to mental health assessment.",
+    "category": "Health Evaluations",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Answer the health evaluation questions across the domains"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mental health assessment step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC022",
+    "title": "Complete the health evaluations questionnaire",
+    "description": "This verifies that a client can answer the health evaluations across the required domains and continue to the mental health assessment.",
+    "category": "Form Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the contract to start the intake"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step with valid responses"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the mental health assessment step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mental health assessment step is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the health evaluations step is completed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC023",
+    "title": "Choose mixed evaluation responses and proceed",
+    "description": "Verifies a client can complete the health evaluations step using a mix of response types and continue forward.",
+    "category": "Health Evaluations Questionnaire",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Provide mixed yes, no, and maybe answers across the health evaluation domains"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mental health assessment step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC024",
+    "title": "Complete the lifestyle context assessment and continue",
+    "description": "This verifies that a client can provide lifestyle, exercise, and environment details and proceed to documents.",
+    "category": "Lifestyle Context Assessment",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the basic medical history step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the health evaluations step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the mental health assessment step"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the lifestyle context fields with valid values"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the documents step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "Record a minimal complaint and proceed",
+    "description": "Verifies a client can complete the basic medical history step with only the essential complaint information and continue forward.",
+    "category": "Basic Medical History",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Accept the coaching service contract"
+      },
+      {
+        "type": "action",
+        "description": "Complete the objectives step"
+      },
+      {
+        "type": "action",
+        "description": "Complete the personal data step"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the main complaint with a concise description including intensity, impact, and duration"
+      },
+      {
+        "type": "action",
+        "description": "Continue to the next step"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the next intake step is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Reach the intake exit path by rejecting the contract",
+    "description": "Verifies a visitor can reject the service contract and exit the intake flow without entering the form.",
+    "category": "Contract Acceptance",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Reject the coaching service contract"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the intake flow does not progress"
+      }
+    ],
+    "priority": "Low"
+  }
+]

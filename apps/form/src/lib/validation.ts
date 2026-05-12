@@ -17,8 +17,8 @@ const imageFileSchema = fileSchema
       return ['image/jpeg', 'image/png', 'image/webp'].includes(value.type);
     }
     return true;
-  })
-  .required('La foto de rostro es requerida');
+  });
+// .required se aplica dinámicamente en PersonalDataStep según NEXT_PUBLIC_SKIP_PHOTO
 
 const documentFileSchema = fileSchema
   .test('fileType', 'Formato de documento no válido', (value) => {

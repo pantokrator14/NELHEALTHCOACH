@@ -1,0 +1,62 @@
+[
+  {
+    "id": "TC001",
+    "title": "postapiauthloginwithvalidcredentials",
+    "description": "Test POST /api/auth/login with valid email and password to verify successful authentication returns 200 status with JWT token and coach profile data."
+  },
+  {
+    "id": "TC002",
+    "title": "postapiauthregisterwithnewcoachdetails",
+    "description": "Test POST /api/auth/register with valid new coach details to ensure account creation returns 201 status and sends verification email."
+  },
+  {
+    "id": "TC003",
+    "title": "getapiauthmewithvalidjwttoken",
+    "description": "Test GET /api/auth/me with a valid JWT token to confirm retrieval of authenticated coach profile with decrypted personal information."
+  },
+  {
+    "id": "TC004",
+    "title": "putapiauthmeupdateprofilefields",
+    "description": "Test PUT /api/auth/me with updated profile fields to verify successful profile update returns 200 status with updated data."
+  },
+  {
+    "id": "TC005",
+    "title": "postapiauthchangepasswordwithvalidcurrentandnewpassword",
+    "description": "Test POST /api/auth/change-password with correct currentPassword and newPassword to confirm password update returns success message."
+  },
+  {
+    "id": "TC006",
+    "title": "postapiauthforgotpasswordwithregisteredemail",
+    "description": "Test POST /api/auth/forgot-password with a registered email to verify password reset email is sent and returns 200 status."
+  },
+  {
+    "id": "TC007",
+    "title": "getapihealthcheck",
+    "description": "Test GET /api/health to verify the API health check endpoint returns 200 with success message and timestamp. Public endpoint, no auth required."
+  },
+  {
+    "id": "TC008",
+    "title": "getapiexerciseslist",
+    "description": "Test GET /api/exercises to verify the exercises endpoint returns 200 with a list of exercises. Public endpoint, no auth required."
+  },
+  {
+    "id": "TC009",
+    "title": "getapirecipeslist",
+    "description": "Test GET /api/recipes to verify the recipes endpoint returns 200 with a list of recipes. Public endpoint, no auth required."
+  },
+  {
+    "id": "TC010",
+    "title": "getapirecipesstats",
+    "description": "Test GET /api/recipes/stats to verify the recipe statistics endpoint returns 200 with aggregate data. Public endpoint, no auth required."
+  },
+  {
+    "id": "TC011",
+    "title": "getapiclientswithauth",
+    "description": "Test GET /api/clients with a valid JWT token to verify the clients list endpoint returns 200 with client data and metadata."
+  },
+  {
+    "id": "TC012",
+    "title": "getapistatswithauth",
+    "description": "Test GET /api/stats with a valid JWT token to verify the dashboard statistics endpoint returns 200 with clientCount, recipeCount and other stats."
+  }
+]
