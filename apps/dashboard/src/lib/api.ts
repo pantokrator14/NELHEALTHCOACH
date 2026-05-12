@@ -938,13 +938,13 @@ export const apiClient = {
 
   // Obtener receta por ID
   async getRecipeById(id: string) {
-    const response = await fetch(`/api/recipes/${id}`);
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`);
     return response.json();
   },
 
   // Actualizar campo de sesión (summary/vision)
   async updateAISessionField(clientId: string, sessionId: string, field: string, value: string) {
-    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai/sessions/${sessionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ field, value }),
@@ -954,7 +954,7 @@ export const apiClient = {
 
   // Crear nuevo ítem en checklist
   async createAIChecklistItem(clientId: string, sessionId: string, data: CreateChecklistItemData) {
-    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai/sessions/${sessionId}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -965,7 +965,7 @@ export const apiClient = {
   // Actualizar ítem existente
   async updateAIChecklistItem(clientId: string, sessionId: string, itemId: string, data: UpdateChecklistItemData) {
   // Puedes tipar data según lo que acepte tu backend
-    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -975,7 +975,7 @@ export const apiClient = {
 
   // Eliminar ítem
   async deleteAIChecklistItem(clientId: string, sessionId: string, itemId: string) {
-    const response = await fetch(`/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai/sessions/${sessionId}/items/${itemId}`, {
       method: 'DELETE',
     });
     return response.json();

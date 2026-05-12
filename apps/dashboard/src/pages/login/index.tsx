@@ -5,8 +5,10 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api';
 import PasswordInput from '@/components/PasswordInput';
+import { useToast } from '../../components/ui/Toast';
 
 export default function Login() {
+  const { showToast, ToastComponent } = useToast();
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -127,9 +129,9 @@ export default function Login() {
                             body: JSON.stringify({ email }),
                           });
                           setError('');
-                          alert('Se ha reenviado el enlace de verificación a tu email.');
+                          showToast('Se ha reenviado el enlace de verificación a tu email.', 'success');
                         } catch {
-                          alert('No se pudo reenviar la verificación. Intenta de nuevo.');
+                          showToast('No se pudo reenviar la verificación. Intenta de nuevo.', 'error');
                         } finally {
                           setLoading(false);
                         }
@@ -190,6 +192,7 @@ export default function Login() {
           </div>
         </div>
       </div>
+      <ToastComponent />
     </>
   )
 }
