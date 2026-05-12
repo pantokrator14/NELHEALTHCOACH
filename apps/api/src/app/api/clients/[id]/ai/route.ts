@@ -1478,7 +1478,10 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       }
 
       // Construir URL de descarga del PDF
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.APP_URL || 'http://localhost:3001';
+      // En Vercel producción usa VERCEL_URL automático; en dev usa API_URL o APP_URL
+      const apiBaseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : (process.env.NEXT_PUBLIC_API_URL || process.env.APP_URL || 'http://localhost:3001');
       const pdfDownloadUrl = `${apiBaseUrl}/api/clients/${clientId}/ai/${sessionId}/pdf`;
 
       emailSent = await emailService.sendMonthlyPlanEmail(
