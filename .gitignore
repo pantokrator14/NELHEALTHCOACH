@@ -14,4 +14,4 @@ scripts/
 
 /prompts
 apps/api/preview-email.mjs
-apps/api/src/app/lib/recommendation-pdf.ts
+# recommendation-pdf.ts debe estar trackeado (generador de PDF)
