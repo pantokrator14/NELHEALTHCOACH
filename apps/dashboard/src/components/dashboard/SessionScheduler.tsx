@@ -135,17 +135,17 @@ export default function SessionScheduler({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Encabezado */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+        <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
           <h2 className="text-xl font-bold text-white">Agendar Videollamada</h2>
           <p className="text-blue-100 text-sm mt-1">
             {clientName} — Sesión de seguimiento
           </p>
         </div>
 
-        {/* Cuerpo */}
-        <div className="p-6 space-y-5">
+        {/* Cuerpo con scroll */}
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
           {/* Fecha y hora */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -218,7 +218,7 @@ export default function SessionScheduler({
         </div>
 
         {/* Botones */}
-        <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+        <div className="flex-shrink-0 bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
           <button
             onClick={onClose}
             disabled={submitting}
