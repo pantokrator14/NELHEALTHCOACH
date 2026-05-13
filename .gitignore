@@ -21,3 +21,7 @@ apps/*/testsprite_tests/tmp/
 apps/*/testsprite_tests/TC*.py
 apps/*/testsprite_tests/*-report.md
 apps/*/testsprite_tests/node_modules/
+
+# Skills / tooling local config
+.agents/
+skills-lock.json

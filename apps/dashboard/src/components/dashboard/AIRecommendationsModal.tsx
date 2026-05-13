@@ -1078,31 +1078,6 @@ export default function AIRecommendationsModal({
   }, []);
 
   /**
-   * Callback cuando el SessionScheduler creó exitosamente la sala.
-   * Envía email de invitación al cliente y notificación al coach.
-   * Si la sesión es para ahora (dentro de 5 min), ofrece unirse.
-   */
-  const handleSessionCreated = useCallback(
-    (data: { roomName: string; sessionId: string; sessionNumber: number; scheduledAt: string }): void => {
-      setShowSessionScheduler(false);
-      setVideoRoomName(data.roomName);
-      setVideoSessionId(data.sessionId);
-      // Enviar invitación por email al cliente y notificación al coach
-      sendSessionInvite(data.sessionId);
-
-      const scheduledTime = new Date(data.scheduledAt).getTime();
-      const now = Date.now();
-      const fiveMinutesFromNow = now + 5 * 60 * 1000;
-
-      // Solo ofrecer unirse si la sesión es ahora o dentro de los próximos 5 minutos
-      if (scheduledTime <= fiveMinutesFromNow) {
-        setJoinNowOffer(true);
-      }
-    },
-    [clientId]
-  );
-
-  /**
    * Envía la invitación por email al cliente y notificación al coach
    * vía el endpoint send-invite.
    */
@@ -1127,17 +1102,51 @@ export default function AIRecommendationsModal({
         if (response.ok) {
           const data = (await response.json()) as {
             success: boolean;
-            data: { joinLink: string; clientEmail: string; emailSent: boolean };
+            data: { joinLink: string; clientEmail: string; emailSent: boolean; coachEmailSent?: boolean };
           };
           if (data.success) {
             setClientSessionLink(data.data.joinLink);
+            if (!data.data.emailSent) {
+              console.warn('⚠️ Email al cliente NO enviado (Revisar config Resend)');
+            }
+            if (data.data.coachEmailSent === false) {
+              console.warn('⚠️ Email al coach NO enviado (Revisar config Resend)');
+            }
           }
+        } else {
+          const errText = await response.text().catch(() => 'Unknown error');
+          console.error('❌ Error en send-invite:', response.status, errText);
         }
       } catch (err: unknown) {
         console.error('Error sending session invite:', err);
       }
     },
     [clientId]
+  );
+
+  /**
+   * Callback cuando el SessionScheduler creó exitosamente la sala.
+   * Envía email de invitación al cliente y notificación al coach.
+   * Si la sesión es para ahora (dentro de 5 min), ofrece unirse.
+   */
+  const handleSessionCreated = useCallback(
+    (data: { roomName: string; sessionId: string; sessionNumber: number; scheduledAt: string }): void => {
+      setShowSessionScheduler(false);
+      setVideoRoomName(data.roomName);
+      setVideoSessionId(data.sessionId);
+      // Enviar invitación por email al cliente y notificación al coach
+      sendSessionInvite(data.sessionId);
+
+      const scheduledTime = new Date(data.scheduledAt).getTime();
+      const now = Date.now();
+      const fiveMinutesFromNow = now + 5 * 60 * 1000;
+
+      // Solo ofrecer unirse si la sesión es ahora o dentro de los próximos 5 minutos
+      if (scheduledTime <= fiveMinutesFromNow) {
+        setJoinNowOffer(true);
+      }
+    },
+    [clientId, sendSessionInvite]
   );
 
   /**
