@@ -11,6 +11,41 @@
  */
 
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
+
+// ─── PATCH: Redirigir carga de fuentes .afm de pdfkit ──────────────────
+// pdfkit 0.18 hace fs.readFileSync(__dirname + '/data/Helvetica.afm').
+// Cuando Next.js bundlea el código, __dirname cambia y las fuentes no se
+// encuentran. Este patch intercepta las llamadas y las redirige a las
+// fuentes en múltiples ubicaciones posibles (local + node_modules).
+function resolveFontPath(fontName: string): string | null {
+  // 1. Junto a este mismo archivo (src/app/lib/pdf-fonts/)
+  const localPath = path.join(__dirname, 'pdf-fonts', fontName);
+  if (fs.existsSync(localPath)) return localPath;
+
+  // 2. Ruta absoluta del proyecto (desarrollo local)
+  const projectPath = path.join(process.cwd(), 'apps/api/src/app/lib/pdf-fonts', fontName);
+  if (fs.existsSync(projectPath)) return projectPath;
+
+  // 3. node_modules de pdfkit (producción con serverExternalModules)
+  const nodeModulesPath = path.join(process.cwd(), 'node_modules/pdfkit/js/data', fontName);
+  if (fs.existsSync(nodeModulesPath)) return nodeModulesPath;
+
+  return null;
+}
+
+const originalReadFileSync = fs.readFileSync;
+fs.readFileSync = function patchedReadFileSync(filePath: fs.PathOrFileDescriptor, options?: any): any {
+  if (typeof filePath === 'string' && filePath.endsWith('.afm')) {
+    const fontName = path.basename(filePath);
+    const resolved = resolveFontPath(fontName);
+    if (resolved) {
+      return originalReadFileSync(resolved, 'utf8');
+    }
+  }
+  return originalReadFileSync(filePath, options as any);
+} as typeof fs.readFileSync;
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 

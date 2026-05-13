@@ -12,6 +12,7 @@ import { getHealthFormsCollection } from './database';
 import { encrypt } from './encryption';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import type { VideoSession, VideoSessionStatus } from '../../../../../packages/types';
 
 // ─────────────────────────────────────────────
@@ -178,13 +179,17 @@ export function generateClientSessionLink(
   sessionId: string,
   clientEmail: string
 ): { joinLink: string; token: string } {
-  const sessionToken = generateToken({
-    sub: clientId,
-    sessionId,
-    email: clientEmail,
-    type: 'client-session',
-    exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 días
-  });
+  // Usar jwt.sign directamente con expiresIn (sin exp en payload) para evitar conflicto
+  const sessionToken = jwt.sign(
+    {
+      sub: clientId,
+      sessionId,
+      email: clientEmail,
+      type: 'client-session',
+    },
+    process.env.JWT_SECRET || 'default-secret',
+    { expiresIn: '7d' }
+  );
 
   const baseUrl = process.env.WEBSITE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const joinLink = `${baseUrl}/video/join?token=${encodeURIComponent(sessionToken)}`;

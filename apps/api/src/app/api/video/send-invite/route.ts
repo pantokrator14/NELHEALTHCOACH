@@ -118,6 +118,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       emailSent,
     });
 
+    let coachEmailSent = false;
+
     // También enviar notificación al coach con enlace para unirse
     try {
       const coachAuth = requireCoachAuth(request);
@@ -129,14 +131,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const coachDoc = await db.collection('coaches').findOne(
           { emailHash: crypto.createHash('sha256').update(coachEmail.toLowerCase().trim()).digest('hex') }
         );
-        const coachName = coachDoc?.firstName 
-          ? `${coachDoc.firstName} ${coachDoc.lastName || ''}`
-          : 'Coach';
 
-        // Generar un join link para el coach (reutilizando el mismo link o generando uno nuevo)
-        const coachJoinLink = joinLink; // El mismo link funciona para ambos
+        // Generar un join link para el coach (reutilizando el mismo link)
+        const coachJoinLink = joinLink;
 
-        await emailService.sendCoachSessionNotification(coachEmail, {
+        coachEmailSent = await emailService.sendCoachSessionNotification(coachEmail, {
           clientName,
           sessionNumber: session.sessionNumber,
           scheduledDate,
@@ -149,10 +148,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         logger.info('VIDEO', 'Coach notification email sent', {
           coachEmail,
           sessionId: body.sessionId,
+          coachEmailSent,
         });
       }
     } catch (coachError: unknown) {
-      // No fallar si el email al coach no se envía
       logger.warn('VIDEO', 'Failed to send coach notification', coachError as Error);
     }
 
@@ -160,6 +159,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       data: {
         emailSent,
+        coachEmailSent,
         joinLink,
         clientEmail,
       },
