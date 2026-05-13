@@ -117,7 +117,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await collection.updateOne(
       { _id: new ObjectId(clientId) },
       {
-        $push: { transcriptions: transcriptionDoc },
+        $push: {
+          transcriptions: transcriptionDoc,
+          // También guardar como documento procesado para que la IA lo vea
+          'medicalData.processedDocuments': {
+            title: encrypt(`Seguimiento #${sessionNumber}`),
+            content: encrypt(transcript),
+            metadata: {
+              documentType: 'transcription',
+              extractionStatus: 'completed',
+              source: 'deepgram',
+            },
+            confidence: Math.round(confidence * 100),
+            processedAt: new Date(),
+            pageCount: 1,
+            language: 'es',
+          },
+        },
         $set: { updatedAt: new Date() },
       } as Record<string, unknown>
     );
