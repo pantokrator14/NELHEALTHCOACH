@@ -1433,12 +1433,13 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'en',
+    lng: 'es',
+    fallbackLng: 'es',
     supportedLngs: ['en', 'es', 'fr', 'it', 'pt', 'de'],
     detection: {
-      order: ['navigator', 'htmlTag', 'localStorage', 'cookie'],
+      order: ['localStorage', 'cookie'],
       caches: ['localStorage', 'cookie'],
-      cookieMinutes: 10080
+      cookieMinutes: 10080,
     },
     resources: {
       en: { translation: en },
