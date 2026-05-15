@@ -1,6 +1,8 @@
 // apps/api/src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeadsCollection } from '@/app/lib/database';
+import { secureRoute } from '@/app/lib/security';
+import { leadSchema } from '@/app/lib/schemas';
 import { Resend } from 'resend';
 import { logger } from '@/app/lib/logger';
 import fs from 'fs';
@@ -40,16 +42,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     logger.info('LEAD', 'Body recibido', body);
 
-    const { name, email, phone, objective } = body;
-
-    // Validaciones básicas
-    if (!name || !email || !objective) {
-      logger.warn('LEAD', 'Faltan campos requeridos', { name, email, objective });
+    // Verificación de seguridad: rate limit + shield body scan
+    const securityCheck = await secureRoute(request, body);
+    if (!securityCheck.passed) {
       return NextResponse.json(
-        { success: false, message: 'Faltan campos requeridos' },
-        { status: 400 }
+        { success: false, message: securityCheck.message ?? 'Solicitud bloqueada por seguridad' },
+        {
+          status: securityCheck.statusCode ?? 429,
+          ...(securityCheck.retryAfter && { headers: { 'Retry-After': String(securityCheck.retryAfter) } }),
+        }
       );
     }
+
+    // Zod validation
+    const parsed = leadSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
+      return NextResponse.json(
+        {
+          success: false,
+          message: firstError?.message ?? 'Datos inválidos',
+          errors: parsed.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            message: i.message,
+          })),
+        },
+        { status: 400 },
+      );
+    }
+
+    const { name, email, phone, objective } = parsed.data;
 
     // Guardar en base de datos
     logger.info('LEAD', 'Intentando conectar a MongoDB...');

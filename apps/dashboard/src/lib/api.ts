@@ -192,6 +192,11 @@ const getAuthHeaders = (): Record<string, string> => {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+    // FingerprintJS visitor ID para rate limiting por dispositivo y bot detection
+    const visitorId = localStorage.getItem('nel_fp_visitor_id');
+    if (visitorId) {
+      headers['X-Visitor-Id'] = visitorId;
+    }
   }
   return headers;
 };

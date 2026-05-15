@@ -3,6 +3,8 @@ import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@
 import { encrypt, decrypt, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { secureRoute } from '@/app/lib/security';
+import { clientFormSchema } from '@/app/lib/schemas';
 import Coach from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
 import {
@@ -231,19 +233,39 @@ export async function POST(request: NextRequest) {
                     request.headers.get('x-real-ip') || 
                     'Unknown';
 
+    // Verificación de seguridad: rate limit + shield body scan
+    const securityCheck = await secureRoute(request, data);
+    if (!securityCheck.passed) {
+      return NextResponse.json(
+        { success: false, message: securityCheck.message ?? 'Solicitud bloqueada por seguridad' },
+        {
+          status: securityCheck.statusCode ?? 429,
+          ...(securityCheck.retryAfter && { headers: { 'Retry-After': String(securityCheck.retryAfter) } }),
+        }
+      );
+    }
+
     // Extraer coachId del body (enviado por el form)
     const coachId = data.coachId || null;
 
-    // Validar datos básicos
-    if (!data.personalData || !data.medicalData) {
+    // Zod validation
+    const parsed = clientFormSchema.safeParse(data);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Datos incompletos: personalData y medicalData son requeridos' 
+        {
+          success: false,
+          message: firstError?.message ?? 'Datos del formulario inválidos',
+          errors: parsed.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            message: i.message,
+          })),
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
+
+    const validatedData = parsed.data;
 
     const healthForms = await getHealthFormsCollection();
 

@@ -4,6 +4,7 @@ import { logger } from '@/app/lib/logger';
 import { MongoClient, ObjectId } from 'mongodb';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { recipeSchema } from '@/app/lib/schemas';
 
 // GET: Obtener recetas
 export async function GET(request: NextRequest) {
@@ -84,8 +85,26 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return logger.time('RECIPES', 'Crear nueva receta', async () => {
     try {
-      const recipesCollection = await getRecipesCollection();
       const data = await request.json();
+
+      // Zod validation
+      const parsed = recipeSchema.safeParse(data);
+      if (!parsed.success) {
+        const firstError = parsed.error.issues[0];
+        return NextResponse.json(
+          {
+            success: false,
+            message: firstError?.message ?? 'Datos de receta inválidos',
+            errors: parsed.error.issues.map((i) => ({
+              field: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+          { status: 400 },
+        );
+      }
+
+      const recipesCollection = await getRecipesCollection();
 
       // Obtener info del coach para el campo author
       let authorName = 'NelHealthCoach';
@@ -95,14 +114,7 @@ export async function POST(request: NextRequest) {
       } catch {
         // Sin auth, usar default
       }
-      
-      if (!data.title || !data.description) {
-        return NextResponse.json(
-          { success: false, message: 'Faltan campos requeridos' },
-          { status: 400 }
-        );
-      }
-      
+
       // ✅ ENCRIPTAR DIRECTAMENTE CADA CAMPO (sin funciones wrapper)
       const encryptedRecipeData: any = {
         title: encrypt(data.title),

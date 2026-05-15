@@ -5,6 +5,7 @@ import { generateToken } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
+import { loginSchema } from '@/app/lib/schemas';
 
 const LEGACY_CREDENTIALS = {
   email: process.env.COACH_EMAIL,
@@ -14,14 +15,22 @@ const LEGACY_CREDENTIALS = {
 export async function POST(request: NextRequest) {
   try {
     await connectMongoose();
-    const { email, password } = await request.json();
+    const body = await request.json();
 
-    if (!email || !password) {
+    // Zod validation
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { success: false, message: 'Email y contraseña son requeridos' },
-        { status: 400 }
+        {
+          success: false,
+          message: firstError?.message ?? 'Email o contraseña inválidos',
+        },
+        { status: 400 },
       );
     }
+
+    const { email, password } = parsed.data;
 
     const emailLower = email.toLowerCase().trim();
     const emailHash = hashEmail(emailLower);

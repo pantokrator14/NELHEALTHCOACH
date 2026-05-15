@@ -6,6 +6,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { EmailService } from '@/app/lib/email-service';
 import { decrypt } from '@/app/lib/encryption';
+import { changePasswordSchema } from '@/app/lib/schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,23 +15,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { currentPassword, newPassword } = body;
 
-    if (!currentPassword || !newPassword) {
+    // Zod validation
+    const parsed = changePasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { success: false, message: 'Contraseña actual y nueva son requeridas' },
-        { status: 400 }
+        { success: false, message: firstError?.message ?? 'Datos de contraseña inválidos' },
+        { status: 400 },
       );
     }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'La nueva contraseña debe tener al menos 6 caracteres',
-        },
-        { status: 400 }
-      );
-    }
+    const { currentPassword: validCurrent, newPassword: validNew } = parsed.data;
 
+    // Actualizar contraseña
     const coach = await Coach.findById(auth.coachId);
     if (!coach) {
       return NextResponse.json(
@@ -40,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar contraseña actual
-    const isMatch = await bcrypt.compare(currentPassword, coach.passwordHash);
+    const isMatch = await bcrypt.compare(validCurrent, coach.passwordHash);
     if (!isMatch) {
       return NextResponse.json(
         { success: false, message: 'La contraseña actual es incorrecta' },
@@ -50,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Actualizar contraseña
     const salt = await bcrypt.genSalt(10);
-    coach.passwordHash = await bcrypt.hash(newPassword, salt);
+    coach.passwordHash = await bcrypt.hash(validNew, salt);
     await coach.save();
 
     // Enviar notificación por email al coach (usando email del JWT, que está en texto plano)

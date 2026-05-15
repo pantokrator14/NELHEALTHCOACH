@@ -34,7 +34,6 @@ jobs:
     - name: Check for secrets in code (simplified)
       run: |
         echo "=== Buscando posibles secretos en el código ==="
-        # Patrones comunes de secretos
         grep -r -E "(API[_-]?KEY|SECRET[_-]?KEY|PASSWORD|TOKEN|PRIVATE[_-]?KEY)" \
           --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
           --include="*.env*" --include="*.config.*" \
@@ -46,10 +45,9 @@ jobs:
         echo "=== Verificando variables de entorno ==="
         if [ -f "apps/api/.env.example" ]; then
           echo "✓ .env.example existe"
-          # Verificar que las variables críticas estén documentadas
-          grep -q "ARCJET_KEY" apps/api/.env.example && echo "✓ ARCJET_KEY documentada" || echo "⚠ ARCJET_KEY no documentada"
-          grep -q "DEEPSEEK_API_KEY" apps/api/.env.example && echo "✓ DEEPSEEK_API_KEY documentada" || echo "⚠ DEEPSEEK_API_KEY no documentada"
           grep -q "JWT_SECRET" apps/api/.env.example && echo "✓ JWT_SECRET documentada" || echo "⚠ JWT_SECRET no documentada"
+          grep -q "ENCRYPTION_KEY" apps/api/.env.example && echo "✓ ENCRYPTION_KEY documentada" || echo "⚠ ENCRYPTION_KEY no documentada"
+          grep -q "DEEPSEEK_API_KEY" apps/api/.env.example && echo "✓ DEEPSEEK_API_KEY documentada" || echo "⚠ DEEPSEEK_API_KEY no documentada"
         else
           echo "❌ .env.example no existe"
         fi
@@ -65,15 +63,27 @@ jobs:
         echo "=== Verificando configuración de seguridad en middleware ==="
         if [ -f "apps/api/src/middleware.ts" ]; then
           echo "✓ middleware.ts existe"
-          # Verificar que Arcjet esté configurado
-          grep -q "arcjet" apps/api/src/middleware.ts && echo "✓ Arcjet importado" || echo "⚠ Arcjet no importado"
-          grep -q "shield" apps/api/src/middleware.ts && echo "✓ Shield configurado" || echo "⚠ Shield no configurado"
-          grep -q "tokenBucket" apps/api/src/middleware.ts && echo "✓ Rate limiting configurado" || echo "⚠ Rate limiting no configurado"
+          grep -q "runShield" apps/api/src/middleware.ts && echo "✓ Shield configurado (runShield)" || echo "⚠ Shield no configurado"
+          grep -q "runBotDetection" apps/api/src/middleware.ts && echo "✓ Bot detection configurado" || echo "⚠ Bot detection no configurado"
+          grep -q "CRITICAL_PATHS" apps/api/src/middleware.ts && echo "✓ Rutas críticas definidas" || echo "⚠ Rutas críticas no definidas"
         else
           echo "❌ middleware.ts no existe"
         fi
         echo ""
         
+    - name: Check security module
+      run: |
+        echo "=== Verificando módulo de seguridad opensource ==="
+        if [ -f "apps/api/src/app/lib/security/index.ts" ]; then
+          echo "✓ Módulo de seguridad existe"
+          grep -q "checkRateLimit" apps/api/src/app/lib/security/index.ts && echo "✓ Rate limiter exportado" || echo "⚠ Rate limiter no exportado"
+          grep -q "scanRequestBody" apps/api/src/app/lib/security/index.ts && echo "✓ Shield body scan exportado" || echo "⚠ Shield no exportado"
+          grep -q "scanForPromptInjection" apps/api/src/app/lib/security/index.ts && echo "✓ Prompt injection exportado" || echo "⚠ Prompt injection no exportado"
+        else
+          echo "❌ Módulo de seguridad no existe"
+        fi
+        echo ""
+
     - name: Check guardrails configuration
       run: |
         echo "=== Verificando guardrails de IA ==="
@@ -98,19 +108,33 @@ jobs:
         fi
         echo ""
         
+    - name: Check security headers
+      run: |
+        echo "=== Verificando security headers ==="
+        if [ -f "apps/api/next.config.ts" ]; then
+          grep -q "X-Content-Type-Options" apps/api/next.config.ts && echo "✓ X-Content-Type-Options configurado" || echo "⚠ X-Content-Type-Options no configurado"
+          grep -q "X-Frame-Options" apps/api/next.config.ts && echo "✓ X-Frame-Options configurado" || echo "⚠ X-Frame-Options no configurado"
+          grep -q "Strict-Transport-Security" apps/api/next.config.ts && echo "✓ HSTS configurado" || echo "⚠ HSTS no configurado"
+          grep -q "Content-Security-Policy" apps/api/next.config.ts && echo "✓ CSP configurado" || echo "⚠ CSP no configurado"
+        fi
+        echo ""
+        
     - name: Generate security report
       run: |
         echo "=== RESUMEN DE SEGURIDAD ==="
-        echo "✅ Middleware con Arcjet configurado"
-        echo "✅ Guardrails de IA implementados"
-        echo "✅ Validación de prompts y respuestas"
-        echo "✅ Rate limiting activo"
-        echo "✅ Protección contra bots"
+        echo "✅ Shield — detección de ataques (XSS, SQLi, NoSQLi, path traversal, shell)"
+        echo "✅ Bot Detection — 55+ firmas de bots y análisis de headers"
+        echo "✅ Rate Limiter — MongoDB con TTL index, por IP y fingerprint"
+        echo "✅ Prompt Injection — 21 patrones jailbreak + HTTP-level"
+        echo "✅ Guardrails de IA — validación entrada/salida para 7 agentes"
+        echo "✅ Security Headers — CSP, HSTS, X-Frame-Options, X-Content-Type-Options"
+        echo "✅ FingerprintJS — identificación de dispositivo opensource"
         echo ""
         echo "📋 Próximos pasos recomendados:"
-        echo "1. Obtén una key gratuita de Arcjet en https://arcjet.com"
-        echo "2. Configura ARCJET_KEY en apps/api/.env"
-        echo "3. Considera implementar autenticación MFA"
-        echo "4. Configura alertas de seguridad"
+        echo "1. Crear archivo .env.example con las variables documentadas"
+        echo "2. Implementar Zod validation en cada ruta API"
+        echo "3. Agregar autenticación en DELETE /api/exercises y DELETE /api/recipes"
+        echo "4. Considerar implementar autenticación MFA"
+        echo "5. Configurar alertas de seguridad"
         echo ""
-        echo "🔒 NELHEALTHCOACH - Seguridad de IA activa"
+        echo "🔒 NELHEALTHCOACH - Seguridad opensource activa"

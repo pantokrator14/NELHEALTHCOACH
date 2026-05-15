@@ -2,347 +2,237 @@
 
 ## 📋 Resumen
 
-Esta documentación describe las medidas de seguridad implementadas en el proyecto NELHEALTHCOACH, con especial énfasis en la protección de aplicaciones de IA y datos médicos sensibles.
+Esta documentación describe las medidas de seguridad implementadas en NELHEALTHCOACH, con énfasis en protección de APIs, datos médicos sensibles, y aplicaciones de IA. El stack de seguridad es **100% opensource**, sin dependencias de SaaS pagas.
 
 ## 🎯 Objetivos de Seguridad
 
-1. **Protección de API** - Prevenir ataques comunes (DDoS, inyección, bots)
-2. **Seguridad de IA** - Validar prompts y respuestas de modelos de lenguaje
-3. **Protección de datos** - Encriptación y validación de datos médicos
-4. **Monitoreo** - Detección de comportamiento anómalo
-5. **Cumplimiento** - Adherencia a regulaciones de salud (HIPAA-compatible)
+1. **Protección de API** — Prevenir ataques comunes (DDoS, inyección, bots, path traversal)
+2. **Seguridad de IA** — Validar prompts y respuestas de modelos de lenguaje (LangChain/LangGraph)
+3. **Protección de datos** — Encriptación AES-256 en reposo, validación de datos médicos
+4. **Monitoreo** — Detección de comportamiento anómalo, rate limiting por IP/dispositivo
+5. **Cumplimiento** — Adherencia a buenas prácticas de seguridad para datos de salud
 
 ## 🏗️ Arquitectura de Seguridad
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                 NELHEALTHCOACH API                   │
-├─────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │   Arcjet    │  │  Guardrails │  │   Auth/JWT  │  │
-│  │   (WAF)     │  │     (IA)    │  │  (Acceso)   │  │
-│  └─────────────┘  └─────────────┘  └─────────────┘  │
-├─────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │  Rate Lim   │  │   CORS      │  │  Encript.   │  │
-│  │  (10/10s)   │  │  (Orígenes) │  │  (AES-256)  │  │
-│  └─────────────┘  └─────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────┘
+                    ┌──────────────────────────────────────────┐
+                    │        MIDDLEWARE (Edge Runtime)          │
+                    │  • Shield — 28 patrones de ataque         │
+Solicitud ──────────│  • Bot Detection — 55+ firmas de bots    │
+                    │  • CORS — allowlist por origen            │
+                    │  • Security Headers (CSP, HSTS, etc.)     │
+                    │  • Request Logging                        │
+                    └──────────────┬───────────────────────────┘
+                                   │
+                    ┌──────────────▼───────────────────────────┐
+                    │       ROUTE HANDLERS (Node.js Runtime)    │
+                    │  • Rate Limiter — MongoDB con TTL index   │
+                    │  • Shield Body Scan — XSS/SQLi/NoSQLi     │
+                    │  • Prompt Injection — 21 patrones HTTP    │
+                    │  • Auth/JWT — requireCoachAuth            │
+                    │  • Encriptación — AES-256 en reposo       │
+                    │  • AI Guardrails — validación entrada/salida│
+                    └──────────────────────────────────────────┘
 ```
 
 ## 🔧 Componentes Implementados
 
-### 1. **Arcjet - Web Application Firewall**
+### 1. Shield — Detección de Ataques Web
 
-**Ubicación:** `apps/api/src/middleware.ts`
+**Ubicación:** `apps/api/src/app/lib/security/shield.ts`  
+**Tipo:** Edge-compatible (middleware) + Node.js (route handlers)
 
-**Funcionalidades:**
-- ✅ **Shield** - Protección contra XSS, SQLi, y otros ataques web
-- ✅ **Bot Detection** - Solo permite bots conocidos (Google, LinkedIn)
-- ✅ **Rate Limiting** - 10 solicitudes por 10 segundos por IP
-- ✅ **Modo LIVE** - Activado para producción
+**Detecciones activas (28 patrones):**
 
-**Configuración:**
-```typescript
-const aj = arcjet({
-  key: process.env.ARCJET_KEY,
-  rules: [
-    shield({ mode: "LIVE" }),
-    detectBot({ mode: "LIVE", allow: ["GOOGLEBOT", "LINKEDINBOT"] }),
-    tokenBucket({ mode: "LIVE", refillRate: 10, interval: 10, capacity: 10 }),
-  ],
-});
-```
+| Categoría | Patrones | Ejemplos |
+|---|---|---|
+| SQL Injection | 8 | `' OR '1'='1`, `UNION SELECT`, `DROP TABLE`, `xp_cmdshell` |
+| NoSQL Injection | 3 | `$gt`, `$ne`, `$where` operators |
+| XSS | 8 | `<script>`, `onerror=`, `javascript:`, `eval()`, `<svg onload>` |
+| Path Traversal | 4 | `../`, `..\\`, `%2e%2e%2f`, `/etc/passwd` |
+| Shell Injection | 5 | backticks, `$(...)`, `|`, `&&`, `>/dev/null` |
 
-### 2. **Guardrails AI - Validación de IA**
+**Funcionamiento:**
+- En middleware: escanea URL, query params y headers críticos
+- En route handlers: escanea el body del request (`scanRequestBody`)
+
+### 2. Bot Detection
+
+**Ubicación:** `apps/api/src/app/lib/security/botDetector.ts`  
+**Tipo:** Edge-compatible
+
+**55+ firmas de bots organizadas en categorías:**
+- Crawlers conocidos (Googlebot, Bingbot, etc.)
+- Headless browsers (HeadlessChrome, PhantomJS, Puppeteer, Playwright)
+- Herramientas de scraping (Scrapy, wget, curl, node-fetch, axios)
+- Escáneres de seguridad (nmap, Nikto, sqlmap, Burp Suite, Nessus)
+- Spam y fuerza bruta
+
+**Verificaciones adicionales:**
+- Consistencia de headers del navegador (Sec-CH-UA)
+- Headers sospechosos (User-Agent vacío, sin Accept-Language, Connection anómalo)
+- Fingerprint del dispositivo (vía FingerprintJS — X-Visitor-Id header)
+
+### 3. Rate Limiter — MongoDB con TTL Index
+
+**Ubicación:** `apps/api/src/app/lib/security/rateLimiter.ts`  
+**Tipo:** Node.js runtime (requiere MongoDB)
+
+**Configuración por ruta:**
+
+| Ruta | Ventana | Máx. requests |
+|---|---|---|
+| `/api/clients` | 10s | 10 |
+| `/api/leads` | 10s | 5 |
+| `/api/auth/login` | 60s | 5 |
+| `/api/auth/register` | 60s | 3 |
+| `/api/health` | 10s | 20 |
+| `/api/exercises` | 10s | 10 |
+| `/api/recipes` | 10s | 10 |
+| Default | 10s | 10 |
+
+**Características:**
+- Clave por IP o por `X-Visitor-Id` (FingerprintJS)
+- TTL index en MongoDB para limpieza automática
+- Operación atómica `findOneAndUpdate` con `$inc`
+- Fail-open: si MongoDB falla, permite el request
+
+### 4. Prompt Injection — HTTP-Level
+
+**Ubicación:** `apps/api/src/app/lib/security/promptInjection.ts`  
+**Tipo:** Node.js runtime
+
+**21 patrones organizados por severidad:**
+
+| Severidad | Categorías | Ejemplos |
+|---|---|---|
+| **Critical** | Ignorar instrucciones, system prompt extraction, jailbreak, ethics bypass | `ignore previous instructions`, `DAN`, `developer mode`, `bypass ethical guidelines` |
+| **High** | Persona override, fake authority, model confusion | `you are now a different AI`, `this is urgent/critical` |
+| **Medium** | Output format hijack | `respond only with JSON` |
+
+### 5. AI Guardrails (guard.ts)
 
 **Ubicación:** `apps/api/src/app/lib/agents/guard.ts`
 
-**Funcionalidades:**
-- ✅ **Prevención de Prompt Injection** - Detecta intentos de manipulación
-- ✅ **Disclaimer Médico Obligatorio** - Todas las respuestas deben incluirlo
-- ✅ **Prohibición de Medicamentos** - No permite recomendaciones de fármacos
-- ✅ **Validación de JSON** - Estructura correcta para planes de salud
-- ✅ **Validación de Datos Médicos** - Formato apropiado para información sensible
+**7 guards específicos por agente LangGraph:**
+- `nutritionPlannerGuard` — disclaimer médico + no medicamentos + ingredientes seguros
+- `clientAnalyzerGuard` — prompt injection + validación de datos médicos
+- `exercisePlannerGuard` — seguridad de ejercicios + disclaimer
+- `habitDesignerGuard` — hábitos saludables + disclaimer
+- `qualityValidatorGuard` — validación JSON
+- `shoppingListGuard` — validación JSON
+- `recipeMatcherGuard` — validación JSON
 
-**Guards Específicos:**
-- `nutritionPlannerGuard` - Para el planificador nutricional
-- `clientAnalyzerGuard` - Para el analizador de clientes
+**Reglas de salida:**
+- Disclaimer médico obligatorio en español
+- Prohibición de recomendaciones de medicamentos
+- Validación de seguridad en ejercicios
+- Validación de hábitos saludables
+- Validación de ingredientes seguros
+- Validación de estructura JSON
 
-### 3. **Integración en Agentes de LangGraph**
+### 6. Security Headers (Helmet-style)
 
-**Ubicación:** `apps/api/src/app/lib/agents/nodes/nutrition-planner.ts`
+**Ubicación:** `apps/api/next.config.ts`
 
-**Implementación:**
-```typescript
-// Uso de guardrails en el planificador nutricional
-const nutritionPlan = await applyGuardrails(
-  nutritionPlannerGuard,
-  { systemPrompt, userPrompt, clientData: state },
-  async (validatedInput) => {
-    // Procesamiento seguro con IA
-    const response = await llm.invoke(messages);
-    
-    // Validación adicional
-    const validation = validateAIResponse(response.content);
-    
-    return validation.isValid ? response : fallbackResponse;
-  }
-);
-```
+| Header | Valor |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
+| `X-XSS-Protection` | `0` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Content-Security-Policy` | `default-src 'self'; frame-ancestors 'none'` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), interest-cohort=()` |
+| `X-DNS-Prefetch-Control` | `off` |
+| `Cross-Origin-Resource-Policy` | `cross-origin` |
 
-## ⚙️ Configuración Requerida
+### 7. FingerprintJS — Identificación de Dispositivo
 
-### Variables de Entorno
+**Ubicación:** `apps/{dashboard,form,landing}/src/lib/fingerprint.ts`  
+**Versión:** `@fingerprintjs/fingerprintjs` (opensource, AGPL-3.0)
 
-**En `apps/api/.env`:**
-```bash
-# Arcjet (obtén key gratuita en https://arcjet.com)
-ARCJET_KEY=tu-key-de-arcjet-aquí
+- Se inicializa al montar `_app.tsx` (no bloquea la app si falla)
+- Visitor ID cacheado en localStorage + memoria
+- Se envía como header `X-Visitor-Id` en todas las requests API
+- Usado por el rate limiter (clave por dispositivo, no solo IP)
+- Usado por el bot detector (señal adicional)
 
-# DeepSeek AI
-DEEPSEEK_API_KEY=tu-api-key-de-deepseek
-DEEPSEEK_API_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-reasoner
+## 🔐 Autenticación y Autorización
 
-# Seguridad
-JWT_SECRET=tu-secreto-jwt-seguro
-ENCRYPTION_KEY=clave-de-32-caracteres-para-encriptacion
-```
+### JWT Bearer Tokens
 
-### 🗝️ Cómo Obtener la API Key de Arcjet
+- **Duración:** 24 horas para coaches, 15 minutos para sesiones de cliente
+- **Almacenamiento:** localStorage (dashboard) — stateless (sin cookies)
+- **Middleware:** `requireCoachAuth()` extrae y verifica el token del header `Authorization`
 
-Arcjet es un Web Application Firewall (WAF) que protege tu aplicación contra ataques comunes. Para usar Arcjet en modo producción, necesitas obtener una API key gratuita:
+### Roles
 
-#### **Paso 1: Registrarse en Arcjet**
-1. Visita https://arcjet.com
-2. Haz clic en "Get Started" o "Sign Up"
-3. Regístrate con tu email, GitHub, o Google account
+- `admin` — acceso total a todos los recursos
+- `coach` — acceso solo a sus propios clientes y recursos
 
-#### **Paso 2: Crear un Nuevo Proyecto**
-1. Una vez registrado, haz clic en "Create Project"
-2. Nombra tu proyecto (ej: "nelhealthcoach-api")
-3. Selecciona "Next.js" como framework (funciona con cualquier framework Node.js)
+## 🔒 Encriptación de Datos
 
-#### **Paso 3: Obtener tu API Key**
-1. En el dashboard, ve a "Settings" → "API Keys"
-2. Haz clic en "Generate New Key"
-3. Copia la key generada (comienza con `aj_`)
+### AES-256 en reposo
 
-#### **Paso 4: Configurar en tu Proyecto**
-1. Abre el archivo `apps/api/.env`
-2. Reemplaza `tu-key-de-arcjet-aquí` con tu API key real:
-   ```bash
-   ARCJET_KEY=aj_live_tu_key_real_aquí
-   ```
+**Ubicación:** `apps/api/src/app/lib/encryption.ts`
 
-#### **Paso 5: Verificar Funcionamiento**
-1. Reinicia tu servidor de desarrollo: `npm run dev`
-2. Verifica los logs para confirmar que Arcjet se inicializa correctamente
-3. Visita https://app.arcjet.com para ver métricas y ataques bloqueados
-
-#### **Características Gratuitas de Arcjet:**
-- ✅ 10,000 solicitudes/mes gratuitas
-- ✅ Rate limiting configurable
-- ✅ Bot detection
-- ✅ Shield contra XSS, SQLi
-- ✅ Dashboard con analytics
-- ✅ Alertas por email
-
-#### **Solución de Problemas:**
-- **Error "Invalid API key"**: Verifica que copiaste toda la key (incluye `aj_live_`)
-- **Arcjet no bloquea ataques**: Asegúrate de que `mode: "LIVE"` está configurado en middleware.ts
-- **Problemas de rate limiting**: Ajusta `tokenBucket` en la configuración del middleware
-
-### Dependencias Instaladas
-
-```bash
-# En apps/api/
-npm install @arcjet/next @openai/guardrails
-
-# Scripts de seguridad disponibles
-npm run security:check        # Verificación general
-```
-
-## 🚀 Flujo de Solicitud Segura
-
-```
-1. Cliente → Solicitud HTTP
-2. Arcjet Middleware → Validación (Rate Limit, Bots, Shield)
-3. Si bloqueada → Respuesta 429/403 con JSON
-4. Si permitida → Logging de solicitud
-5. API Endpoint → Autenticación JWT
-6. Agente de IA → Guardrails (validación entrada)
-7. DeepSeek API → Procesamiento
-8. Agente de IA → Guardrails (validación salida)
-9. Respuesta → Encriptación de datos sensibles
-10. Cliente ← Respuesta segura
-```
-
-## 🔍 Reglas de Validación Específicas
-
-### Para Planificador Nutricional:
-1. **Entrada:**
-   - No contener comandos de sistema (`system:`, `sudo:`)
-   - No intentar revelar el prompt del sistema
-   - Datos médicos con formato apropiado
-
-2. **Salida:**
-   - Debe incluir: "Consulte con profesional médico"
-   - No puede recomendar medicamentos específicos
-   - JSON válido con estructura esperada
-   - Macros nutricionales dentro de rangos seguros
-
-### Para Analizador de Clientes:
-1. **Entrada:**
-   - Validación de datos personales
-   - Prevención de inyección en documentos médicos
-
-2. **Salida:**
-   - Disclaimer médico obligatorio
-   - No diagnósticos médicos
-   - Recomendaciones educativas solamente
+- Todos los datos personales y médicos se encriptan antes de guardar en MongoDB
+- Campos encriptados: nombre, email, teléfono, dirección, historial médico
+- La encriptación ocurre en el servidor (API) antes de la inserción en BD
+- Los datos se desencriptan al leer para mostrarlos en el dashboard
 
 ## 📊 Monitoreo y Logging
 
-### Eventos Registrados:
-- **Arcjet Denials** - Solicitudes bloqueadas (rate limit, bots, shield)
-- **Guardrail Triggers** - Validaciones fallidas de IA
-- **Prompt Injection Attempts** - Intentos de manipulación
-- **Medical Data Access** - Acceso a información sensible
+### Request Logger
 
-### Logs Estructurados:
-```json
-{
-  "timestamp": "2024-01-15T10:30:00Z",
-  "level": "WARN",
-  "category": "GUARDRAILS",
-  "message": "Falta disclaimer médico en respuesta",
-  "metadata": {
-    "agent": "nutrition-planner",
-    "clientId": "client_123",
-    "responseLength": 2450
-  }
-}
-```
+- Cada request recibe un `X-Request-ID` único
+- Logs estructurados con contexto: endpoint, método, IP, User-Agent, duración
+- Niveles: DEBUG, INFO, WARN, ERROR
+- Contextos específicos: RATE_LIMITER, PROMPT_INJECTION, GUARDRAILS, AUTH, DATABASE
 
-## 🛠️ Herramientas de Desarrollo de Seguridad
+### Eventos de Seguridad
 
-### Scripts Disponibles:
-```bash
-# Verificación general de seguridad
-npm run security:check
+- Shield bloqueos — logueados con patrón específico y ruta
+- Rate limit excedidos — logueados con contador y ventana
+- Prompt injection detectados — logueados con severidad y preview del valor
+- Validaciones de guardrails — logueadas con resultado y contexto
 
-# En el futuro (cuando estén disponibles):
-npm run security:scan-secrets   # Escaneo de secretos en código
-npm run security:scan-code      # Análisis estático de seguridad
-```
+## 🚀 Despliegue
 
-### GitHub Actions:
-- **security.yml** - Escaneos automáticos en CI/CD
-- Verificación semanal de configuraciones
-- Auditoría de dependencias
-- Validación de variables de entorno
+Todas las medidas de seguridad son **0 dependencias externas pagas**:
+- ✅ Middleware: Edge Runtime (Vercel)
+- ✅ Rate Limiter: MongoDB existente (reutiliza conexión)
+- ✅ Shield + Bot Detection: Regex puro (sin APIs externas)
+- ✅ Security Headers: Config estática de Next.js
+- ✅ FingerprintJS: Biblioteca opensource client-side
 
-## 🔒 Consideraciones de Cumplimiento (HIPAA)
+## 📋 Checklist de Seguridad
 
-### Datos Protegidos:
-- ✅ **Información Personal** - Nombre, edad, dirección (encriptados)
-- ✅ **Datos Médicos** - Condiciones, alergias, medicamentos (encriptados)
-- ✅ **Documentos** - PDFs médicos (encriptados en S3)
-- ✅ **Recomendaciones** - Planes de salud (validados por guardrails)
+- [x] Rate limiting por IP y dispositivo
+- [x] Detección de ataques web (XSS, SQLi, NoSQLi, path traversal, shell)
+- [x] Detección de bots (55+ firmas)
+- [x] Prevención de prompt injection (HTTP + AI agents)
+- [x] Validación de salidas de IA (guardrails médicos)
+- [x] Security headers (CSP, HSTS, X-Frame-Options, etc.)
+- [x] CORS con allowlist de orígenes
+- [x] JWT autenticación con roles
+- [x] Encriptación AES-256 de datos en reposo
+- [x] Logging estructurado con request IDs
+- [x] Fingerprint de dispositivo (FingerprintJS)
+- [ ] Zod validation en todas las rutas API (próximo)
+- [ ] `.env.example` con variables documentadas
+- [ ] MFA para coaches (próximo)
 
-### Medidas Implementadas:
-1. **Encriptación de extremo a extremo** - AES-256 para datos en reposo
-2. **Validación de acceso** - JWT con expiración de 24h
-3. **Auditoría** - Logging completo de acceso a datos
-4. **Minimización** - Solo datos necesarios procesados
-5. **Responsabilidad** - Guardrails para recomendaciones médicas
+## 🔄 Migración desde Arcjet
 
-## 🆘 Troubleshooting
+Este proyecto migró de **Arcjet** (SaaS pago) a un stack **100% opensource**:
 
-### Problemas Comunes:
-
-#### 1. Arcjet bloquea solicitudes legítimas
-```bash
-# Verificar:
-# - ARCJET_KEY configurada correctamente
-# - Rate limiting no demasiado restrictivo
-# - Bots permitidos configurados
-```
-
-#### 2. Guardrails rechazan respuestas válidas
-```bash
-# Verificar:
-# - Disclaimer médico incluido
-# - No menciones de medicamentos
-# - JSON válido y bien formado
-```
-
-#### 3. Alta latencia por validaciones
-```bash
-# Considerar:
-# - Modo desarrollo para testing
-# - Cache de validaciones frecuentes
-# - Sampling para alta carga
-```
-
-### Logs de Depuración:
-```typescript
-// Nivel DEBUG para troubleshooting
-logger.debug('SECURITY', 'Detalle de validación', {
-  input: input.substring(0, 100),
-  rulesApplied: ['prompt-injection', 'medical-disclaimer'],
-  duration: '45ms',
-});
-```
-
-## 📈 Métricas de Seguridad
-
-### Para Monitorear:
-- **Tasa de bloqueo** - Solicitudes bloqueadas / totales
-- **Intentos de inyección** - Prompt injection detectados
-- **Tiempo de validación** - Overhead de seguridad
-- **Falsos positivos** - Validaciones incorrectas
-
-### Alertas Recomendadas:
-- ⚠️ >5% de solicitudes bloqueadas
-- ⚠️ >3 intentos de prompt injection por hora
-- ⚠️ Validación >200ms de promedio
-- 🔴 Fuga de datos médicos detectada
-
-## 🔄 Mantenimiento y Actualizaciones
-
-### Tareas Periódicas:
-1. **Semanal:** Revisar logs de seguridad
-2. **Mensual:** Actualizar reglas de Arcjet
-3. **Trimestral:** Revisar y ajustar guardrails
-4. **Anual:** Auditoría completa de seguridad
-
-### Actualización de Dependencias:
-```bash
-# Actualizar herramientas de seguridad
-npm update @arcjet/next @openai/guardrails
-
-# Verificar cambios breaking
-npm audit --audit-level=high
-```
-
-## 🤝 Soporte y Recursos
-
-### Documentación:
-- [Arcjet Documentation](https://arcjet.com/docs)
-- [OpenAI Guardrails](https://github.com/openai/guardrails)
-- [NELHEALTHCOACH Security Wiki](https://github.com/tu-repo/wiki/Security)
-
-### Contacto:
-- **Responsable de Seguridad:** [Nombre/Equipo]
-- **Canal de Emergencias:** #security-emergency
-- **Reporte de Vulnerabilidades:** security@nelhealthcoach.com
-
----
-
-**Última Actualización:** $(date)
-**Versión:** 1.0.0
-**Estado:** ✅ Implementado y Activo
-**Próxima Revisión:** 3 meses desde implementación
+| Funcionalidad | Antes (Arcjet) | Ahora (Opensource) |
+|---|---|---|
+| Rate Limiting | `tokenBucket` SaaS | MongoDB + TTL index (`rateLimiter.ts`) |
+| WAF / Shield | `shield` SaaS | 28 patrones regex (`shield.ts`) |
+| Bot Detection | `detectBot` SaaS | 55+ firmas + headers (`botDetector.ts`) |
+| Prompt Injection | N/A | 21 patrones HTTP (`promptInjection.ts`) |
+| Security Headers | N/A | CSP, HSTS, etc. (`next.config.ts`) |
+| Dispositivo ID | N/A | FingerprintJS opensource |
