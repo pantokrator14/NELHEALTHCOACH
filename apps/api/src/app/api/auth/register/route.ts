@@ -7,6 +7,7 @@ import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
+import { registerSchema } from '@/app/lib/schemas';
 import {
   generateVerificationEmailHTML,
 } from '@/app/lib/email-templates';
@@ -29,14 +30,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firstName, lastName, email, phone, password } = body;
 
-    if (!firstName || !lastName || !email || !password) {
+    // Zod validation
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { success: false, message: 'Nombre, apellido, email y contraseña son requeridos' },
-        { status: 400 }
+        { success: false, message: firstError?.message ?? 'Datos de registro inválidos' },
+        { status: 400 },
       );
     }
 
-    const emailLower = email.toLowerCase().trim();
+    const {
+      firstName: validFirstName,
+      lastName: validLastName,
+      email: validEmail,
+      phone: validPhone,
+      password: validPassword,
+    } = parsed.data;
+
+    const emailLower = validEmail.toLowerCase().trim();
     const emailHash = hashEmail(emailLower);
 
     // Verificar si ya existe por hash
@@ -63,16 +75,16 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(validPassword, salt);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
     const coach = await Coach.create({
       email: encrypt(emailLower),
       emailHash,
       passwordHash,
-      firstName: encrypt(firstName.trim()),
-      lastName: encrypt(lastName.trim()),
-      phone: phone ? encrypt(phone) : '',
+      firstName: encrypt(validFirstName.trim()),
+      lastName: encrypt(validLastName.trim()),
+      phone: validPhone ? encrypt(validPhone) : '',
       role: 'coach',
       emailVerified: false,
       verificationToken,
@@ -92,7 +104,7 @@ export async function POST(request: NextRequest) {
         to: [emailLower],
         subject: 'Verifica tu cuenta - NELHEALTHCOACH',
         htmlBody: generateVerificationEmailHTML({
-          coachName: firstName,
+          coachName: validFirstName,
           verifyUrl,
         }),
       });

@@ -16,7 +16,7 @@
     "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +",
     "security:scan-secrets": "echo 'Instala veilguard manualmente: npm install -g veilguard'",
     "security:scan-code": "echo 'Instala kuzushi manualmente: npm install -g kuzushi'",
-    "security:check": "echo '=== Verificación de seguridad ===' && echo '1. Arcjet: Verifica ARCJET_KEY en apps/api/.env' && echo '2. Guardrails: Configurados en apps/api/src/lib/agents/guard.ts' && echo '3. Middleware: Protección activa en apps/api/src/middleware.ts'"
+    "security:check": "echo '=== Verificación de seguridad ===' && echo '1. Shield: Detección de ataques en apps/api/src/app/lib/security/shield.ts' && echo '2. Bot Detection: apps/api/src/app/lib/security/botDetector.ts' && echo '3. Rate Limiter: MongoDB-based en apps/api/src/app/lib/security/rateLimiter.ts' && echo '4. Prompt Injection: HTTP-level en apps/api/src/app/lib/security/promptInjection.ts' && echo '5. Guardrails: AI agents protegidos en apps/api/src/app/lib/agents/guard.ts' && echo '6. Security Headers: Configurados en apps/api/next.config.ts'"
   },
   "devDependencies": {
     "@types/node": "^24.0.15",

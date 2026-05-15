@@ -4,6 +4,7 @@ import { getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { exerciseSchema } from '@/app/lib/schemas';
 import EditProposal from '@/app/models/EditProposal';
 
 // GET: Obtener ejercicios
@@ -109,6 +110,25 @@ export async function POST(request: NextRequest) {
   return logger.time('EXERCISES', 'Crear ejercicio', async () => {
     try {
       const body = await request.json();
+
+      // Zod validation
+      const parsed = exerciseSchema.safeParse(body);
+      if (!parsed.success) {
+        const firstError = parsed.error.issues[0];
+        return NextResponse.json(
+          {
+            success: false,
+            message: firstError?.message ?? 'Datos de ejercicio inválidos',
+            errors: parsed.error.issues.map((i) => ({
+              field: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+          { status: 400 },
+        );
+      }
+
+      const validData = parsed.data;
       const collection = await getExerciseCollection();
 
       // Obtener info del coach para el campo author

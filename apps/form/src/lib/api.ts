@@ -1,6 +1,20 @@
 // apps/form/src/lib/api.ts
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+/**
+ * Retorna headers base con el visitorId de FingerprintJS si está disponible.
+ */
+function getBaseHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (typeof window !== 'undefined') {
+    const visitorId = localStorage.getItem('nel_fp_visitor_id');
+    if (visitorId) {
+      headers['X-Visitor-Id'] = visitorId;
+    }
+  }
+  return headers;
+}
+
 // Minimal types for the form payload used by submitForm!
 type PersonalData = {
   profilePhoto?: File | null;
@@ -81,9 +95,7 @@ export const apiClient = {
 
     const response = await fetch(`${API_BASE_URL}/api/clients`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getBaseHeaders(),
       body: JSON.stringify(clientData),
     });
 
@@ -166,9 +178,7 @@ export const apiClient = {
       // 1. Obtener URL firmada
       const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getBaseHeaders(),
         body: JSON.stringify({
           fileName: file.name,
           fileType: file.type,
@@ -196,9 +206,7 @@ export const apiClient = {
       console.log('✅ Confirmando upload en base de datos...');
       const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getBaseHeaders(),
         body: JSON.stringify({
           fileKey: uploadData.data.fileKey,
           fileName: file.name,
@@ -230,9 +238,7 @@ export const apiClient = {
         // 1. Obtener URL firmada
         const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getBaseHeaders(),
           body: JSON.stringify({
             fileName: file.name,
             fileType: file.type,
@@ -260,9 +266,7 @@ export const apiClient = {
         console.log('✅ Confirmando upload de documento en base de datos...');
         const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getBaseHeaders(),
           body: JSON.stringify({
             fileKey: uploadData.data.fileKey,
             fileName: file.name,

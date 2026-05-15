@@ -107,18 +107,33 @@ const promptInjectionRule: Rule = {
   description: 'Previene intentos de inyección de prompt en entradas de usuario',
   validate: async (input: string): Promise<boolean> => {
     const blockedPatterns = [
-      // Intentos de ignorar instrucciones del sistema
+      // ── Ignorar / sobrescribir instrucciones ──
       /ignore.*previous|forget.*instructions|disregard.*system/i,
-      // Intentos de obtener información del sistema
+      /new.*instructions|new.*system.*prompt|override.*rules/i,
+      /start.*fresh|reset.*(yourself|context|memory|conversation)|wipe.*memory/i,
+      // ── System prompt extraction ──
       /what.*system.*prompt|show.*instructions|reveal.*prompt/i,
-      // Comandos de sistema
+      /tell.*me.*your.*(prompt|instructions?|rules?|guidelines?)/i,
+      /print.*(your.*)?(system.*)?(prompt|secrets?|internal|hidden)/i,
+      // ── Jailbreak (DAN / character breaking) ──
+      /\bDAN\b|do.*anything.*now|jailbreak|character.*break/i,
+      /(imagine|pretend|act\s+as\s+if|roleplay|simulate)\s+(you\s+are|you're)\s+(not|no\s+longer)/i,
+      /developer\s+mode|god\s+mode|unfiltered|unrestricted/i,
+      // ── Comandos de sistema ──
       /system:|sudo:|root:|admin:|exec\(|eval\(/i,
-      // URLs sospechosas
+      // ── Evasión ética ──
+      /bypass.*(ethical?|safety|filters?|safeguards?|guardrails?|restrictions?)/i,
+      /remove.*(your.*)?(filters?|safeguards?|guardrails?)|disable.*safety/i,
+      // ── URLs sospechosas ──
       /https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i,
-      // Patrones de SQL injection básicos
+      // ── Patrones de SQL injection básicos ──
       /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION)\b.*\b(FROM|INTO|TABLE|DATABASE)\b)/i,
-      // Patrones de XSS básicos
+      // ── Patrones de XSS básicos ──
       /<script.*>|javascript:|onclick=|onload=/i,
+      // ── Prompt smuggling ──
+      /ignore\s+the\s+following\s+and\s+instead|from\s+now\s+on\s+you\s+will/i,
+      // ── Falsa autoridad ──
+      /this\s+is\s+(urgent|critical|emergency|official)|this\s+message\s+is\s+from\s+(the\s+)?(developer|admin|CEO|owner|creator)/i,
     ];
 
     for (const pattern of blockedPatterns) {

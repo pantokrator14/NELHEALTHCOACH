@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
+import { getVisitorId } from '../../lib/fingerprint';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -75,9 +76,15 @@ const ContactFormSection: React.FC = () => {
     };
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const visitorId = getVisitorId();
+      if (visitorId) {
+        headers['X-Visitor-Id'] = visitorId;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
 

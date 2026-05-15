@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@hookform/resolvers": "^3.3.1",
     "@nelhealthcoach/types": "*",
     "@types/crypto-js": "^4.1.1",
