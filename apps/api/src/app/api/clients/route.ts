@@ -265,7 +265,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validatedData = parsed.data;
+    // Zod validated — `data` tiene la forma correcta
+    // Las fields faltantes se manejan con defaults en el processing code
 
     const healthForms = await getHealthFormsCollection();
 

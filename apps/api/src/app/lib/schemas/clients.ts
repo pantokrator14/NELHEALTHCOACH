@@ -1,9 +1,16 @@
 // apps/api/src/app/lib/schemas/clients.ts
 // Zod schemas para validación de datos de clientes (formulario de salud)
+// Nota: age/weight/height aceptan string o number porque el frontend
+// envía inputs type="number" que se serializan como números en JSON.
+// Las evaluaciones médicas (carbohydrateAddiction, etc.) se envían como
+// arrays porque el frontend usa checkboxes; el route handler las stringifica.
 
 import { z } from 'zod';
 
 // ─── Medical Data ───
+
+const evaluationArrayField = () =>
+  z.union([z.array(z.string()), z.string()]).default([]);
 
 const medicalDataSchema = z.object({
   mainComplaint: z.string().max(5000).default(''),
@@ -16,13 +23,15 @@ const medicalDataSchema = z.object({
   allergies: z.string().max(5000).default(''),
   surgeries: z.string().max(5000).default(''),
   housingHistory: z.string().max(5000).default(''),
-  carbohydrateAddiction: z.string().max(5000).default(''),
-  leptinResistance: z.string().max(5000).default(''),
-  circadianRhythms: z.string().max(5000).default(''),
-  sleepHygiene: z.string().max(5000).default(''),
-  electrosmogExposure: z.string().max(5000).default(''),
-  generalToxicity: z.string().max(5000).default(''),
-  microbiotaHealth: z.string().max(5000).default(''),
+  // Evaluaciones médicas: el frontend envía arrays (checkboxes),
+  // el route handler los stringifica
+  carbohydrateAddiction: evaluationArrayField(),
+  leptinResistance: evaluationArrayField(),
+  circadianRhythms: evaluationArrayField(),
+  sleepHygiene: evaluationArrayField(),
+  electrosmogExposure: evaluationArrayField(),
+  generalToxicity: evaluationArrayField(),
+  microbiotaHealth: evaluationArrayField(),
   mentalHealthEmotionIdentification: z.string().max(5000).default(''),
   mentalHealthEmotionIntensity: z.string().max(5000).default(''),
   mentalHealthUncomfortableEmotion: z.string().max(5000).default(''),
@@ -53,6 +62,11 @@ const medicalDataSchema = z.object({
 export type MedicalDataInput = z.infer<typeof medicalDataSchema>;
 
 // ─── Personal Data ───
+// age/weight/height: el frontend usa <input type="number">,
+// que JSON serializa como número. Aceptamos ambos tipos.
+
+const numericOrStringField = () =>
+  z.union([z.string(), z.number()]).default('');
 
 const personalDataSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido').max(200),
@@ -61,9 +75,9 @@ const personalDataSchema = z.object({
   email: z.string().email('Email inválido').max(200),
   birthDate: z.string().max(50).default(''),
   gender: z.string().max(50).default(''),
-  age: z.string().max(10).default(''),
-  weight: z.string().max(20).default(''),
-  height: z.string().max(20).default(''),
+  age: numericOrStringField(),
+  weight: numericOrStringField(),
+  height: numericOrStringField(),
   maritalStatus: z.string().max(50).default(''),
   education: z.string().max(200).default(''),
   occupation: z.string().max(200).default(''),

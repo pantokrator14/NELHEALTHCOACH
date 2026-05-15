@@ -3,8 +3,6 @@
 
 export {
   clientFormSchema,
-  personalDataSchema,
-  medicalDataSchema,
 } from './clients';
 export type {
   ClientFormInput,
