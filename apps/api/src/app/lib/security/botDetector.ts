@@ -146,6 +146,26 @@ export function detectBotByUserAgent(userAgent: string): BotCheckResult | null {
  */
 export function detectSuspiciousHeaders(headers: Headers): BotCheckResult | null {
   for (const check of SUSPICIOUS_HEADER_CHECKS) {
+    // Skip Accept: */* check if browser metadata headers are present
+    // Modern browsers (Chrome, Firefox, Safari, Edge) all send Sec-Fetch-* headers
+    // on fetch() requests. This is more reliable than Client Hints (sec-ch-ua)
+    // which Firefox and Safari do not support.
+    if (check.header === 'accept') {
+      const secFetchDest = headers.get('sec-fetch-dest');
+      const secFetchMode = headers.get('sec-fetch-mode');
+      const secFetchSite = headers.get('sec-fetch-site');
+      // If any Sec-Fetch-* header is present, this is a real browser
+      if (secFetchDest || secFetchMode || secFetchSite) {
+        continue;
+      }
+      // Also allow if Client Hints are present (Chromium browsers)
+      const secChUa = headers.get('sec-ch-ua');
+      const secChUaPlatform = headers.get('sec-ch-ua-platform');
+      if (secChUa || secChUaPlatform) {
+        continue;
+      }
+    }
+
     const value = headers.get(check.header);
     if (check.check(value)) {
       return {

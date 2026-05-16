@@ -39,7 +39,7 @@ const nextConfig = {
     ];
   },
   // No bundle pdfkit — se carga desde node_modules con sus fuentes .afm
-  serverExternalModules: ['pdfkit'],
+  serverExternalPackages: ['pdfkit'],
   // Incluir fuentes .afm en el bundle serverless para Vercel/producción
   outputFileTracingIncludes: {
     'app/api/clients/[id]/ai/[sessionId]/pdf/route': ['./node_modules/pdfkit/js/data/**'],

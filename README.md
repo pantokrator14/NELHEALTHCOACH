@@ -9,14 +9,18 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6)
 ![MongoDB](https://img.shields.io/badge/MongoDB-6.0.0-47A248)
 ![AWS](https://img.shields.io/badge/AWS-Services-FF9900)
+![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4)
+![LangGraph](https://img.shields.io/badge/Agents-LangGraph-00D4AA)
 
-**Una plataforma moderna para coaching de salud con múltiples aplicaciones integradas**
+**Una plataforma moderna para coaching de salud con agentes de IA multi-experto y flujos de trabajo asíncronos**
 
 </div>
 
 ## 📋 Tabla de Contenidos
 
 - [✨ Características Principales](#-características-principales)
+- [🤖 Sistema de Agentes de IA](#-sistema-de-agentes-de-ia)
+- [🔄 Flujos Asíncronos (Inngest)](#-flujos-asíncronos-inngest)
 - [🏗️ Arquitectura del Proyecto](#️-arquitectura-del-proyecto)
 - [🚀 Aplicaciones](#-aplicaciones)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
@@ -38,16 +42,131 @@
 ### 🏥 **Funcionalidades de Salud**
 - **Gestión de pacientes** y seguimiento de salud
 - **Formularios inteligentes** para evaluación médica
-- **Dashboard analítico** para coaches
+- **Dashboard analítico** para coaches con recomendaciones de IA
 - **Landing page** profesional y atractiva
 - **API RESTful** para integraciones
 
+### 🤖 **IA Multi-Experto (LangGraph)**
+- **6 agentes especializados** que colaboran en la generación de recomendaciones
+- **Perfil completo del cliente** compartido entre todos los agentes
+- **Análisis médico** con interpretación de laboratorios y hallazgos clínicos
+- **Planificación nutricional** personalizada considerando suplementos existentes
+- **Plan de ejercicios** adaptado al nivel y condiciones del cliente
+- **Diseño de hábitos** progresivos y sostenibles
+- **Validación de calidad** con loop de revisión automático
+- **Análisis de documentos PDF** (laboratorios, estudios) directamente con Gemini
+
+### 🔄 **Flujos Asíncronos**
+- **Inngest** para procesamiento de tareas en background
+- **Transcripción de sesiones** con Deepgram
+- **Generación de recomendaciones** como proceso asíncrono
+- **Reintento automático** ante fallos
+
 ### 🔒 **Seguridad y Confiabilidad**
 - **Autenticación JWT** para usuarios
-- **Cifrado de datos** sensible
+- **Detección de bots** con reglas de fingerprinting (User-Agent, headers, Client Hints)
+- **Rate limiting** basado en MongoDB
+- **Protección contra prompt injection** a nivel HTTP
+- **Guardrails** para agentes de IA
+- **Cifrado de datos** sensibles
 - **Subida segura de archivos** a AWS S3
-- **Procesamiento de documentos** con AWS Textract
-- **Envío de emails** con AWS SES y Resend
+- **Security headers** configurados en Next.js
+
+#### 🛡️ Bot Detection — Notas Importantes
+
+El bot detector se aplica a todas las rutas críticas (`/api/auth/*`, `/api/clients/*`, `/api/health/*`, etc.) y analiza:
+
+| Check | Qué detecta | Por qué es seguro |
+|---|---|---|
+| `User-Agent` vacío/corto | Scripts sin identidad | Los navegadores siempre envían un UA largo |
+| `Accept-Language` ausente | Scripts sin localización | Los navegadores siempre lo envían |
+| `Accept-Encoding` sin gzip/br | Scripts sin compresión | Los navegadores siempre soportan compresión |
+| `Connection: close` | Scripts sin keep-alive | Los navegadores usan `keep-alive` |
+| `Accept: */*` **sin** `Sec-Fetch-*` | Scripts genéricos | Se omite si hay headers `Sec-Fetch-*` (todos los navegadores) o Client Hints (Chromium) |
+
+> **⚠️ Nota**: El check `Accept: */*` se omite cuando la petición tiene headers `Sec-Fetch-*` (`sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`) o Client Hints (`sec-ch-ua`). Los headers `Sec-Fetch-*` los envían **todos** los navegadores modernos (Chrome, Firefox, Safari, Edge), evitando falsos positivos tanto en desarrollo localhost como en producción con cualquier navegador.
+
+## 🤖 Sistema de Agentes de IA
+
+La plataforma utiliza **LangGraph** para orquestar un grafo de 6 agentes especializados que generan recomendaciones de salud personalizadas:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    START                                 │
+└────────────────────────┬────────────────────────────────┘
+                         ▼
+              ┌─────────────────────┐
+              │   Client Analyzer   │ ← Analiza perfil completo del cliente
+              └────────┬────────────┘
+                       │ (paralelo)
+          ┌────────────┼────────────┬──────────────┐
+          ▼            ▼            ▼              ▼
+   ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+   │  Medical   │ │Nutrition │ │ Exercise │ │  Habit   │
+   │  Analyst   │ │ Planner  │ │ Planner  │ │ Designer │
+   └─────┬──────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+         │             │            │             │
+         └─────────────┼────────────┼─────────────┘
+                       ▼
+              ┌─────────────────────┐
+              │   Recipe Matcher    │ ← Busca recetas compatibles
+              └────────┬────────────┘
+                       ▼
+              ┌─────────────────────┐
+              │ Shopping List Gen   │ ← Genera lista de compras
+              └────────┬────────────┘
+                       ▼
+              ┌─────────────────────┐
+              │ Quality Validator   │ ← Valida y revisa calidad
+              └────────┬────────────┘
+                       │
+              ┌────────┴─────────┐
+              │  needsRevision?  │───Sí──► Re-planifica nutrición
+              └────────┬─────────┘
+                       │ No
+                       ▼
+                    END
+```
+
+### Agentes
+
+| Agente | Función |
+|---|---|
+| **Client Analyzer** | Analiza el perfil completo del cliente (datos personales, médicos, evaluación de salud, salud mental, documentos, notas del coach, sesiones previas) |
+| **Medical Analyst** | Interpreta laboratorios, hallazgos clínicos, estudios recomendados y suplementos (solo si la nutrición no cubre la necesidad) |
+| **Nutrition Planner** | Diseña plan nutricional personalizado considerando suplementos existentes para evitar duplicación |
+| **Exercise Planner** | Crea plan de ejercicios adaptado al nivel, condiciones y objetivos del cliente |
+| **Habit Designer** | Diseña hábitos progresivos y sostenibles basados en el perfil del cliente |
+| **Quality Validator** | Valida la coherencia y calidad de todas las recomendaciones con loop de revisión |
+
+### Perfil Completo del Cliente
+
+Todos los agentes reciben **TODO** los datos del cliente mediante `formatFullClientProfile()`:
+- `personalData` — datos demográficos y antropométricos
+- `medicalData` — condiciones médicas, laboratorios, suplementos actuales
+- `healthAssessment` — evaluación de salud del formulario
+- `mentalHealth` — evaluación de salud mental
+- `processedDocuments` — documentos PDF analizados por Gemini (laboratorios, estudios)
+- `previousSessions` — sesiones anteriores de recomendaciones
+- `coachNotes` — notas del coach
+
+### LLM: Google Gemini
+
+La plataforma utiliza **Google Gemini** como único modelo de lenguaje:
+- **OpenAI Compatible API** (`/v1beta/openai/`) para generación de texto
+- **Native REST API** (`/v1beta`) para análisis de PDFs con `inlineData`
+- Manejo robusto de errores: SAFETY, MAX_TOKENS, RECITATION
+- Sin dependencias de DeepSeek ni AWS Textract
+
+## 🔄 Flujos Asíncronos (Inngest)
+
+La plataforma usa **Inngest** para manejar tareas pesadas en background:
+
+| Función | Descripción |
+|---|---|
+| `generate-recommendations` | Genera recomendaciones de IA para un cliente (grafo LangGraph + análisis PDF con Gemini) |
+| `process-transcription` | Procesa transcripciones de sesiones de coaching |
+| `transcribe-session` | Transcribe audio de sesiones usando Deepgram |
 
 ## 🏗️ Arquitectura del Proyecto
 
@@ -56,8 +175,8 @@ NELHEALTHCOACH/
 ├── 📁 apps/              # Aplicaciones principales
 │   ├── 🏠 landing/      # Página de inicio
 │   ├── 📝 form/         # Formularios de salud
-│   ├── 📊 dashboard/    # Panel de control
-│   └── 🔌 api/          # API backend
+│   ├── 📊 dashboard/    # Panel de control con IA
+│   └── 🔌 api/          # API backend + agentes IA
 ├── 📁 packages/         # Paquetes compartidos
 │   └── 📦 types/       # Tipos TypeScript compartidos
 └── 📄 package.json     # Configuración del monorepo
@@ -85,23 +204,30 @@ NELHEALTHCOACH/
 
 ### 3. **📊 Dashboard de Coaching** (`apps/dashboard`)
 - **Propósito**: Gestión y análisis para coaches
-- **Tecnologías**: Next.js, MongoDB, AWS S3
+- **Tecnologías**: Next.js, MongoDB, AWS S3, Google Gemini
 - **Características**:
   - Visualización de pacientes
   - Seguimiento de progreso
   - Análisis estadísticos
   - Gestión de documentos
   - Panel administrativo
+  - **Recomendaciones de IA** con modal interactivo
+  - **Análisis médico** con tablas de laboratorios y hallazgos clínicos
+  - Manejo de errores de Gemini con mensajes descriptivos
 
 ### 4. **🔌 API Backend** (`apps/api`)
-- **Propósito**: Servicios backend y lógica de negocio
-- **Tecnologías**: Next.js API Routes, MongoDB, AWS
+- **Propósito**: Servicios backend, lógica de negocio y agentes de IA
+- **Tecnologías**: Next.js API Routes, MongoDB, AWS S3, Google Gemini, LangGraph, Inngest
 - **Características**:
   - Autenticación JWT
   - CRUD de pacientes y usuarios
-  - Procesamiento de documentos con AWS Textract
+  - **Agentes de IA con LangGraph** (6 nodos especializados)
+  - **Análisis de PDFs con Gemini** (laboratorios, estudios médicos)
+  - **Flujos asíncronos con Inngest**
+  - **Transcripción de audio con Deepgram**
   - Envío de emails con Resend
   - Almacenamiento en AWS S3
+  - **Seguridad**: bot detection, rate limiting, prompt injection protection, guardrails
 
 ## 🛠️ Stack Tecnológico
 
@@ -121,10 +247,15 @@ NELHEALTHCOACH/
 - **📧 Resend** - Envío de emails
 - **📄 Multer** - Manejo de uploads
 
+### **IA y Agentes**
+- **🤖 Google Gemini** - Modelo de lenguaje principal (texto + análisis de PDFs)
+- **🕸️ LangGraph 1.2.8** - Orquestación de agentes multi-experto
+- **🔄 Inngest 4.2.1** - Flujos de trabajo asíncronos
+- **🎙️ Deepgram SDK 5.0.0** - Transcripción de audio
+
 ### **Infraestructura Cloud**
 - **☁️ AWS SDK** - Integración con servicios AWS
 - **📦 AWS S3** - Almacenamiento de archivos
-- **🔍 AWS Textract** - Procesamiento de documentos
 - **🚀 Vercel** - Despliegue y hosting
 
 ### **Herramientas de Desarrollo**
@@ -138,11 +269,20 @@ NELHEALTHCOACH/
 ```bash
 NELHEALTHCOACH/
 ├── 📂 apps/                    # Aplicaciones principales
-│   ├── 📂 api/                # API Backend
+│   ├── 📂 api/                # API Backend + IA
 │   │   ├── 📂 pages/          # Rutas API de Next.js
-│   │   ├── 📂 lib/           # Utilidades y configuraciones
-│   │   ├── 📂 models/        # Modelos de MongoDB
-│   │   └── 📂 middleware/    # Middleware de autenticación
+│   │   ├── 📂 src/
+│   │   │   ├── 📂 app/
+│   │   │   │   ├── 📂 lib/           # Utilidades y configuraciones
+│   │   │   │   │   ├── 📂 agents/    # Agentes LangGraph
+│   │   │   │   │   │   ├── 📂 nodes/ # Nodos del grafo
+│   │   │   │   │   │   ├── 📂 tools/ # Herramientas de agentes
+│   │   │   │   │   │   └── 📂 utils/ # Utilidades (LLM, prompts)
+│   │   │   │   │   ├── 📂 security/  # Bot detection, rate limiter, guardrails
+│   │   │   │   │   └── 📂 ...        # Otros servicios
+│   │   │   │   └── 📂 inngest/       # Funciones asíncronas
+│   │   │   └── 📂 models/        # Modelos de MongoDB
+│   │   └── 📂 middleware/      # Middleware de autenticación
 │   ├── 📂 dashboard/          # Panel de control
 │   │   ├── 📂 components/    # Componentes React
 │   │   ├── 📂 pages/         # Páginas de Next.js
@@ -168,10 +308,11 @@ NELHEALTHCOACH/
 ## ⚙️ Configuración y Desarrollo
 
 ### **Prerrequisitos**
-- Node.js 18+ 
+- Node.js 18+
 - npm 9+
 - MongoDB (local o Atlas)
-- Cuenta AWS (opcional para funcionalidades cloud)
+- Cuenta AWS (para S3)
+- API Key de Google Gemini (obligatorio para IA)
 
 ### **Instalación**
 
@@ -204,6 +345,16 @@ AWS_S3_BUCKET=tu_bucket_s3
 
 # Email
 RESEND_API_KEY=tu_api_key_resend
+
+# Google Gemini (obligatorio para IA)
+GEMINI_API_KEY=tu_api_key_gemini
+
+# Inngest (para flujos asíncronos)
+INNGEST_EVENT_KEY=tu_inngest_event_key
+INNGEST_SIGNING_KEY=tu_inngest_signing_key
+
+# Deepgram (para transcripción de audio)
+DEEPGRAM_API_KEY=tu_deepgram_api_key
 ```
 
 ## 🔧 Scripts Disponibles
@@ -229,6 +380,12 @@ npm run build
 # En cada aplicación individual:
 cd apps/[app-name]
 npm start
+```
+
+### **Seguridad**
+```bash
+# Verificar configuración de seguridad
+npm run security:check
 ```
 
 ### **Mantenimiento**
@@ -285,14 +442,13 @@ npm run build
 - Documentar componentes y funciones
 - Escribir tests cuando sea posible
 
-
 ---
 
 <div align="center">
 
 ### **Desarrollado con ❤️ para ayudar a la humanidad**
 
-**👨‍💻 Autor:** [pantokrator14](https://github.com/pantokrator14)  
+**👨‍💻 Autor:** [pantokrator14](https://github.com/pantokrator14)
 **📧 Contacto:** [juliusjosepham@proton.me]
 **🌐 Sitio Web:** [Próximamente]
 
@@ -303,4 +459,3 @@ npm run build
 ---
 
 > **💡 Nota:** Este proyecto está en activo desarrollo. Las características pueden cambiar y mejorar continuamente.
-
