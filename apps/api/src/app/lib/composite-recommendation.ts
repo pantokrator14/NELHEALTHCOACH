@@ -248,7 +248,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
 
   logCtx.info("AI", "Generando recomendación con prompt compuesto");
 
-  // ── 1. Obtener recetas y ejercicios de la DB para pasárselos a DeepSeek ──
+  // ── 1. Obtener recetas y ejercicios de la DB para pasárselos al LLM ──
   const { getRecipesCollection, getExerciseCollection } = await import("./database");
   const { decrypt: dbDecrypt } = await import("./encryption");
 
@@ -277,7 +277,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   }));
   logCtx.info("AI", `${dbExercises.length} ejercicios obtenidos de la DB para referencia`);
 
-  // ── 2. Construir prompt y llamar a DeepSeek ──
+  // ── 2. Construir prompt y llamar al LLM ──
   const llm = createDeepSeekJSONLLM();
   const prompt = buildCompositePrompt(input, dbRecipes, dbExercises);
 
@@ -332,7 +332,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
 
   logCtx.info("AI", "Recomendación generada exitosamente");
 
-  // ── 3. Mapeo directo título → ID (sin búsqueda fuzzy, DeepSeek usó títulos exactos) ──
+  // ── 3. Mapeo directo título → ID (sin búsqueda fuzzy, el LLM usó títulos exactos) ──
   const recipeIds: Record<string, string> = {};
   const exerciseIds: Record<string, string> = {};
   for (const rec of dbRecipes) { recipeIds[rec.title] = rec._id; }

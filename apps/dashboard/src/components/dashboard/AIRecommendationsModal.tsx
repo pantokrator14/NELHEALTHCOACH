@@ -25,6 +25,10 @@ interface RecipeWithDetails extends Recipe {
 // Estructura antigua de una semana (cuando incluía checklistItems)
 interface OldWeekStructure {
   weekNumber?: number;
+  medicalAnalysis?: {
+    focus?: string;
+    labSummary?: string;
+  };
   nutrition?: {
     focus?: string;
     meals?: string[];
@@ -49,10 +53,24 @@ interface OldWeekStructure {
     trackingMethod?: string;
     motivationTip?: string;
   };
+  supplements?: {
+    focus?: string;
+    recommendations?: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    }>;
+  };
 }
 
 interface AIRecommendationWeek {
   weekNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  medicalAnalysis?: {
+    focus: string;
+    labSummary?: string;
+  };
   nutrition: {
     focus: string;
     shoppingList: Array<{ item: string; quantity: string; priority: 'high' | 'medium' | 'low' }>;
@@ -64,6 +82,16 @@ interface AIRecommendationWeek {
   habits: {
     trackingMethod?: string;
     motivationTip?: string;
+  };
+  supplements?: {
+    focus: string;
+    recommendations?: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    }>;
   };
 }
 
@@ -84,12 +112,14 @@ interface RegenerationHistoryItem {
 interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
-  totalWeeks?: number; // Número total de semanas en el plan (4 para 1 mes, 12 para 3 meses)
+  totalWeeks?: number;
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent';
   summary: string;
   vision: string;
+  medicalSummary?: string;
+  medicalComparativeAnalysis?: string;
   baselineMetrics: BaselineMetrics;
   weeks: AIRecommendationWeek[];
   checklist: ChecklistItem[];
@@ -130,6 +160,8 @@ interface ApiAIProgressData {
     monthNumber?: number;
     summary?: string;
     vision?: string;
+    medicalSummary?: string;
+    medicalComparativeAnalysis?: string;
     weeks?: unknown[];
     checklist?: ChecklistItem[];
     status?: 'draft' | 'approved' | 'sent';
@@ -167,7 +199,7 @@ interface EditingField {
   type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week';
   itemId?: string;
   weekIndex?: number;
-  category?: 'nutrition' | 'exercise' | 'habit';
+  category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
   currentValue: string | ChecklistItem[] | AIRecommendationWeek;
 }
 
@@ -208,6 +240,8 @@ type NewItemData = NewNutritionItemData | NewExerciseItemData | NewHabitItemData
 interface ImportableAISessionData {
   summary?: string;
   vision?: string;
+  medicalSummary?: string;
+  medicalComparativeAnalysis?: string;
   weeks?: AIRecommendationWeek[] | unknown[];
   checklist?: ChecklistItem[] | unknown[];
   coachNotes?: string;
@@ -328,9 +362,13 @@ export default function AIRecommendationsModal({
       if (typedWeek.nutrition && !('checklistItems' in typedWeek.nutrition)) {
         return {
           weekNumber: typedWeek.weekNumber || (weekIndex + 1) as AIRecommendationWeek['weekNumber'],
+          medicalAnalysis: typedWeek.medicalAnalysis ? {
+            focus: typedWeek.medicalAnalysis.focus || '',
+            labSummary: typedWeek.medicalAnalysis.labSummary,
+          } : undefined,
           nutrition: {
             focus: typedWeek.nutrition?.focus || 'Nutrición keto',
-            shoppingList: typedWeek.nutrition?.shoppingList || [] // ¡Conservamos shoppingList!
+            shoppingList: typedWeek.nutrition?.shoppingList || []
           },
           exercise: {
             focus: typedWeek.exercise?.focus || 'Ejercicio adaptado',
@@ -339,7 +377,11 @@ export default function AIRecommendationsModal({
           habits: {
             trackingMethod: typedWeek.habits?.trackingMethod,
             motivationTip: typedWeek.habits?.motivationTip
-          }
+          },
+          supplements: typedWeek.supplements ? {
+            focus: typedWeek.supplements.focus || 'Suplementos',
+            recommendations: typedWeek.supplements.recommendations || [],
+          } : undefined,
         };
       }
 
@@ -347,9 +389,13 @@ export default function AIRecommendationsModal({
       const oldWeek = week as OldWeekStructure;
       return {
         weekNumber: (oldWeek.weekNumber || (weekIndex + 1)) as AIRecommendationWeek['weekNumber'],
+        medicalAnalysis: oldWeek.medicalAnalysis ? {
+          focus: oldWeek.medicalAnalysis.focus || '',
+          labSummary: oldWeek.medicalAnalysis.labSummary,
+        } : undefined,
         nutrition: {
           focus: oldWeek.nutrition?.focus || 'Nutrición keto',
-          shoppingList: [] // Las viejas no tienen shoppingList
+          shoppingList: []
         },
         exercise: {
           focus: oldWeek.exercise?.focus || oldWeek.exercise?.routine || 'Ejercicio adaptado',
@@ -358,7 +404,11 @@ export default function AIRecommendationsModal({
         habits: {
           trackingMethod: oldWeek.habits?.trackingMethod,
           motivationTip: oldWeek.habits?.motivationTip
-        }
+        },
+        supplements: oldWeek.supplements ? {
+          focus: oldWeek.supplements.focus || 'Suplementos',
+          recommendations: oldWeek.supplements.recommendations || [],
+        } : undefined,
       };
     });
   }, []);;
@@ -379,6 +429,8 @@ export default function AIRecommendationsModal({
          status: session.status || 'draft',
          summary: session.summary || '',
          vision: session.vision || '',
+         medicalSummary: (session as { medicalSummary?: string }).medicalSummary,
+         medicalComparativeAnalysis: (session as { medicalComparativeAnalysis?: string }).medicalComparativeAnalysis,
          baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
          weeks,
          checklist: session.checklist || [],
@@ -650,7 +702,7 @@ export default function AIRecommendationsModal({
     currentValue: string | ChecklistItem[] | AIRecommendationWeek,
     itemId?: string,
     weekIndex?: number,
-    category?: 'nutrition' | 'exercise' | 'habit'
+    category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement'
   ) => {
     setEditMode(true);
     setEditingField({ sessionId, type, itemId, weekIndex, category, currentValue });
@@ -786,6 +838,14 @@ export default function AIRecommendationsModal({
         setEditingAIRecipe({ item, weekNumber: item.weekNumber });
         setShowAIRecipeEditModal(true);
       }
+    } else if (item.category === 'medical' || item.category === 'supplement') {
+      // Medical and supplement items: open as simple text edit
+      setEditingItem({
+        item,
+        weekNumber: item.weekNumber,
+        category: 'habit' as 'exercise' | 'habit' // reuse habit editing flow
+      });
+      setShowEditItemModal(true);
     } else {
       setEditingItem({
         item,
@@ -1622,12 +1682,20 @@ export default function AIRecommendationsModal({
     const habitItems = session.checklist.filter(
       item => item.weekNumber === weekNumber && item.category === 'habit'
     );
+    const medicalItems = session.checklist.filter(
+      item => item.weekNumber === weekNumber && item.category === 'medical'
+    );
+    const supplementItems = session.checklist.filter(
+      item => item.weekNumber === weekNumber && item.category === 'supplement'
+    );
 
-    const totalWeekItems = nutritionItems.length + exerciseItems.length + habitItems.length;
+    const totalWeekItems = nutritionItems.length + exerciseItems.length + habitItems.length + medicalItems.length + supplementItems.length;
     const completedWeekItems =
       nutritionItems.filter(i => i.completed).length +
       exerciseItems.filter(i => i.completed).length +
-      habitItems.filter(i => i.completed).length;
+      habitItems.filter(i => i.completed).length +
+      medicalItems.filter(i => i.completed).length +
+      supplementItems.filter(i => i.completed).length;
     const weekProgress = totalWeekItems > 0 ? Math.round((completedWeekItems / totalWeekItems) * 100) : 0;
 
     return (
@@ -1653,7 +1721,104 @@ export default function AIRecommendationsModal({
 
         {isExpanded && (
           <div className="p-4 md:p-6 space-y-6">
-            {/* Nutrición */}
+            {/* 🔴 ANÁLISIS MÉDICO — PRIMERO */}
+            <div className="space-y-3 p-4 bg-red-50 rounded-xl border border-red-200">
+              <h4 className="font-bold text-red-700 flex items-center text-base md:text-lg">
+                <span className="mr-2">🏥</span>
+                Análisis Médico
+                {week.medicalAnalysis?.focus && (
+                  <span className="ml-2 text-sm font-normal text-red-600">— {week.medicalAnalysis.focus}</span>
+                )}
+              </h4>
+
+              {/* Tabla de resultados de laboratorio */}
+              {medicalItems.filter(i => i.type === 'lab_result').length > 0 && (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-red-100">
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Marcador</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor Actual</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor Previo</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Interpretación</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Tendencia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {medicalItems.filter(i => i.type === 'lab_result').map((item) => {
+                        const trendEmoji = item.details?.labResults?.[0]?.trend === 'improving' ? '🟢' :
+                          item.details?.labResults?.[0]?.trend === 'worsening' ? '🔴' :
+                          item.details?.labResults?.[0]?.trend === 'stable' ? '🟡' : '⚪';
+                        return (
+                          <tr key={item.id} className="border-b border-red-100 hover:bg-red-50/50">
+                            <td className="p-2 font-medium text-gray-800 border border-red-100">{item.details?.labResults?.[0]?.marker || item.description}</td>
+                            <td className="p-2 text-gray-700 border border-red-100">{item.details?.labResults?.[0]?.currentValue || '—'}</td>
+                            <td className="p-2 text-gray-500 border border-red-100">{item.details?.labResults?.[0]?.previousValue || '—'}</td>
+                            <td className="p-2 text-gray-600 border border-red-100">{item.details?.labResults?.[0]?.interpretation || ''}</td>
+                            <td className="p-2 text-center border border-red-100">{trendEmoji}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Checklist médico (hallazgos, estudios, etc.) */}
+              <div className="space-y-2">
+                {medicalItems.filter(i => i.type !== 'lab_result').map(item => renderChecklistItem(item, sessionId))}
+              </div>
+
+              {/* Mensaje si no hay datos médicos */}
+              {medicalItems.length === 0 && (
+                <p className="text-sm text-gray-500 italic py-2">
+                  {week.medicalAnalysis?.labSummary
+                    ? week.medicalAnalysis.labSummary
+                    : 'No hay datos de análisis médico para esta semana. Sube documentos de laboratorio para obtener un análisis detallado.'}
+                </p>
+              )}
+            </div>
+
+            {/* 🟡 SUPLEMENTOS (solo si hay) */}
+            {supplementItems.length > 0 && (
+              <div className="space-y-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <h4 className="font-bold text-amber-700 flex items-center text-base md:text-lg">
+                  <span className="mr-2">💊</span>
+                  Suplementos Recomendados
+                  {week.supplements?.focus && (
+                    <span className="ml-2 text-sm font-normal text-amber-600">— {week.supplements.focus}</span>
+                  )}
+                </h4>
+                <div className="space-y-2">
+                  {supplementItems.map(item => (
+                    <div key={item.id} className="flex items-start py-2 border-b border-amber-100 last:border-0">
+                      <div
+                        onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await handleChecklistChange(sessionId, item.id, !item.completed); }}
+                        className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300 hover:border-amber-400'}`}
+                      >
+                        {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className={`${item.completed ? 'line-through text-gray-500' : 'text-gray-700'} text-sm`}>
+                          {item.description}
+                        </span>
+                        {item.details?.supplementInfo && (
+                          <div className="mt-1 ml-4 pl-2 border-l-2 border-amber-200">
+                            <p className="text-xs text-gray-600"><span className="font-medium">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-medium">Momento:</span> {item.details.supplementInfo.timing}</p>
+                            <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Justificación:</span> {item.details.supplementInfo.rationale}</p>
+                            {item.details.supplementInfo.contraindications && (
+                              <p className="text-xs text-red-500 mt-0.5">⚠️ {item.details.supplementInfo.contraindications}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 🟢 Nutrición */}
             <div className="space-y-3 p-4 bg-green-50 rounded-xl border border-green-200">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <h4 className="font-bold text-green-700 flex items-center text-base md:text-lg">
@@ -1855,9 +2020,9 @@ export default function AIRecommendationsModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con IA... Esto puede tomar hasta 2 minutos.</span>
+              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con Gemini AI... Esto puede tomar hasta 2 minutos.</span>
             </div>
-            <p className="text-blue-500 text-sm mt-1 ml-8">La IA está analizando los datos del cliente, planificando nutrición, ejercicio y hábitos. No cierres esta ventana.</p>
+            <p className="text-blue-500 text-sm mt-1 ml-8">Gemini está analizando los datos del cliente, documentos médicos, y planificando nutrición, ejercicio, hábitos y análisis de laboratorio. No cierres esta ventana.</p>
           </div>
         )}
 
@@ -1869,7 +2034,25 @@ export default function AIRecommendationsModal({
               </svg>
               <div className="flex-1">
                 <p className="text-red-700 font-medium">Error al generar recomendaciones</p>
-                <p className="text-red-600 text-sm mt-1">{displayError}</p>
+                <p className="text-red-600 text-sm mt-1">
+                  {displayError.includes('GEMINI_API_KEY')
+                    ? '⚠️ Gemini API Key no configurada. Agrega GEMINI_API_KEY en las variables de entorno.'
+                    : displayError.includes('SAFETY') || displayError.includes('security filter')
+                      ? '⚠️ Gemini bloqueó la solicitud por filtros de seguridad. Revisa el contenido de los documentos del cliente.'
+                      : displayError.includes('MAX_TOKENS') || displayError.includes('too many tokens')
+                        ? '⚠️ El prompt excede el límite de tokens de Gemini. Reduce los documentos o datos del cliente.'
+                        : displayError.includes('rate') || displayError.includes('429')
+                          ? '⚠️ Límite de rate de Gemini alcanzado. Espera unos segundos y reintenta.'
+                          : displayError.includes('timeout') || displayError.includes('aborted')
+                            ? '⏱️ Timeout de Gemini. La solicitud tomó demasiado tiempo. Reintenta.'
+                            : displayError}
+                </p>
+                {displayError.length > 200 && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">Ver error completo</summary>
+                    <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-x-auto whitespace-pre-wrap max-h-40">{displayError}</pre>
+                  </details>
+                )}
                 <div className="flex gap-3 mt-3">
                   <button
                     onClick={() => {
@@ -1887,7 +2070,13 @@ export default function AIRecommendationsModal({
                     Cerrar
                   </button>
                 </div>
-                <p className="text-red-400 text-xs mt-2">Si el error persiste, notifica al equipo de desarrollo.</p>
+                <p className="text-red-400 text-xs mt-2">
+                  {displayError.includes('GEMINI_API_KEY')
+                    ? 'Configura GEMINI_API_KEY y GEMINI_MODEL en tu .env o en el dashboard de Vercel.'
+                    : displayError.includes('429')
+                      ? 'Gemini tiene límites de uso. Si usas la capa gratuita, espera y vuelve a intentar.'
+                      : 'Si el error persiste, verifica los logs del servidor para más detalles.'}
+                </p>
               </div>
             </div>
           </div>
@@ -1896,7 +2085,7 @@ export default function AIRecommendationsModal({
         {activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
             <div className="flex items-center"><svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg><span className="text-yellow-700 font-medium">⚠️ Modo offline: Recomendaciones generadas localmente</span></div>
-            <p className="text-yellow-600 text-sm mt-1">Para obtener recomendaciones personalizadas con IA, verifica tu cuenta de DeepSeek.</p>
+              <p className="text-yellow-600 text-sm mt-1">Para obtener recomendaciones personalizadas con IA, verifica tu cuenta de Gemini.</p>
           </div>
         )}
 
@@ -2056,7 +2245,159 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
 
-              {/* === 4 ACORDEONES: Nutrición, Ejercicios, Hábitos, Checklist === */}
+              {/* === 5 ACORDEONES: Análisis Médico, Nutrición, Ejercicios, Hábitos, Checklist === */}
+
+              {/* 🔴 ANÁLISIS MÉDICO — PRIMER ACORDEÓN */}
+              <div className="bg-white rounded-xl border border-red-300 overflow-hidden">
+                <div
+                  className="p-4 bg-gradient-to-r from-red-600 to-rose-600 text-white cursor-pointer hover:from-red-700 transition-colors flex justify-between items-center"
+                  onClick={() => {
+                    const key = 'accordion-medical';
+                    setExpandedMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
+                >
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <span>🏥</span> Análisis Médico y Suplementos
+                  </h3>
+                  <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-medical') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {expandedMonths.includes('accordion-medical') && activeSession.weeks.length > 0 && (
+                  <div className="p-4 space-y-4">
+                    {/* Resumen del análisis médico */}
+                    {activeSession.medicalSummary && (
+                      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                        <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                          <span>📋</span> Resumen del Análisis de Laboratorio
+                        </h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{activeSession.medicalSummary}</p>
+                      </div>
+                    )}
+                    {/* Análisis comparativo (solo sesiones > 1) */}
+                    {activeSession.medicalComparativeAnalysis && (
+                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                        <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                          <span>📊</span> Análisis Comparativo (vs Sesión Anterior)
+                        </h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{activeSession.medicalComparativeAnalysis}</p>
+                      </div>
+                    )}
+
+                    {/* Tabla de laboratorio compacta */}
+                    {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs md:text-sm border-collapse border border-red-200 rounded-lg overflow-hidden">
+                          <thead>
+                            <tr className="bg-red-100">
+                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Marcador</th>
+                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor</th>
+                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Anterior</th>
+                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Interpretación</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').map((item) => {
+                              const lr = item.details?.labResults?.[0];
+                              const trendEmoji = lr?.trend === 'improving' ? '🟢 ↑' :
+                                lr?.trend === 'worsening' ? '🔴 ↓' :
+                                lr?.trend === 'stable' ? '🟡 →' : '⚪ nuevo';
+                              return (
+                                <tr key={item.id} className="border-b border-red-100 hover:bg-red-50/30">
+                                  <td className="p-2 font-medium text-gray-800 border border-red-100">{lr?.marker || item.description}</td>
+                                  <td className="p-2 text-gray-700 border border-red-100">{lr?.currentValue || '—'}</td>
+                                  <td className="p-2 text-gray-500 border border-red-100">{lr?.previousValue || '—'}</td>
+                                  <td className="p-2 text-gray-600 border border-red-100">{trendEmoji} {lr?.interpretation || ''}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Hallazgos clínicos y estudios recomendados */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'clinical_finding').length > 0 && (
+                        <div className="p-4 bg-red-50 rounded-lg border border-red-150">
+                          <h5 className="font-semibold text-red-700 mb-2 text-sm">🔬 Hallazgos Clínicos</h5>
+                          <ul className="space-y-1">
+                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'clinical_finding').map((item) => (
+                              <li key={item.id} className="text-sm text-gray-700 flex items-start gap-2">
+                                <div
+                                  onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
+                                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-red-500 border-red-500' : 'bg-white border-red-300'}`}
+                                >
+                                  {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                                <span className={item.completed ? 'line-through text-gray-400' : ''}>{item.description}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'recommended_study').length > 0 && (
+                        <div className="p-4 bg-red-50 rounded-lg border border-red-150">
+                          <h5 className="font-semibold text-red-700 mb-2 text-sm">📅 Estudios Recomendados</h5>
+                          <ul className="space-y-1">
+                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'recommended_study').map((item) => (
+                              <li key={item.id} className="text-sm text-gray-700 flex items-start gap-2">
+                                <div
+                                  onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
+                                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-red-500 border-red-500' : 'bg-white border-red-300'}`}
+                                >
+                                  {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                                <span className={item.completed ? 'line-through text-gray-400' : ''}>{item.description}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Suplementos */}
+                    {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 && (
+                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                        <h5 className="font-semibold text-amber-700 mb-2 text-sm">💊 Suplementos Recomendados</h5>
+                        <div className="space-y-2">
+                          {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
+                            <div key={item.id} className="flex items-start gap-2 py-1 border-b border-amber-100 last:border-0">
+                              <div
+                                onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
+                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
+                              >
+                                {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                  {item.description}
+                                </span>
+                                {item.details?.supplementInfo && (
+                                  <div className="mt-1 ml-4 pl-2 border-l-2 border-amber-200 text-xs text-gray-600">
+                                    <p><span className="font-medium">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-medium">Momento:</span> {item.details.supplementInfo.timing}</p>
+                                    <p className="text-gray-500 mt-0.5">{item.details.supplementInfo.rationale}</p>
+                                    {item.details.supplementInfo.contraindications && (
+                                      <p className="text-red-500 mt-0.5">⚠️ {item.details.supplementInfo.contraindications}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!activeSession.medicalSummary && activeSession.checklist.filter(i => i.category === 'medical' || i.category === 'supplement').length === 0 && (
+                      <div className="text-center py-6 text-gray-500">
+                        <p className="text-sm">No hay datos de análisis médico aún.</p>
+                        <p className="text-xs mt-1">Sube documentos de laboratorio del cliente para obtener un análisis detallado de sus marcadores de salud.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* 🟢 NUTRICIÓN */}
               <div className="bg-white rounded-xl border border-green-300 overflow-hidden">

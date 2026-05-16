@@ -2,7 +2,7 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createDeepSeekJSONLLM } from "../utils/llm"
 import { robustJsonParse } from "../utils/llm";
-import { buildHabitPrompt } from "../utils/prompt-builders";
+import { buildHabitPrompt, formatFullClientProfile } from "../utils/prompt-builders";
 import type { RecommendationStateType } from "../state";
 import { logger } from "../../logger";
 import { habitDesignerGuard, applyGuardrails, validateAIResponse } from "../guard";
@@ -37,7 +37,7 @@ export async function planHabits(
     const totalWeeks = state.monthNumber * 4;
     const weekNumbers = Array.from({ length: totalWeeks }, (_, i) => i + 1);
 
-    const prompt = buildHabitPrompt({
+    const habitPrompt = buildHabitPrompt({
       clientInsights: state.clientInsights,
       healthAssessment: state.healthAssessment,
       mentalHealth: state.mentalHealth,
@@ -45,6 +45,17 @@ export async function planHabits(
       personalData: state.personalData,
       weekNumbers,
     });
+
+    const fullProfile = formatFullClientProfile({
+      personalData: state.personalData as unknown as Parameters<typeof formatFullClientProfile>[0]['personalData'],
+      medicalData: state.medicalData as unknown as Parameters<typeof formatFullClientProfile>[0]['medicalData'],
+      healthAssessment: state.healthAssessment as unknown as Parameters<typeof formatFullClientProfile>[0]['healthAssessment'],
+      mentalHealth: state.mentalHealth as unknown as Parameters<typeof formatFullClientProfile>[0]['mentalHealth'],
+      processedDocuments: state.processedDocuments as unknown as Parameters<typeof formatFullClientProfile>[0]['processedDocuments'],
+      previousSessions: state.previousSessions as unknown as Parameters<typeof formatFullClientProfile>[0]['previousSessions'],
+      coachNotes: state.coachNotes,
+    });
+    const prompt = fullProfile + "\n\n" + habitPrompt;
 
     // Usar guardrails para diseño de hábitos
     const habitPlan = await applyGuardrails(

@@ -5,7 +5,7 @@
 //
 // Este endpoint recibe el transcript completo, lo guarda en S3,
 // lo anexa al documento MongoDB del cliente y dispara el pipeline
-// de post-procesamiento (Textract + resumen con DeepSeek +
+// de post-procesamiento (resumen con Gemini +
 // re-generación de recomendaciones).
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -106,8 +106,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sessionId,
       sessionNumber,
       fullText: encrypt(transcript),
-      summary: encrypt(''), // Se llenará después con DeepSeek
-      agreements: encrypt(''), // Se llenará después con DeepSeek
+      summary: encrypt(''), // Se llenará después con Gemini
+      agreements: encrypt(''), // Se llenará después con Gemini
       createdAt: new Date(),
       txtFileS3Key: encrypt(s3Key),
       confidence,
@@ -145,9 +145,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // TODO: Disparar evento Inngest 'transcription.ready' para:
-    // 1. Resumir con DeepSeek
-    // 2. Ejecutar Textract (si aplica)
-    // 3. Regenerar recomendaciones con LangGraph
+    // 1. Resumir con Gemini
+    // 2. Regenerar recomendaciones con LangGraph
 
     return NextResponse.json({
       success: true,

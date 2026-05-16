@@ -130,7 +130,7 @@ export interface PDFChecklistItem {
   id: string;
   description: string;
   weekNumber: number;
-  category: 'nutrition' | 'exercise' | 'habit';
+  category: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
   type?: string;
   recipeId?: string;
   details?: {

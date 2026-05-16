@@ -2,7 +2,7 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createDeepSeekJSONLLM } from "../utils/llm"
 import { robustJsonParse } from "../utils/llm";
-import { buildValidationPrompt } from "../utils/prompt-builders";
+import { buildValidationPrompt, formatFullClientProfile } from "../utils/prompt-builders";
 import type {
   RecommendationStateType,
   ValidationResult,
@@ -32,6 +32,7 @@ export async function validateQuality(
       return {
         errors: ["validateQuality: clientInsights not available."],
         validationResults: {
+          medicalAnalysis: { passed: false, issues: ["No client insights available"] },
           nutrition: { passed: false, issues: ["No client insights available"] },
           exercise: { passed: false, issues: ["No client insights available"] },
           habits: { passed: false, issues: ["No client insights available"] },
@@ -44,12 +45,24 @@ export async function validateQuality(
 
     const llm = createDeepSeekJSONLLM();
 
-    const prompt = buildValidationPrompt({
+    const validationPrompt = buildValidationPrompt({
       clientInsights: state.clientInsights,
+      medicalAnalysisPlan: state.medicalAnalysisPlan as unknown as Array<Record<string, unknown>>,
       nutritionPlan: state.nutritionPlan as unknown as Array<Record<string, unknown>>,
       exercisePlan: state.exercisePlan as unknown as Array<Record<string, unknown>>,
       habitPlan: state.habitPlan as unknown as Array<Record<string, unknown>>,
     });
+
+    const fullProfile = formatFullClientProfile({
+      personalData: state.personalData as unknown as Parameters<typeof formatFullClientProfile>[0]['personalData'],
+      medicalData: state.medicalData as unknown as Parameters<typeof formatFullClientProfile>[0]['medicalData'],
+      healthAssessment: state.healthAssessment as unknown as Parameters<typeof formatFullClientProfile>[0]['healthAssessment'],
+      mentalHealth: state.mentalHealth as unknown as Parameters<typeof formatFullClientProfile>[0]['mentalHealth'],
+      processedDocuments: state.processedDocuments as unknown as Parameters<typeof formatFullClientProfile>[0]['processedDocuments'],
+      previousSessions: state.previousSessions as unknown as Parameters<typeof formatFullClientProfile>[0]['previousSessions'],
+      coachNotes: state.coachNotes,
+    });
+    const prompt = fullProfile + "\n\n" + validationPrompt;
 
     // Usar guardrails para validación de calidad
     const validationResults = await applyGuardrails(
@@ -57,6 +70,7 @@ export async function validateQuality(
       { 
         prompt, 
         clientInsights: state.clientInsights,
+        medicalAnalysisPlan: state.medicalAnalysisPlan,
         nutritionPlan: state.nutritionPlan,
         exercisePlan: state.exercisePlan,
         habitPlan: state.habitPlan
@@ -113,6 +127,7 @@ export async function validateQuality(
     return {
       errors: [`validateQuality: ${errorMessage}`],
       validationResults: {
+        medicalAnalysis: { passed: false, issues: [errorMessage] },
         nutrition: { passed: false, issues: [errorMessage] },
         exercise: { passed: false, issues: [errorMessage] },
         habits: { passed: false, issues: [errorMessage] },
@@ -137,12 +152,21 @@ function parseValidationResponse(content: string): ValidationResult {
 
   const parsed: Record<string, unknown> = robustJsonParse<Record<string, unknown>>(jsonStr);
 
+  const medicalAnalysis = parsed.medicalAnalysis as Record<string, unknown> | undefined;
   const nutrition = parsed.nutrition as Record<string, unknown> | undefined;
   const exercise = parsed.exercise as Record<string, unknown> | undefined;
   const habits = parsed.habits as Record<string, unknown> | undefined;
   const overall = parsed.overall as Record<string, unknown> | undefined;
 
   return {
+    medicalAnalysis: {
+      passed: typeof medicalAnalysis?.passed === "boolean" ? medicalAnalysis.passed : true,
+      issues: Array.isArray(medicalAnalysis?.issues)
+        ? medicalAnalysis.issues.filter(
+            (item: unknown): item is string => typeof item === "string"
+          )
+        : [],
+    },
     nutrition: {
       passed: typeof nutrition?.passed === "boolean" ? nutrition.passed : false,
       issues: Array.isArray(nutrition?.issues)

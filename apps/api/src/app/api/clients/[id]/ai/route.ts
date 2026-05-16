@@ -6,7 +6,6 @@ import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
-import { TextractService } from '@/app/lib/textract';
 import { ChecklistItem, AIRecommendationSession } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
@@ -231,7 +230,6 @@ export async function POST(
         loggerWithContext.debug('AI', 'Cuerpo de la solicitud recibido', {
           bodyKeys: Object.keys(body),
           monthNumber: body.monthNumber,
-          reprocessDocuments: body.reprocessDocuments,
           hasCoachNotes: !!body.coachNotes
         });
       } catch (error) {
@@ -242,11 +240,10 @@ export async function POST(
         );
       }
 
-      const { monthNumber = 1, reprocessDocuments = false, coachNotes = '' } = body;
+      const { monthNumber = 1, coachNotes = '' } = body;
 
       loggerWithContext.info('AI', 'Parámetros procesados', {
         monthNumber,
-        reprocessDocuments,
         coachNotesLength: coachNotes.length
       });
 
@@ -268,27 +265,21 @@ export async function POST(
         existingSessions: client.aiProgress?.sessions?.length || 0
       });
 
-      // 1. Si se solicita, reprocesar documentos con Textract
-      if (reprocessDocuments && client.medicalData?.documents) {
-        loggerWithContext.info('AI', 'Reprocesando documentos con Textract');
-        await reprocessClientDocuments(id, client.medicalData.documents, requestId);
-      }
-
-      // 2. Preparar datos para la IA
+      // 1. Preparar datos para la IA
       const aiInput = await prepareAIInput(client, requestId);
 
-      // 3. Agregar notas del coach si las hay
+      // 2. Agregar notas del coach si las hay
       if (coachNotes) {
         aiInput.coachNotes = coachNotes;
       }
 
-      // 4. Agregar sesiones anteriores si existen
+      // 3. Agregar sesiones anteriores si existen
       if (client.aiProgress?.sessions) {
         aiInput.previousSessions = client.aiProgress.sessions;
         aiInput.currentProgress = client.aiProgress;
       }
 
-      // 5. Generar recomendaciones con prompt compuesto (DIRECTO, sin Inngest)
+      // 4. Generar recomendaciones con prompt compuesto (DIRECTO, sin Inngest)
       loggerWithContext.info('AI', 'Generando recomendaciones con prompt compuesto');
 
       const {
@@ -858,7 +849,6 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
               processedAt: procDoc.processedAt,
               confidence,
               type: procDoc.metadata?.documentType || 'unknown',
-              source: 'textract',
               pageCount: procDoc.metadata?.pageCount || 1,
               language: procDoc.metadata?.language || 'es'
             });
@@ -879,7 +869,6 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
                   processedAt: procDoc.processedAt,
                   confidence: 0,
                   type: procDoc.metadata?.documentType || 'unknown',
-                  source: 'textract_failed',
                   pageCount: 0,
                   language: 'es'
                 });
@@ -903,67 +892,8 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     loggerWithContext.debug('AI', 'No hay documentos procesados disponibles');
   }
 
-  // ✅ COMPATIBILIDAD: Si no hay documentos procesados, intentar con documentos originales (estructura antigua)
-  const legacyDocuments = [];
-  if (processedDocs.length === 0 && client.medicalData?.documents) {
-    loggerWithContext.debug('AI', 'Usando documentos originales (estructura antigua) para compatibilidad', {
-      documentCount: Array.isArray(client.medicalData.documents) ? client.medicalData.documents.length : 1
-    });
-
-    try {
-      let docsArray = client.medicalData.documents;
-
-      // Si es un string (encriptado), desencriptar y parsear
-      if (typeof docsArray === 'string') {
-        const decryptedString = safeDecrypt(docsArray);
-        docsArray = JSON.parse(decryptedString);
-      }
-
-      if (Array.isArray(docsArray)) {
-        for (const doc of docsArray) {
-          try {
-            let decryptedDoc = doc;
-
-            // Si el documento está encriptado como string, desencriptarlo
-            if (typeof doc === 'string') {
-              decryptedDoc = JSON.parse(safeDecrypt(doc));
-            }
-
-            const docName = safeDecrypt(decryptedDoc.name || '');
-
-            // Solo incluir si tiene análisis de Textract
-            if (decryptedDoc.textractAnalysis?.extractedText) {
-              const content = safeDecrypt(decryptedDoc.textractAnalysis.extractedText || '');
-
-              legacyDocuments.push({
-                title: docName,
-                content: content.substring(0, 2000),
-                type: decryptedDoc.textractAnalysis.documentType || 'unknown',
-                source: 'textract_legacy',
-                confidence: decryptedDoc.textractAnalysis.confidence || 0
-              });
-
-              loggerWithContext.debug('AI', 'Documento legacy procesado', {
-                documentName: docName,
-                hasTextractAnalysis: true
-              });
-            } else {
-              loggerWithContext.debug('AI', 'Documento sin textractAnalysis, omitiendo', {
-                documentName: docName
-              });
-            }
-          } catch (error) {
-            loggerWithContext.error('AI', 'Error procesando documento legacy individual', error as Error);
-          }
-        }
-      }
-    } catch (error) {
-      loggerWithContext.error('AI', 'Error procesando documentos legacy para IA', error as Error);
-    }
-  }
-
-  // Combinar documentos (preferir procesados sobre legacy)
-  const allDocuments = [...processedDocs, ...legacyDocuments];
+  // Combinar documentos
+  const allDocuments = [...processedDocs];
 
   // Preparar historial de checklist si existe
   const previousChecklistStatus = [];
@@ -1046,7 +976,6 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     personalDataKeys: Object.keys(personalData),
     medicalDataKeys: Object.keys(medicalData),
     processedDocsCount: processedDocs.length,
-    legacyDocsCount: legacyDocuments.length,
     totalDocs: allDocuments.length,
     documentHistoryCount: documentHistory.length
   });
@@ -1056,103 +985,17 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     medicalData,
     healthAssessment,
     mentalHealth,
-    documents: allDocuments, // ✅ Ahora incluye documentos procesados y legacy
+    documents: allDocuments, // ✅ Documentos procesados
     documentHistory, // ✅ Historial de procesamientos
     previousChecklistStatus,
     previousSessions: client.aiProgress?.sessions || [],
     // Información adicional para el prompt
     meta: {
       totalProcessedDocuments: processedDocs.length,
-      totalLegacyDocuments: legacyDocuments.length,
       hasDocumentHistory: documentHistory.length > 0,
       lastDocumentProcessed: client.medicalData?.lastDocumentProcessed
     }
   };
-}
-
-async function reprocessClientDocuments(clientId: string, documents: any[], requestId: string) {
-  const loggerWithContext = requestId ? logger.withContext({ requestId, clientId }) : logger;
-
-  loggerWithContext.info('TEXTRACT', 'Reprocesando documentos con estructura separada');
-
-  try {
-    let docsArray = documents;
-
-    // Si es un string (encriptado), desencriptar y parsear
-    if (typeof docsArray === 'string') {
-      const decryptedString = safeDecrypt(docsArray);
-      docsArray = JSON.parse(decryptedString);
-    }
-
-    if (!Array.isArray(docsArray)) {
-      loggerWithContext.error('TEXTRACT', 'Documents no es un array válido');
-      return;
-    }
-
-    // Por cada documento, procesar con Textract y guardar en processedDocuments
-    const processingPromises = docsArray.map(async (doc, index) => {
-      try {
-        // Extraer info del documento
-        const originalName = safeDecrypt(doc.name || '');
-        const s3Key = safeDecrypt(doc.key);
-
-        // Procesar con Textract
-        const docType = TextractService.determineDocumentType(originalName);
-        const analysis = await TextractService.processMedicalDocument(s3Key, docType);
-
-        // Crear processed document
-        const processedDoc: any = {
-          id: `reproc_${Date.now()}_${index}`,
-          originalName: encrypt(originalName),
-          s3Key: encrypt(s3Key),
-          title: encrypt(`Reprocesado: ${originalName}`),
-          content: encrypt(analysis.extractedText || ''),
-          processedAt: new Date(),
-          processedBy: 'textract',
-          confidence: analysis.status === 'completed' ? analysis.confidence : 0,
-          metadata: {
-            extractionStatus: analysis.status,
-            documentType: analysis.documentType,
-            reprocessed: true,
-            originalUploadDate: doc.uploadedAt
-          }
-        };
-
-        return processedDoc;
-      } catch (error) {
-        loggerWithContext.error('TEXTRACT', `Error reprocesando documento ${index}`, error as Error);
-        return null;
-      }
-    });
-
-    const processedDocs = (await Promise.all(processingPromises)).filter(doc => doc !== null);
-
-    if (processedDocs.length > 0) {
-      const healthForms = await getHealthFormsCollection();
-
-      // Agregar al array de processedDocuments
-      const result = await healthForms.updateOne(
-        { _id: new ObjectId(clientId) },
-        {
-          $push: {
-            'medicalData.processedDocuments': { $each: processedDocs }
-          },
-          $set: {
-            'medicalData.lastDocumentProcessed': new Date(),
-            updatedAt: new Date()
-          }
-        } as any
-      );
-
-      loggerWithContext.info('TEXTRACT', 'Documentos reprocesados en estructura separada', {
-        clientId,
-        processedCount: processedDocs.length
-      });
-    }
-
-  } catch (error) {
-    loggerWithContext.error('TEXTRACT', 'Error general reprocesando documentos', error as Error);
-  }
 }
 
 async function updateChecklist(

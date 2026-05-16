@@ -154,11 +154,11 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
     temperature: 0.7,
-    maxTokens: 30000, // Aumentado significativamente para planes de 12 semanas
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com'
+    maxTokens: 30000,
+    apiKey: process.env.GEMINI_API_KEY,
+    baseURL: 'https://generativelanguage.googleapis.com'
   };
 
   // ===== MÉTODO AUXILIAR PARA BUSCAR RECETAS =====
@@ -388,7 +388,7 @@ export class AIService {
     
         // Validar configuración
         if (!this.config.apiKey) {
-          throw new Error('API key no configurada. Configure DEEPSEEK_API_KEY en las variables de entorno.');
+          throw new Error('API key no configurada. Configure GEMINI_API_KEY en las variables de entorno.');
         }
 
         loggerWithContext.info('AI_SERVICE', 'Iniciando generación de recomendaciones', {
@@ -407,8 +407,8 @@ export class AIService {
           monthNumber
         });
 
-        // Llamar a DeepSeek API
-        console.log('=== DEBUG: Llamando a DeepSeek API ===');
+        // Llamar a Gemini API
+        console.log('=== DEBUG: Llamando a Gemini API ===');
         let aiResponse: string;
         try {
           aiResponse = await this.callDeepSeekAPI(prompt, metadata);
@@ -420,7 +420,7 @@ export class AIService {
 
         // Validar respuesta
         if (!aiResponse || aiResponse.trim() === '') {
-          throw new Error('Respuesta vacía de la API de DeepSeek');
+          throw new Error('Respuesta vacía de la API de Gemini');
         }
 
         let parsedResponse;
@@ -1074,219 +1074,240 @@ ${responseSchema}
   }
 
   /**
-   * Llama a la API de DeepSeek
+   * Llama a la API de Gemini para generar recomendaciones.
    */
-  private static async callDeepSeekAPI(
+  private static async callGeminiForRecommendations(
     prompt: string, 
     metadata?: { requestId?: string; clientId?: string },
     retryCount = 0
   ): Promise<string> {
-    // (Igual que antes, no cambia)
-    const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
-    const MAX_RETRIES = 1; // Número máximo de reintentos
-    
+    const logCtx = metadata ? logger.withContext(metadata) : logger;
+    const MAX_RETRIES = 1;
+
     try {
-      console.log('🔍 DEBUG: Llamando a DeepSeek API...');
-      console.log('🔑 API Key presente:', !!this.config.apiKey);
-      console.log('🤖 Modelo:', this.config.model);
-      console.log('📝 Prompt length:', prompt.length);
-      console.log('📝 Tokens estimados:', Math.ceil(prompt.length / 4));
-      
+      logCtx.info("AI", "[callGeminiForRecommendations] Iniciando llamada a Gemini", {
+        model: this.config.model,
+        promptLength: prompt.length,
+        estimatedTokens: Math.ceil(prompt.length / 4),
+        retryCount,
+      });
+
       if (!this.config.apiKey) {
-        throw new Error('DeepSeek API key no configurada');
+        logCtx.error("AI", "GEMINI_API_KEY no configurada en AIService");
+        throw new Error('Gemini API key no configurada');
       }
 
-      const requestBody = {
-        model: this.config.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens,
-        response_format: { type: 'json_object' }
-      };
-
-      console.log('🌐 URL:', `${this.config.baseURL}/chat/completions`);
-      console.log('📤 Request body size:', JSON.stringify(requestBody).length);
-      
       const startTime = Date.now();
-      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200000); // 20 minutos para modelos de razonamiento
-      
-        try {
-          const response = await fetch(`${this.config.baseURL}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${this.config.apiKey}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
-          });
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
+
+      try {
+        const apiKey = this.config.apiKey;
+        const model = this.config.model;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        const body = {
+          systemInstruction: {
+            parts: [{ text: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.' }],
+          },
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: this.config.temperature,
+            maxOutputTokens: this.config.maxTokens,
+            responseMimeType: 'application/json',
+          },
+        };
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
 
         clearTimeout(timeoutId);
-        
         const duration = Date.now() - startTime;
-        
-        console.log('📡 Status:', response.status);
-        console.log('📡 Status Text:', response.statusText);
-        console.log('⏱️ Duración:', duration, 'ms');
-        
+
+        logCtx.info("AI", "[callGemini] Respuesta recibida", {
+          status: response.status,
+          duration,
+        });
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('❌ Error respuesta:', errorText.substring(0, 500));
-          throw new Error(`DeepSeek API Error: ${response.status} - ${errorText.substring(0, 200)}`);
+          logCtx.error("AI", "[callGemini] Error HTTP", undefined, {
+            status: response.status,
+            statusText: response.statusText,
+            errorBody: errorText.substring(0, 500),
+          });
+          throw new Error(`Gemini API Error: ${response.status} - ${errorText.substring(0, 200)}`);
         }
 
-        const responseText = await response.text();
-        console.log('📦 Raw response length:', responseText.length);
-        
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (jsonError) {
-          console.error('❌ Error parseando respuesta JSON:', jsonError);
-          console.error('📦 Texto que falló:', responseText.substring(0, 500));
-          throw new Error('La respuesta de DeepSeek no es JSON válido');
+        const data = await response.json() as Record<string, unknown>;
+        const candidates = data.candidates as Array<Record<string, unknown>> | undefined;
+
+        // Verificar bloqueo de seguridad
+        if (!candidates || candidates.length === 0) {
+          const promptFeedback = data.promptFeedback as Record<string, unknown> | undefined;
+          logCtx.error("AI", "[callGemini] Respuesta bloqueada por seguridad", undefined, {
+            blockReason: promptFeedback?.blockReason || "unknown",
+          });
+          throw new Error('Gemini bloqueó la respuesta por filtros de seguridad. Revisa el contenido del prompt.');
         }
-        
-        console.log('📊 Token usage:', data.usage);
-        console.log('📊 Finish reason:', data.choices?.[0]?.finish_reason);
-        
-        const finishReason = data.choices?.[0]?.finish_reason;
-        let content = data.choices[0]?.message?.content;
-        
+
+        const finishReason = candidates[0]?.finishReason as string | undefined;
+        const parts = (candidates[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text: string }> | undefined;
+        const content = parts?.[0]?.text;
+
+        logCtx.info("AI", "[callGemini] Contenido recibido", {
+          finishReason,
+          contentLength: content?.length || 0,
+          duration,
+        });
+
         if (!content) {
-          throw new Error('La respuesta de DeepSeek no contiene contenido');
+          logCtx.error("AI", "[callGemini] Respuesta sin contenido", undefined, { finishReason });
+          throw new Error(
+            finishReason === 'SAFETY'
+              ? 'Gemini bloqueó el contenido por seguridad.'
+              : 'La respuesta de Gemini no contiene contenido.'
+          );
         }
 
-        if (finishReason === 'length') {
-          console.warn('⚠️ Respuesta truncada por límite de tokens. Intentando reparar JSON...');
+        if (finishReason === 'MAX_TOKENS') {
+          logCtx.warn("AI", "[callGemini] Respuesta truncada por MAX_TOKENS, reparando JSON...");
           const fixedJson = this.fixTruncatedJSON(content);
           try {
-            const parsed = JSON.parse(fixedJson);
-            console.log('✅ JSON reparado exitosamente');
-            return JSON.stringify(parsed);
-          } catch (e) {
-            console.error('❌ No se pudo reparar el JSON truncado:', e);
-            throw new Error('Respuesta truncada y no reparable');
+            JSON.parse(fixedJson);
+            logCtx.info("AI", "[callGemini] JSON reparado exitosamente");
+            return JSON.stringify(JSON.parse(fixedJson));
+          } catch {
+            logCtx.error("AI", "[callGemini] No se pudo reparar JSON truncado");
+            throw new Error('Respuesta truncada por tokens y no reparable. Aumenta maxOutputTokens o reduce el prompt.');
           }
         }
-        
+
+        if (finishReason === 'RECITATION') {
+          logCtx.warn("AI", "[callGemini] Gemini detectó recitación de contenido con copyright");
+        }
+
         try {
           JSON.parse(content);
-          console.log('✅ Contenido es JSON válido');
           return content;
-        } catch (e) {
-          console.error('❌ Contenido no es JSON válido:', content.substring(0, 300));
-          throw new Error('El contenido de la respuesta no es JSON válido');
+        } catch {
+          logCtx.error("AI", "[callGemini] Contenido no es JSON válido", undefined, {
+            contentPreview: content.substring(0, 300),
+          });
+          throw new Error('El contenido de la respuesta no es JSON válido.');
         }
-        
-      } catch (fetchError: any) {
+
+      } catch (fetchError: unknown) {
         clearTimeout(timeoutId);
-        
-        if ((fetchError.name === 'AbortError' || fetchError.message === 'terminated') && retryCount < MAX_RETRIES) {
-          console.log(`⏰ Timeout o conexión terminada. Reintentando (${retryCount + 1}/${MAX_RETRIES})...`);
+        const err = fetchError as Error & { name?: string };
+
+        if ((err.name === 'AbortError' || err.message?.includes('terminated')) && retryCount < MAX_RETRIES) {
+          logCtx.warn("AI", `[callGemini] Timeout, reintentando (${retryCount + 1}/${MAX_RETRIES})...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
-          return this.callDeepSeekAPI(prompt, metadata, retryCount + 1);
+          return this.callGeminiForRecommendations(prompt, metadata, retryCount + 1);
         }
-        
+
         throw fetchError;
       }
-      
-    } catch (error: any) {
-      console.error('💥 Error completo en callDeepSeekAPI:', error.message);
-      console.error('💥 Error type:', error.constructor.name);
-      console.error('💥 Stack:', error.stack);
-      loggerWithContext.error('AI_SERVICE', 'Error en llamada a DeepSeek API', error);
-      
+
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logCtx.error("AI", "[callGemini] Error en llamada a Gemini", err, {
+        errorType: err.constructor.name,
+      });
+
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 Usando mock response para desarrollo');
+        logCtx.warn("AI", "Usando mock response para desarrollo");
         return this.getMockAIResponse();
       }
-      
+
       throw error;
     }
   }
 
+  // Mantener alias para compatibilidad con código existente
+  private static async callDeepSeekAPI(
+    prompt: string,
+    metadata?: { requestId?: string; clientId?: string },
+    retryCount = 0
+  ): Promise<string> {
+    return this.callGeminiForRecommendations(prompt, metadata, retryCount);
+  }
+
   /**
-   * Método alternativo con timeout más corto para reintentar
+   * Método alternativo con timeout más corto para reintentar.
    */
   private static async callDeepSeekWithShorterTimeout(
-    prompt: string, 
+    prompt: string,
     metadata?: { requestId?: string; clientId?: string }
   ): Promise<string> {
-    // (Igual que antes)
-    const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
-    
+    const logCtx = metadata ? logger.withContext(metadata) : logger;
+
     try {
-      console.log('🔁 REINTENTO: Llamando a DeepSeek API con timeout corto...');
-      
-      const requestBody = {
-        model: this.config.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un asistente médico especializado en nutrición keto. Devuelve SOLO JSON válido con estructura: summary, vision, baselineMetrics, weeks.'
-          },
-          {
-            role: 'user',
-            content: prompt.substring(0, 3000)
-          }
-        ],
-        temperature: this.config.temperature,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' }
+      logCtx.info("AI", "[callGeminiShortTimeout] Reintentando con prompt reducido");
+
+      const apiKey = this.config.apiKey;
+      const model = this.config.model;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const body = {
+        systemInstruction: {
+          parts: [{ text: 'Eres un asistente médico especializado en nutrición keto. Devuelve SOLO JSON válido.' }],
+        },
+        contents: [{ parts: [{ text: prompt.substring(0, 3000) }] }],
+        generationConfig: {
+          temperature: this.config.temperature,
+          maxOutputTokens: 4000,
+          responseMimeType: 'application/json',
+        },
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 1.5 minutos para reintentos
-      
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+
       try {
-        const response = await fetch(`${this.config.baseURL}/chat/completions`, {
+        const startTime = Date.now();
+        const response = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
-        
+        const duration = Date.now() - startTime;
+
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const errorText = await response.text().catch(() => "Unable to read error");
+          logCtx.error("AI", "[callGeminiShortTimeout] Error HTTP", undefined, { status: response.status, duration });
+          throw new Error(`Gemini HTTP ${response.status}: ${errorText.substring(0, 200)}`);
         }
 
-        const data = await response.json();
-        const content = data.choices[0]?.message?.content;
-        
+        const data = await response.json() as Record<string, unknown>;
+        const candidates = data.candidates as Array<Record<string, unknown>> | undefined;
+        const parts = (candidates?.[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text: string }> | undefined;
+        const content = parts?.[0]?.text;
+
         if (!content) {
-          throw new Error('Sin contenido');
+          throw new Error('Gemini devolvió contenido vacío en reintento');
         }
-        
-        console.log('✅ Reintento exitoso');
+
+        logCtx.info("AI", "[callGeminiShortTimeout] Reintento exitoso", { duration, contentLength: content.length });
         return content;
-        
-      } catch (retryError: any) {
+
+      } catch (retryError: unknown) {
         clearTimeout(timeoutId);
         throw retryError;
       }
-      
-    } catch (error: any) {
-      console.error('❌ Reintento fallido:', error.message);
-      
-      console.log('🔄 Usando mock response después de reintento fallido');
+
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logCtx.error("AI", "[callGeminiShortTimeout] Reintento fallido", err);
+      logCtx.warn("AI", "Usando mock response después de reintento fallido");
       return this.getMockAIResponse();
     }
   }
@@ -2115,48 +2136,12 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   /**
-   * Probar conexión con DeepSeek
+   * Probar conexión con Gemini
    */
   static async testDeepSeekConnection(): Promise<boolean> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    try {
-      console.log('🧪 Probando conexión con DeepSeek API...');
-      
-      if (!this.config.apiKey) {
-        console.error('❌ ERROR: No hay API key configurada');
-        clearTimeout(timeoutId);
-        return false;
-      }
-
-      const response = await fetch(`${this.config.baseURL}/models`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Accept': 'application/json',
-        },
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      console.log('📡 Status de prueba:', response.status, response.statusText);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Conexión exitosa. Modelos disponibles:', data.data?.length || 0);
-        return true;
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Error en conexión:', errorText);
-        return false;
-      }
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      console.error('💥 Error de conexión:', error.message);
-      return false;
-    }
+    // Redirigir a la función centralizada de Gemini
+    const { testGeminiConnection } = await import('./agents/utils/llm');
+    return testGeminiConnection();
   }
 
   /**

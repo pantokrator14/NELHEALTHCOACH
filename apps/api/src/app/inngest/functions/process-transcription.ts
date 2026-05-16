@@ -4,7 +4,7 @@
 //
 // Flujo:
 // 1. Recibe evento 'transcription.ready' con los datos de la transcripción
-// 2. Envía el transcript a DeepSeek para extraer puntos clave y acuerdos
+// 2. Envía el transcript a Gemini para extraer puntos clave y acuerdos
 // 3. Actualiza el documento MongoDB con el resumen
 // 4. Dispara la re-generación de recomendaciones vía LangGraph
 
@@ -13,6 +13,7 @@ import { logger } from '@/app/lib/logger';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt, encrypt } from '@/app/lib/encryption';
 import { ObjectId } from 'mongodb';
+import { callGeminiAPI } from '@/app/lib/agents/utils/llm';
 
 // ─────────────────────────────────────────────
 // Tipos
@@ -32,21 +33,13 @@ interface TranscriptionReadyEvent {
 // ─────────────────────────────────────────────
 
 /**
- * Envía una solicitud de resumen a DeepSeek.
+ * Envía una solicitud de resumen a Gemini.
  */
-async function summarizeWithDeepSeek(transcript: string): Promise<{
+async function summarizeWithGemini(transcript: string): Promise<{
   summary: string;
   agreements: string;
   keyPoints: string[];
 }> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
-  const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY not configured');
-  }
-
   const prompt = `Eres un asistente especializado en resumir sesiones de coaching de salud. 
 Analiza la siguiente transcripción de una videollamada entre un coach de salud y su cliente.
 
@@ -62,37 +55,17 @@ ${transcript.slice(0, 12000)}
 
 Responde solo con el JSON, sin explicaciones adicionales.`;
 
-  const response = await fetch(`${apiUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 2000,
-    }),
+  const result = await callGeminiAPI({
+    userPrompt: prompt,
+    temperature: 0.3,
+    maxOutputTokens: 2000,
+    responseMimeType: "application/json",
   });
 
-  if (!response.ok) {
-    throw new Error(`DeepSeek API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('No content in DeepSeek response');
-  }
-
   // Extraer el JSON de la respuesta (puede venir entre ```json ... ```)
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  const jsonMatch = result.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('Could not extract JSON from DeepSeek response');
+    throw new Error('Could not extract JSON from Gemini response');
   }
 
   const parsed = JSON.parse(jsonMatch[0]) as {
@@ -179,14 +152,14 @@ export const processTranscriptionFn = inngest.createFunction(
       return { success: false, reason: 'empty-transcript' };
     }
 
-    // ── Step 2: Resumir con DeepSeek ──
+    // ── Step 2: Resumir con Gemini ──
 
-    const summary = await ctx.step.run('summarize-with-deepseek', async () => {
+    const summary = await ctx.step.run('summarize-with-gemini', async () => {
       try {
-        log.info('AI', 'Sending transcription to DeepSeek for summarization');
-        return await summarizeWithDeepSeek(transcriptData.fullText);
+        log.info('AI', 'Sending transcription to Gemini for summarization');
+        return await summarizeWithGemini(transcriptData.fullText);
       } catch (error: unknown) {
-        log.error('AI', 'DeepSeek summarization failed', error as Error);
+        log.error('AI', 'Gemini summarization failed', error as Error);
         // Proporcionar un resumen de respaldo
         return {
           summary: `Transcripción de la sesión ${transcriptData.sessionNumber}. Revisar transcripción completa para detalles.`,

@@ -419,6 +419,45 @@ export const nutritionPlannerGuard = new Guard({
 });
 
 /**
+ * Guard para el analizador médico
+ */
+export const medicalAnalystGuard = new Guard({
+  name: 'medical-analyst-guard',
+  description: 'Guardrails para el analizador médico',
+
+  inputGuard: new InputGuard({
+    rules: [promptInjectionRule, medicalDataRule],
+    onFailure: (input: string | object, rule: Rule) => {
+      logger.error('GUARDRAILS', `Validación de entrada falló para análisis médico`, {
+        rule: rule.name,
+        input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
+      });
+      throw new Error(`Entrada no segura para análisis médico: ${rule.description}`);
+    },
+  }),
+
+  outputGuard: new OutputGuard({
+    rules: [medicalDisclaimerRule, noMedicationRecommendationRule, jsonValidationRule],
+    onFailure: (output: string, rule: Rule) => {
+      logger.error('GUARDRAILS', `Validación de salida falló para análisis médico`, {
+        rule: rule.name,
+        output: output.substring(0, 150),
+      });
+
+      return JSON.stringify({
+        error: 'Validación de seguridad falló',
+        message: 'No se pudo completar el análisis médico de forma segura.',
+        disclaimer: 'Consulte con un profesional médico para un análisis personalizado de sus resultados de laboratorio.',
+        labResults: [],
+        clinicalFindings: ['Requiere evaluación profesional presencial'],
+        recommendedStudies: [],
+        supplementRecommendations: [],
+      });
+    },
+  }),
+});
+
+/**
  * Guard para el analizador de clientes
  */
 export const clientAnalyzerGuard = new Guard({
@@ -650,6 +689,7 @@ export function getGuardForAgent(agentName: string): Guard {
   const guardMap: Record<string, Guard> = {
     'nutrition-planner': nutritionPlannerGuard,
     'client-analyzer': clientAnalyzerGuard,
+    'medical-analyst': medicalAnalystGuard,
     'exercise-planner': exercisePlannerGuard,
     'habit-designer': habitDesignerGuard,
     'quality-validator': qualityValidatorGuard,

@@ -234,8 +234,6 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
           key: typeof doc.key === "string" ? decrypt(doc.key) : doc.key,
         }))
       : undefined,
-    processedDocuments: rawMedical?.processedDocuments as MedicalData["processedDocuments"],
-    lastDocumentProcessed: rawMedical?.lastDocumentProcessed as MedicalData["lastDocumentProcessed"],
   };
 
   // ── Health assessment: extraer ANTES de parsear los arrays de evaluación ──
@@ -305,18 +303,73 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     idealBalance: medicalData.mentalHealthIdealBalance ?? "",
   };
 
-  // Process documents
-  const rawProcessedDocs = rawMedical?.processedDocuments as Array<Record<string, unknown>> | undefined;
-  const processedDocuments = (rawProcessedDocs ?? []).map(
-    (docItem: Record<string, unknown>) => ({
-      title: typeof docItem.title === "string" ? decrypt(docItem.title) : "",
-      content: typeof docItem.content === "string" ? decrypt(docItem.content) : "",
-      documentType: typeof docItem.metadata === "object" && docItem.metadata !== null
-        ? String((docItem.metadata as Record<string, unknown>).documentType ?? "other")
-        : "other",
-      confidence: typeof docItem.confidence === "number" ? docItem.confidence : 0,
-    })
-  );
+  // Process documents — Gemini lee PDFs directamente de S3 sin procesamiento previo
+  const rawProcessedDocs: Array<{
+    title: string;
+    content: string;
+    documentType: string;
+    confidence: number;
+  }> = [];
+
+  // Obtener documentos del cliente (PDFs en S3)
+  const clientDocs = medicalData.documents as Array<{
+    name: string;
+    key: string;
+    type?: string;
+  }> | undefined;
+
+  if (clientDocs && clientDocs.length > 0) {
+    const pdfDocs = clientDocs.filter(
+      (doc) => doc.name?.toLowerCase().endsWith('.pdf') || doc.type?.includes('pdf')
+    );
+
+    logger.info("AI", `[fetchClientData] ${pdfDocs.length} PDF(s) encontrados para análisis con Gemini`, {
+      totalDocs: clientDocs.length,
+      pdfCount: pdfDocs.length,
+    });
+
+    if (pdfDocs.length > 0) {
+      const { analyzeS3PDFWithGemini } = await import('@/app/lib/agents/utils/llm');
+
+      for (let i = 0; i < pdfDocs.length; i++) {
+        const pdfDoc = pdfDocs[i];
+        try {
+          logger.info("AI", `[fetchClientData] Analizando PDF ${i + 1}/${pdfDocs.length}: ${pdfDoc.name}`, {
+            s3Key: pdfDoc.key?.substring(0, 30) + '...',
+          });
+
+          const extractedContent = await analyzeS3PDFWithGemini(
+            pdfDoc.key,
+            pdfDoc.name,
+            'Documento médico del cliente - extraer valores de laboratorio y datos clínicos relevantes'
+          );
+
+          rawProcessedDocs.push({
+            title: pdfDoc.name,
+            content: extractedContent,
+            documentType: 'lab_results',
+            confidence: 95,
+          });
+
+          logger.info("AI", `[fetchClientData] PDF ${i + 1}/${pdfDocs.length} analizado exitosamente: ${pdfDoc.name}`, {
+            contentLength: extractedContent.length,
+          });
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.error("AI", `[fetchClientData] Error analizando PDF ${i + 1}/${pdfDocs.length}: ${pdfDoc.name}`, error instanceof Error ? error : new Error(errMsg), {
+            fileName: pdfDoc.name,
+            s3Key: pdfDoc.key?.substring(0, 30) + '...',
+            errorDetail: errMsg.substring(0, 200),
+          });
+          // Continuar con los demás PDFs aunque uno falle
+        }
+      }
+    }
+  } else {
+    logger.info("AI", "[fetchClientData] No hay documentos del cliente para analizar con Gemini");
+  }
+
+  const processedDocuments = rawProcessedDocs;
 
   // Previous sessions
   const rawAIProgress = doc.aiProgress as { sessions?: AIRecommendationSession[] } | undefined;
@@ -371,6 +424,28 @@ interface GraphResult {
     idealBodyFat: string;
     targetImprovements: string[];
   };
+  medicalAnalysisPlan?: Array<{
+    weekNumber: number;
+    focus: string;
+    labResults: Array<{
+      marker: string;
+      currentValue: string;
+      previousValue?: string;
+      interpretation: string;
+      trend: string;
+    }>;
+    clinicalFindings: string[];
+    recommendedStudies: string[];
+    supplementRecommendations: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+      necessary: boolean;
+    }>;
+    comparativeNotes?: string;
+  }>;
   nutritionPlan: Array<{
     weekNumber: number;
     focus: string;
@@ -426,9 +501,20 @@ async function saveRecommendationsToDB(
     const habits = graphResult.habitPlan.find(
       (h) => h.weekNumber === nutrition.weekNumber
     );
+    const medicalAnalysis = graphResult.medicalAnalysisPlan?.find(
+      (ma) => ma.weekNumber === nutrition.weekNumber
+    );
 
     return {
       weekNumber: castWeekNumber(nutrition.weekNumber),
+      medicalAnalysis: medicalAnalysis ? {
+        focus: encrypt(medicalAnalysis.focus),
+        labSummary: encrypt(
+          medicalAnalysis.labResults.length > 0
+            ? medicalAnalysis.labResults.map(lr => `${lr.marker}: ${lr.currentValue} → ${lr.interpretation}`).join(" | ")
+            : "Sin resultados de laboratorio"
+        ),
+      } : undefined,
       nutrition: {
         focus: encrypt(nutrition.focus),
         shoppingList: nutrition.shoppingList.map((item) => ({
@@ -449,11 +535,21 @@ async function saveRecommendationsToDB(
           ? encrypt(habits.motivationTip)
           : undefined,
       },
+      supplements: medicalAnalysis && medicalAnalysis.supplementRecommendations.length > 0 ? {
+        focus: encrypt(`Suplementos recomendados para la semana ${nutrition.weekNumber}`),
+        recommendations: medicalAnalysis.supplementRecommendations.map(supp => ({
+          name: encrypt(supp.name),
+          dosage: encrypt(supp.dosage),
+          timing: encrypt(supp.timing),
+          rationale: encrypt(supp.rationale),
+          contraindications: supp.contraindications ? encrypt(supp.contraindications) : undefined,
+        })),
+      } : undefined,
     };
   });
 
   // Encrypt checklist descriptions
-  const encryptedChecklist: ChecklistItem[] = graphResult.checklist.map((item) => ({
+  let encryptedChecklist: ChecklistItem[] = graphResult.checklist.map((item) => ({
     ...item,
     description: encrypt(item.description),
     details: item.details
@@ -480,9 +576,82 @@ async function saveRecommendationsToDB(
             ? encrypt(item.details.duration)
             : undefined,
           equipment: item.details.equipment?.map((eq: string) => encrypt(eq)),
+          labResults: item.details.labResults?.map(lr => ({
+            marker: encrypt(lr.marker),
+            currentValue: encrypt(lr.currentValue),
+            previousValue: lr.previousValue ? encrypt(lr.previousValue) : undefined,
+            interpretation: encrypt(lr.interpretation),
+            trend: lr.trend,
+          })),
+          clinicalFindings: item.details.clinicalFindings?.map((cf: string) => encrypt(cf)),
+          recommendedStudies: item.details.recommendedStudies?.map((rs: string) => encrypt(rs)),
+          supplementInfo: item.details.supplementInfo ? {
+            name: encrypt(item.details.supplementInfo.name),
+            dosage: encrypt(item.details.supplementInfo.dosage),
+            timing: encrypt(item.details.supplementInfo.timing),
+            rationale: encrypt(item.details.supplementInfo.rationale),
+            contraindications: item.details.supplementInfo.contraindications ? encrypt(item.details.supplementInfo.contraindications) : undefined,
+          } : undefined,
         }
       : undefined,
   }));
+
+  // Add medical analysis checklist items from medicalAnalysisPlan
+  if (graphResult.medicalAnalysisPlan) {
+    for (const medWeek of graphResult.medicalAnalysisPlan) {
+      const weekNum = medWeek.weekNumber;
+
+      // Add clinical findings as checklist items
+      medWeek.clinicalFindings.forEach((finding, idx) => {
+        encryptedChecklist.push({
+          id: `med_finding_${weekNum}_${idx}_${Date.now()}`,
+          description: encrypt(`Hallazgo clínico: ${finding}`),
+          completed: false,
+          weekNumber: weekNum,
+          category: 'medical',
+          type: 'clinical_finding',
+          updatedAt: new Date(),
+        } as ChecklistItem);
+      });
+
+      // Add recommended studies as checklist items
+      medWeek.recommendedStudies.forEach((study, idx) => {
+        encryptedChecklist.push({
+          id: `med_study_${weekNum}_${idx}_${Date.now()}`,
+          description: encrypt(`Estudio recomendado: ${study}`),
+          completed: false,
+          weekNumber: weekNum,
+          category: 'medical',
+          type: 'recommended_study',
+          updatedAt: new Date(),
+        } as ChecklistItem);
+      });
+
+      // Add supplement recommendations as checklist items (only if necessary)
+      medWeek.supplementRecommendations
+        .filter(supp => supp.necessary)
+        .forEach((supp, idx) => {
+          encryptedChecklist.push({
+            id: `med_supp_${weekNum}_${idx}_${Date.now()}`,
+            description: encrypt(`${supp.name}: ${supp.dosage} — ${supp.timing}`),
+            completed: false,
+            weekNumber: weekNum,
+            category: 'supplement',
+            type: 'supplement',
+            details: {
+              supplementInfo: {
+                name: encrypt(supp.name),
+                dosage: encrypt(supp.dosage),
+                timing: encrypt(supp.timing),
+                rationale: encrypt(supp.rationale),
+                contraindications: supp.contraindications ? encrypt(supp.contraindications) : undefined,
+              },
+            },
+            updatedAt: new Date(),
+          } as ChecklistItem);
+        });
+    }
+  }
 
   const sessionId = `session_${Date.now()}_${monthNumber}`;
 
@@ -497,6 +666,20 @@ async function saveRecommendationsToDB(
     vision: encrypt(
       `Plan de ${weeks.length} semanas para optimizar salud metabólica, composición corporal y bienestar emocional`
     ),
+    medicalSummary: graphResult.medicalAnalysisPlan
+      ? encrypt(
+          graphResult.medicalAnalysisPlan
+            .map(w => `Semana ${w.weekNumber}: ${w.focus}\n${w.clinicalFindings.join("\n")}`)
+            .join("\n\n")
+        )
+      : undefined,
+    medicalComparativeAnalysis: (() => {
+      const comparativeNotes = graphResult.medicalAnalysisPlan
+        ?.filter(w => w.comparativeNotes)
+        .map(w => w.comparativeNotes!)
+        .join("\n\n");
+      return comparativeNotes ? encrypt(comparativeNotes) : undefined;
+    })(),
     baselineMetrics: {
       currentLifestyle: graphResult.clientInsights.keyRisks,
       targetLifestyle: graphResult.clientInsights.targetImprovements,
@@ -543,7 +726,10 @@ export const generateRecommendationsFn = inngest.createFunction(
       endpoint: "inngest:generate-recommendations",
     });
 
-    log.info("AI", "Starting recommendation generation");
+    log.info("AI", "Starting recommendation generation", {
+      model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+      coachNotesProvided: !!coachNotes,
+    });
 
     // Step 1: Fetch client data
     const clientData = await ctx.step.run(
@@ -580,7 +766,13 @@ export const generateRecommendationsFn = inngest.createFunction(
     } catch (graphError: unknown) {
       const errorMessage =
         graphError instanceof Error ? graphError.message : "Unknown LangGraph error";
-      log.error("AI", `LangGraph execution failed: ${errorMessage}`);
+      const errorStack = graphError instanceof Error ? graphError.stack?.substring(0, 500) : undefined;
+      log.error("AI", `LangGraph execution failed: ${errorMessage}`, graphError instanceof Error ? graphError : new Error(errorMessage), {
+        clientId,
+        monthNumber,
+        model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+        stack: errorStack,
+      });
       executionError = errorMessage;
 
       await ctx.step.run("save-error-to-db", async () => {
@@ -603,6 +795,11 @@ export const generateRecommendationsFn = inngest.createFunction(
 
     // El resto del flujo solo se ejecuta si LangGraph tuvo éxito
     // Step 3: Save to database
+    log.info("AI", "LangGraph completado. Guardando resultados...", {
+      hasMedicalData: !!(graphResult as Record<string, unknown>).medicalAnalysisPlan,
+      nutritionWeeks: ((graphResult as Record<string, unknown>).nutritionPlan as Array<unknown>)?.length || 0,
+    });
+
     const saveResult = await ctx.step.run(
       "save-recommendations",
       async () => {
@@ -622,6 +819,7 @@ export const generateRecommendationsFn = inngest.createFunction(
         errors: graphResult.errors
           ? (graphResult.errors as string[]).length
           : 0,
+        hasMedicalAnalysis: !!(graphResult as Record<string, unknown>).medicalAnalysisPlan,
       });
     });
 
