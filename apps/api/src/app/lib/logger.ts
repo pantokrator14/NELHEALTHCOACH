@@ -1,7 +1,7 @@
 // apps/api/src/app/lib/logger.ts
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'TEXTRACT' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION';
 
 // ✅ INTERFAZ ACTUALIZADA: Permite propiedades dinámicas
 interface LogMetadata {
@@ -15,7 +15,6 @@ interface LogMetadata {
 
   // Propiedades específicas
   aiInfo?: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number };
-  textractInfo?: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number };
   fileInfo?: { fileName?: string; fileSize?: number; fileType?: string; fileCategory?: 'profile' | 'document'; s3Key?: string };
 
   // ✅ ESTA ES LA CLAVE: Permite cualquier propiedad adicional
@@ -106,10 +105,9 @@ class Logger {
     if (rest.error) structured.error = rest.error;
     if (rest.fileInfo) structured.fileInfo = rest.fileInfo;
     if (rest.aiInfo) structured.aiInfo = rest.aiInfo;
-    if (rest.textractInfo) structured.textractInfo = rest.textractInfo;
 
     // Extraer propiedades dinámicas restantes
-    const { data, error, fileInfo, aiInfo, textractInfo, ...dynamicProps } = rest;
+    const { data, error, fileInfo, aiInfo, ...dynamicProps } = rest;
     if (Object.keys(dynamicProps).length > 0) {
       structured.extra = dynamicProps;
     }
@@ -209,22 +207,6 @@ class Logger {
     });
   }
 
-  // Método específico para logs de Textract
-  textract(
-    message: string,
-    textractInfo: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number },
-    metadata?: LogMetadata  // ✅ Ahora acepta propiedades dinámicas
-  ) {
-    this.logToConsole({
-      timestamp: this.getTimestamp(),
-      level: 'INFO',
-      context: 'TEXTRACT',
-      message,
-      textractInfo,
-      ...metadata
-    });
-  }
-
   // Método para medir duración con requestId automático
   async time<T>(
     context: LogContext,
@@ -277,8 +259,6 @@ class Logger {
         this.debug(context, message, data, metadata),
       ai: (context: LogContext, message: string, aiInfo: { model?: string; tokenCount?: number; temperature?: number; sessionId?: string; monthNumber?: number }) =>
         this.ai(context, message, aiInfo, metadata),
-      textract: (message: string, textractInfo: { documentType?: string; s3Key?: string; confidence?: number; textLength?: number }) =>
-        this.textract(message, textractInfo, metadata),
       time: <T>(context: LogContext, operation: string, fn: () => Promise<T>) =>
         this.time(context, operation, fn, metadata)
     };

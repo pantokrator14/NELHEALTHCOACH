@@ -5,6 +5,7 @@ import type { RecommendationStateType } from "../state";
 import { searchExerciseTool, saveExerciseTool } from "../tools/exercise-tools";
 import { logger } from "../../logger";
 import { exercisePlannerGuard, applyGuardrails, validateAIResponse } from "../guard";
+import { formatFullClientProfile } from "../utils/prompt-builders";
 
 /**
  * Exercise Planner Node with Tool Calling
@@ -222,6 +223,17 @@ function buildExerciseUserPrompt(
   const mentalHealth = state.mentalHealth;
   const weekList = weekNumbers.join(", ");
 
+  // Perfil completo del cliente
+  const fullProfile = formatFullClientProfile({
+    personalData: state.personalData as unknown as Parameters<typeof formatFullClientProfile>[0]['personalData'],
+    medicalData: state.medicalData as unknown as Parameters<typeof formatFullClientProfile>[0]['medicalData'],
+    healthAssessment: state.healthAssessment as unknown as Parameters<typeof formatFullClientProfile>[0]['healthAssessment'],
+    mentalHealth: state.mentalHealth as unknown as Parameters<typeof formatFullClientProfile>[0]['mentalHealth'],
+    processedDocuments: state.processedDocuments as unknown as Parameters<typeof formatFullClientProfile>[0]['processedDocuments'],
+    previousSessions: state.previousSessions as unknown as Parameters<typeof formatFullClientProfile>[0]['previousSessions'],
+    coachNotes: state.coachNotes,
+  });
+
   // Formatear evaluación de salud
   const healthIssues: string[] = [];
   if (healthAssessment.carbohydrateAddiction) healthIssues.push("Adicción a carbohidratos");
@@ -239,7 +251,9 @@ function buildExerciseUserPrompt(
   if (mentalHealth.limitingBeliefs) mentalFactors.push(`- Creencias limitantes: ${mentalHealth.limitingBeliefs}`);
   if (mentalHealth.failureReaction) mentalFactors.push(`- Reacción al fracaso: ${mentalHealth.failureReaction}`);
 
-  return `## PERFIL DEL CLIENTE
+  return `${fullProfile}
+
+## PERFIL DEL CLIENTE
 
 **Resumen:** ${insights?.summary ?? "No disponible"}
 **Nivel:** ${insights?.experienceLevel ?? "principiante"}

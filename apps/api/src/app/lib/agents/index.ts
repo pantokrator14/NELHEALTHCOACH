@@ -3,6 +3,7 @@ export { recommendationGraph, generateRecommendations } from "./recommendation-g
 export { RecommendationState } from "./state";
 export type {
   RecommendationStateType,
+  MedicalAnalysisPlan,
   NutritionPlan,
   ExercisePlan,
   HabitPlan,
@@ -17,11 +18,20 @@ export {
   createDeepSeekJSONLLM,
   createDeepSeekAnalyticalLLM,
   createDeepSeekWithTools,
+  createGeminiLLM,
+  createGeminiJSONLLM,
+  createGeminiWithTools,
+  analyzePDFWithGemini,
+  analyzeS3PDFWithGemini,
+  callGeminiAPI,
+  callGeminiAPIWithRetry,
+  testGeminiConnection,
 } from "./utils/llm";
 
 // Prompt Builders
 export {
   buildClientAnalysisPrompt,
+  buildMedicalAnalysisPrompt,
   buildNutritionPrompt,
   buildExercisePrompt,
   buildHabitPrompt,
@@ -30,6 +40,7 @@ export {
 
 // Graph Nodes
 export { analyzeClient, planNutrition } from "./nodes/nutrition-planner";
+export { analyzeMedicalData } from "./nodes/medical-analyst";
 export { planExercise } from "./nodes/exercise-planner";
 export { planHabits } from "./nodes/habit-designer";
 export { matchRecipes } from "./nodes/recipe-matcher";

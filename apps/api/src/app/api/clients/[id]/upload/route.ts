@@ -6,7 +6,6 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
-import { TextractService } from '@/app/lib/textract';
 
 // GET: Obtener URL firmada de descarga para un documento
 export async function GET(
@@ -242,24 +241,6 @@ export async function PUT(
           } 
         };
       } else {
-        // ✅ PARA DOCUMENTOS: AÑADIR CAMPOS DE TEXTRACT
-        const textractAnalysis = {
-          extractionStatus: 'pending' as const,
-          extractionDate: new Date().toISOString(),
-          documentType: TextractService.determineDocumentType(fileName)
-        };
-
-        // Añadir análisis de Textract al documento
-        encryptedFile = {
-          ...encryptedFile,
-          textractAnalysis: {
-            extractionStatus: 'pending' as const,
-            extractionDate: new Date().toISOString(),
-            documentType: TextractService.determineDocumentType(fileName)
-          }
-        };
-
-        // Obtener documentos existentes y manejar diferentes formatos
         let existingDocuments = client.medicalData?.documents;
         let documentsArray: any[] = [];
 
@@ -313,17 +294,6 @@ export async function PUT(
         fileCategory,
         fileName
       });
-
-      // ✅ PROCESAR DOCUMENTOS CON TEXTRACT EN SEGUNDO PLANO
-      if (fileCategory === 'document') {
-        processDocumentWithTextract(id, fileKey, fileName).catch(error => {
-          logger.error('UPLOAD', 'Error procesando documento con Textract', error as Error, {
-            clientId: id,
-            fileKey,
-            fileName
-          });
-        });
-      }
 
       return NextResponse.json({
         success: true,
@@ -648,235 +618,6 @@ export async function PATCH(
   }
 }
 
-// ✅ FUNCIÓN PARA PROCESAR DOCUMENTO CON TEXTRACT EN SEGUNDO PLANO
-async function processDocumentWithTextract(clientId: string, fileKey: string, fileName: string) {
-  try {
-    logger.info('TEXTRACT', 'Iniciando procesamiento de documento en estructura separada', {
-      clientId,
-      fileKey,
-      fileName
-    });
-
-    // Determinar tipo de documento
-    const documentType = TextractService.determineDocumentType(fileName);
-    
-    // Procesar con Textract
-    const analysis = await TextractService.processMedicalDocument(fileKey, documentType);
-    
-    // Obtener colección de healthforms
-    const healthForms = await getHealthFormsCollection();
-    
-    // Crear objeto de documento procesado (campos encriptados individualmente)
-    // Determinar pageCount de forma segura (analysis.extractedData puede ser objeto o string JSON)
-    let pageCount = 1;
-    try {
-      const ed = analysis.extractedData;
-      if (ed && typeof ed === 'object' && 'pages' in ed) {
-        pageCount = (ed as any).pages || 1;
-      } else if (typeof ed === 'string') {
-        try {
-          const parsed = JSON.parse(ed);
-          pageCount = parsed?.pages || 1;
-        } catch {
-          pageCount = 1;
-        }
-      }
-    } catch {
-      pageCount = 1;
-    }
-
-    const processedDoc: any = {
-      id: `proc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      originalName: encrypt(fileName),
-      s3Key: encrypt(fileKey),
-      title: encrypt(`Análisis de Textract: ${fileName}`),
-      content: encrypt(analysis.extractedText || ''),
-      processedAt: new Date(),
-      processedBy: 'textract',
-      confidence: analysis.status === 'completed' ? analysis.confidence : 0,
-      metadata: {
-        pageCount,
-        language: 'es', // Podrías detectar el idioma
-        documentType: analysis.documentType,
-        extractionStatus: analysis.status,
-        extractedData: analysis.extractedData // Puedes almacenar datos estructurados aquí
-      }
-    };
-
-    // Agregar al array de processedDocuments (o crear si no existe)
-    const updateData: Record<string, unknown> = {
-      $set: {
-        'medicalData.lastDocumentProcessed': new Date(),
-        updatedAt: new Date()
-      }
-    };
-    // ... processedDocuments push
-    const pdUpdate: Record<string, unknown> = {};
-    const clientForPd = await healthForms.findOne({ _id: new ObjectId(clientId) });
-    if (!clientForPd || !clientForPd.medicalData?.processedDocuments) {
-      pdUpdate['medicalData.processedDocuments'] = [processedDoc];
-    } else {
-      pdUpdate.$push = { 'medicalData.processedDocuments': processedDoc };
-    }
-    Object.assign(updateData, pdUpdate);
-
-    // ✅ Actualizar el textractAnalysis del documento original (tanto si completó como si falló)
-    try {
-      const docs = clientForPd?.medicalData?.documents;
-      const newStatus = analysis.status === 'completed' ? 'completed' : 'failed';
-      if (Array.isArray(docs)) {
-        for (let i = 0; i < docs.length; i++) {
-          const doc = docs[i];
-          if (doc && typeof doc === 'object') {
-            let currentKey = doc.key;
-            if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
-              currentKey = decrypt(currentKey);
-            }
-            if (currentKey === fileKey) {
-              (updateData.$set as Record<string, unknown>)[`medicalData.documents.${i}.textractAnalysis.extractionStatus`] = newStatus;
-              (updateData.$set as Record<string, unknown>)[`medicalData.documents.${i}.textractAnalysis.extractionDate`] = new Date().toISOString();
-              logger.debug('TEXTRACT', `🔄 Documento original actualizado a ${newStatus}`, {
-                clientId, fileKey, index: i
-              });
-              break;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      logger.warn('TEXTRACT', '⚠️ No se pudo actualizar el documento original', err as Error, { fileKey });
-    }
-
-    const result = await healthForms.updateOne(
-      { _id: new ObjectId(clientId) },
-      updateData
-    );
-
-    if (result.modifiedCount > 0) {
-      logger.info('TEXTRACT', '✅ Documento procesado guardado en estructura separada', {
-        clientId,
-        fileKey,
-        confidence: processedDoc.confidence,
-        textLength: analysis.extractedText?.length || 0
-      });
-      
-      // ✅ OPCIONAL: También puedes actualizar el documento original con una referencia
-      // Pero esto es opcional
-      await updateOriginalDocumentWithReference(clientId, fileKey, processedDoc.id);
-    }
-
-    return processedDoc;
-    
-  } catch (error) {
-    logger.error('TEXTRACT', 'Error procesando documento en estructura separada', error as Error, {
-      clientId,
-      fileKey
-    });
-    
-    // ✅ Crear entrada de documento procesado incluso si falla (para tracking)
-    await createFailedProcessingRecord(clientId, fileKey, fileName, error);
-    
-    return null;
-  }
-}
-
-// ✅ Función opcional para agregar referencia en el documento original
-async function updateOriginalDocumentWithReference(clientId: string, fileKey: string, processedDocId: string) {
-  try {
-    const healthForms = await getHealthFormsCollection();
-    const client = await healthForms.findOne({ _id: new ObjectId(clientId) });
-    
-    if (!client || !client.medicalData?.documents) return;
-    
-    const documents = client.medicalData.documents;
-    const updatedDocuments = documents.map((doc: any) => {
-      let docObj = doc;
-      
-      // Si es string, desencriptar
-      if (typeof doc === 'string') {
-        try {
-          const decrypted = safeDecrypt(doc);
-          docObj = JSON.parse(decrypted);
-        } catch {
-          return doc; // Si falla, mantener original
-        }
-      }
-      
-      // Buscar por key
-      let currentKey = docObj.key;
-      if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
-        currentKey = decrypt(currentKey);
-      }
-      
-      if (currentKey === fileKey) {
-        // Agregar referencia al documento procesado
-        return {
-          ...docObj,
-          processedDocumentId: processedDocId,
-          lastProcessedAt: new Date().toISOString()
-        };
-      }
-      
-      return docObj;
-    });
-    
-    // Convertir de nuevo a strings encriptados si es necesario
-    const finalDocuments = updatedDocuments.map((doc: any) => {
-      if (doc.name && doc.name.startsWith('U2FsdGVkX1')) {
-        // Ya está encriptado
-        return doc;
-      } else {
-        // Encriptar
-        return encryptFileObject(doc);
-      }
-    });
-    
-    await healthForms.updateOne(
-      { _id: new ObjectId(clientId) },
-      { $set: { 'medicalData.documents': finalDocuments } }
-    );
-    
-  } catch (error) {
-    logger.error('TEXTRACT', 'Error actualizando referencia en documento original', error as Error);
-  }
-}
-
-// ✅ Función para registrar procesamientos fallidos
-async function createFailedProcessingRecord(clientId: string, fileKey: string, fileName: string, error: any) {
-  try {
-    const healthForms = await getHealthFormsCollection();
-    
-    const failedDoc: any = {
-      id: `failed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      originalName: encrypt(fileName),
-      s3Key: encrypt(fileKey),
-      title: encrypt(`Procesamiento fallido: ${fileName}`),
-      content: encrypt(`Error: ${error.message || 'Error desconocido'}`),
-      processedAt: new Date(),
-      processedBy: 'textract',
-      confidence: 0,
-      metadata: {
-        extractionStatus: 'failed',
-        error: error.message,
-        errorType: error.constructor.name
-      }
-    };
-    
-    await healthForms.updateOne(
-      { _id: new ObjectId(clientId) },
-      {
-        $push: { 'medicalData.processedDocuments': failedDoc },
-        $set: {
-          'medicalData.lastDocumentProcessed': new Date(),
-          updatedAt: new Date()
-        }
-      }
-    );
-    
-  } catch (dbError) {
-    logger.error('TEXTRACT', 'Error guardando registro de fallo', dbError as Error);
-  }
-}
 
 async function repairCorruptedDocuments(clientId: string) {
   try {
@@ -909,8 +650,7 @@ async function repairCorruptedDocuments(clientId: string) {
             type: encrypt(parsed.type || ''),
             size: parsed.size || 0,
             uploadedAt: parsed.uploadedAt || new Date(),
-            url: parsed.url || '',
-            textractAnalysis: parsed.textractAnalysis || null
+            url: parsed.url || ''
           };
         } catch (error) {
           logger.error('REPAIR', 'Error reparando documento', error as Error, { clientId });

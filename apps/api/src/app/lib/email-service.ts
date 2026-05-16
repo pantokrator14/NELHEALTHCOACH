@@ -38,7 +38,7 @@ export interface MonthlyPlanEmailData {
     exerciseFocus: string;
     habitsFocus: string;
     checklistItems: Array<{
-      category: 'nutrition' | 'exercise' | 'habit';
+      category: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
       description: string;
       details?: string;
     }>;

@@ -5,6 +5,7 @@ import {
   type RecommendationStateType,
 } from "./state";
 import { analyzeClient } from "./nodes/client-analyzer";
+import { analyzeMedicalData } from "./nodes/medical-analyst";
 import { planNutrition } from "./nodes/nutrition-planner";
 import { planExercise } from "./nodes/exercise-planner";
 import { planHabits } from "./nodes/habit-designer";
@@ -24,6 +25,7 @@ function buildRecommendationGraph() {
 
   // Register nodes
   workflow.addNode("analyzeClient", analyzeClient);
+  workflow.addNode("analyzeMedicalData", analyzeMedicalData);
   workflow.addNode("planNutrition", planNutrition);
   workflow.addNode("planExercise", planExercise);
   workflow.addNode("planHabits", planHabits);
@@ -37,11 +39,13 @@ function buildRecommendationGraph() {
   workflow.addEdge(START, "analyzeClient" as never);
 
   // Sequential: analyzeClient must complete first
+  workflow.addEdge("analyzeClient" as never, "analyzeMedicalData" as never);
   workflow.addEdge("analyzeClient" as never, "planNutrition" as never);
   workflow.addEdge("analyzeClient" as never, "planExercise" as never);
   workflow.addEdge("analyzeClient" as never, "planHabits" as never);
 
   // Parallel planners converge to recipe matching
+  workflow.addEdge("analyzeMedicalData" as never, "matchRecipes" as never);
   workflow.addEdge("planNutrition" as never, "matchRecipes" as never);
   workflow.addEdge("planExercise" as never, "matchRecipes" as never);
   workflow.addEdge("planHabits" as never, "matchRecipes" as never);
@@ -52,7 +56,7 @@ function buildRecommendationGraph() {
   // Shopping list -> validation
   workflow.addEdge("generateShoppingList" as never, "validateQuality" as never);
 
-  // Conditional: revision loop
+  // Conditional: revision loop — reintenta planificación si hay issues de calidad
   workflow.addConditionalEdges(
     "validateQuality" as never,
     (stateVal: RecommendationStateType): "revision" | "complete" => {
@@ -124,12 +128,14 @@ export async function generateRecommendations(
       idealBodyFat: "",
       targetImprovements: [],
     },
+    medicalAnalysisPlan: [],
     nutritionPlan: [],
     exercisePlan: [],
     habitPlan: [],
     recipeMatches: [],
     shoppingList: [],
     validationResults: {
+      medicalAnalysis: { passed: false, issues: [] },
       nutrition: { passed: false, issues: [] },
       exercise: { passed: false, issues: [] },
       habits: { passed: false, issues: [] },

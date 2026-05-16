@@ -1,13 +1,13 @@
 export interface ProcessedDocument {
   id: string;
-  originalDocumentId?: string; // Referencia al documento original si existe
-  originalName: string; // Nombre del archivo original (encriptado)
-  s3Key: string; // Key de S3 (encriptado)
-  title: string; // Título/descripción (encriptado)
-  content: string; // Contenido extraído (encriptado)
+  originalDocumentId?: string;
+  originalName: string;
+  s3Key: string;
+  title: string;
+  content: string;
   processedAt: Date;
-  processedBy: 'textract' | 'manual' | 'other';
-  confidence: number; // 0-100
+  processedBy: 'gemini' | 'manual' | 'other';
+  confidence: number;
   metadata?: {
     pageCount?: number;
     language?: string;
@@ -15,16 +15,6 @@ export interface ProcessedDocument {
     extractionStatus: 'completed' | 'failed' | 'pending';
     [key: string]: unknown;
   };
-}
-
-export interface TextractAnalysis {
-  extractedText?: string;        // Texto extraído (encriptado)
-  extractedData?: string;        // Datos estructurados (encriptados)
-  extractionDate?: string;
-  extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
-  confidence?: number;
-  documentType?: 'lab_results' | 'prescription' | 'medical_history' | 'other';
-  error?: string;
 }
 
 export interface ChecklistItem {
@@ -35,7 +25,7 @@ export interface ChecklistItem {
   completedDate?: Date;
   notes?: string;
   weekNumber: number;
-  category: 'nutrition' | 'exercise' | 'habit';
+  category: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
   type?: string;
   details?: {
     recipe?: {
@@ -59,6 +49,24 @@ export interface ChecklistItem {
     repetitions?: string;
     timeUnderTension?: string;
     progression?: string;
+    // Medical analysis specific fields
+    labResults?: Array<{
+      marker: string;
+      currentValue: string;
+      previousValue?: string;
+      interpretation: string;
+      trend: 'improving' | 'stable' | 'worsening' | 'new';
+    }>;
+    clinicalFindings?: string[];
+    recommendedStudies?: string[];
+    // Supplement specific fields
+    supplementInfo?: {
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    };
   };
   recipeId?: string;
   frequency?: number;
@@ -73,18 +81,6 @@ export interface UploadedFile {
   type: string;
   size: number;
   uploadedAt: string;
-
-  // ✅ Nuevos campos para Textract
-  extractedText?: string;        // Texto extraído (encriptado)
-  extractionDate?: string;       // Fecha de extracción
-  extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
-  extractedData?: {              // Datos estructurados (encriptados)
-    rawText?: string;
-    tables?: unknown[];
-    forms?: Record<string, string>;
-  };
-
-  textractAnalysis?: TextractAnalysis;
 }
 
 export interface PersonalData {
@@ -156,8 +152,6 @@ export interface MedicalData {
   
   // ✅ Documentos como array de objetos encriptados
   documents?: UploadedFile[];
-  processedDocuments?: ProcessedDocument[]; // Documentos procesados
-  lastDocumentProcessed?: Date;
 }
 
 export interface HealthFormData {
@@ -184,13 +178,14 @@ export interface ClientDetails extends HealthFormData {
   
   // ✅ Nuevo campo para IA
   aiProgress?: ClientAIProgress;
-
-  // ✅ Campos para Textract
-  textractAnalysis?: TextractAnalysis;
 }
 
 export interface AIRecommendationWeek {
   weekNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  medicalAnalysis?: {
+    focus: string;
+    labSummary?: string; // Resumen de resultados de laboratorio para la semana
+  };
   nutrition: {
     focus: string;
     shoppingList: Array<{item: string; quantity: string; priority: 'high' | 'medium' | 'low'}>;
@@ -202,6 +197,16 @@ export interface AIRecommendationWeek {
   habits: {
     trackingMethod?: string;
     motivationTip?: string;
+  };
+  supplements?: {
+    focus: string;
+    recommendations?: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    }>;
   };
 }
 
@@ -215,6 +220,9 @@ export interface AIRecommendationSession {
   status: 'draft' | 'approved' | 'sent' | 'completed';
   summary: string; // encriptado - Análisis de situación actual y resumen
   vision: string; // encriptado - Visión a largo plazo (12 semanas)
+  // Nuevos campos para análisis médico
+  medicalSummary?: string; // encriptado - Resumen del análisis de laboratorio y exámenes
+  medicalComparativeAnalysis?: string; // encriptado - Análisis comparativo entre sesiones (solo sesiones > 1)
   baselineMetrics: {
     currentLifestyle: string[];
     targetLifestyle: string[];
@@ -315,8 +323,6 @@ export interface Transcription {
   confidence: number;
   /** Duración del audio transcrito en segundos */
   audioDurationSeconds: number;
-  /** Resultado del Textract (si se aplicó) */
-  textractResult?: string;
 }
 
 export interface ClientProgressForm {

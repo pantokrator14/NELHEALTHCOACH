@@ -107,6 +107,50 @@ Responde SOLO con el JSON, sin texto adicional.`;
 }
 
 // ─────────────────────────────────────────────
+// Medical Analysis Prompt
+// ─────────────────────────────────────────────
+
+interface MedicalAnalysisInput {
+  clientInsights: {
+    summary: string;
+    keyRisks: string[];
+    opportunities: string[];
+    experienceLevel: string;
+  };
+  personalData: {
+    age?: string;
+    weight?: string;
+    height?: string;
+    occupation?: string;
+  };
+  medicalData: {
+    currentPastConditions?: string;
+    medications?: string;
+    supplements?: string;
+    allergies?: string;
+    currentActivityLevel?: string;
+  };
+  processedDocuments: Array<{
+    title: string;
+    content: string;
+    documentType: string;
+    confidence: number;
+  }>;
+  previousSessions: Array<{
+    monthNumber: number;
+    summary: string;
+  }>;
+  isFirstSession: boolean;
+  weekNumbers: number[];
+}
+
+export function buildMedicalAnalysisPrompt(_input: MedicalAnalysisInput): string {
+  // La lógica principal de construcción del prompt está en medical-analyst.ts
+  // Este es un placeholder para mantener consistencia en la API de prompt-builders
+  return "Ver implementación en medical-analyst.ts para el prompt completo";
+}
+
+// ─────────────────────────────────────────────
 // Nutrition Planner Prompt
 // ─────────────────────────────────────────────
 
@@ -438,12 +482,17 @@ interface QualityValidatorInput {
     keyRisks: string[];
     experienceLevel: string;
   };
+  medicalAnalysisPlan?: Array<Record<string, unknown>>;
   nutritionPlan: Array<Record<string, unknown>>;
   exercisePlan: Array<Record<string, unknown>>;
   habitPlan: Array<Record<string, unknown>>;
 }
 
 export function buildValidationPrompt(input: QualityValidatorInput): string {
+  const medicalSection = input.medicalAnalysisPlan && input.medicalAnalysisPlan.length > 0
+    ? `### Plan de Análisis Médico:\n${JSON.stringify(input.medicalAnalysisPlan, null, 2)}\n\n`
+    : "";
+
   return `Eres un auditor de calidad en planes de salud integral. Tu tarea es revisar y validar que un plan de 12 semanas sea personalizado, seguro y efectivo.
 
 ---
@@ -455,7 +504,7 @@ export function buildValidationPrompt(input: QualityValidatorInput): string {
 **Nivel:** ${input.clientInsights.experienceLevel}
 
 ## 📋 PLAN GENERADO
-
+${medicalSection}
 ### Plan de Nutrición:
 ${JSON.stringify(input.nutritionPlan, null, 2)}
 
@@ -472,7 +521,11 @@ ${JSON.stringify(input.habitPlan, null, 2)}
 Evalúa el plan y genera un JSON de validación con la siguiente estructura:
 
 \`\`\`json
-{
+{${input.medicalAnalysisPlan ? `
+  "medicalAnalysis": {
+    "passed": boolean,
+    "issues": ["lista de problemas encontrados"]
+  },` : ""}
   "nutrition": {
     "passed": boolean,
     "issues": ["lista de problemas encontrados"]
@@ -493,7 +546,14 @@ Evalúa el plan y genera un JSON de validación con la siguiente estructura:
 \`\`\`
 
 ### Criterios de validación:
-
+${input.medicalAnalysisPlan ? `
+**Análisis Médico:**
+- ¿Los resultados de laboratorio están correctamente interpretados?
+- ¿Se identifican riesgos y aspectos positivos?
+- ¿Los estudios recomendados son apropiados?
+- ¿Las recomendaciones de suplementos son necesarias (no recomendar si la alimentación cubre)?
+- ¿Se incluye disclaimer médico?
+` : ""}
 **Nutrición:**
 - ¿Macros son apropiados para el nivel del cliente?
 - ¿Calorías en déficit progresivo?
@@ -600,6 +660,83 @@ function formatMentalHealth(mentalHealth: Record<string, string>): string {
     .filter(([, value]) => value && value.length > 0)
     .map(([key, value]) => `- ${key}: ${value}`)
     .join("\n") || "- Sin datos de salud mental disponibles";
+}
+
+// ─────────────────────────────────────────────
+// Métricas y resumen de funciones exportadas
+// ─────────────────────────────────────────────
+
+// Aquí termina lo que había
+
+export function formatFullClientProfile(data: {
+  personalData?: PersonalData;
+  medicalData?: MedicalData;
+  healthAssessment?: Record<string, boolean>;
+  mentalHealth?: Record<string, string>;
+  processedDocuments?: Array<{
+    title: string;
+    content: string;
+    documentType: string;
+    confidence: number;
+  }>;
+  previousSessions?: Array<{
+    monthNumber: number;
+    status: string;
+    summary: string;
+  }>;
+  coachNotes?: string;
+}): string {
+  const sections: string[] = [];
+
+  // ── PERSONAL ──
+  if (data.personalData) {
+    sections.push("## 👤 DATOS PERSONALES");
+    sections.push(formatPersonalData(data.personalData));
+  }
+
+  // ── MÉDICOS ──
+  if (data.medicalData) {
+    sections.push("## 🏥 DATOS MÉDICOS");
+    sections.push(formatMedicalData(data.medicalData));
+
+    // Estilo de vida
+    const lifestyle = formatLifestyleData(data.medicalData);
+    if (lifestyle !== "- Sin información de estilo de vida disponible") {
+      sections.push("## 🌿 ESTILO DE VIDA");
+      sections.push(lifestyle);
+    }
+  }
+
+  // ── EVALUACIONES DE SALUD ──
+  if (data.healthAssessment && Object.keys(data.healthAssessment).length > 0) {
+    sections.push("## 📊 EVALUACIONES DE SALUD");
+    sections.push(formatHealthAssessment(data.healthAssessment));
+  }
+
+  // ── SALUD MENTAL ──
+  if (data.mentalHealth && Object.keys(data.mentalHealth).length > 0) {
+    sections.push("## 🧠 SALUD MENTAL");
+    sections.push(formatMentalHealth(data.mentalHealth));
+  }
+
+  // ── DOCUMENTOS PROCESADOS ──
+  if (data.processedDocuments && data.processedDocuments.length > 0) {
+    sections.push("## 📄 DOCUMENTOS MÉDICOS");
+    sections.push(formatDocuments(data.processedDocuments));
+  }
+
+  // ── SESIONES PREVIAS ──
+  if (data.previousSessions && data.previousSessions.length > 0) {
+    sections.push("## 📜 HISTORIAL DE SESIONES");
+    sections.push(formatPreviousSessions(data.previousSessions));
+  }
+
+  // ── NOTAS DEL COACH ──
+  if (data.coachNotes) {
+    sections.push(`## 📝 NOTAS DEL COACH\n${data.coachNotes}`);
+  }
+
+  return sections.join("\n\n");
 }
 
 function formatDocuments(

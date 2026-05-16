@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -109,4 +109,17 @@ export async function uploadTextToS3(
 
   const region = process.env.AWS_REGION || 'us-west-1';
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}
+
+/**
+ * Genera una URL prefirmada para leer/descargar un archivo de S3.
+ * Usada para el análisis de PDFs con Gemini.
+ */
+export async function getPresignedUrlForAnalysis(s3Key: string): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET_NAME!,
+    Key: s3Key,
+  });
+
+  return getSignedUrl(s3Client, command, { expiresIn: 3600 });
 }

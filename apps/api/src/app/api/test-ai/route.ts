@@ -1,55 +1,43 @@
 // apps/api/src/app/api/test-ai/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { AIService } from '@/app/lib/ai-service';
+import { testGeminiConnection, callGeminiAPI } from '@/app/lib/agents/utils/llm';
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
-    // Probar conexión con DeepSeek
-    const isConnected = await AIService.testDeepSeekConnection();
-    
+    // Probar conexión con Gemini
+    const isConnected = await testGeminiConnection();
+
     // Intentar un prompt simple
-    const prompt = 'Responde con este JSON exacto: {"test": "ok", "message": "Conexión exitosa"}';
-    
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-v4-flash',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 100,
-        response_format: { type: 'json_object' }
-      }),
+    const result = await callGeminiAPI({
+      systemPrompt: "Responde SOLO con JSON válido.",
+      userPrompt: 'Responde con este JSON exacto: {"test": "ok", "message": "Conexión exitosa con Gemini"}',
+      temperature: 0,
+      maxOutputTokens: 100,
+      responseMimeType: "application/json",
     });
-    
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    
-    let parsed;
+
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(content);
-    } catch (e) {
-      parsed = { error: 'No es JSON', content };
+      parsed = JSON.parse(result.text);
+    } catch {
+      parsed = { error: 'No es JSON', content: result.text };
     }
-    
+
     return NextResponse.json({
-      apiKeyPresent: !!process.env.DEEPSEEK_API_KEY,
-      apiKeyFirst10: process.env.DEEPSEEK_API_KEY?.substring(0, 10) + '...',
+      apiKeyPresent: !!process.env.GEMINI_API_KEY,
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
       connectionTest: isConnected,
       simpleRequest: {
-        status: response.status,
-        content: content?.substring(0, 200),
-        parsed
-      }
+        content: result.text?.substring(0, 200),
+        parsed,
+      },
     });
-    
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({
-      error: error.message,
-      apiKeyPresent: !!process.env.DEEPSEEK_API_KEY,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: message,
+      apiKeyPresent: !!process.env.GEMINI_API_KEY,
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined,
     }, { status: 500 });
   }
 }

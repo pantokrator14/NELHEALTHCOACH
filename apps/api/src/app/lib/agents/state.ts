@@ -44,6 +44,32 @@ export interface ExercisePlan {
 }
 
 // ─────────────────────────────────────────────
+// Schema for intermediate medical analysis output
+// ─────────────────────────────────────────────
+export interface MedicalAnalysisPlan {
+  weekNumber: number;
+  focus: string;
+  labResults: Array<{
+    marker: string;
+    currentValue: string;
+    previousValue?: string;
+    interpretation: string;
+    trend: 'improving' | 'stable' | 'worsening' | 'new';
+  }>;
+  clinicalFindings: string[];
+  recommendedStudies: string[];
+  supplementRecommendations: Array<{
+    name: string;
+    dosage: string;
+    timing: string;
+    rationale: string;
+    contraindications?: string;
+    necessary: boolean; // Si es necesario o si la alimentación ya cubre
+  }>;
+  comparativeNotes?: string; // Notas comparativas para sesiones > 1
+}
+
+// ─────────────────────────────────────────────
 // Schema for intermediate habit plan output
 // ─────────────────────────────────────────────
 export interface HabitPlan {
@@ -76,6 +102,10 @@ export interface RecipeMatch {
 // Schema for validation results
 // ─────────────────────────────────────────────
 export interface ValidationResult {
+  medicalAnalysis?: {
+    passed: boolean;
+    issues: string[];
+  };
   nutrition: {
     passed: boolean;
     issues: string[];
@@ -138,6 +168,7 @@ export const RecommendationState = Annotation.Root({
     targetImprovements: string[];
   }>(),
 
+  medicalAnalysisPlan: Annotation<MedicalAnalysisPlan[]>(),
   nutritionPlan: Annotation<NutritionPlan[]>(),
   exercisePlan: Annotation<ExercisePlan[]>(),
   habitPlan: Annotation<HabitPlan[]>(),

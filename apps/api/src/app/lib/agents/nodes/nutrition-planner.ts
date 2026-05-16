@@ -3,6 +3,7 @@ import { HumanMessage, SystemMessage, ToolMessage, type BaseMessage, type AIMess
 import { createDeepSeekWithTools, createDeepSeekJSONLLM, invokeWithTools } from "../utils/llm";
 import {
   buildClientAnalysisPrompt,
+  formatFullClientProfile,
 } from "../utils/prompt-builders";
 import type { RecommendationStateType } from "../state";
 import { searchRecipeTool, saveRecipeTool, getRecipeByIdTool } from "../tools/recipe-tools";
@@ -343,6 +344,17 @@ function buildNutritionUserPrompt(
   const healthAssessment = state.healthAssessment;
   const weekList = weekNumbers.join(", ");
 
+  // Perfil completo del cliente
+  const fullProfile = formatFullClientProfile({
+    personalData: state.personalData as unknown as Parameters<typeof formatFullClientProfile>[0]['personalData'],
+    medicalData: state.medicalData as unknown as Parameters<typeof formatFullClientProfile>[0]['medicalData'],
+    healthAssessment: state.healthAssessment as unknown as Parameters<typeof formatFullClientProfile>[0]['healthAssessment'],
+    mentalHealth: state.mentalHealth as unknown as Parameters<typeof formatFullClientProfile>[0]['mentalHealth'],
+    processedDocuments: state.processedDocuments as unknown as Parameters<typeof formatFullClientProfile>[0]['processedDocuments'],
+    previousSessions: state.previousSessions as unknown as Parameters<typeof formatFullClientProfile>[0]['previousSessions'],
+    coachNotes: state.coachNotes,
+  });
+
   // Formatear evaluaciones de salud relevantes para nutrición
   const healthConditions: string[] = [];
   if (healthAssessment.carbohydrateAddiction) healthConditions.push("- Adicción a carbohidratos (priorizar cetosis estricta)");
@@ -371,7 +383,9 @@ function buildNutritionUserPrompt(
   if (medicalData.typicalWeekend) lifestyleInfo.push(`- Fin de semana: ${medicalData.typicalWeekend.substring(0, 150)}`);
   if (medicalData.whoCooks) lifestyleInfo.push(`- Quién cocina: ${medicalData.whoCooks}`);
 
-  return `## PERFIL DEL CLIENTE
+  return `${fullProfile}
+
+## PERFIL DEL CLIENTE
 
 **Resumen:** ${insights?.summary ?? "No disponible"}
 **Nivel:** ${insights?.experienceLevel ?? "principiante"}
@@ -389,6 +403,8 @@ ${lifestyleInfo.length > 0 ? lifestyleInfo.join("\n") : "- No especificado"}
 
 ## CONDICIONES MÉDICAS Y ALERGIAS
 - Condiciones: ${medicalData.currentPastConditions ?? "Ninguna"}
+- Medicamentos: ${medicalData.medications ?? "Ninguno"}
+- Suplementos actuales: ${medicalData.supplements ?? "Ninguno"}
 - Alergias: ${medicalData.allergies ?? "Ninguna"}
 - Quién cocina: ${medicalData.whoCooks ?? "No especificado"}
 
@@ -412,7 +428,7 @@ Plan de nutrición para semanas: ${weekList}
 ### Consideraciones especiales:
 - Ajustar horarios de comida según rutina del cliente (trabajo, sueño)
 - Si quien cocina no es el cliente, priorizar recetas simples que pueda preparar
-- Incluir suplementos según condiciones (vit D, omega-3 si hay problemas de microbiota)
+- **Considera los suplementos que el cliente ya toma** (listados arriba). Si algún nutriente ya está cubierto por suplementos, ajústalo en el plan.
 - Evitar TODOS los alimentos no deseados/alergias del cliente
 
 ### Formato JSON:

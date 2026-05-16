@@ -2,6 +2,7 @@ import { AIService } from './ai-service';
 import { logger } from './logger';
 import { getNutritionCollection } from '../lib/database';
 import { encrypt, safeDecrypt } from './encryption';
+import { callGeminiAPI } from './agents/utils/llm';
 
 export interface IngredientAnalysisInput {
   ingredients: string[];
@@ -30,8 +31,8 @@ export class NutritionService {
         // Construir prompt para IA
         const prompt = this.buildNutritionAnalysisPrompt(parsedIngredients, input.servings || 1);
         
-        // Llamar a DeepSeek
-        const aiResponse = await this.callDeepSeekForNutrition(prompt);
+        // Llamar a Gemini
+        const aiResponse = await this.callGeminiForNutrition(prompt);
         
         // Parsear respuesta
         const nutritionData = this.parseNutritionResponse(aiResponse);
@@ -196,44 +197,19 @@ DEVUELVE SOLO JSON con esta estructura:
 CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
   }
   
-  /**
-   * Llamar a DeepSeek para análisis nutricional
-   */
-  private static async callDeepSeekForNutrition(prompt: string): Promise<string> {
-    // Reutilizar la configuración de AIService
-    const requestBody = {
-      model: 'deepseek-v4-flash',
-      messages: [
-        {
-          role: 'system',
-          content: 'Eres un nutricionista especializado en análisis de alimentos y dieta keto. Devuelve siempre JSON válido con cálculos precisos.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3, // Baja temperatura para cálculos precisos
-      max_tokens: 4000,
-      response_format: { type: 'json_object' }
-    };
-    
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`DeepSeek API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.choices[0]?.message?.content;
-  }
+   /**
+    * Llamar a Gemini para análisis nutricional
+    */
+   private static async callGeminiForNutrition(prompt: string): Promise<string> {
+     const result = await callGeminiAPI({
+       systemPrompt: 'Eres un nutricionista especializado en análisis de alimentos y dieta keto. Devuelve siempre JSON válido con cálculos precisos.',
+       userPrompt: prompt,
+       temperature: 0.3,
+       maxOutputTokens: 4000,
+       responseMimeType: "application/json",
+     });
+     return result.text;
+   }
   
   /**
    * Parsear respuesta de nutrición

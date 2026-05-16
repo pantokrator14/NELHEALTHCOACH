@@ -72,7 +72,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface CreateChecklistItemData {
   weekNumber: number;
-  category: 'nutrition' | 'exercise' | 'habit';
+  category: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
   data: {
     description: string;
     type?: string;
