@@ -91,11 +91,6 @@ const SUSPICIOUS_HEADER_CHECKS: readonly SuspiciousHeaderCheck[] = [
     reason: 'User-Agent anormalmente corto',
   },
   {
-    header: 'accept',
-    check: (v) => v !== null && v === '*/*',
-    reason: 'Accept header genérico',
-  },
-  {
     header: 'accept-language',
     check: (v) => v === null || v.trim() === '',
     reason: 'Accept-Language ausente',
@@ -104,11 +99,6 @@ const SUSPICIOUS_HEADER_CHECKS: readonly SuspiciousHeaderCheck[] = [
     header: 'accept-encoding',
     check: (v) => v !== null && !/gzip|deflate|br/i.test(v),
     reason: 'Accept-Encoding sin compresión estándar',
-  },
-  {
-    header: 'connection',
-    check: (v) => v !== null && /close/i.test(v) && !/keep-alive/i.test(v),
-    reason: 'Connection: close sin keep-alive (propio de scripts)',
   },
 ];
 
@@ -146,26 +136,6 @@ export function detectBotByUserAgent(userAgent: string): BotCheckResult | null {
  */
 export function detectSuspiciousHeaders(headers: Headers): BotCheckResult | null {
   for (const check of SUSPICIOUS_HEADER_CHECKS) {
-    // Skip Accept: */* check if browser metadata headers are present
-    // Modern browsers (Chrome, Firefox, Safari, Edge) all send Sec-Fetch-* headers
-    // on fetch() requests. This is more reliable than Client Hints (sec-ch-ua)
-    // which Firefox and Safari do not support.
-    if (check.header === 'accept') {
-      const secFetchDest = headers.get('sec-fetch-dest');
-      const secFetchMode = headers.get('sec-fetch-mode');
-      const secFetchSite = headers.get('sec-fetch-site');
-      // If any Sec-Fetch-* header is present, this is a real browser
-      if (secFetchDest || secFetchMode || secFetchSite) {
-        continue;
-      }
-      // Also allow if Client Hints are present (Chromium browsers)
-      const secChUa = headers.get('sec-ch-ua');
-      const secChUaPlatform = headers.get('sec-ch-ua-platform');
-      if (secChUa || secChUaPlatform) {
-        continue;
-      }
-    }
-
     const value = headers.get(check.header);
     if (check.check(value)) {
       return {
@@ -244,6 +214,11 @@ export function runBotDetection(
   ctx: RequestContext,
   headers: Headers,
 ): SecurityCheckResult | null {
+  // Allowlist: Inngest webhooks use Go-http-client user agent
+  if (ctx.path.startsWith('/api/inngest') && ctx.userAgent.includes('Go-http-client')) {
+    return null;
+  }
+
   // 1. Verificar User-Agent
   const uaResult = detectBotByUserAgent(ctx.userAgent);
   if (uaResult) {
