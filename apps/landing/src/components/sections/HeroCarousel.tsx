@@ -14,7 +14,7 @@ const HeroCarousel: React.FC = () => {
     {
       id: 2,
       titleKey: 'landing.carousel.slide2',
-      image: "/images/hero/hero2.jpg"
+      image: "/images/hero/hero2.png"
     },
     {
       id: 3,
