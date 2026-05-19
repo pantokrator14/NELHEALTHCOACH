@@ -154,7 +154,7 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.GEMINI_MODEL || 'gemini-3.1-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     temperature: 0.7,
     maxTokens: 30000,
     apiKey: process.env.GEMINI_API_KEY,
@@ -2228,16 +2228,22 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   private static buildShoppingListPrompt(recipes: Array<{ title: string; ingredients: string[]; frequency: number }>): string {
     let recipesText = '';
     recipes.forEach((r, idx) => {
-      recipesText += `\nReceta ${idx + 1}: "${r.title}" (se prepara ${r.frequency} veces en la semana)\nIngredientes:\n`;
-      r.ingredients.forEach(ing => {
-        recipesText += `- ${ing}\n`;
-      });
+      recipesText += `\nReceta ${idx + 1}: "${r.title}" (se prepara ${r.frequency} veces en la semana)`;
+      if (r.ingredients.length > 0) {
+        recipesText += '\nIngredientes:\n';
+        r.ingredients.forEach(ing => {
+          recipesText += `- ${ing}\n`;
+        });
+      } else {
+        recipesText += '\n(Ingredientes no especificados — debes inferir los ingredientes típicos de esta receta)\n';
+      }
     });
 
     const prompt = `Eres un asistente que ayuda a crear listas de compras prácticas para el supermercado.
   A continuación se listan las recetas que se cocinarán durante la semana, con la frecuencia de cada una.
   Debes generar una lista de compras ÚNICA que consolide todos los ingredientes necesarios, teniendo en cuenta:
 
+  - Para recetas SIN ingredientes listados, INFIERE los ingredientes típicos basándote en el nombre de la receta (usa tu conocimiento culinario).
   - Suma las cantidades de cada ingrediente multiplicando por la frecuencia.
   - Redondea las cantidades a unidades de compra típicas (por ejemplo, si necesitas 350g de harina, escribe "1 kg"; si necesitas 3 cucharadas de mantequilla, escribe "1 barra (200-250g)"; si necesitas 6 huevos, escribe "6 unidades" o "media docena" según el contexto).
   - Si un ingrediente no tiene cantidad (ej. "sal al gusto"), simplemente inclúyelo sin cantidad (ej. "Sal").
@@ -2346,8 +2352,9 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
       for (const item of nutritionItems) {
         const frequency = item.frequency || 1;
+        let recipeFound = false;
 
-        // Caso 1: Receta de base de datos (tiene recipeId)
+        // ── Caso 1: Receta con recipeId → buscar en DB ──
         if (item.recipeId) {
           const recipe = await this.getRecipeById(item.recipeId);
           if (recipe) {
@@ -2356,26 +2363,36 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
               ingredients: recipe.ingredients,
               frequency
             });
-          } else {
-            loggerWithContext.warn('generateShoppingList', `Receta no encontrada: ${item.recipeId}`);
+            recipeFound = true;
           }
         }
-        // Caso 2: Receta generada por IA (incrustada en details.recipe)
-        else if (item.details?.recipe) {
-          const recipeDetails = item.details.recipe;
-          // Construir lista de ingredientes en formato legible
-          const ingredients = recipeDetails.ingredients.map((ing: any) => {
-            // ing.name y ing.quantity ya vienen desencriptados
-            return `${ing.name}: ${ing.quantity}`;
-          });
-          
+
+        // ── Caso 2: Receta inline con ingredientes (details.recipe) ──
+        if (!recipeFound && item.details?.recipe?.ingredients?.length > 0) {
+          const ingredients = item.details.recipe.ingredients.map((ing: any) =>
+            `${ing.name}: ${ing.quantity}`
+          );
           recipes.push({
             title: item.description || 'Receta personalizada',
             ingredients,
             frequency
           });
+          recipeFound = true;
+        }
+
+        // ── Caso 3: Sin ingredientes conocidos → extraer nombre y que Gemini infiera ──
+        if (!recipeFound) {
+          const recipeName = this.extractRecipeName(item.description || '');
+          if (recipeName) {
+            recipes.push({
+              title: recipeName,
+              ingredients: [], // Gemini inferirá los ingredientes
+              frequency
+            });
+          }
         }
       }
+
       console.log('Recipes para IA:', JSON.stringify(recipes, null, 2));
       if (recipes.length === 0) {
         return [];
@@ -2388,9 +2405,30 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
     } catch (error: any) {
       loggerWithContext.error('generateShoppingListFromItems', 'Error generando lista de compras con IA', error);
-      // Fallback: usar cálculo simple si la IA falla
       return this.generateShoppingListFallbackFromItems(nutritionItems);
     }
+  }
+
+  /**
+   * Extrae el nombre de la receta desde la descripción del item.
+   * Soporta formatos:
+   *   - "🔄 Alternativa - desayuno: Omelette de espinacas"
+   *   - "Lunes Desayuno: Omelette de espinacas"
+   *   - "Omelette de espinacas" (directo)
+   */
+  private static extractRecipeName(description: string): string | null {
+    if (!description || description.trim().length < 3) return null;
+
+    // Alternativas: "🔄 Alternativa - desayuno: Nombre receta"
+    const altMatch = description.match(/Alternativa\s*-\s*\w+:\s*(.+)/i);
+    if (altMatch) return altMatch[1].trim();
+
+    // Menú semanal: "Lunes Desayuno: Nombre receta" o "Lunes Almuerzo: Nombre receta"
+    const mealMatch = description.match(/^\w+\s+(Desayuno|Almuerzo|Cena|Breakfast|Lunch|Dinner|Snack|Merienda):\s*(.+)/i);
+    if (mealMatch) return mealMatch[2].trim();
+
+    // Descripción directa (quitar emojis comunes)
+    return description.replace(/[🔄🍽️🍳🥗🥘🍲]/g, '').trim();
   }
 
   private static async generateShoppingListFallbackFromItems(

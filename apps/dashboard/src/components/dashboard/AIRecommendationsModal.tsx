@@ -3065,9 +3065,9 @@ export default function AIRecommendationsModal({
                <h3 className="text-xl font-bold text-green-700 mb-4">Nueva Evaluación - Sesión {aiProgress ? aiProgress.sessions.length + 1 : 1}</h3>
               <div className="space-y-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">Notas para la IA (opcional)</label><textarea value={coachNotes} onChange={(e) => setCoachNotes(e.target.value)} rows={3} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Agrega observaciones específicas..." /></div>
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                  <button onClick={() => { setShowNewEvaluationForm(false); setCoachNotes(''); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancelar</button>
-                  <button onClick={() => handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1)} disabled={generating} className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50">{generating ? 'Generando...' : 'Generar Nuevas Recomendaciones'}</button>
+                <div className="flex flex-col-reverse sm:flex-row justify-end sm:space-x-3 gap-3 pt-4 border-t border-gray-200">
+                  <button onClick={() => { setShowNewEvaluationForm(false); setCoachNotes(''); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg sm:border-0 w-full sm:w-auto text-center">Cancelar</button>
+                  <button onClick={() => handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1)} disabled={generating} className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 w-full sm:w-auto text-center">{generating ? 'Generando...' : 'Generar Nuevas Recomendaciones'}</button>
                 </div>
               </div>
             </div>

@@ -10,7 +10,7 @@ import { logger } from "../../logger";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 const GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-3.1-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 interface LLMOptions {
   model?: string;
