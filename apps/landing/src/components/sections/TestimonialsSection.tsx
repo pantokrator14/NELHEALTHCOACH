@@ -8,23 +8,23 @@ const TestimonialsSection: React.FC = () => {
   const testimonials = [
     {
       id: 1,
-      nameKey: 'landing.testimonials.name1',
-      roleKey: 'landing.testimonials.role1',
-      contentKey: 'landing.testimonials.content1',
+      nameKey: 'landing.features.testimonials.name1',
+      roleKey: 'landing.features.testimonials.role1',
+      contentKey: 'landing.features.testimonials.content1',
       image: "/images/testimonials/testimonial1.jpg"
     },
     {
       id: 2,
-      nameKey: 'landing.testimonials.name2',
-      roleKey: 'landing.testimonials.role2',
-      contentKey: 'landing.testimonials.content2',
+      nameKey: 'landing.features.testimonials.name2',
+      roleKey: 'landing.features.testimonials.role2',
+      contentKey: 'landing.features.testimonials.content2',
       image: "/images/testimonials/testimonial2.jpg"
     },
     {
       id: 3,
-      nameKey: 'landing.testimonials.name3',
-      roleKey: 'landing.testimonials.role3',
-      contentKey: 'landing.testimonials.content3',
+      nameKey: 'landing.features.testimonials.name3',
+      roleKey: 'landing.features.testimonials.role3',
+      contentKey: 'landing.features.testimonials.content3',
       image: "/images/testimonials/testimonial3.jpg"
     }
   ];

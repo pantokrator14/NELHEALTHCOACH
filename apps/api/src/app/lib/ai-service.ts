@@ -154,7 +154,7 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+    model: process.env.GEMINI_MODEL || 'gemini-3-flash',
     temperature: 0.7,
     maxTokens: 30000,
     apiKey: process.env.GEMINI_API_KEY,

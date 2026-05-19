@@ -16,19 +16,19 @@ const AboutSection: React.FC = () => {
       <div className="container mx-auto max-w-6xl w-full">
         <h2 className="text-3xl text-white md:text-4xl font-bold text-center mb-16">{t('landing.about.title')}</h2>
         
-        <div className="flex flex-col lg:flex-row items-center gap-10">
-          <div>
+        <div className="flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-16">
+          <div className="w-full max-w-[400px] lg:w-1/2 flex justify-center">
              <Image
-               src="/images/about/nelhealthcoach.png"
+               src="/images/about/nelhealthcoach.jpeg"
                alt="Manuel Martínez | NelHealthCoach"
-               width={600}
-               height={800}
-               className="w-full h-auto rounded-xl shadow-lg"
+               width={400}
+               height={500}
+               className="rounded-2xl shadow-2xl hover:scale-[1.02] transition-transform duration-300 w-full h-auto object-cover"
                priority
              />
           </div>
           
-          <div className="lg:w-1/2 w-full">
+          <div className="lg:w-1/2 w-full text-center lg:text-left">
             <h3 className="text-2xl text-white font-bold mb-4">{t('landing.about.subtitle')}</h3>
             <p className="mb-4 text-white">
               {t('landing.about.description1')}
@@ -46,7 +46,7 @@ const AboutSection: React.FC = () => {
               {t('landing.about.description5')}
             </p>
             
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
               {badges.map((badge, index) => (
                 <div 
                   key={index} 
