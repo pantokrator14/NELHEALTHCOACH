@@ -456,6 +456,8 @@ export async function POST(
         status: 'draft',
         summary: encrypt(compositeResult.clientInsights?.summary || ''),
         vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+        medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
+        medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
         baselineMetrics: {
           currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
           targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
@@ -1679,6 +1681,8 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       status: 'draft',
       summary: encrypt(compositeResult.clientInsights?.summary || ''),
       vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+      medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
+      medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
       baselineMetrics: {
         currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
         targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
