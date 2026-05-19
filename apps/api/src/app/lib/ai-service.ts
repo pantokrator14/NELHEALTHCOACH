@@ -154,7 +154,7 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.GEMINI_MODEL || 'gemini-3-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-3.1-flash',
     temperature: 0.7,
     maxTokens: 30000,
     apiKey: process.env.GEMINI_API_KEY,
@@ -765,17 +765,17 @@ Plan: ${isFull12WeekPlan ? '12 semanas (3 meses) completo' : `Mes ${monthNumber}
     let docsInfo = '';
     if (documents && documents.length > 0) {
       const relevantDocs = documents.filter(d => 
-        d.content && d.content.length > 50 && (d.confidence || 0) > 60
-      ).slice(0, 2); // Solo 2 documentos máximo
+        d.content && d.content.length > 50
+      ).slice(0, 5); // Hasta 5 documentos
       
       if (relevantDocs.length > 0) {
         docsInfo = '\n📄 DOCUMENTOS MÉDICOS (análisis e interpretación):';
         relevantDocs.forEach((doc, i) => {
           docsInfo += `\n${i+1}. ${doc.title || 'Documento'}: `;
-          // Extraer solo puntos clave (primeros 300 chars)
+          // Extraer solo puntos clave (primeros 800 chars)
           const content = doc.content || '';
-          const keyPoints = content.split(/[.!?]/).slice(0, 3).join('. ');
-          docsInfo += keyPoints.substring(0, 150) + (keyPoints.length > 150 ? '...' : '');
+          const keyPoints = content.split(/[.!?]/).slice(0, 5).join('. ');
+          docsInfo += keyPoints.substring(0, 800) + (keyPoints.length > 800 ? '...' : '');
         });
         docsInfo += '\n• Proporciona interpretación clara y recomendaciones específicas basadas en estos documentos.';
       }

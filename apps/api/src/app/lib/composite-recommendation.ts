@@ -117,7 +117,7 @@ function formatMental(data: Record<string, string>): string {
 
 function formatDocs(docs: Array<{ title: string; content: string }>): string {
   if (!docs?.length) return "- Sin docs";
-  return docs.map((d, i) => `${i + 1}. ${d.title}\n${d.content.substring(0, 250)}`).join("\n\n");
+  return docs.map((d, i) => `${i + 1}. ${d.title}\n${d.content.substring(0, 3000)}`).join("\n\n");
 }
 
 // ── Prompt único ────────────────────────────────────────

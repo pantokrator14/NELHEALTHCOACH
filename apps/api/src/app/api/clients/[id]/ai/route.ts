@@ -9,6 +9,7 @@ import { AIService } from '@/app/lib/ai-service';
 import { ChecklistItem, AIRecommendationSession } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
+import { analyzeS3PDFWithGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
 
 function decryptAISessionCompletely(session: any): any {
@@ -825,71 +826,74 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     return acc;
   }, {} as any);
 
-  // ✅ NUEVO: Preparar DOCUMENTOS PROCESADOS (estructura separada)
-  const processedDocs = [];
-  if (client.medicalData?.processedDocuments && Array.isArray(client.medicalData.processedDocuments)) {
-    loggerWithContext.debug('AI', 'Procesando documentos procesados para IA', {
-      documentCount: client.medicalData.processedDocuments.length
+  // 📄 DOCUMENTOS REALES: Usar Gemini para leerlos nativamente desde S3
+  const processedDocs: Array<{
+    title: string; content: string; processedAt?: string; confidence?: number;
+    type?: string; pageCount?: number; language?: string;
+  }> = [];
+
+  if (client.medicalData?.documents && Array.isArray(client.medicalData.documents) && client.medicalData.documents.length > 0) {
+    loggerWithContext.debug('AI', 'Analizando documentos reales con Gemini nativo', {
+      documentCount: client.medicalData.documents.length
     });
 
-    try {
-      for (const procDoc of client.medicalData.processedDocuments) {
-        try {
-          // Solo usar documentos con buen nivel de confianza y completados
-          const extractionStatus = procDoc.metadata?.extractionStatus || 'pending';
-          const confidence = procDoc.confidence || 0;
+    const docPromises = client.medicalData.documents.map(async (doc: any) => {
+      try {
+        const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
+        const s3Key = safeDecrypt(doc.key || '');
+        if (!s3Key) return null;
 
-          if (extractionStatus === 'completed' && confidence > 50) {
-            const docTitle = safeDecrypt(procDoc.title || '');
-            const docContent = safeDecrypt(procDoc.content || '');
+        loggerWithContext.debug('AI', 'Enviando documento a Gemini', { fileName: fileName.substring(0, 50) });
 
-            processedDocs.push({
-              title: docTitle,
-              content: docContent.substring(0, 2000),
-              processedAt: procDoc.processedAt,
-              confidence,
-              type: procDoc.metadata?.documentType || 'unknown',
-              pageCount: procDoc.metadata?.pageCount || 1,
-              language: procDoc.metadata?.language || 'es'
-            });
+        const analysis = await analyzeS3PDFWithGemini(s3Key, fileName,
+          'Eres un analista médico. Extrae y organiza toda la información clínica relevante de este documento.'
+        );
 
-            loggerWithContext.debug('AI', 'Documento procesado incluido', {
-              title: docTitle.substring(0, 50),
-              confidence,
-              contentLength: docContent.length
-            });
-          } else {
-            // Incluir documentos fallidos con solo el título (para que la IA sepa que existen)
-            try {
-              const docTitle = safeDecrypt(procDoc.title || '');
-              if (docTitle && docTitle.trim()) {
-                processedDocs.push({
-                  title: docTitle,
-                  content: `[Documento no disponible: ${extractionStatus === 'failed' ? 'error de extracción' : 'pendiente de procesar'}]`,
-                  processedAt: procDoc.processedAt,
-                  confidence: 0,
-                  type: procDoc.metadata?.documentType || 'unknown',
-                  pageCount: 0,
-                  language: 'es'
-                });
-                loggerWithContext.debug('AI', 'Documento fallido incluido como referencia', {
-                  title: docTitle.substring(0, 50),
-                  extractionStatus
-                });
-              }
-            } catch {
-              // Si no se puede desencriptar el título, omitirlo
-            }
-          }
-        } catch (error) {
-          loggerWithContext.error('AI', 'Error desencriptando documento procesado', error as Error);
+        if (analysis && analysis.length > 20) {
+          return {
+            title: fileName,
+            content: analysis.substring(0, 10000),
+            processedAt: new Date().toISOString(),
+            confidence: 1,
+            type: 'document',
+            pageCount: 1,
+            language: 'es'
+          };
         }
+        return null;
+      } catch (error) {
+        loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
+          fileName: doc?.name || 'unknown'
+        });
+        return null;
       }
-    } catch (error) {
-      loggerWithContext.error('AI', 'Error procesando documentos procesados para IA', error as Error);
+    });
+
+    const results = await Promise.all(docPromises);
+    for (const r of results) { if (r) processedDocs.push(r); }
+  }
+
+  // Fallback: si Gemini no pudo leerlos, intentar con processedDocuments legacy
+  if (processedDocs.length === 0 && client.medicalData?.processedDocuments) {
+    const fallbackDocs = Array.isArray(client.medicalData.processedDocuments)
+      ? client.medicalData.processedDocuments : [];
+    for (const procDoc of fallbackDocs) {
+      try {
+        const docTitle = safeDecrypt(procDoc.title || '');
+        const docContent = safeDecrypt(procDoc.content || '');
+        if (docContent && docContent.trim().length > 20) {
+          processedDocs.push({
+            title: docTitle,
+            content: docContent.substring(0, 10000),
+            processedAt: procDoc.processedAt,
+            confidence: procDoc.confidence || 0,
+            type: procDoc.metadata?.documentType || 'unknown',
+            pageCount: procDoc.metadata?.pageCount || 1,
+            language: procDoc.metadata?.language || 'es'
+          });
+        }
+      } catch {}
     }
-  } else {
-    loggerWithContext.debug('AI', 'No hay documentos procesados disponibles');
   }
 
   // Combinar documentos
@@ -918,19 +922,18 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     }
   }
 
-  // Preparar historial de documentos procesados para contexto
+  // Preparar historial de documentos (desde los archivos reales en S3)
   const documentHistory = [];
-  if (client.medicalData?.processedDocuments && Array.isArray(client.medicalData.processedDocuments)) {
-    const recentProcessed = client.medicalData.processedDocuments
-      .sort((a: any, b: any) => new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime())
-      .slice(0, 5); // Solo los 5 más recientes
-
-    for (const doc of recentProcessed) {
+  if (client.medicalData?.documents && Array.isArray(client.medicalData.documents)) {
+    const recentDocs = client.medicalData.documents
+      .sort((a: any, b: any) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime())
+      .slice(0, 5);
+    for (const doc of recentDocs) {
       documentHistory.push({
-        processedAt: doc.processedAt,
-        processedBy: doc.processedBy,
-        confidence: doc.confidence,
-        status: doc.metadata?.extractionStatus || 'unknown'
+        processedAt: doc.uploadedAt,
+        processedBy: 'Gemini',
+        confidence: 1,
+        status: 'completed'
       });
     }
   }
