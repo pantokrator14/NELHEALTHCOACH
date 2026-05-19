@@ -408,6 +408,7 @@ export async function POST(
         for (const alt of compositeResult.alternatives) {
           const mealLabel = alt.meal || 'comida';
           const recipeLabel = alt.recipe || 'receta';
+          const altRecipeId = compositeResult._recipeIds?.[recipeLabel] || '';
           checklistItems.push({
             id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             description: `🔄 Alternativa - ${mealLabel}: ${recipeLabel}`,
@@ -415,6 +416,7 @@ export async function POST(
             weekNumber: 1,
             category: 'nutrition',
             type: 'alternativa',
+            recipeId: altRecipeId,
             notes: alt.description || '',
             isRecurring: false,
           });
@@ -454,6 +456,8 @@ export async function POST(
         status: 'draft',
         summary: encrypt(compositeResult.clientInsights?.summary || ''),
         vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+        medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
+        medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
         baselineMetrics: {
           currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
           targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
@@ -838,61 +842,59 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     });
 
     const docPromises = client.medicalData.documents.map(async (doc: any) => {
-      try {
-        const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
-        const s3Key = safeDecrypt(doc.key || '');
-        if (!s3Key) return null;
+      const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
+      const s3Key = safeDecrypt(doc.key || '');
+      if (!s3Key) return null;
 
-        loggerWithContext.debug('AI', 'Enviando documento a Gemini', { fileName: fileName.substring(0, 50) });
+      // Reintentar hasta 2 veces si da 503 (Service Unavailable)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          loggerWithContext.debug('AI', 'Enviando documento a Gemini', {
+            fileName: fileName.substring(0, 50),
+            attempt: attempt + 1
+          });
 
-        const analysis = await analyzeS3PDFWithGemini(s3Key, fileName,
-          'Eres un analista médico. Extrae y organiza toda la información clínica relevante de este documento.'
-        );
+          const analysis = await analyzeS3PDFWithGemini(s3Key, fileName,
+            'Eres un analista médico. Extrae y organiza toda la información clínica relevante de este documento.'
+          );
 
-        if (analysis && analysis.length > 20) {
-          return {
-            title: fileName,
-            content: analysis.substring(0, 10000),
-            processedAt: new Date().toISOString(),
-            confidence: 1,
-            type: 'document',
-            pageCount: 1,
-            language: 'es'
-          };
+          if (analysis && analysis.length > 20) {
+            return {
+              title: fileName,
+              content: analysis.substring(0, 10000),
+              processedAt: new Date().toISOString(),
+              confidence: 1,
+              type: 'document',
+              pageCount: 1,
+              language: 'es'
+            };
+          }
+          return null;
+        } catch (error: any) {
+          const is503 = error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
+          if (is503 && attempt < 2) {
+            const delay = Math.pow(2, attempt) * 2000; // 2s, 4s
+            loggerWithContext.warn('AI', `503 en ${fileName}, reintento ${attempt + 2}/3 en ${delay}ms`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
+            fileName: doc?.name || 'unknown'
+          });
+          return null;
         }
-        return null;
-      } catch (error) {
-        loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
-          fileName: doc?.name || 'unknown'
-        });
-        return null;
       }
+      return null;
     });
 
+    const totalAttempted = client.medicalData.documents.length;
     const results = await Promise.all(docPromises);
     for (const r of results) { if (r) processedDocs.push(r); }
-  }
 
-  // Fallback: si Gemini no pudo leerlos, intentar con processedDocuments legacy
-  if (processedDocs.length === 0 && client.medicalData?.processedDocuments) {
-    const fallbackDocs = Array.isArray(client.medicalData.processedDocuments)
-      ? client.medicalData.processedDocuments : [];
-    for (const procDoc of fallbackDocs) {
-      try {
-        const docTitle = safeDecrypt(procDoc.title || '');
-        const docContent = safeDecrypt(procDoc.content || '');
-        if (docContent && docContent.trim().length > 20) {
-          processedDocs.push({
-            title: docTitle,
-            content: docContent.substring(0, 10000),
-            processedAt: procDoc.processedAt,
-            confidence: procDoc.confidence || 0,
-            type: procDoc.metadata?.documentType || 'unknown',
-            pageCount: procDoc.metadata?.pageCount || 1,
-            language: procDoc.metadata?.language || 'es'
-          });
-        }
-      } catch {}
+    const successCount = processedDocs.length;
+    const failCount = totalAttempted - successCount;
+    if (failCount > 0) {
+      loggerWithContext.warn('AI', `${failCount}/${totalAttempted} documentos no pudieron analizarse (503 persistente).`);
     }
   }
 
@@ -1632,6 +1634,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     // Items de alternativas
     if (compositeResult.alternatives) {
       for (const alt of compositeResult.alternatives) {
+        const altRecipeId = compositeResult._recipeIds?.[alt.recipe] || '';
         newChecklistItems.push({
           id: `check_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           description: `🔄 Alternativa - ${alt.meal}: ${alt.recipe}`,
@@ -1639,6 +1642,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
           weekNumber: 1,
           category: 'nutrition',
           type: 'alternativa',
+          recipeId: altRecipeId,
           notes: alt.description || '',
           isRecurring: false,
         } as ChecklistItem);
@@ -1677,6 +1681,8 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       status: 'draft',
       summary: encrypt(compositeResult.clientInsights?.summary || ''),
       vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
+      medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
+      medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
       baselineMetrics: {
         currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
         targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],

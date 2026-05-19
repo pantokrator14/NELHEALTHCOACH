@@ -34,6 +34,8 @@ export interface CompositeOutput {
     idealWeight: string;
     idealBodyFat: string;
     targetImprovements: string[];
+    medicalSummary: string;  // Análisis detallado de documentos médicos
+    medicalComparativeAnalysis: string;  // Comparativa entre documentos si hay varios
   };
   nutritionPlan: {
     weeklyPlan: Array<{
@@ -164,6 +166,8 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 ## GENERA ESTE JSON USANDO LOS IDs DE LAS LISTAS DE ARRIBA
 
 ### 1. clientInsights — Análisis del cliente (MUY IMPORTANTE: vision debe ser tan extensa como summary)
+- SI hay documentos médicos (sección "Documentos"), genera medicalSummary (análisis detallado de laboratorios, biomarcadores y hallazgos clínicos) y medicalComparativeAnalysis (comparativa entre documentos si hay varios, identificando tendencias y cambios)
+- SI NO hay documentos, ambos campos deben ser strings vacíos ""
 
 ### 2. nutritionPlan — PLAN DE COMIDAS (7 días)
 - weeklyPlan: array de 7 objetos (Monday a Sunday)
@@ -202,7 +206,9 @@ ${exerciseList || "- No hay ejercicios en la DB"}
     "experienceLevel": "principiante|intermedio|avanzado",
     "idealWeight": "XX kg",
     "idealBodyFat": "XX%",
-    "targetImprovements": ["..."]
+    "targetImprovements": ["..."],
+    "medicalSummary": "Si hay documentos médicos, análisis detallado de laboratorios y biomarcadores. Si no, cadena vacía.",
+    "medicalComparativeAnalysis": "Si hay múltiples documentos, comparativa entre ellos identificando tendencias. Si no, cadena vacía."
   },
   "nutritionPlan": {
     "weeklyPlan": [
@@ -294,7 +300,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   } catch {
     logCtx.warn("AI", "Fallo parseo, usando fallback");
     result = {
-      clientInsights: { summary: "Plan generado", vision: "Visión del plan generado", keyRisks: [], opportunities: [], experienceLevel: "principiante", idealWeight: "N/A", idealBodyFat: "N/A", targetImprovements: [] },
+      clientInsights: { summary: "Plan generado", vision: "Visión del plan generado", keyRisks: [], opportunities: [], experienceLevel: "principiante", idealWeight: "N/A", idealBodyFat: "N/A", targetImprovements: [], medicalSummary: "", medicalComparativeAnalysis: "" },
       nutritionPlan: {
         weeklyPlan: [
           { day: "Monday", breakfast: "Huevos revueltos con aguacate", lunch: "Pechuga de pollo con ensalada", dinner: "Salmón con espárragos" },
@@ -316,7 +322,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   }
 
   // Validar estructura mínima
-  if (!result.clientInsights) result.clientInsights = { summary: "N/A", vision: "N/A", keyRisks: [], opportunities: [], experienceLevel: "principiante", idealWeight: "N/A", idealBodyFat: "N/A", targetImprovements: [] };
+  if (!result.clientInsights) result.clientInsights = { summary: "N/A", vision: "N/A", keyRisks: [], opportunities: [], experienceLevel: "principiante", idealWeight: "N/A", idealBodyFat: "N/A", targetImprovements: [], medicalSummary: "", medicalComparativeAnalysis: "" };
   if (!result.nutritionPlan || !result.nutritionPlan.weeklyPlan || result.nutritionPlan.weeklyPlan.length < 7) {
     result.nutritionPlan = result.nutritionPlan || { weeklyPlan: [], shoppingList: [] };
     result.nutritionPlan.weeklyPlan = [

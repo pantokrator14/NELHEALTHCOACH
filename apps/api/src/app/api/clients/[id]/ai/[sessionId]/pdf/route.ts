@@ -53,6 +53,8 @@ export async function GET(
     // ── 2. Desencriptar datos de la sesión ──
     const summary = safeDecrypt(session.summary) || '';
     const vision = safeDecrypt(session.vision) || '';
+    const medicalSummary = safeDecrypt(session.medicalSummary) || '';
+    const medicalComparativeAnalysis = safeDecrypt(session.medicalComparativeAnalysis) || '';
     const weeks = (session.weeks || []).map((week: any) => ({
       weekNumber: week.weekNumber,
       nutrition: {
@@ -294,7 +296,7 @@ export async function GET(
         sex: clientSex,
         age: clientAge,
       },
-      session: { summary, vision },
+      session: { summary, vision, medicalSummary, medicalComparativeAnalysis },
       checklist: checklist.map((item: any) => ({
         ...item,
         details: item.details || undefined,

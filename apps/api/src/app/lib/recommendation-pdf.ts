@@ -168,6 +168,8 @@ export interface PDFRecommendationData {
   session: {
     summary: string;
     vision: string;
+    medicalSummary?: string;
+    medicalComparativeAnalysis?: string;
   };
   checklist: PDFChecklistItem[];
   weeks: PDFWeekData[];
@@ -483,6 +485,57 @@ function buildVisionSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   return y;
 }
 
+/** Medical Analysis section */
+function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
+  let y = checkSpace(doc, startY, 60);
+  const hasMedical = data.session.medicalSummary || data.session.medicalComparativeAnalysis;
+  if (!hasMedical) return y;
+
+  // Banner rojo para análisis médico
+  doc.save();
+  drawRect(doc, MARGIN, y, USABLE_WIDTH, 28, '#C62828');
+  doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
+  doc.text('Análisis de documentos médicos', MARGIN + 10, y + 6);
+  y += 34;
+  doc.restore();
+
+  if (data.session.medicalSummary) {
+    doc.save().fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
+    doc.text('Resumen de hallazgos clínicos', MARGIN, y);
+    y += doc.currentLineHeight() + 8;
+    doc.fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+    y = drawJustifiedText(doc, data.session.medicalSummary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
+    y += 12;
+    doc.restore();
+  }
+
+  if (data.session.medicalComparativeAnalysis) {
+    y = checkSpace(doc, y, 20);
+    doc.save().fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
+    doc.text('Análisis comparativo entre documentos', MARGIN, y);
+    y += doc.currentLineHeight() + 8;
+    doc.fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+    y = drawJustifiedText(doc, data.session.medicalComparativeAnalysis, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
+    y += 12;
+    doc.restore();
+  }
+
+  // Disclaimer
+  y = checkSpace(doc, y, 20);
+  doc.save()
+    .fillColor(COLORS.darkGray)
+    .font('Helvetica-Oblique')
+    .fontSize(8);
+  const disclaimer = '⚠️ Las presentes recomendaciones no son un substituto a las consultas médicas profesionales. Consultar con un médico y/o profesional de la salud de confianza previamente.';
+  drawRect(doc, MARGIN, y, USABLE_WIDTH, 28, '#FFF8E1');
+  doc.fillColor(COLORS.darkGray);
+  doc.text(disclaimer, MARGIN + 10, y + 8, { width: USABLE_WIDTH - 20, align: 'center' });
+  y += 34;
+  doc.restore();
+
+  return y;
+}
+
 /** Build a single recipe card within a day+meal */
 function buildRecipeCard(
   doc: PDFKit.PDFDocument,
@@ -752,29 +805,60 @@ function buildNutritionPlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData
       }
     }
     
-    // Shopping list compact
-    if (week.nutrition.shoppingList && week.nutrition.shoppingList.length > 0) {
-      y = checkSpace(doc, y, 30);
-      doc.save()
-        .fillColor(COLORS.darkGreen)
-        .font('Helvetica-Bold')
-        .fontSize(FONT_SIZES.body + 1);
-      doc.text('Lista de compras:', MARGIN, y);
-      y += doc.currentLineHeight() + 4;
-      
-      doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
-      for (const shopItem of week.nutrition.shoppingList) {
-        doc.text(`• ${shopItem.item} — ${shopItem.quantity}`, MARGIN + 10, y);
-        y += 10;
-      }
-      y += 10;
-      doc.restore();
-    }
-    
     y += 10; // space between weeks
   }
   
   return y;
+}
+
+/** Shopping list section — hoja dedicada */
+function buildShoppingListSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
+  // Recopilar TODOS los items de compras de todas las semanas
+  const allItems: Array<{ item: string; quantity: string; }> = [];
+  for (const week of data.weeks) {
+    if (week.nutrition.shoppingList) {
+      for (const si of week.nutrition.shoppingList) {
+        allItems.push({ item: si.item, quantity: si.quantity });
+      }
+    }
+  }
+  if (allItems.length === 0) return startY;
+
+  let y = checkSpace(doc, startY, 80);
+  
+  // Banner
+  y = drawBanner(doc, y, 'Lista de compras semanal', COLORS.darkGreen);
+
+  // Subtítulo
+  doc.save()
+    .fillColor(COLORS.darkGray)
+    .font('Helvetica-Oblique')
+    .fontSize(FONT_SIZES.small)
+    .text('Usa esta lista como guía para tu visita al supermercado.', MARGIN, y);
+  y += doc.currentLineHeight() + 14;
+  doc.restore();
+
+  // Tabla de compras
+  for (const item of allItems) {
+    y = checkSpace(doc, y, 14);
+    doc.save()
+      .fillColor(COLORS.text)
+      .font('Helvetica')
+      .fontSize(FONT_SIZES.body);
+    
+    const label = `${item.item}`;
+    const qty = `${item.quantity}`;
+    const labelW = doc.widthOfString(label);
+    const qtyW = doc.widthOfString(qty);
+    const dotX = MARGIN + 8;
+    
+    doc.text(`•  ${label}`, dotX, y);
+    doc.text(qty, PAGE_WIDTH - MARGIN - qtyW, y);
+    y += 14;
+    doc.restore();
+  }
+
+  return y + 10;
 }
 
 /** Exercise plan section */
@@ -1295,7 +1379,7 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
     try {
       const doc = new PDFDocument({
         size: 'LETTER',
-        margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
+        margins: { top: MARGIN, bottom: MARGIN + 30, left: MARGIN, right: MARGIN },
         info: {
           Title: 'Recomendaciones de Salud - NELHEALTHCOACH',
           Author: data.coach.name,
@@ -1303,10 +1387,26 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
         },
       });
       
+      // Disclaimer en el pie de cada página
+      const drawDisclaimer = () => {
+        doc.save();
+        doc.fontSize(7).fillColor(COLORS.darkGray).font('Helvetica-Oblique');
+        doc.text(
+          'Las presentes recomendaciones no son un substituto a las consultas médicas profesionales. Consultar con un médico y/o profesional de la salud de confianza previamente.',
+          MARGIN, doc.page.height - 55,
+          { width: USABLE_WIDTH, align: 'center' }
+        );
+        doc.restore();
+      };
+      doc.on('pageAdded', drawDisclaimer);
+      
       const buffers: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
+      
+      // Disclaimer en primera página
+      drawDisclaimer();
       
       let y = MARGIN;
       
@@ -1323,8 +1423,14 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       // === VISION ===
       y = buildVisionSection(doc, data, y);
       
+      // === MEDICAL ANALYSIS ===
+      y = buildMedicalAnalysisSection(doc, data, y);
+      
       // === NUTRITION PLAN ===
       y = buildNutritionPlan(doc, data, y + 10);
+      
+      // === SHOPPING LIST ===
+      y = buildShoppingListSection(doc, data, y + 15);
       
       // === EXERCISE PLAN ===
       y = buildExercisePlan(doc, data, y + 15);
