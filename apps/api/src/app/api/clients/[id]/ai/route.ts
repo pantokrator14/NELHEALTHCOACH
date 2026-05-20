@@ -888,7 +888,7 @@ async function prepareAIInput(
           });
 
           // Prompt para pedir JSON con resultados de laboratorio
-          const analysis = await analyzeS3PDFWithGemini(s3Key, fileName,
+          const analysis = await analyzeS3FileWithGemini(s3Key, fileName,
             `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
 - "medicalSummary": Un resumen conciso de los hallazgos principales.
 - "medicalComparativeAnalysis": Si hay datos históricos, un análisis comparativo. Si no, indica que no aplica.
