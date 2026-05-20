@@ -55,6 +55,7 @@ export async function GET(
     const vision = safeDecrypt(session.vision) || '';
     const medicalSummary = safeDecrypt(session.medicalSummary) || '';
     const medicalComparativeAnalysis = safeDecrypt(session.medicalComparativeAnalysis) || '';
+    const labResults = session.labResults || [];
     const weeks = (session.weeks || []).map((week: any) => ({
       weekNumber: week.weekNumber,
       nutrition: {
@@ -286,6 +287,10 @@ export async function GET(
     // Tracking method
     const trackingMethod = weeks.find((w: any) => w.habits.trackingMethod)?.habits.trackingMethod;
 
+    // Índice de la sesión (para saber si mostrar análisis comparativo)
+    const sessions = client.aiProgress.sessions || [];
+    const sessionIndex = sessions.findIndex((s: any) => s.sessionId === sessionId);
+
     // ── 8. Generar PDF ──
     const websiteUrl = process.env.APP_URL || 'https://nelhealthcoach.com';
 
@@ -296,7 +301,7 @@ export async function GET(
         sex: clientSex,
         age: clientAge,
       },
-      session: { summary, vision, medicalSummary, medicalComparativeAnalysis },
+      session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, index: sessionIndex },
       checklist: checklist.map((item: any) => ({
         ...item,
         details: item.details || undefined,

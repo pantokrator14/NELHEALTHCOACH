@@ -279,16 +279,64 @@ async function fetchGeminiREST(
 }
 
 // ─────────────────────────────────────────────
-// Gemini — Análisis nativo de PDFs desde S3
+// Gemini — Análisis nativo de archivos desde S3
+// (PDF, imágenes, DOCX, TXT, etc.)
 // ─────────────────────────────────────────────
 
-export async function analyzePDFWithGemini(
-  pdfBase64: string,
+/**
+ * Detecta el mime type de un archivo según su extensión.
+ */
+function getMimeType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const mimeTypes: Record<string, string> = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    tiff: 'image/tiff',
+    tif: 'image/tiff',
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
+}
+
+/**
+ * Clasifica un archivo según su extensión para saber cómo procesarlo.
+ */
+function classifyFileType(fileName: string): 'pdf' | 'image' | 'docx' | 'text' | 'unknown' {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return 'pdf';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif'].includes(ext)) return 'image';
+  if (ext === 'docx') return 'docx';
+  if (['txt', 'csv', 'json', 'xml', 'log', 'md', 'html', 'htm'].includes(ext)) return 'text';
+  return 'unknown';
+}
+
+/**
+ * Extrae texto de un buffer DOCX usando mammoth.
+ */
+async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+  const mammoth = await import('mammoth');
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value || '';
+}
+
+/**
+ * Envía un archivo a Gemini para análisis.
+ * Soporta: PDF (inlineData), imágenes (inlineData),
+ * DOCX (texto extraído), TXT/CSV/JSON (texto plano).
+ */
+export async function analyzeFileWithGemini(
+  fileBuffer: Buffer,
   fileName: string,
+  mimeType: string,
+  fileType: 'pdf' | 'image' | 'docx' | 'text',
   analysisContext?: string
 ): Promise<string> {
-  const caller = "analyzePDF";
-  const logCtx = logger.withContext({ tool: "gemini-pdf-analysis", fileName });
+  const caller = "analyzeFile";
+  const logCtx = logger.withContext({ tool: "gemini-file-analysis", fileName });
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -297,20 +345,88 @@ export async function analyzePDFWithGemini(
     const model = resolveModel();
     const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
 
-    logCtx.info("AI", `[${caller}] Iniciando análisis de PDF`, {
+    logCtx.info("AI", `[${caller}] Iniciando análisis de archivo`, {
       model,
+      fileType,
+      mimeType,
+      sizeKB: Math.round(fileBuffer.byteLength / 1024),
       contextProvided: !!analysisContext,
-      base64Length: pdfBase64.length,
     });
+
+    // Para DOCX y TXT: extraemos texto y lo enviamos como texto plano a Gemini
+    if (fileType === 'docx' || fileType === 'text') {
+      let fileText: string;
+
+      if (fileType === 'docx') {
+        fileText = await extractTextFromDocx(fileBuffer);
+        logCtx.info("AI", `[${caller}] Texto extraído de DOCX`, {
+          textLength: fileText.length,
+        });
+      } else {
+        // TXT, CSV, JSON, etc.
+        fileText = fileBuffer.toString('utf-8');
+        logCtx.info("AI", `[${caller}] Texto leído de archivo`, {
+          textLength: fileText.length,
+        });
+      }
+
+      if (!fileText || fileText.trim().length < 10) {
+        logCtx.warn("AI", `[${caller}] El archivo no contiene texto extraíble`, { fileName });
+        return `[Documento sin texto extraíble: ${fileName}]\n\nGemini no pudo extraer texto de este archivo. Puede estar vacío, dañado o tener un formato no soportado.`;
+      }
+
+      // Truncar si es muy largo (Gemini tiene límite de contexto)
+      const maxTextLength = 50000;
+      if (fileText.length > maxTextLength) {
+        logCtx.warn("AI", `[${caller}] Texto truncado de ${fileText.length} a ${maxTextLength} caracteres`, { fileName });
+        fileText = fileText.substring(0, maxTextLength) + `\n\n[... Texto truncado por longitud. Original: ${fileText.length} caracteres]`;
+      }
+
+      // Enviar solo texto a Gemini (sin inlineData)
+      const body = {
+        systemInstruction: {
+          parts: [{
+            text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
+Extrae y analiza el contenido del documento proporcionado.
+
+INSTRUCCIONES:
+1. Extrae TODA la información relevante del documento
+2. Identifica marcadores de laboratorio con sus valores y unidades
+3. Identifica fechas de exámenes y comparativas si existen
+4. Organiza la información en formato estructurado
+5. NO diagnostiques — solo extrae e interpreta datos
+6. Indica si hay valores fuera de rango y qué podrían significar`,
+          }],
+        },
+        contents: [{
+          parts: [{
+            text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ""}A continuación está el contenido extraído del archivo "${fileName}":\n\n--- INICIO DEL DOCUMENTO ---\n${fileText}\n\n--- FIN DEL DOCUMENTO ---\n\nPor favor, analiza este contenido médico y extrae toda la información clínica relevante en formato estructurado.`,
+          }],
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 16000,
+        },
+      };
+
+      const result = await fetchGeminiREST(url, body, logCtx, caller);
+      if (result.safetyBlocked) {
+        return `[Documento bloqueado por seguridad: ${fileName}]`;
+      }
+      return result.text || `[Documento sin texto extraíble: ${fileName}]`;
+    }
+
+    // Para PDF e imágenes: usar inlineData de Gemini
+    const fileBase64 = Buffer.from(fileBuffer).toString('base64');
 
     const body = {
       systemInstruction: {
         parts: [{
           text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
-Extrae y analiza el contenido del PDF proporcionado.
+Extrae y analiza el contenido del archivo proporcionado.
 
 INSTRUCCIONES:
-1. Extrae TODO el texto relevante del documento
+1. Extrae TODO el texto relevante del documento/imagen
 2. Identifica marcadores de laboratorio con sus valores y unidades
 3. Identifica fechas de exámenes y comparativas si existen
 4. Organiza la información en formato estructurado
@@ -321,12 +437,12 @@ INSTRUCCIONES:
       contents: [{
         parts: [
           {
-            text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ""}Analiza el siguiente documento PDF: ${fileName}. Por favor, extrae y estructura toda la información médica y de laboratorio contenida en este documento.`,
+            text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ""}Analiza el siguiente archivo: ${fileName}. Por favor, extrae y estructura toda la información médica y de laboratorio contenida en este archivo.`,
           },
           {
             inlineData: {
-              mimeType: "application/pdf",
-              data: pdfBase64,
+              mimeType,
+              data: fileBase64,
             },
           },
         ],
@@ -340,36 +456,45 @@ INSTRUCCIONES:
     const result = await fetchGeminiREST(url, body, logCtx, caller);
 
     if (result.safetyBlocked) {
-      logCtx.warn("AI", `[${caller}] PDF bloqueado por filtros de seguridad de Gemini`, { fileName });
-      return `[Documento bloqueado por seguridad: ${fileName}]\n\nEl contenido de este documento no pudo ser analizado por los filtros de seguridad de Gemini. Por favor, revisa el documento manualmente.`;
+      return `[Documento bloqueado por seguridad: ${fileName}]\n\nEl contenido de este archivo no pudo ser analizado por los filtros de seguridad de Gemini. Por favor, revisa el documento manualmente.`;
     }
 
     if (!result.text) {
-      logCtx.warn("AI", `[${caller}] Gemini devolvió texto vacío para PDF`, { fileName });
-      return `[Documento sin texto extraíble: ${fileName}]\n\nGemini no pudo extraer texto de este documento. Puede estar escaneado como imagen o tener un formato no soportado.`;
+      return `[Documento sin texto extraíble: ${fileName}]\n\nGemini no pudo extraer texto de este archivo. Puede estar escaneado como imagen o tener un formato no soportado.`;
     }
 
     return result.text;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logCtx.error("AI", `[${caller}] Falló el análisis de PDF`, error instanceof Error ? error : undefined, {
+    logCtx.error("AI", `[${caller}] Falló el análisis de archivo`, error instanceof Error ? error : undefined, {
       fileName,
+      fileType,
       errorMessage: errorMessage.substring(0, 300),
     });
     throw error;
   }
 }
 
-export async function analyzeS3PDFWithGemini(
+/**
+ * Versátil: descarga cualquier archivo de S3 y lo analiza con Gemini.
+ * Soporta: PDF, imágenes (JPG, PNG, GIF, WebP), DOCX, TXT, CSV, JSON.
+ */
+export async function analyzeS3FileWithGemini(
   s3Key: string,
   fileName: string,
   analysisContext?: string
 ): Promise<string> {
-  const caller = "analyzeS3PDF";
-  const logCtx = logger.withContext({ tool: "gemini-s3-pdf-analysis", s3Key, fileName });
+  const caller = "analyzeS3File";
+  const logCtx = logger.withContext({ tool: "gemini-s3-file-analysis", s3Key, fileName });
 
   try {
-    logCtx.info("AI", `[${caller}] Descargando PDF de S3`);
+    const fileType = classifyFileType(fileName);
+    const mimeType = getMimeType(fileName);
+
+    logCtx.info("AI", `[${caller}] Descargando archivo de S3`, {
+      fileType,
+      mimeType,
+    });
 
     const { getPresignedUrlForAnalysis } = await import("../../s3");
     const presignedUrl = await getPresignedUrlForAnalysis(s3Key);
@@ -378,23 +503,31 @@ export async function analyzeS3PDFWithGemini(
     const response = await fetch(presignedUrl);
 
     if (!response.ok) {
-      logCtx.error("AI", `[${caller}] Error descargando PDF de S3`, undefined, {
+      logCtx.error("AI", `[${caller}] Error descargando archivo de S3`, undefined, {
         status: response.status,
         statusText: response.statusText,
       });
       throw new Error(`S3 download failed: ${response.status} ${response.statusText}`);
     }
 
-    const pdfBuffer = await response.arrayBuffer();
-    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+    const fileBuffer = await response.arrayBuffer();
     const s3Duration = Date.now() - s3StartTime;
 
-    logCtx.info("AI", `[${caller}] PDF descargado de S3`, {
-      sizeKB: Math.round(pdfBuffer.byteLength / 1024),
+    logCtx.info("AI", `[${caller}] Archivo descargado de S3`, {
+      sizeKB: Math.round(fileBuffer.byteLength / 1024),
       s3Duration,
+      fileType,
     });
 
-    return analyzePDFWithGemini(pdfBase64, fileName, analysisContext);
+    const buffer = Buffer.from(fileBuffer);
+
+    // Si es un tipo desconocido, intentar como texto
+    if (fileType === 'unknown') {
+      logCtx.warn("AI", `[${caller}] Tipo de archivo desconocido, intentando como texto`, { fileName });
+      return analyzeFileWithGemini(buffer, fileName, mimeType, 'text', analysisContext);
+    }
+
+    return analyzeFileWithGemini(buffer, fileName, mimeType, fileType, analysisContext);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     logCtx.error("AI", `[${caller}] Falló`, error instanceof Error ? error : undefined, {
@@ -404,6 +537,24 @@ export async function analyzeS3PDFWithGemini(
     });
     throw error;
   }
+}
+
+// Mantener compatibilidad hacia atrás
+export async function analyzePDFWithGemini(
+  pdfBase64: string,
+  fileName: string,
+  analysisContext?: string
+): Promise<string> {
+  const buffer = Buffer.from(pdfBase64, 'base64');
+  return analyzeFileWithGemini(buffer, fileName, 'application/pdf', 'pdf', analysisContext);
+}
+
+export async function analyzeS3PDFWithGemini(
+  s3Key: string,
+  fileName: string,
+  analysisContext?: string
+): Promise<string> {
+  return analyzeS3FileWithGemini(s3Key, fileName, analysisContext);
 }
 
 // ─────────────────────────────────────────────

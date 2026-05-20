@@ -223,6 +223,12 @@ export interface AIRecommendationSession {
   // Nuevos campos para análisis médico
   medicalSummary?: string; // encriptado - Resumen del análisis de laboratorio y exámenes
   medicalComparativeAnalysis?: string; // encriptado - Análisis comparativo entre sesiones (solo sesiones > 1)
+  labResults?: Array<{
+    name: string;
+    value: string;
+    range: string;
+    status: 'normal' | 'alto' | 'bajo';
+  }>;
   baselineMetrics: {
     currentLifestyle: string[];
     targetLifestyle: string[];
@@ -248,6 +254,14 @@ export interface AIRecommendationSession {
   emailError?: string;
 }
 
+export interface GenerationError {
+  message: string;
+  timestamp: Date;
+  documentName?: string;
+  statusCode?: number;
+  stack?: string;
+}
+
 export interface ClientAIProgress {
   clientId: string;
   currentSessionId?: string;
@@ -255,6 +269,7 @@ export interface ClientAIProgress {
   overallProgress: number; // 0-100%
   lastEvaluation?: Date;
   nextEvaluation?: Date;
+  generationError?: GenerationError; // Add this field
   
   // Estadísticas
   metrics: {

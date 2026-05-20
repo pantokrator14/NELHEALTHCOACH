@@ -22,6 +22,13 @@ interface RecipeWithDetails extends Recipe {
   instructions: string[];
 }
 
+interface LabResult {
+  name: string;
+  value: string;
+  range: string;
+  status: 'normal' | 'alto' | 'bajo';
+}
+
 // Estructura antigua de una semana (cuando incluía checklistItems)
 interface OldWeekStructure {
   weekNumber?: number;
@@ -120,6 +127,12 @@ interface AIRecommendationSession {
   vision: string;
   medicalSummary?: string;
   medicalComparativeAnalysis?: string;
+  labResults?: Array<{
+    name: string;
+    value: string;
+    range: string;
+    status: 'normal' | 'alto' | 'bajo';
+  }>;
   baselineMetrics: BaselineMetrics;
   weeks: AIRecommendationWeek[];
   checklist: ChecklistItem[];
@@ -152,6 +165,7 @@ interface ClientAIProgress {
   lastEvaluation?: Date;
   nextEvaluation?: Date;
   metrics: AIProgressMetrics;
+  generationError?: { message: string; timestamp: Date | string } | null;
 }
 
 interface ApiAIProgressData {
@@ -174,6 +188,7 @@ interface ApiAIProgressData {
   currentSessionId?: string;
   lastEvaluation?: string | Date;
   nextEvaluation?: string | Date;
+  generationError?: { message: string; timestamp: Date | string } | null;
 }
 
 interface ApiAIProgressResponse {
@@ -444,7 +459,8 @@ export default function AIRecommendationsModal({
       metrics: apiData.metrics || { nutritionAdherence: 0, exerciseConsistency: 0, habitFormation: 0 },
       currentSessionId: apiData.currentSessionId,
       lastEvaluation: apiData.lastEvaluation ? new Date(apiData.lastEvaluation) : undefined,
-      nextEvaluation: apiData.nextEvaluation ? new Date(apiData.nextEvaluation) : undefined
+      nextEvaluation: apiData.nextEvaluation ? new Date(apiData.nextEvaluation) : undefined,
+      generationError: apiData.generationError || null
     };
   }, [clientId, convertToNewStructure]);
 
@@ -1891,16 +1907,27 @@ export default function AIRecommendationsModal({
                         : 'No hay productos en la lista. Presiona "Actualizar" para generarla.'}
                     </p>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {week.nutrition.shoppingList.map((shopItem, idx) => (
-                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr,auto] items-start gap-1 p-2 bg-white rounded-lg border border-emerald-100">
-                          <span className="text-sm text-gray-700 break-words">{shopItem.item}</span>
-                          <span className="text-sm font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full text-left sm:text-right justify-self-start sm:justify-self-end break-words max-w-full">
-                            {shopItem.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <React.Fragment>
+                      <div className="grid grid-cols-1 gap-2">
+                        {week.nutrition.shoppingList.map((shopItem, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-lg border border-emerald-100 flex items-center justify-between">
+                            <span className="text-sm text-gray-700 break-words">{shopItem.item} (<span className="text-emerald-700 font-medium">{shopItem.quantity}</span>)</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => activeSession && handleUpdateShoppingList(activeSession.sessionId, week.weekNumber)}
+                        disabled={loadingShoppingList[week.weekNumber]}
+                        className={`mt-4 w-full md:w-auto px-6 py-2 rounded-lg text-sm font-medium transition-colors
+                          ${loadingShoppingList[week.weekNumber]
+                            ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed'
+                            : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                          }`}
+                      >
+                        {loadingShoppingList[week.weekNumber] ? 'Actualizando...' : 'Actualizar lista de compras'}
+                      </button>
+                    </React.Fragment>
                   )}
                 </div>
               )}
@@ -2078,6 +2105,18 @@ export default function AIRecommendationsModal({
                       : 'Si el error persiste, verifica los logs del servidor para más detalles.'}
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {aiProgress?.generationError && (
+          <div className="bg-amber-50 border border-amber-300 rounded-none px-6 py-4 flex items-start">
+            <svg className="w-5 h-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-amber-800 font-semibold text-sm">Advertencia en análisis de documentos</p>
+              <p className="text-amber-700 text-xs mt-1">{aiProgress.generationError.message}</p>
             </div>
           </div>
         )}
@@ -2274,43 +2313,150 @@ export default function AIRecommendationsModal({
                         <p className="text-sm text-gray-700 whitespace-pre-line">{activeSession.medicalSummary}</p>
                       </div>
                     )}
-                    {/* Análisis comparativo (solo sesiones > 1) */}
-                    {activeSession.medicalComparativeAnalysis && (
-                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                        <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                    {/* Análisis comparativo (a partir de la segunda sesión) */}
+                    {activeSession.monthNumber > 1 && (
+                      <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-200 mt-4 space-y-3">
+                        <h4 className="font-bold text-amber-800 flex items-center gap-2 text-base">
                           <span>📊</span> Análisis Comparativo (vs Sesión Anterior)
                         </h4>
-                        <p className="text-sm text-gray-700 whitespace-pre-line">{activeSession.medicalComparativeAnalysis}</p>
+                        
+                        {/* Tabla comparativa de biomarcadores */}
+                        {(() => {
+                          const prevSession = aiProgress?.sessions?.find(s => s.monthNumber === activeSession.monthNumber - 1);
+                          const hasComparisonData = activeSession.labResults && activeSession.labResults.length > 0 && prevSession?.labResults && prevSession.labResults.length > 0;
+                          
+                          if (hasComparisonData) {
+                            return (
+                              <div className="overflow-x-auto my-2">
+                                <table className="w-full text-xs md:text-sm border-collapse border border-amber-300 rounded-lg overflow-hidden shadow-sm">
+                                  <thead>
+                                    <tr className="bg-amber-600 text-white">
+                                      <th className="text-left p-3 font-semibold border border-amber-300">Biomarcador</th>
+                                      <th className="text-left p-3 font-semibold border border-amber-300">Valor Anterior (Sesión {prevSession.monthNumber})</th>
+                                      <th className="text-left p-3 font-semibold border border-amber-300">Valor Actual (Sesión {activeSession.monthNumber})</th>
+                                      <th className="text-left p-3 font-semibold border border-amber-300">Evolución</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {activeSession.labResults?.map((lr: LabResult, idx: number) => {
+                                      const prevLr = prevSession.labResults?.find((p: LabResult) => p.name.toLowerCase() === lr.name.toLowerCase());
+                                      
+                                      // Calcular evolución visual si es número
+                                      const currentNum = parseFloat(lr.value);
+                                      const prevNum = prevLr ? parseFloat(prevLr.value) : NaN;
+                                      
+                                      let evolutionText = '—';
+                                      let evolutionColor = 'text-gray-600';
+                                      
+                                      if (!isNaN(currentNum) && !isNaN(prevNum)) {
+                                        const diff = currentNum - prevNum;
+                                        const formattedDiff = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
+                                        
+                                        // Suponer que si baja el valor, en general es favorable (ej: glucosa, colesterol, etc.)
+                                        const isLowerBetter = ['glucosa', 'colesterol', 'ldl', 'trigliceridos', 'insulina', 'hba1c', 'tsh', 'pcr'].some(term => lr.name.toLowerCase().includes(term));
+                                        
+                                        if (diff === 0) {
+                                          evolutionText = 'Estable (0)';
+                                          evolutionColor = 'text-amber-600 font-medium';
+                                        } else if (diff < 0) {
+                                          evolutionText = `${formattedDiff} (Mejora 🟢)`;
+                                          evolutionColor = isLowerBetter ? 'text-green-600 font-bold' : 'text-orange-600 font-bold';
+                                        } else {
+                                          evolutionText = `${formattedDiff} (Atención 🔴)`;
+                                          evolutionColor = isLowerBetter ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
+                                        }
+                                      } else if (prevLr) {
+                                        evolutionText = 'Cambio cualitativo';
+                                        evolutionColor = 'text-blue-600';
+                                      }
+
+                                      return (
+                                        <tr key={`comp-${idx}`} className="border-b border-amber-150 bg-white hover:bg-amber-50/20 transition-colors">
+                                          <td className="p-3 font-medium text-gray-800 border border-amber-100">{lr.name}</td>
+                                          <td className="p-3 text-gray-500 border border-amber-100">{prevLr ? prevLr.value : '—'}</td>
+                                          <td className="p-3 font-bold text-gray-900 border border-amber-100">{lr.value}</td>
+                                          <td className={`p-3 border border-amber-100 ${evolutionColor}`}>{evolutionText}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <p className="text-xs text-amber-600 italic">
+                                No se encontraron biomarcadores comparables estructurados entre la sesión anterior y esta.
+                              </p>
+                            );
+                          }
+                        })()}
+
+                        {/* Explicación textual del análisis comparativo */}
+                        {activeSession.medicalComparativeAnalysis && (
+                          <div className="p-3 bg-white rounded-lg border border-amber-150 text-sm text-gray-700 whitespace-pre-line leading-relaxed shadow-sm">
+                            {activeSession.medicalComparativeAnalysis}
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Tabla de laboratorio compacta */}
-                    {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs md:text-sm border-collapse border border-red-200 rounded-lg overflow-hidden">
+                    {/* Tabla de laboratorio compacta — Roja y no drag-and-drop */}
+                    {((activeSession.labResults && activeSession.labResults.length > 0) || activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').length > 0) && (
+                      <div className="overflow-x-auto my-3">
+                        <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
                           <thead>
-                            <tr className="bg-red-100">
-                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Marcador</th>
-                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor</th>
-                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Anterior</th>
-                              <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Interpretación</th>
+                            <tr className="bg-red-600 text-white">
+                              <th className="text-left p-3 font-semibold border border-red-300">Biomarcador / Examen</th>
+                              <th className="text-left p-3 font-semibold border border-red-300">Valor Encontrado</th>
+                              <th className="text-left p-3 font-semibold border border-red-300">Rango de Referencia</th>
+                              <th className="text-left p-3 font-semibold border border-red-300">Estado / Alerta</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').map((item) => {
-                              const lr = item.details?.labResults?.[0];
-                              const trendEmoji = lr?.trend === 'improving' ? '🟢 ↑' :
-                                lr?.trend === 'worsening' ? '🔴 ↓' :
-                                lr?.trend === 'stable' ? '🟡 →' : '⚪ nuevo';
+                            {/* Primero renderizamos los labResults estructurados de la sesión */}
+                            {activeSession.labResults?.map((lr: LabResult, idx: number) => {
+                              const statusColors = lr.status === 'alto' ? 'bg-red-100 text-red-800 font-bold' :
+                                lr.status === 'bajo' ? 'bg-orange-100 text-orange-800 font-bold' :
+                                'bg-green-100 text-green-800';
                               return (
-                                <tr key={item.id} className="border-b border-red-100 hover:bg-red-50/30">
-                                  <td className="p-2 font-medium text-gray-800 border border-red-100">{lr?.marker || item.description}</td>
-                                  <td className="p-2 text-gray-700 border border-red-100">{lr?.currentValue || '—'}</td>
-                                  <td className="p-2 text-gray-500 border border-red-100">{lr?.previousValue || '—'}</td>
-                                  <td className="p-2 text-gray-600 border border-red-100">{trendEmoji} {lr?.interpretation || ''}</td>
+                                <tr key={`lab-${idx}`} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
+                                  <td className="p-3 font-medium text-gray-800 border border-red-100">{lr.name}</td>
+                                  <td className="p-3 font-bold text-gray-900 border border-red-100">{lr.value}</td>
+                                  <td className="p-3 text-gray-500 border border-red-100">{lr.range || 'N/A'}</td>
+                                  <td className="p-3 border border-red-100">
+                                    <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
+                                      {lr.status.toUpperCase()}
+                                    </span>
+                                  </td>
                                 </tr>
                               );
                             })}
+                            {/* Luego renderizamos los resultados de laboratorio del checklist si no están duplicados */}
+                            {activeSession.checklist
+                              .filter(i => i.category === 'medical' && i.type === 'lab_result')
+                              .map((item: ChecklistItem, idx: number) => {
+                                const lr = item.details?.labResults?.[0];
+                                const name = lr?.marker || item.description;
+                                // Evitar duplicados si ya está en labResults
+                                if (activeSession.labResults?.some((existing: LabResult) => existing.name.toLowerCase() === name.toLowerCase())) {
+                                  return null;
+                                }
+                                const status = lr?.trend === 'worsening' ? 'alto' : lr?.trend === 'improving' ? 'normal' : 'normal';
+                                const statusColors = status === 'alto' ? 'bg-red-100 text-red-800 font-bold' : 'bg-green-100 text-green-800';
+                                return (
+                                  <tr key={`chk-lab-${idx}`} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
+                                    <td className="p-3 font-medium text-gray-800 border border-red-100">{name}</td>
+                                    <td className="p-3 font-bold text-gray-900 border border-red-100">{lr?.currentValue || '—'}</td>
+                                    <td className="p-3 text-gray-500 border border-red-100">{lr?.previousValue ? `Prev: ${lr.previousValue}` : 'N/A'}</td>
+                                    <td className="p-3 border border-red-100">
+                                      <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
+                                        {lr?.interpretation || status.toUpperCase()}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                           </tbody>
                         </table>
                       </div>
@@ -2356,13 +2502,15 @@ export default function AIRecommendationsModal({
                       )}
                     </div>
 
-                    {/* Suplementos */}
-                    {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 && (
-                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                        <h5 className="font-semibold text-amber-700 mb-2 text-sm">💊 Suplementos Recomendados</h5>
-                        <div className="space-y-2">
+                    {/* Sección de Suplementos / Plan Alimenticio Alternativo */}
+                    {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 ? (
+                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
+                        <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
+                          <span>💊</span> Suplementación Estratégica Recomendada
+                        </h5>
+                        <div className="space-y-3">
                           {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
-                            <div key={item.id} className="flex items-start gap-2 py-1 border-b border-amber-100 last:border-0">
+                            <div key={item.id} className="flex items-start gap-2 py-2 border-b border-amber-100 last:border-0">
                               <div
                                 onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
                                 className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
@@ -2370,22 +2518,33 @@ export default function AIRecommendationsModal({
                                 {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>
                                   {item.description}
                                 </span>
-                                {item.details?.supplementInfo && (
-                                  <div className="mt-1 ml-4 pl-2 border-l-2 border-amber-200 text-xs text-gray-600">
-                                    <p><span className="font-medium">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-medium">Momento:</span> {item.details.supplementInfo.timing}</p>
-                                    <p className="text-gray-500 mt-0.5">{item.details.supplementInfo.rationale}</p>
+                                {item.details?.supplementInfo ? (
+                                  <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
+                                    <p><span className="font-semibold">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">Momento:</span> {item.details.supplementInfo.timing}</p>
+                                    <p className="text-gray-500"><span className="font-semibold">Razón científica:</span> {item.details.supplementInfo.rationale}</p>
                                     {item.details.supplementInfo.contraindications && (
-                                      <p className="text-red-500 mt-0.5">⚠️ {item.details.supplementInfo.contraindications}</p>
+                                      <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {item.details.supplementInfo.contraindications}</p>
                                     )}
                                   </div>
-                                )}
+                                ) : item.notes ? (
+                                  <p className="text-xs text-gray-500 mt-1 ml-2">{item.notes}</p>
+                                ) : null}
                               </div>
                             </div>
                           ))}
                         </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
+                        <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
+                          <span>🥗</span> Optimización Nutricional sin Suplementos
+                        </h5>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado en la sección de <strong>Nutrición</strong>, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores (como glucemia, perfil lipídico y marcadores inflamatorios) en un promedio de <strong>5 a 10 puntos</strong> al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
+                        </p>
                       </div>
                     )}
 
