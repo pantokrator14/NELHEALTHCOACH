@@ -6,10 +6,10 @@ import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
-import { ChecklistItem, AIRecommendationSession } from '../../../../../../../../packages/types/src/healthForm';
+import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationError } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
-import { analyzeS3PDFWithGemini } from '@/app/lib/agents/utils/llm';
+import { analyzeS3FileWithGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
 
 function decryptAISessionCompletely(session: any): any {
@@ -18,6 +18,8 @@ function decryptAISessionCompletely(session: any): any {
       ...session,
       summary: safeDecrypt(session.summary),
       vision: safeDecrypt(session.vision),
+      medicalSummary: safeDecrypt(session.medicalSummary) || '',
+      medicalComparativeAnalysis: safeDecrypt(session.medicalComparativeAnalysis) || '',
       weeks: session.weeks?.map((week: any) => ({
         weekNumber: week.weekNumber,
         nutrition: {
@@ -300,7 +302,7 @@ export async function POST(
           documentType: d.documentType || 'other',
           confidence: d.confidence || 0,
         })),
-        previousSessions: aiInput.previousSessions || [],
+        previousSessions: (aiInput.previousSessions || []) as any,
         coachNotes: aiInput.coachNotes || '',
         monthNumber,
       });
@@ -447,17 +449,25 @@ export async function POST(
         },
       }];
 
+      const generationError = aiInput.failedDocumentAnalyses.length > 0 ? {
+        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error de Gemini (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
+        timestamp: new Date(),
+      } : null;
+
       const encryptedSession = {
         sessionId,
         monthNumber,
-        totalWeeks: 12,
+        totalWeeks: 4,
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'draft',
         summary: encrypt(compositeResult.clientInsights?.summary || ''),
         vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
-        medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
+        medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || aiInput.extractedMedicalSummary || ''),
         medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
+        labResults: aiInput.allLabResults && aiInput.allLabResults.length > 0 
+          ? aiInput.allLabResults 
+          : (compositeResult.clientInsights?.labResults || []),
         baselineMetrics: {
           currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
           targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
@@ -483,6 +493,7 @@ export async function POST(
               exerciseConsistency: 0,
               habitFormation: 0,
             },
+            ...(generationError && { generationError }),
           },
         },
       };
@@ -494,6 +505,7 @@ export async function POST(
 
       loggerWithContext.info('AI', 'Recomendaciones guardadas exitosamente', {
         sessionId,
+        hasGenerationError: !!generationError,
       });
 
       return NextResponse.json({
@@ -505,6 +517,7 @@ export async function POST(
           message: 'Recomendaciones generadas exitosamente.',
           clientId: id,
           requestId,
+          generationError,
         },
       });
 
@@ -794,8 +807,26 @@ export async function PUT(
   });
 }
 
+// ─── Helper: Extraer JSON limpio de respuestas de Gemini ───────────
+/**
+ * Gemini a veces devuelve JSON envuelto en bloques de código markdown
+ * (```json ... ```) en lugar de JSON plano. Esta función sanitiza eso.
+ */
+function extractJSONFromMarkdown(text: string): string {
+  // Patrón: ```json ... ``` o ``` ... ```
+  const codeBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)\n?```/;
+  const match = text.match(codeBlockRegex);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return text.trim();
+}
+
 // Funciones auxiliares
-async function prepareAIInput(client: any, requestId: string): Promise<any> {
+async function prepareAIInput(
+  client: any,
+  requestId: string
+): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
 
   loggerWithContext.debug('AI', 'Preparando entrada para IA');
@@ -830,11 +861,13 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     return acc;
   }, {} as any);
 
-  // 📄 DOCUMENTOS REALES: Usar Gemini para leerlos nativamente desde S3
   const processedDocs: Array<{
     title: string; content: string; processedAt?: string; confidence?: number;
     type?: string; pageCount?: number; language?: string;
   }> = [];
+  const failedDocumentAnalyses: GenerationError[] = [];
+  let allLabResults: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }> = [];
+  let extractedMedicalSummary = '';
 
   if (client.medicalData?.documents && Array.isArray(client.medicalData.documents) && client.medicalData.documents.length > 0) {
     loggerWithContext.debug('AI', 'Analizando documentos reales con Gemini nativo', {
@@ -854,34 +887,75 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
             attempt: attempt + 1
           });
 
-          const analysis = await analyzeS3PDFWithGemini(s3Key, fileName,
-            'Eres un analista médico. Extrae y organiza toda la información clínica relevante de este documento.'
+          // Prompt para pedir JSON con resultados de laboratorio
+          const analysis = await analyzeS3FileWithGemini(s3Key, fileName,
+            `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
+- "medicalSummary": Un resumen conciso de los hallazgos principales.
+- "medicalComparativeAnalysis": Si hay datos históricos, un análisis comparativo. Si no, indica que no aplica.
+- "labResults": Un array de objetos, donde cada objeto representa un resultado de laboratorio con "name", "value", "range", y "status" ('normal', 'alto', 'bajo'). Si no hay resultados de laboratorio explícitos, deja el array vacío.
+- "supplementRecommendations": Un array de objetos para suplementos recomendados con "name", "dosage", "timing", "rationale", "contraindications". Si no hay, deja el array vacío.`
           );
 
           if (analysis && analysis.length > 20) {
-            return {
-              title: fileName,
-              content: analysis.substring(0, 10000),
-              processedAt: new Date().toISOString(),
-              confidence: 1,
-              type: 'document',
-              pageCount: 1,
-              language: 'es'
-            };
+            try {
+              const cleanJSON = extractJSONFromMarkdown(analysis);
+              const parsedAnalysis = JSON.parse(cleanJSON) as {
+                medicalSummary?: string;
+                medicalComparativeAnalysis?: string;
+                labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
+                supplementRecommendations?: Array<any>; // Add supplement recommendations
+              };
+
+              if (parsedAnalysis.labResults) {
+                allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+              }
+              // TODO: Handle supplementRecommendations if needed for the composite result or separate storage
+
+              return {
+                title: fileName,
+                content: JSON.stringify(parsedAnalysis), // Store parsed JSON as content
+                processedAt: new Date().toISOString(),
+                confidence: 1,
+                type: 'document',
+                pageCount: 1,
+                language: 'es',
+                medicalSummary: parsedAnalysis.medicalSummary,
+                medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
+                labResults: parsedAnalysis.labResults,
+                supplementRecommendations: parsedAnalysis.supplementRecommendations, // Pass supplement recommendations
+              };
+            } catch (parseError) {
+              loggerWithContext.error('AI', 'Error parseando JSON de Gemini', parseError as Error, { fileName });
+              throw new Error(`Error parseando la respuesta JSON de Gemini para ${fileName}`);
+            }
           }
           return null;
         } catch (error: any) {
           const is503 = error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
-          if (is503 && attempt < 2) {
+          const is404 = error?.message?.includes('404'); // Add 404 check
+          const statusCode = error?.status || (is503 ? 503 : (is404 ? 404 : 500));
+          const errorMessage = error?.message || 'Error desconocido al analizar documento';
+
+          if ((is503 || is404) && attempt < 2) { // Retry for 404 as well
             const delay = Math.pow(2, attempt) * 2000; // 2s, 4s
-            loggerWithContext.warn('AI', `503 en ${fileName}, reintento ${attempt + 2}/3 en ${delay}ms`);
+            loggerWithContext.warn('AI', `${statusCode} en ${fileName}, reintento ${attempt + 2}/3 en ${delay}ms`);
             await new Promise(r => setTimeout(r, delay));
             continue;
           }
+
+          const errorObj: GenerationError = {
+            message: `Falló el análisis de ${fileName}: ${errorMessage}`,
+            timestamp: new Date(),
+            documentName: fileName,
+            statusCode,
+            stack: error?.stack,
+          };
           loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
-            fileName: doc?.name || 'unknown'
+            fileName: doc?.name || 'unknown',
+            errorDetails: errorMessage,
+            statusCode,
           });
-          return null;
+          return errorObj; // Return error object instead of null
         }
       }
       return null;
@@ -889,12 +963,26 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
 
     const totalAttempted = client.medicalData.documents.length;
     const results = await Promise.all(docPromises);
-    for (const r of results) { if (r) processedDocs.push(r); }
+    for (const r of results) {
+      if (r && !(r as GenerationError).message) { // It's a processed document
+        processedDocs.push(r as any);
+      } else if (r) { // It's a GenerationError
+        failedDocumentAnalyses.push(r as GenerationError);
+      }
+    }
 
     const successCount = processedDocs.length;
-    const failCount = totalAttempted - successCount;
+    const failCount = failedDocumentAnalyses.length;
     if (failCount > 0) {
-      loggerWithContext.warn('AI', `${failCount}/${totalAttempted} documentos no pudieron analizarse (503 persistente).`);
+      loggerWithContext.warn('AI', `${failCount}/${totalAttempted} documentos no pudieron analizarse.`);
+    }
+
+    // Extraer el mejor medicalSummary de los documentos procesados por Gemini
+    const docSummaries = (processedDocs as any[])
+      .filter(d => d.medicalSummary)
+      .map(d => d.medicalSummary);
+    if (docSummaries.length > 0) {
+      extractedMedicalSummary = docSummaries.join('\n\n');
     }
   }
 
@@ -904,12 +992,12 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
   // Preparar historial de checklist si existe
   const previousChecklistStatus = [];
   if (client.aiProgress?.sessions) {
-    for (const session of client.aiProgress.sessions) {
+    for (const session of client.aiProgress.sessions as AIRecommendationSession[]) { // Cast to AIRecommendationSession
       if (session.checklist && Array.isArray(session.checklist)) {
         // Filtrar solo items completados para mostrar progreso
         const completedItems = session.checklist
-        .filter((item: { completed: any; }) => item.completed)
-        .map((item: { description: any; completedDate: any; }) => ({
+        .filter((item: ChecklistItem) => item.completed)
+        .map((item: ChecklistItem) => ({
           description: safeDecrypt(item.description || ''),
           completed: true,
           completedDate: item.completedDate
@@ -982,7 +1070,8 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     medicalDataKeys: Object.keys(medicalData),
     processedDocsCount: processedDocs.length,
     totalDocs: allDocuments.length,
-    documentHistoryCount: documentHistory.length
+    documentHistoryCount: documentHistory.length,
+    failedDocumentAnalysesCount: failedDocumentAnalyses.length,
   });
 
   return {
@@ -994,12 +1083,15 @@ async function prepareAIInput(client: any, requestId: string): Promise<any> {
     documentHistory, // ✅ Historial de procesamientos
     previousChecklistStatus,
     previousSessions: client.aiProgress?.sessions || [],
+    allLabResults, // All lab results from documents
+    extractedMedicalSummary, // Resumen médico extraído de PDFs
     // Información adicional para el prompt
     meta: {
       totalProcessedDocuments: processedDocs.length,
       hasDocumentHistory: documentHistory.length > 0,
       lastDocumentProcessed: client.medicalData?.lastDocumentProcessed
-    }
+    },
+    failedDocumentAnalyses,
   };
 }
 
@@ -1525,7 +1617,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
         documentType: d.documentType || 'other',
         confidence: d.confidence || 0,
       })),
-      previousSessions: aiInput.previousSessions || [],
+      previousSessions: (aiInput.previousSessions || []) as any,
       coachNotes: aiInput.coachNotes || '',
       monthNumber: existingSession.monthNumber,
     });
@@ -1675,7 +1767,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     const newSession: AIRecommendationSession = {
       sessionId: newSessionId,
       monthNumber: existingSession.monthNumber,
-      totalWeeks: 12,
+      totalWeeks: 4,
       createdAt: existingSession.createdAt,
       updatedAt: new Date(),
       status: 'draft',
@@ -1683,6 +1775,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
       medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
       medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
+      labResults: compositeResult.clientInsights?.labResults || [],
       baselineMetrics: {
         currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
         targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],

@@ -170,6 +170,8 @@ export interface PDFRecommendationData {
     vision: string;
     medicalSummary?: string;
     medicalComparativeAnalysis?: string;
+    index?: number; // 0 = primera sesión, 1+ = siguientes
+    labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
   };
   checklist: PDFChecklistItem[];
   weeks: PDFWeekData[];
@@ -486,12 +488,13 @@ function buildVisionSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData
 }
 
 /** Medical Analysis section */
-function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
+function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number, sessionIndex: number): number {
   let y = checkSpace(doc, startY, 60);
-  const hasMedical = data.session.medicalSummary || data.session.medicalComparativeAnalysis;
-  if (!hasMedical) return y;
+  const hasLabResults = data.session.labResults && data.session.labResults.length > 0;
+  const hasMedicalText = data.session.medicalSummary;
+  if (!hasLabResults && !hasMedicalText) return y;
 
-  // Banner rojo para análisis médico
+  // Banner rojo
   doc.save();
   drawRect(doc, MARGIN, y, USABLE_WIDTH, 28, '#C62828');
   doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
@@ -499,38 +502,82 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
   y += 34;
   doc.restore();
 
+  // ── TABLA DE LABORATORIOS ──
+  if (hasLabResults) {
+    const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.2, USABLE_WIDTH * 0.28, USABLE_WIDTH * 0.2];
+    const rowH = 18;
+
+    // Cabecera
+    doc.save();
+    drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
+    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(8);
+    ['Indicador', 'Valor', 'Rango referencia', 'Estado'].forEach((h, i) => {
+      doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 4, { width: colWidths[i], align: 'left' });
+    });
+    y += rowH + 1;
+    doc.restore();
+
+    // Filas
+    for (let ri = 0; ri < data.session.labResults!.length; ri++) {
+      const lab = data.session.labResults![ri];
+      const isEven = ri % 2 === 0;
+      const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
+      const rowY = y;
+
+      doc.save();
+      drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
+      doc.fillColor(COLORS.text).font('Helvetica').fontSize(7.5);
+
+      const vals = [lab.name, lab.value, lab.range, lab.status.toUpperCase()];
+      const statusColor = lab.status === 'normal' ? '#2E7D32' : '#C62828';
+      vals.forEach((v, i) => {
+        const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+        if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
+        else doc.fillColor(COLORS.text).font('Helvetica');
+        doc.text(v || '', cx, rowY + 4, { width: colWidths[i], align: 'left' });
+      });
+
+      y = rowY + rowH;
+      doc.restore();
+    }
+    y += 12;
+  }
+
+  // ── TEXTO DEL ANÁLISIS ──
   if (data.session.medicalSummary) {
-    doc.save().fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
-    doc.text('Resumen de hallazgos clínicos', MARGIN, y);
-    y += doc.currentLineHeight() + 8;
-    doc.fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+    doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
     y = drawJustifiedText(doc, data.session.medicalSummary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
     y += 12;
     doc.restore();
   }
 
-  if (data.session.medicalComparativeAnalysis) {
-    y = checkSpace(doc, y, 20);
-    doc.save().fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
-    doc.text('Análisis comparativo entre documentos', MARGIN, y);
-    y += doc.currentLineHeight() + 8;
-    doc.fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+  // ── ANÁLISIS COMPARATIVO (solo desde sesión 2+) ──
+  if (sessionIndex >= 1 && data.session.medicalComparativeAnalysis) {
+    y = checkSpace(doc, y, 30);
+    doc.save();
+    drawRect(doc, MARGIN, y, USABLE_WIDTH, 24, '#C62828');
+    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
+    doc.text('Análisis comparativo vs sesiones anteriores', MARGIN + 10, y + 5);
+    y += 30;
+    doc.restore();
+
+    doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
     y = drawJustifiedText(doc, data.session.medicalComparativeAnalysis, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
     y += 12;
     doc.restore();
   }
 
-  // Disclaimer
+  // ── DISCLAIMER ──
   y = checkSpace(doc, y, 20);
   doc.save()
-    .fillColor(COLORS.darkGray)
+    .fillColor('#C62828')
     .font('Helvetica-Oblique')
-    .fontSize(8);
+    .fontSize(7.5);
   const disclaimer = '⚠️ Las presentes recomendaciones no son un substituto a las consultas médicas profesionales. Consultar con un médico y/o profesional de la salud de confianza previamente.';
-  drawRect(doc, MARGIN, y, USABLE_WIDTH, 28, '#FFF8E1');
-  doc.fillColor(COLORS.darkGray);
+  drawRect(doc, MARGIN, y, USABLE_WIDTH, 26, '#FFEBEE');
+  doc.fillColor('#C62828');
   doc.text(disclaimer, MARGIN + 10, y + 8, { width: USABLE_WIDTH - 20, align: 'center' });
-  y += 34;
+  y += 32;
   doc.restore();
 
   return y;
@@ -1424,7 +1471,7 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       y = buildVisionSection(doc, data, y);
       
       // === MEDICAL ANALYSIS ===
-      y = buildMedicalAnalysisSection(doc, data, y);
+      y = buildMedicalAnalysisSection(doc, data, y, data.session.index ?? 0);
       
       // === NUTRITION PLAN ===
       y = buildNutritionPlan(doc, data, y + 10);
