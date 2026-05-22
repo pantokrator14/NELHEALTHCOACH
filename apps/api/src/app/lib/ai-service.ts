@@ -365,7 +365,7 @@ export class AIService {
 
     
     return loggerWithContext.time('AI_SERVICE', metadata?.isRegeneration ? '🔄 Regenerando recomendaciones' : '🚀 Generando recomendaciones', async () => {
-        let totalWeeksToGenerate = 12; // Todas las nuevas sesiones son de 12 semanas (3 meses)
+        let totalWeeksToGenerate = 4; // Todas las nuevas sesiones son de 4 semanas (1 mes)
         
         // Si es regeneración, usar el total de semanas de la sesión anterior
         if (metadata?.isRegeneration && metadata.previousSessionId && input.previousSessions) {
@@ -601,7 +601,7 @@ export class AIService {
 
         console.log('=== DEBUG: Creando sesión completa ===');
         
-        // totalWeeksToGenerate ya definida al inicio de la función (12 semanas para nuevas sesiones)
+        // totalWeeksToGenerate ya definida al inicio de la función (4 semanas para nuevas sesiones)
         
         // Crear sesión
         const sessionId = metadata?.isRegeneration 
@@ -679,18 +679,18 @@ export class AIService {
      // Calcular nivel de experiencia
      const experienceLevel = this.calculateExperienceLevel(previousSessions, currentProgress);
      
-      // Determinar si generamos plan completo de 12 semanas (todas las nuevas sesiones son 12 semanas)
-      const isFull12WeekPlan = totalWeeks === 12;
+      // Determinar si generamos plan completo (todas las nuevas sesiones son de 4 semanas)
+      const isFullMonthPlan = totalWeeks >= 4;
       const startWeek = 1; // Siempre comenzar desde semana 1 para la sesión actual
       const endWeek = totalWeeks; // Terminar en el total de semanas
     
     // ===== SISTEMA Y ROL =====
-    const systemRole = `Eres experto en nutrición keto terapéutica y ejercicio inteligente. Crea un plan de 12 semanas (3 meses) para ${clientName} (nivel: ${experienceLevel}). Incluye:
+    const systemRole = `Eres experto en nutrición keto terapéutica y ejercicio inteligente. Crea un plan de 4 semanas (1 mes) para ${clientName} (nivel: ${experienceLevel}). Incluye:
 1. NUTRICIÓN KETO TERAPÉUTICA: Elimina azúcar, alcohol, gluten, procesados. Prioriza alimentos orgánicos. 3 comidas/día. Incluye macros, calorías y propósito metabólico.
 2. EJERCICIO INTELIGENTE: Miércoles, sábado, domingo. Incluye sets, repeticiones, progresión.
 3. HÁBITOS: 1-2 hábitos semanales (adoptar/eliminar).
 
-Genera 12 semanas detalladas con progresión clara.`;
+Genera 4 semanas detalladas con progresión clara.`;
 
     // ===== REGLAS ABSOLUTAS =====
     const absoluteRules = `REGLAS:
@@ -747,7 +747,7 @@ Genera 12 semanas detalladas con progresión clara.`;
 Ocupación: ${this.safeDecryptString(personalData.occupation) || 'N/A'}
 Ubicación: ${this.safeDecryptString(personalData.address) || 'N/A'}
 Nivel: ${experienceLevel}
-Plan: ${isFull12WeekPlan ? '12 semanas (3 meses) completo' : `Mes ${monthNumber} (semanas ${startWeek}-${endWeek})`}`;
+Plan: ${isFullMonthPlan ? '4 semanas (1 mes) completo' : `Mes ${monthNumber} (semanas ${startWeek}-${endWeek})`}`;
 
     // ===== DATOS MÉDICOS ESENCIALES =====
     const medicalInfo = this.formatMedicalDataConcise(medicalData);
@@ -834,7 +834,7 @@ Plan: ${isFull12WeekPlan ? '12 semanas (3 meses) completo' : `Mes ${monthNumber}
     const responseSchema = `\n🎯 JSON (estructura mínima):
 {
   "summary": "Resumen estado cliente",
-  "vision": "Resultados esperados tras ${isFull12WeekPlan ? '12 semanas' : '4 semanas'}",
+  "vision": "Resultados esperados tras 4 semanas (1 mes)",
   "baselineMetrics": {
     "currentLifestyle": ["hábito1", "hábito2"],
     "targetLifestyle": ["objetivo1", "objetivo2"]
@@ -917,7 +917,7 @@ ${specificConsiderations}
 ${responseSchema}
 
 📋 INSTRUCCIONES FINALES:
-• Genera un plan realista, personalizado y progresivo adaptado al nivel ${experienceLevel}${isFull12WeekPlan ? ' para el plan completo de 12 semanas' : ` y mes ${monthNumber}`}.
+• Genera un plan realista, personalizado y progresivo adaptado al nivel ${experienceLevel}${isFullMonthPlan ? ' para el plan completo de 4 semanas (1 mes)' : ` y mes ${monthNumber}`}.
 • Considerar limitaciones físicas, nivel actividad actual, horarios, quién cocina, acceso alimentos.
 • Alimentos accesibles en ${this.safeDecryptString(personalData.address) || 'la ubicación del cliente'}.
 • Ejercicio: Si cliente ya realiza actividad regularmente, NO repetirla. Recomendar actividades complementarias.

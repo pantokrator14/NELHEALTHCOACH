@@ -229,6 +229,21 @@ export interface AIRecommendationSession {
     range: string;
     status: 'normal' | 'alto' | 'bajo';
   }>;
+  /** Análisis médico estructurado: exams (intro→tabla→análisis) + supplements */
+  structuredMedicalAnalysis?: {
+    exams: Array<{
+      intro: string;
+      table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+      analysis: string;
+    }>;
+    supplements: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    }>;
+  };
   baselineMetrics: {
     currentLifestyle: string[];
     targetLifestyle: string[];

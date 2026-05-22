@@ -46,6 +46,38 @@ export interface ExercisePlan {
 // ─────────────────────────────────────────────
 // Schema for intermediate medical analysis output
 // ─────────────────────────────────────────────
+
+/** Un biomarcador individual dentro de un panel de laboratorio */
+export interface LabBiomarker {
+  biomarcador: string;
+  valor: string;
+  rango_normal: string;
+  estado: 'Alto' | 'Bajo' | 'Normal';
+}
+
+/** Un panel/examen médico completo con intro, tabla y análisis */
+export interface MedicalExamAnalysis {
+  intro: string;       // Texto introductorio contextual (ej. "El panel de lípidos de Karem Martinez...")
+  table: LabBiomarker[]; // Tabla de biomarcadores
+  analysis: string;    // Análisis clínico derivado exclusivamente de los valores
+}
+
+/** Recomendación de suplemento derivada de biomarcadores alterados */
+export interface SupplementRecommendation {
+  name: string;
+  dosage: string;
+  timing: string;
+  rationale: string;
+  contraindications?: string;
+}
+
+/** Análisis médico estructurado completo */
+export interface StructuredMedicalAnalysis {
+  exams: MedicalExamAnalysis[];
+  supplements: SupplementRecommendation[];
+}
+
+/** Plan de análisis médico por semana (compatibilidad con estructura existente) */
 export interface MedicalAnalysisPlan {
   weekNumber: number;
   focus: string;
@@ -67,6 +99,8 @@ export interface MedicalAnalysisPlan {
     necessary: boolean; // Si es necesario o si la alimentación ya cubre
   }>;
   comparativeNotes?: string; // Notas comparativas para sesiones > 1
+  /** Análisis estructurado nuevo (intro → tabla → análisis por examen) */
+  structuredAnalysis?: StructuredMedicalAnalysis;
 }
 
 // ─────────────────────────────────────────────

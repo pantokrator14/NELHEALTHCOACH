@@ -493,7 +493,7 @@ export function buildValidationPrompt(input: QualityValidatorInput): string {
     ? `### Plan de Análisis Médico:\n${JSON.stringify(input.medicalAnalysisPlan, null, 2)}\n\n`
     : "";
 
-  return `Eres un auditor de calidad en planes de salud integral. Tu tarea es revisar y validar que un plan de 12 semanas sea personalizado, seguro y efectivo.
+  return `Eres un auditor de calidad en planes de salud integral. Tu tarea es revisar y validar que un plan de 4 semanas (1 mes) sea personalizado, seguro y efectivo.
 
 ---
 

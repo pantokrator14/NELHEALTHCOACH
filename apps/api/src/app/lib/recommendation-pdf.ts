@@ -172,6 +172,20 @@ export interface PDFRecommendationData {
     medicalComparativeAnalysis?: string;
     index?: number; // 0 = primera sesión, 1+ = siguientes
     labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
+    structuredMedicalAnalysis?: {
+      exams: Array<{
+        intro: string;
+        table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+        analysis: string;
+      }>;
+      supplements: Array<{
+        name: string;
+        dosage: string;
+        timing: string;
+        rationale: string;
+        contraindications?: string;
+      }>;
+    };
   };
   checklist: PDFChecklistItem[];
   weeks: PDFWeekData[];
@@ -487,12 +501,14 @@ function buildVisionSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   return y;
 }
 
-/** Medical Analysis section */
+/** Medical Analysis section — structured format (intro → table → analysis per exam) */
 function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number, sessionIndex: number): number {
   let y = checkSpace(doc, startY, 60);
+  const hasStructured = data.session.structuredMedicalAnalysis && data.session.structuredMedicalAnalysis.exams.length > 0;
   const hasLabResults = data.session.labResults && data.session.labResults.length > 0;
   const hasMedicalText = data.session.medicalSummary;
-  if (!hasLabResults && !hasMedicalText) return y;
+
+  if (!hasStructured && !hasLabResults && !hasMedicalText) return y;
 
   // Banner rojo
   doc.save();
@@ -502,53 +518,169 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
   y += 34;
   doc.restore();
 
-  // ── TABLA DE LABORATORIOS ──
-  if (hasLabResults) {
-    const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.2, USABLE_WIDTH * 0.28, USABLE_WIDTH * 0.2];
-    const rowH = 18;
+  // ── FORMATO ESTRUCTURADO (nuevo) ──
+  if (hasStructured) {
+    const structured = data.session.structuredMedicalAnalysis!;
 
-    // Cabecera
-    doc.save();
-    drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
-    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(8);
-    ['Indicador', 'Valor', 'Rango referencia', 'Estado'].forEach((h, i) => {
-      doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 4, { width: colWidths[i], align: 'left' });
-    });
-    y += rowH + 1;
-    doc.restore();
+    for (let ei = 0; ei < structured.exams.length; ei++) {
+      const exam = structured.exams[ei];
 
-    // Filas
-    for (let ri = 0; ri < data.session.labResults!.length; ri++) {
-      const lab = data.session.labResults![ri];
-      const isEven = ri % 2 === 0;
-      const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
-      const rowY = y;
+      // Intro
+      y = checkSpace(doc, y, 30);
+      doc.save().fillColor(COLORS.text).font('Helvetica-Oblique').fontSize(FONT_SIZES.small);
+      y = drawJustifiedText(doc, exam.intro, MARGIN, y, USABLE_WIDTH, FONT_SIZES.small);
+      y += 8;
+      doc.restore();
 
+      // Tabla de biomarcadores
+      if (exam.table.length > 0) {
+        y = checkSpace(doc, y, 30);
+        const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.22, USABLE_WIDTH * 0.26, USABLE_WIDTH * 0.2];
+        const rowH = 16;
+
+        // Cabecera
+        doc.save();
+        drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
+        doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7.5);
+        ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'].forEach((h, i) => {
+          doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 3, { width: colWidths[i], align: 'left' });
+        });
+        y += rowH + 1;
+        doc.restore();
+
+        // Filas
+        for (let ri = 0; ri < exam.table.length; ri++) {
+          const row = exam.table[ri];
+          const isEven = ri % 2 === 0;
+          const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
+          const rowY = y;
+
+          y = checkSpace(doc, y, rowH + 5);
+          doc.save();
+          drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
+          doc.fillColor(COLORS.text).font('Helvetica').fontSize(7);
+
+          const vals = [row.biomarcador, row.valor, row.rango_normal, row.estado];
+          const statusColor = row.estado === 'Normal' ? '#2E7D32' : '#C62828';
+          vals.forEach((v, i) => {
+            const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+            if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
+            else doc.fillColor(COLORS.text).font('Helvetica');
+            doc.text(v || '', cx, rowY + 3, { width: colWidths[i], align: 'left' });
+          });
+
+          y = rowY + rowH;
+          doc.restore();
+        }
+        y += 8;
+      }
+
+      // Análisis clínico
+      y = checkSpace(doc, y, 30);
+      doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.small);
+      const analysisLabel = 'Análisis Clínico: ';
+      doc.font('Helvetica-Bold').text(analysisLabel, MARGIN, y);
+      const labelW = doc.widthOfString(analysisLabel);
+      y = drawJustifiedText(doc, exam.analysis, MARGIN + labelW, y, USABLE_WIDTH - labelW, FONT_SIZES.small);
+      y += 8;
+      doc.restore();
+
+      // Divisor entre exámenes
+      if (ei < structured.exams.length - 1) {
+        y = checkSpace(doc, y, 15);
+        drawLine(doc, y, '#FFCDD2', USABLE_WIDTH);
+        y += 10;
+      }
+    }
+
+    // ── SUPLEMENTOS ──
+    if (structured.supplements.length > 0) {
+      y = checkSpace(doc, y, 30);
       doc.save();
-      drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
-      doc.fillColor(COLORS.text).font('Helvetica').fontSize(7.5);
+      drawRect(doc, MARGIN, y, USABLE_WIDTH, 22, '#F57F17');
+      doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.body);
+      doc.text('Suplementación Estratégica Recomendada', MARGIN + 10, y + 4);
+      y += 28;
+      doc.restore();
 
-      const vals = [lab.name, lab.value, lab.range, lab.status.toUpperCase()];
-      const statusColor = lab.status === 'normal' ? '#2E7D32' : '#C62828';
-      vals.forEach((v, i) => {
-        const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
-        if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
-        else doc.fillColor(COLORS.text).font('Helvetica');
-        doc.text(v || '', cx, rowY + 4, { width: colWidths[i], align: 'left' });
-      });
-
-      y = rowY + rowH;
+      for (const supp of structured.supplements) {
+        y = checkSpace(doc, y, 30);
+        doc.save().fillColor(COLORS.text).font('Helvetica-Bold').fontSize(FONT_SIZES.small);
+        doc.text(`• ${supp.name}`, MARGIN + 5, y);
+        y += doc.currentLineHeight() + 2;
+        doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.darkGray);
+        doc.text(`  Dosis: ${supp.dosage} | Momento: ${supp.timing}`, MARGIN + 5, y);
+        y += doc.currentLineHeight() + 2;
+        doc.text(`  Razón: ${supp.rationale}`, MARGIN + 5, y);
+        y += doc.currentLineHeight() + 2;
+        if (supp.contraindications) {
+          doc.fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.small);
+          doc.text(`  ⚠️ Contraindicaciones: ${supp.contraindications}`, MARGIN + 5, y);
+          y += doc.currentLineHeight() + 2;
+        }
+        y += 4;
+        doc.restore();
+      }
+    } else {
+      y = checkSpace(doc, y, 30);
+      drawCard(doc, MARGIN, y, USABLE_WIDTH, 35, '#E8F5E9', '#4CAF50');
+      doc.save().fillColor('#2E7D32').font('Helvetica-Bold').fontSize(FONT_SIZES.small);
+      doc.text('🥗 Optimización Nutricional sin Suplementos', MARGIN + 10, y + 8);
+      doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
+      doc.text('No se requiere suplementación adicional. El plan alimenticio diseñado para tus necesidades metabólicas permitirá regular tus biomarcadores de forma natural.', MARGIN + 10, y + 22, { width: USABLE_WIDTH - 20 });
+      y += 42;
       doc.restore();
     }
-    y += 12;
-  }
+  } else {
+    /* ── FALLBACK: formato antiguo ── */
+    // Tabla de laboratorios
+    if (hasLabResults) {
+      const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.2, USABLE_WIDTH * 0.28, USABLE_WIDTH * 0.2];
+      const rowH = 18;
 
-  // ── TEXTO DEL ANÁLISIS ──
-  if (data.session.medicalSummary) {
-    doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
-    y = drawJustifiedText(doc, data.session.medicalSummary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
-    y += 12;
-    doc.restore();
+      // Cabecera
+      doc.save();
+      drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
+      doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(8);
+      ['Indicador', 'Valor', 'Rango referencia', 'Estado'].forEach((h, i) => {
+        doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 4, { width: colWidths[i], align: 'left' });
+      });
+      y += rowH + 1;
+      doc.restore();
+
+      // Filas
+      for (let ri = 0; ri < data.session.labResults!.length; ri++) {
+        const lab = data.session.labResults![ri];
+        const isEven = ri % 2 === 0;
+        const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
+        const rowY = y;
+
+        doc.save();
+        drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
+        doc.fillColor(COLORS.text).font('Helvetica').fontSize(7.5);
+
+        const vals = [lab.name, lab.value, lab.range, lab.status.toUpperCase()];
+        const statusColor = lab.status === 'normal' ? '#2E7D32' : '#C62828';
+        vals.forEach((v, i) => {
+          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+          if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
+          else doc.fillColor(COLORS.text).font('Helvetica');
+          doc.text(v || '', cx, rowY + 4, { width: colWidths[i], align: 'left' });
+        });
+
+        y = rowY + rowH;
+        doc.restore();
+      }
+      y += 12;
+    }
+
+    // Texto del análisis
+    if (data.session.medicalSummary) {
+      doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+      y = drawJustifiedText(doc, data.session.medicalSummary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
+      y += 12;
+      doc.restore();
+    }
   }
 
   // ── ANÁLISIS COMPARATIVO (solo desde sesión 2+) ──

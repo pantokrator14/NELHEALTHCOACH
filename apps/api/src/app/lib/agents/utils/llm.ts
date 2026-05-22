@@ -653,7 +653,7 @@ export async function callGeminiAPIWithRetry(
       errors.push(`attempt ${attempt + 1}: ${errMsg.substring(0, 150)}`);
 
       if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
+        const delay = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s — increased base for 503 resilience
         logCtx.warn("AI", `[${caller}] Falló intento ${attempt + 1}/${maxRetries + 1}, reintentando en ${delay}ms`, {
           error: errMsg.substring(0, 150),
         });

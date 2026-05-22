@@ -1,17 +1,18 @@
 /**
- * Generación de recomendaciones con un PROMPT ÚNICO COMPUESTO.
+ * Generación de recomendaciones con PIPELINE SECUENCIAL (3 fases).
  *
- * Genera un plan de 7 días (Lunes a Domingo) que se repite durante los 3 meses entre sesiones.
- * Nutrición: 7 días × (desayuno + almuerzo + cena) + lista de compras
- * Ejercicios: días específicos con rutinas
- * Hábitos: hábitos semanales
+ * Fase 1: Analista Clínico — Extrae biomarcadores de documentos médicos (structuredMedicalAnalysis).
+ * Fase 2: Health Coach — Genera plan de nutrición (7 días), ejercicios y hábitos usando Fase 1 como contexto.
+ * Fase 3: Asistente Logístico — Extrae y consolida la lista de compras del weeklyPlan generado en Fase 2.
+ *
+ * Cada fase es una llamada LLM independiente para evitar "atención degradada" en prompts masivos.
  */
 
 import { createDeepSeekJSONLLM, robustJsonParse } from "./agents/utils/llm";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { logger } from "./logger";
 
-// ── Interfaces ──────────────────────────────────────────
+// ── Interfaces de Entrada ──────────────────────────────────
 
 export interface CompositeInput {
   personalData: Record<string, unknown>;
@@ -24,24 +25,45 @@ export interface CompositeInput {
   monthNumber: number;
 }
 
-export interface CompositeOutput {
+// ── Interfaces de Salida por Fase ──────────────────────────
+
+/** Fase 1: Solo análisis médico (estructura inmutable) */
+export interface MedicalOutput {
+  medicalSummary: string;
+  medicalComparativeAnalysis: string;
+  labResults: Array<{
+    name: string;
+    value: string;
+    range: string;
+    status: 'normal' | 'alto' | 'bajo';
+  }>;
+  structuredMedicalAnalysis: {
+    exams: Array<{
+      intro: string;
+      table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+      analysis: string;
+    }>;
+    supplements: Array<{
+      name: string;
+      dosage: string;
+      timing: string;
+      rationale: string;
+      contraindications?: string;
+    }>;
+  };
+}
+
+/** Fase 2: Plan de estilo de vida + clientInsights (sin datos médicos crudos) */
+export interface LifestyleOutput {
   clientInsights: {
     summary: string;
-    vision: string; // Visión a 12 semanas — tan extensa como el summary
+    vision: string;
     keyRisks: string[];
     opportunities: string[];
     experienceLevel: "principiante" | "intermedio" | "avanzado";
     idealWeight: string;
     idealBodyFat: string;
     targetImprovements: string[];
-    medicalSummary: string;  // Análisis detallado de documentos médicos
-    medicalComparativeAnalysis: string;  // Comparativa entre documentos si hay varios
-    labResults?: Array<{
-      name: string;
-      value: string;
-      range: string;
-      status: 'normal' | 'alto' | 'bajo';
-    }>;
   };
   nutritionPlan: {
     weeklyPlan: Array<{
@@ -79,7 +101,83 @@ export interface CompositeOutput {
   }>;
 }
 
-// ── Formateo de datos ──────────────────────────────────
+/** Fase 3: Solo lista de compras (extraída del weeklyPlan de Fase 2) */
+export interface ShoppingListOutput {
+  shoppingList: Array<{ item: string; quantity: string; priority: "high" | "medium" | "low" }>;
+}
+
+// ── Interface de Salida Final (fusión de ambas fases) ──────
+
+export interface CompositeOutput {
+  clientInsights: {
+    summary: string;
+    vision: string;
+    keyRisks: string[];
+    opportunities: string[];
+    experienceLevel: "principiante" | "intermedio" | "avanzado";
+    idealWeight: string;
+    idealBodyFat: string;
+    targetImprovements: string[];
+    medicalSummary: string;
+    medicalComparativeAnalysis: string;
+    labResults?: Array<{
+      name: string;
+      value: string;
+      range: string;
+      status: 'normal' | 'alto' | 'bajo';
+    }>;
+    structuredMedicalAnalysis?: {
+      exams: Array<{
+        intro: string;
+        table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+        analysis: string;
+      }>;
+      supplements: Array<{
+        name: string;
+        dosage: string;
+        timing: string;
+        rationale: string;
+        contraindications?: string;
+      }>;
+    };
+  };
+  nutritionPlan: {
+    weeklyPlan: Array<{
+      day: string;
+      breakfast: string;
+      lunch: string;
+      dinner: string;
+    }>;
+    shoppingList: Array<{ item: string; quantity: string; priority: "high" | "medium" | "low" }>;
+  };
+  exercisePlan: {
+    weeklyRoutine: Array<{
+      day: string;
+      exercises: Array<{
+        name: string;
+        sets: number;
+        repetitions: string;
+        timeUnderTension: string;
+        progression: string;
+      }>;
+    }>;
+    equipment: string[];
+    notes: string;
+  };
+  habitPlan: {
+    toAdopt: Array<{ habit: string; frequency: string; trigger: string }>;
+    toEliminate: Array<{ habit: string; replacement: string }>;
+    trackingMethod: string;
+    motivationTip: string;
+  };
+  alternatives?: Array<{
+    meal: string;
+    recipe: string;
+    description: string;
+  }>;
+}
+
+// ── Formateo de datos ──────────────────────────────────────
 
 function formatPersonalData(data: Record<string, unknown>, sessionCount = 0): string {
   return [
@@ -128,24 +226,94 @@ function formatDocs(docs: Array<{ title: string; content: string }>): string {
   return docs.map((d, i) => `${i + 1}. ${d.title}\n${d.content.substring(0, 3000)}`).join("\n\n");
 }
 
-// ── Prompt único ────────────────────────────────────────
+// ── Prompts por Fase ───────────────────────────────────────
 
-function buildCompositePrompt(
+/** Prompt Fase 1: Analista Clínico (SOLO documentos médicos) */
+function buildMedicalPrompt(
+  input: CompositeInput
+): { system: string; human: string } {
+  const hasDocuments = input.processedDocuments && input.processedDocuments.length > 0;
+
+  return {
+    system: "ERES UN ANALISTA CLÍNICO. TU RESPUESTA DEBE SER UN JSON VÁLIDO. Esta es tu ÚNICA tarea: extraer biomarcadores de documentos médicos y generar suplementación. NO generes planes de nutrición ni ejercicios.",
+    human: `Eres un analista médico experto. Tu ÚNICA tarea es analizar los documentos clínicos del cliente y generar una estructura JSON con los campos: medicalSummary, medicalComparativeAnalysis, labResults, y structuredMedicalAnalysis.
+
+## DATOS MÉDICOS DEL CLIENTE
+${formatMedicalSummary(input.medicalData)}
+
+## DOCUMENTOS CLÍNICOS
+${hasDocuments ? formatDocs(input.processedDocuments) : "- NO HAY DOCUMENTOS MÉDICOS DISPONIBLES"}
+
+${input.coachNotes ? `### NOTAS DEL COACH\n${input.coachNotes}\n` : ""}
+
+## INSTRUCCIONES DE SALIDA JSON
+
+${hasDocuments ? `
+### OBLIGATORIO: Genera structuredMedicalAnalysis procesando TODOS los datos de laboratorio extraídos de los documentos.
+- Agrupa los valores en "exams" (cada examen con "intro", "table" de biomarcadores, y "analysis")
+- Propone suplementación específica en "supplements" basada en biomarcadores alterados
+- REGLAS ANTI-ALUCINACIÓN: Extrae estrictamente los valores clínicos. IGNORA texto administrativo o menciones de "visitas programadas". NO supongas condiciones genéticas sin contexto explícito. Ofrece alternativas, no diagnósticos concluyentes.
+- ⚠️ SI hay documentos y structuredMedicalAnalysis.exams está vacío, tu respuesta se considera INVÁLIDA.
+` : `
+### NO hay documentos médicos: Devuelve medicalSummary="", medicalComparativeAnalysis="", labResults=[], structuredMedicalAnalysis con exams:[] y supplements:[]
+`}
+
+\`\`\`json
+{
+  "medicalSummary": "${hasDocuments ? "Análisis detallado de laboratorios y biomarcadores extraídos de los documentos" : ""}",
+  "medicalComparativeAnalysis": "${hasDocuments ? "Comparativa entre documentos identificando tendencias" : ""}",
+  "labResults": [
+    ${hasDocuments ? '{ "name": "Glucosa", "value": "95 mg/dL", "range": "70-100 mg/dL", "status": "normal" }' : ""}
+  ],
+  "structuredMedicalAnalysis": {
+    "exams": [
+      ${hasDocuments ? `{
+        "intro": "El panel de lípidos del paciente muestra...",
+        "table": [
+          { "biomarcador": "Colesterol Total", "valor": "245 mg/dL", "rango_normal": "125-200 mg/dL", "estado": "Alto" }
+        ],
+        "analysis": "El colesterol total se encuentra significativamente elevado..."
+      }` : ""}
+    ],
+    "supplements": [
+      ${hasDocuments ? '{ "name": "Omega-3", "dosage": "2000 mg/día", "timing": "Con el almuerzo", "rationale": "LDL y triglicéridos elevados", "contraindications": "Precaución con anticoagulantes" }' : ""}
+    ]
+  }
+}
+\`\`\`
+
+Responde SOLO con el JSON, sin texto adicional.`
+  };
+}
+
+/** Prompt Fase 2: Health Coach (estilo de vida + contexto médico de Fase 1) */
+function buildLifestylePrompt(
   input: CompositeInput,
   dbRecipes: Array<{ _id: string; title: string; cookTime: number; difficulty: string; category: string[] }>,
-  dbExercises: Array<{ _id: string; name: string; difficulty: string; clientLevel: string; equipment: string[]; muscleGroups: string[] }>
-): string {
-  // Formatear recetas como referencia
+  dbExercises: Array<{ _id: string; name: string; difficulty: string; clientLevel: string; equipment: string[]; muscleGroups: string[] }>,
+  medicalResult: MedicalOutput
+): { system: string; human: string } {
   const recipeList = dbRecipes.map(r =>
     `- [ID:${r._id}] "${r.title}" (⏱${r.cookTime}min | ${r.difficulty})`
   ).join("\n");
 
-  // Formatear ejercicios como referencia
   const exerciseList = dbExercises.map(e =>
     `- [ID:${e._id}] "${e.name}" (${e.difficulty} | ${e.clientLevel} | ${e.equipment.join(',') || 'sin equipo'})`
   ).join("\n");
 
-  return `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante 12 semanas para este cliente.
+  const medicalContext = medicalResult.structuredMedicalAnalysis.exams.length > 0
+    ? `## ANÁLISIS MÉDICO PREVIO (CONTEXTO INMUTABLE — ÚSALO PARA PERSONALIZAR EL PLAN)
+- Resumen médico: ${medicalResult.medicalSummary}
+- Biomarcadores alterados detectados: ${medicalResult.labResults.filter(lr => lr.status !== 'normal').map(lr => `${lr.name}: ${lr.value} (${lr.status})`).join(', ') || 'Ninguno'}
+- Suplementos recomendados: ${medicalResult.structuredMedicalAnalysis.supplements.map(s => `${s.name} (${s.dosage})`).join(', ') || 'Ninguno'}
+- Considera estos hallazgos al diseñar el plan de nutrición y ejercicios. Evita alimentos que contradigan los biomarcadores alterados.`
+    : '## NO SE DETECTARON DOCUMENTOS MÉDICOS — Diseña el plan basándote únicamente en los datos de estilo de vida del cliente.';
+
+  return {
+    system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado.",
+    human: `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante 4 semanas (1 mes) para este cliente.
+
+${medicalContext}
 
 ## DATOS DEL CLIENTE
 ${formatPersonalData(input.personalData, input.previousSessions.length)}
@@ -159,9 +327,7 @@ ${formatHealthAssess(input.healthAssessment)}
 ### Salud mental
 ${formatMental(input.mentalHealth)}
 
-### Documentos
-${formatDocs(input.processedDocuments)}
-${input.coachNotes ? `\n### NOTAS DEL COACH\n${input.coachNotes}\n` : ""}
+${input.coachNotes ? `### NOTAS DEL COACH\n${input.coachNotes}\n` : ""}
 
 ## RECETAS DISPONIBLES EN LA BASE DE DATOS (DEBES USAR SOLO ESTAS)
 ${recipeList || "- No hay recetas en la DB"}
@@ -172,54 +338,42 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 ## GENERA ESTE JSON USANDO LOS IDs DE LAS LISTAS DE ARRIBA
 
 ### 1. clientInsights — Análisis del cliente (MUY IMPORTANTE: vision debe ser tan extensa como summary)
-- SI hay documentos médicos (sección "Documentos"), genera medicalSummary (análisis detallado de laboratorios, biomarcadores y hallazgos clínicos) y medicalComparativeAnalysis (comparativa entre documentos si hay varios, identificando tendencias y cambios)
-- SI hay documentos, genera también labResults: array con cada valor de laboratorio detectado: name (nombre del indicador), value (valor numérico con unidad), range (rango de referencia), status ("normal"/"alto"/"bajo")
-- SI NO hay documentos, medicalSummary y medicalComparativeAnalysis deben ser strings vacíos "" y labResults array vacío []
+- summary: Análisis detallado del estado actual del cliente
+- vision: Visión igualmente extensa de cómo estará el cliente en 4 semanas (1 mes)
 
 ### 2. nutritionPlan — PLAN DE COMIDAS (7 días)
 - weeklyPlan: array de 7 objetos (Monday a Sunday)
 - Cada día: breakfast, lunch, dinner con el TÍTULO EXACTO de la receta
 - DEBES usar SOLO recetas de la lista de arriba. Copia el título EXACTO
 - shoppingList: lista de compras con cantidades totales
+- IMPORTANTE: Devuelve los ingredientes en una ÚNICA lista unificada. ESTÁ PROHIBIDO categorizar o agrupar por semanas o días.
 
 ### 3. exercisePlan — RUTINA DE EJERCICIOS
 - weeklyRoutine: días específicos (NO todos, típicamente 3-4 días/semana) con exercises[]
 - Cada ejercicio: name con el NOMBRE EXACTO de la lista de arriba
-- DEBES usar SOLO ejercicios de la lista de arriba. Copia el nombre EXACTO
-- SELECCIÓN POR NIVEL: clientLevel debe coincidir con el nivel de experiencia del cliente (principiante/medio/avanzado)
-- SELECCIÓN POR CONTEXTO: elige ejercicios que el cliente PUEDA hacer según su acceso a gimnasio, equipo disponible y preferencias (mira los datos de Salud y estilo de vida)
-- Si el cliente NO tiene acceso a gym, usa SOLO ejercicios de peso corporal (sin equipo). Si tiene gym, puedes usar ejercicios con equipo
-- Considera las limitaciones físicas del cliente (NO asignes ejercicios que no pueda hacer)
-- equipment y notes: en "notes" incluye recomendaciones personalizadas de horarios según la disponibilidad del cliente (mira "Disponibilidad para ejercicio" en los datos), calentamiento, descanso y progresión
+- SELECCIÓN POR NIVEL: clientLevel debe coincidir con el nivel del cliente
+- ⚠️ REGLA DE ORO DE CONCURRENCIA SEMANAL: El plan de ejercicios debe tener una frecuencia ESTRICTA de máximo 3 o 4 días por semana (por ejemplo: Lunes, Miércoles y Viernes). Está rotundamente PROHIBIDO asignar rutinas intensas para los 7 días de la semana.
+- ⚠️ GUARDIA ANTE CONTEXTO VACÍO: Si los campos de 'gymAccess', 'gymAccessDetails' o 'preferredExerciseTypes' vienen vacíos o no especificados en el perfil del cliente, DEBES asumir por defecto que el cliente NO tiene equipo y entrenará en casa. Diseña la rutina usando exclusivamente ejercicios de peso corporal (Bodyweight) y calistenia ligera enfocada en movilidad y fuerza funcional básica.
 
 ### 4. habitPlan — HÁBITOS 
-- toAdopt: array de objetos con: "habit" (nombre descriptivo del hábito, ej: "Beber 2L de agua al día"), "frequency" (diario/semanal), "trigger" (cuándo activarlo)
-- toEliminate: array de objetos con: "habit" (hábito a eliminar, ej: "Comer azúcar procesada"), "replacement" (con qué reemplazarlo, ej: "Frutas frescas")
-- trackingMethod: método de seguimiento
-- motivationTip: consejo motivacional
+- toAdopt: array con "habit", "frequency", "trigger"
+- toEliminate: array con "habit", "replacement"
+- trackingMethod, motivationTip
 
-### 5. alternatives — alternativas de recetas (OBLIGATORIO: generar al menos 3)
-- alternatives: array de objetos con: "meal" (desayuno/almuerzo/cena), "recipe" (TÍTULO EXACTO de la receta de la lista), "description" (por qué es buena alternativa)
-- DEBES generar al menos 3 alternativas variadas usando recetas de la lista disponible
-- Las alternativas son recetas diferentes a las del plan principal, para dar variedad al cliente
+### 5. alternatives — alternativas de recetas (OBLIGATORIO: al menos 3)
+- alternatives: array con "meal", "recipe" (TÍTULO EXACTO), "description"
 
 \`\`\`json
 {
   "clientInsights": {
     "summary": "Análisis detallado y extenso del estado actual del cliente...",
-    "vision": "Visión igualmente extensa y detallada de cómo estará el cliente en 12 semanas...",
+    "vision": "Visión igualmente extensa y detallada de cómo estará el cliente en 4 semanas (1 mes)...",
     "keyRisks": ["..."],
     "opportunities": ["..."],
     "experienceLevel": "principiante|intermedio|avanzado",
     "idealWeight": "XX kg",
     "idealBodyFat": "XX%",
-    "targetImprovements": ["..."],
-    "medicalSummary": "Si hay documentos médicos, análisis detallado de laboratorios y biomarcadores. Si no, cadena vacía.",
-    "medicalComparativeAnalysis": "Si hay múltiples documentos, comparativa entre ellos identificando tendencias. Si no, cadena vacía.",
-    "labResults": [
-      { "name": "Glucosa", "value": "95 mg/dL", "range": "70-100 mg/dL", "status": "normal" },
-      { "name": "Colesterol LDL", "value": "145 mg/dL", "range": "<100 mg/dL", "status": "alto" }
-    ]
+    "targetImprovements": ["..."]
   },
   "nutritionPlan": {
     "weeklyPlan": [
@@ -247,13 +401,83 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 
 IMPORTANTE:
 - USA SOLO recetas y ejercicios de las listas proporcionadas
-- Copia los títulos/nombres EXACTAMENTE como aparecen (incluyendo mayúsculas, paréntesis, etc.)
+- Copia los títulos/nombres EXACTAMENTE como aparecen
 - vision DEBE ser tan extensa y detallada como summary
-- NO asumas el estado civil ni tipo de relación del cliente — usa la información de 'Quién cocina y con quién vive' para entender su contexto real
-- Responde SOLO con el JSON, sin texto adicional`;
+- Responde SOLO con el JSON, sin texto adicional`
+  };
 }
 
-// ── Orquestador principal ───────────────────────────────
+/** Prompt Fase 3: Asistente Logístico (SOLO lista de compras a partir del weeklyPlan) */
+function buildShoppingListPrompt(
+  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>
+): { system: string; human: string } {
+  return {
+    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. PROHIBIDO devolver un array vacío.",
+    human: `Aquí está el plan de comidas semanal:\n\n${JSON.stringify(weeklyPlan, null, 2)}`,
+  };
+}
+
+/**
+ * Ejecuta la Fase 3 (Asistente Logístico) de forma independiente.
+ * Toma un weeklyPlan y devuelve una shoppingList consolidada.
+ * Útil para re-procesar la lista de compras cuando se edita el plan manualmente.
+ */
+export async function generateShoppingListFromWeeklyPlan(
+  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>
+): Promise<ShoppingListOutput> {
+  logger.info("AI", "🛒 FASE 3 (standalone): Extrayendo lista de compras del plan semanal...");
+
+  // Safety delay para evitar rate limiting de Gemini
+  await new Promise(resolve => setTimeout(resolve, 8000));
+
+  const prompt = buildShoppingListPrompt(weeklyPlan);
+  const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)");
+
+  let result: ShoppingListOutput;
+  try {
+    result = robustJsonParse<ShoppingListOutput>(content);
+  } catch (error: any) {
+    logger.error("AI", "❌ Fase 3 (standalone) fallida: No se pudo parsear el JSON", error);
+    throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (error?.message || ""));
+  }
+
+  // Guardia Fail-Fast: lista de compras debe tener al menos 1 elemento
+  if (!result.shoppingList || result.shoppingList.length === 0) {
+    logger.error("AI", "❌ Fase 3 (standalone) fallida: Lista de compras vacía.", new Error("Empty shopping list"));
+    throw new Error("Fase 3 fallida: El LLM no pudo consolidar la lista de compras. Abortando pipeline.");
+  }
+
+  logger.info("AI", "✅ Fase 3 (standalone) completada exitosamente.", {
+    shoppingListItemCount: result.shoppingList.length,
+  });
+
+  return result;
+}
+
+// ── Helpers de invocación LLM ──────────────────────────────
+
+async function invokeLLM(
+  systemMsg: string,
+  humanMsg: string,
+  phaseLabel: string
+): Promise<string> {
+  const llm = createDeepSeekJSONLLM();
+  const response = await llm.invoke([
+    new SystemMessage(systemMsg),
+    new HumanMessage(humanMsg),
+  ]);
+  const content = typeof response.content === "string" ? response.content : "";
+  if (content.length > 0) {
+    logger.info("AI", `${phaseLabel}: LLM respondió con ${content.length} caracteres`);
+  } else {
+    logger.warn("AI", `${phaseLabel}: LLM respondió con contenido vacío`, {
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    });
+  }
+  return content;
+}
+
+// ── Orquestador Principal (Pipeline Secuencial) ────────────
 
 export type CompositeOutputWithIds = CompositeOutput & {
   _recipeIds: Record<string, string>;
@@ -261,15 +485,12 @@ export type CompositeOutputWithIds = CompositeOutput & {
 };
 
 export async function generateCompositeRecommendation(input: CompositeInput): Promise<CompositeOutputWithIds> {
-  const logCtx = logger.withContext({ node: "composite-recommendation" });
+  logger.info("AI", "Iniciando pipeline secuencial de recomendaciones (3 fases)");
 
-  logCtx.info("AI", "Generando recomendación con prompt compuesto");
-
-  // ── 1. Obtener recetas y ejercicios de la DB para pasárselos al LLM ──
+  // ── 0. Obtener recetas y ejercicios de la DB ──
   const { getRecipesCollection, getExerciseCollection } = await import("./database");
   const { decrypt: dbDecrypt } = await import("./encryption");
 
-  // Recetas: traer todas (títulos desencriptados + datos clave)
   const recipesColl = await getRecipesCollection();
   const recipeDocs = await recipesColl.find({ isPublished: true }).limit(80).toArray();
   const dbRecipes = recipeDocs.map((d) => ({
@@ -279,9 +500,8 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     difficulty: dbDecrypt((d.difficulty as string) || 'easy'),
     category: ((d.category as string[]) || []).map((c: string) => dbDecrypt(c)),
   }));
-  logCtx.info("AI", `${dbRecipes.length} recetas obtenidas de la DB para referencia`);
+  logger.info("AI", `${dbRecipes.length} recetas obtenidas de la DB`);
 
-  // Ejercicios: traer todos
   const exercisesColl = await getExerciseCollection();
   const exerciseDocs = await exercisesColl.find({ isPublished: true }).limit(80).toArray();
   const dbExercises = exerciseDocs.map((d) => ({
@@ -292,117 +512,113 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     equipment: ((d.equipment as string[]) || []).map((e: string) => dbDecrypt(e)),
     muscleGroups: ((d.muscleGroups as string[]) || []).map((m: string) => dbDecrypt(m)),
   }));
-  logCtx.info("AI", `${dbExercises.length} ejercicios obtenidos de la DB para referencia`);
+  logger.info("AI", `${dbExercises.length} ejercicios obtenidos de la DB`);
 
-  // ── 2. Construir prompt y llamar al LLM ──
-  const llm = createDeepSeekJSONLLM();
-  const prompt = buildCompositePrompt(input, dbRecipes, dbExercises);
+  const hasDocuments = input.processedDocuments && input.processedDocuments.length > 0;
 
-  let content = "";
+  // ══════════════════════════════════════════════════════════
+  // FASE 1: Analista Clínico — Extracción médica aislada
+  // ══════════════════════════════════════════════════════════
+
+  logger.info("AI", "🔬 FASE 1: Iniciando análisis médico...");
+  const medicalPrompt = buildMedicalPrompt(input);
+  const medicalContent = await invokeLLM(medicalPrompt.system, medicalPrompt.human, "FASE 1");
+
+  let medicalResult: MedicalOutput;
   try {
-    const response = await llm.invoke([
-      new SystemMessage("Eres un entrenador de salud integral. Selecciona recetas y ejercicios de la lista proporcionada para diseñar un plan personalizado. Responde EXACTAMENTE con el JSON solicitado."),
-      new HumanMessage(prompt),
-    ]);
-    content = typeof response.content === "string" ? response.content : "";
-    if (content.length > 0) {
-      logCtx.info("AI", `LLM respondió con ${content.length} caracteres, primeros 100: ${content.substring(0, 100)}`);
-    } else {
-      logCtx.warn("AI", "LLM respondió con contenido vacío");
-    }
-  } catch (err: any) {
-    logCtx.error("AI", "Error llamando al LLM", err, {
-      message: err?.message?.substring(0, 200)
-    });
+    medicalResult = robustJsonParse<MedicalOutput>(medicalContent);
+  } catch (error: any) {
+    logger.error("AI", "❌ Fase 1 fallida: No se pudo parsear el JSON médico", error);
+    throw new Error("Fase 1 fallida: El LLM no devolvió un JSON parseable para el análisis médico. " + (error?.message || ""));
   }
 
-  let result: CompositeOutput;
-
-  try {
-    result = robustJsonParse<CompositeOutput>(content);
-  } catch {
-    logCtx.warn("AI", "Fallo parseo, usando fallback generado por IA");
-    // Fallback completo con datos realistas
-    result = {
-      clientInsights: {
-        summary: "Plan de salud integral generado para el cliente basado en sus datos personales y objetivos de bienestar. Se ha diseñado una estrategia nutricional cetogénica con ejercicio adaptado y formación de hábitos saludables.",
-        vision: "El cliente experimentará una mejora significativa en su energía, composición corporal y salud metabólica en las próximas 12 semanas mediante la adherencia a un plan de nutrición keto, ejercicio regular y desarrollo de hábitos sostenibles.",
-        keyRisks: ["Sedentarismo", "Estrés", "Desinformación nutricional"],
-        opportunities: ["Alta motivación", "Disposición al cambio"],
-        experienceLevel: "principiante",
-        idealWeight: "N/A",
-        idealBodyFat: "N/A",
-        targetImprovements: ["Energía", "Composición corporal", "Salud metabólica"],
-        medicalSummary: "",
-        medicalComparativeAnalysis: "",
-        labResults: []
-      },
-      nutritionPlan: {
-        weeklyPlan: [
-          { day: "Monday", breakfast: "Huevos revueltos con aguacate", lunch: "Pechuga de pollo con ensalada", dinner: "Salmón con espárragos" },
-          { day: "Tuesday", breakfast: "Omelette de espinacas", lunch: "Ensalada de atún", dinner: "Pollo al horno con verduras" },
-          { day: "Wednesday", breakfast: "Huevos revueltos con aguacate", lunch: "Salmón con espárragos", dinner: "Carne molida con calabacín" },
-          { day: "Thursday", breakfast: "Batido de proteína con frutos rojos", lunch: "Pechuga de pollo con ensalada", dinner: "Pescado al vapor con brócoli" },
-          { day: "Friday", breakfast: "Omelette de espinacas", lunch: "Ensalada de atún", dinner: "Pollo al horno con verduras" },
-          { day: "Saturday", breakfast: "Huevos revueltos con aguacate", lunch: "Carne molida con calabacín", dinner: "Salmón con espárragos" },
-          { day: "Sunday", breakfast: "Batido de proteína con frutos rojos", lunch: "Pechuga de pollo con ensalada", dinner: "Pescado al vapor con brócoli" },
-        ],
-        shoppingList: [
-          { item: "Huevos", quantity: "12 unidades", priority: "high" },
-          { item: "Pechuga de pollo", quantity: "1 kg", priority: "high" },
-          { item: "Salmón", quantity: "500 g", priority: "high" },
-          { item: "Aguacate", quantity: "4 unidades", priority: "high" },
-          { item: "Espinacas", quantity: "200 g", priority: "medium" },
-          { item: "Aceite de oliva", quantity: "500 ml", priority: "medium" },
-        ],
-      },
-      exercisePlan: {
-        weeklyRoutine: [{ day: "Monday", exercises: [{ name: "Sentadillas", sets: 3, repetitions: "12", timeUnderTension: "3-1-1", progression: "Aumentar peso" }] }],
-        equipment: [], notes: "Rutina de inicio. Aumentar intensidad progresivamente.",
-      },
-      habitPlan: {
-        toAdopt: [
-          { habit: "Beber 2L de agua al día", frequency: "diario", trigger: "Al despertar" },
-          { habit: "Caminar 30 minutos", frequency: "diario", trigger: "Después de comer" },
-        ],
-        toEliminate: [
-          { habit: "Azúcar procesada", replacement: "Frutas frescas" },
-        ],
-        trackingMethod: "Checklist diario en la app",
-        motivationTip: "Cada pequeño cambio cuenta. Celebra tus logros diarios.",
-      },
-      alternatives: [
-        { meal: "desayuno", recipe: "Omelette de espinacas", description: "Alternativa rica en proteínas" },
-        { meal: "almuerzo", recipe: "Ensalada de atún", description: "Opción ligera y nutritiva" },
-        { meal: "cena", recipe: "Pollo al horno con verduras", description: "Variedad de proteína magra" },
-      ],
-    };
+  // Validación FAIL-FAST: si hay documentos y exams está vacío
+  if (hasDocuments && (!medicalResult.structuredMedicalAnalysis?.exams || medicalResult.structuredMedicalAnalysis.exams.length === 0)) {
+    logger.error("AI", "❌ Fase 1 fallida: El modelo médico no extrajo las tablas.", new Error("Medical model failed to extract tables"));
+    throw new Error("Fase 1 fallida: El modelo médico no extrajo las tablas de biomarcadores. Abortando pipeline.");
   }
 
-  // Validar estructura mínima (nunca dejar campos vacíos como "N/A")
-  if (!result.clientInsights) {
-    result.clientInsights = { summary: "Plan de salud integral generado para el cliente.", vision: "Mejora progresiva en salud y bienestar en 12 semanas.", keyRisks: [], opportunities: [], experienceLevel: "principiante", idealWeight: "N/A", idealBodyFat: "N/A", targetImprovements: [], medicalSummary: "", medicalComparativeAnalysis: "", labResults: [] };
-  } else {
-    // Asegurar campos mínimos
-    if (!result.clientInsights.summary) result.clientInsights.summary = "Plan generado exitosamente.";
-    if (!result.clientInsights.vision) result.clientInsights.vision = "Visión del plan para las próximas 12 semanas.";
+  logger.info("AI", "✅ Fase 1 (Análisis Médico) completada exitosamente.", {
+    examCount: medicalResult.structuredMedicalAnalysis?.exams?.length ?? 0,
+    supplementCount: medicalResult.structuredMedicalAnalysis?.supplements?.length ?? 0,
+    labResultCount: medicalResult.labResults?.length ?? 0,
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // DELAY DE SEGURIDAD: 8 segundos entre fases (evitar 503)
+  // ══════════════════════════════════════════════════════════
+
+  await new Promise(resolve => setTimeout(resolve, 8000));
+
+  // ══════════════════════════════════════════════════════════
+  // FASE 2: Health Coach — Plan de estilo de vida
+  // ══════════════════════════════════════════════════════════
+
+  logger.info("AI", "🏋️ FASE 2: Iniciando plan de estilo de vida...");
+  const lifestylePrompt = buildLifestylePrompt(input, dbRecipes, dbExercises, medicalResult);
+  const lifestyleContent = await invokeLLM(lifestylePrompt.system, lifestylePrompt.human, "FASE 2");
+
+  let lifestyleResult: LifestyleOutput;
+  try {
+    lifestyleResult = robustJsonParse<LifestyleOutput>(lifestyleContent);
+  } catch (error: any) {
+    logger.error("AI", "❌ Fase 2 fallida: No se pudo parsear el JSON de estilo de vida", error);
+    throw new Error("Fase 2 fallida: El LLM no devolvió un JSON parseable para el plan de estilo de vida. " + (error?.message || ""));
+  }
+
+  logger.info("AI", "✅ Fase 2 (Plan de Estilo de Vida) completada exitosamente.", {
+    nutritionDays: lifestyleResult.nutritionPlan?.weeklyPlan?.length ?? 0,
+    exerciseDays: lifestyleResult.exercisePlan?.weeklyRoutine?.length ?? 0,
+    habitCount: lifestyleResult.habitPlan?.toAdopt?.length ?? 0,
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // FASE 3: Asistente Logístico — Lista de compras del weeklyPlan
+  // ══════════════════════════════════════════════════════════
+
+  const shoppingListResult = await generateShoppingListFromWeeklyPlan(lifestyleResult.nutritionPlan.weeklyPlan);
+
+  // ══════════════════════════════════════════════════════════
+  // FUSIÓN FINAL: Combinar Fase 1 + Fase 2 + Fase 3 en CompositeOutput
+  // ══════════════════════════════════════════════════════════
+
+  const result: CompositeOutput = {
+    clientInsights: {
+      ...lifestyleResult.clientInsights,
+      medicalSummary: medicalResult.medicalSummary,
+      medicalComparativeAnalysis: medicalResult.medicalComparativeAnalysis,
+      labResults: medicalResult.labResults,
+      structuredMedicalAnalysis: medicalResult.structuredMedicalAnalysis,
+    },
+    nutritionPlan: {
+      ...lifestyleResult.nutritionPlan,
+      shoppingList: shoppingListResult.shoppingList,
+    },
+    exercisePlan: lifestyleResult.exercisePlan,
+    habitPlan: lifestyleResult.habitPlan,
+    alternatives: lifestyleResult.alternatives,
+  };
+
+  // Validaciones de estructura mínima (throw si faltan secciones críticas)
+  if (!result.clientInsights.summary) {
+    throw new Error("Fusión fallida: clientInsights.summary está vacío tras combinar ambas fases.");
+  }
+  if (!result.clientInsights.vision) {
+    throw new Error("Fusión fallida: clientInsights.vision está vacío tras combinar ambas fases.");
   }
   if (!result.nutritionPlan || !result.nutritionPlan.weeklyPlan || result.nutritionPlan.weeklyPlan.length < 7) {
-    result.nutritionPlan = result.nutritionPlan || { weeklyPlan: [], shoppingList: [] };
-    result.nutritionPlan.weeklyPlan = [
-      { day: "Monday", breakfast: "Huevos revueltos con aguacate", lunch: "Pechuga de pollo con ensalada", dinner: "Salmón con espárragos" },
-      { day: "Tuesday", breakfast: "Omelette de espinacas", lunch: "Ensalada de atún", dinner: "Pollo al horno con verduras" },
-      { day: "Wednesday", breakfast: "Huevos revueltos con aguacate", lunch: "Salmón con espárragos", dinner: "Carne molida con calabacín" },
-      { day: "Thursday", breakfast: "Batido de proteína con frutos rojos", lunch: "Pechuga de pollo con ensalada", dinner: "Pescado al vapor con brócoli" },
-      { day: "Friday", breakfast: "Omelette de espinacas", lunch: "Ensalada de atún", dinner: "Pollo al horno con verduras" },
-      { day: "Saturday", breakfast: "Huevos revueltos con aguacate", lunch: "Carne molida con calabacín", dinner: "Salmón con espárragos" },
-      { day: "Sunday", breakfast: "Batido de proteína con frutos rojos", lunch: "Pechuga de pollo con ensalada", dinner: "Pescado al vapor con brócoli" },
-    ];
+    throw new Error("Fusión fallida: nutritionPlan.weeklyPlan tiene menos de 7 días tras combinar ambas fases.");
   }
 
-  logCtx.info("AI", "Recomendación generada exitosamente");
+  logger.info("AI", "✅ Pipeline secuencial (3 fases) completado exitosamente", {
+    hasMedicalAnalysis: (result.clientInsights.structuredMedicalAnalysis?.exams?.length ?? 0) > 0,
+    examCount: result.clientInsights.structuredMedicalAnalysis?.exams?.length ?? 0,
+    supplementCount: result.clientInsights.structuredMedicalAnalysis?.supplements?.length ?? 0,
+    nutritionDays: result.nutritionPlan.weeklyPlan.length,
+    shoppingListItemCount: result.nutritionPlan.shoppingList.length,
+  });
 
-  // ── 3. Mapeo directo título → ID (sin búsqueda fuzzy, el LLM usó títulos exactos) ──
+  // ── Mapeo directo título → ID ──
   const recipeIds: Record<string, string> = {};
   const exerciseIds: Record<string, string> = {};
   for (const rec of dbRecipes) { recipeIds[rec.title] = rec._id; }

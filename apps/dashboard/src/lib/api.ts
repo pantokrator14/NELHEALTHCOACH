@@ -1024,6 +1024,28 @@ export const apiClient = {
     return response.json();
   },
 
+  async updateWeeklyPlan(
+    clientId: string,
+    sessionId: string,
+    checklistItems: ChecklistItem[],
+    weekNumber: number
+  ): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        action: 'update_weekly_plan',
+        sessionId,
+        data: { checklistItems, weekNumber }
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error actualizando plan semanal');
+    }
+    return response.json();
+  },
+
   // ── Exercises ──
   async getExercises(search?: string): Promise<ApiResponse<Exercise[]>> {
     const params = new URLSearchParams();

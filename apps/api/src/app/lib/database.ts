@@ -213,3 +213,8 @@ export async function getLeadsCollection() {
   const { db } = await connectToDatabase();
   return db.collection('leads');
 }
+
+export async function getMedicalDocumentCacheCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection('medical_document_cache');
+}

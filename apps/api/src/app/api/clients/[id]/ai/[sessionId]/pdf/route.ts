@@ -294,6 +294,8 @@ export async function GET(
     // ── 8. Generar PDF ──
     const websiteUrl = process.env.APP_URL || 'https://nelhealthcoach.com';
 
+    const structuredMedicalAnalysis = session.structuredMedicalAnalysis || undefined;
+
     const pdfData: PDFRecommendationData = {
       client: {
         name: clientName,
@@ -301,7 +303,7 @@ export async function GET(
         sex: clientSex,
         age: clientAge,
       },
-      session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, index: sessionIndex },
+      session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, structuredMedicalAnalysis, index: sessionIndex },
       checklist: checklist.map((item: any) => ({
         ...item,
         details: item.details || undefined,

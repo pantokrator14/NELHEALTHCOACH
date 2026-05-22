@@ -2,42 +2,18 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createDeepSeekJSONLLM } from "../utils/llm";
 import { robustJsonParse } from "../utils/llm";
-import type { RecommendationStateType } from "../state";
+import type { RecommendationStateType, StructuredMedicalAnalysis, MedicalAnalysisPlan, LabBiomarker, SupplementRecommendation } from "../state";
 import { logger } from "../../logger";
 import { medicalAnalystGuard, applyGuardrails, validateAIResponse } from "../guard";
 import { formatFullClientProfile } from "../utils/prompt-builders";
-
-interface MedicalAnalysisWeek {
-  weekNumber: number;
-  focus: string;
-  labResults: Array<{
-    marker: string;
-    currentValue: string;
-    previousValue?: string;
-    interpretation: string;
-    trend: 'improving' | 'stable' | 'worsening' | 'new';
-  }>;
-  clinicalFindings: string[];
-  recommendedStudies: string[];
-  supplementRecommendations: Array<{
-    name: string;
-    dosage: string;
-    timing: string;
-    rationale: string;
-    contraindications?: string;
-    necessary: boolean;
-  }>;
-  comparativeNotes?: string;
-}
 
 /**
  * Medical Analyst Node
  *
  * Analyzes the client's lab results, processed medical documents,
- * and generates:
- * 1. Laboratory marker analysis with tables and interpretation
- * 2. Comparative analysis between sessions (when previous sessions exist)
- * 3. Supplement recommendations only when nutrition alone is insufficient
+ * and generates structured medical analysis with:
+ * 1. Exams with intro, biomarker tables, and clinical analysis
+ * 2. Supplement recommendations based on altered biomarkers
  *
  * Uses Gemini for PDF document analysis when S3 documents are available.
  */
@@ -79,17 +55,17 @@ export async function analyzeMedicalData(
 
     logCtx.debug("AI", "Invoking LLM for medical analysis", {
       promptLength: systemPrompt.length + userPrompt.length,
-      model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     });
 
     // Usar guardrails para análisis médico
-    const medicalAnalysisPlan = await applyGuardrails(
+    const structuredAnalysis = await applyGuardrails(
       medicalAnalystGuard,
       { systemPrompt, userPrompt, clientData: state },
       async (validatedInput) => {
         const llmStartTime = Date.now();
         const response = await llm.invoke([
-          new SystemMessage("Eres un médico analista experto en interpretación de laboratorios clínicos, fisiología y metabolismo. Responde SOLO con JSON válido (array de objetos)."),
+          new SystemMessage("Eres un médico analista experto en interpretación de laboratorios clínicos, fisiología y metabolismo. Responde SOLO con JSON válido (objeto con 'exams' y 'supplements')."),
           new HumanMessage(validatedInput.userPrompt),
         ]);
         const llmDuration = Date.now() - llmStartTime;
@@ -106,26 +82,33 @@ export async function analyzeMedicalData(
         if (!validation.isValid) {
           logCtx.warn("GUARDRAILS", "Problemas en análisis médico", {
             issues: validation.issues,
-            weekCount: weekNumbers.length,
           });
         }
 
-        const plan = parseMedicalAnalysisResponse(validation.sanitizedResponse || content, weekNumbers);
+        const parsed = parseStructuredMedicalResponse(validation.sanitizedResponse || content);
 
-        // Asegurar disclaimer médico en cada semana
-        return plan.map(weekPlan => ({
-          ...weekPlan,
-          focus: weekPlan.focus + " | ⚠️ Consulte con profesional médico antes de tomar decisiones basadas en este análisis",
-          supplementRecommendations: weekPlan.supplementRecommendations.map(supp => ({
-            ...supp,
-            rationale: supp.rationale + (supp.necessary ? "" : " — Nota: La alimentación y ejercicio recomendados pueden cubrir esta necesidad sin suplementación."),
+        // Asegurar disclaimer médico en cada análisis
+        return {
+          ...parsed,
+          exams: parsed.exams.map(exam => ({
+            ...exam,
+            analysis: exam.analysis + " | ⚠️ Consulte con profesional médico antes de tomar decisiones basadas en este análisis.",
           })),
-        }));
+          supplements: parsed.supplements.map(supp => ({
+            ...supp,
+            rationale: supp.rationale,
+          })),
+        };
       }
     );
 
+    // Convertir análisis estructurado al formato MedicalAnalysisPlan[] para compatibilidad
+    const medicalAnalysisPlan = convertStructuredToWeeklyPlan(structuredAnalysis, weekNumbers, state);
+
     logCtx.info("AI", "Medical analysis completed", {
       weekCount: medicalAnalysisPlan.length,
+      examCount: structuredAnalysis.exams.length,
+      supplementCount: structuredAnalysis.supplements.length,
       isFirstSession,
     });
 
@@ -162,49 +145,44 @@ function buildMedicalSystemPrompt(
 4. Considerar: metabolismo, función lipídica, respuesta individual, contexto nutricional, genética potencial, fisiología energética y posible riesgo cardiovascular real
 5. NO generar miedo ni minimizar hallazgos importantes
 
-## FORMATO DE ANÁLISIS:
-Para cada semana, genera un análisis que incluya:
+## REGLAS ESTRICTAS ANTI-ALUCINACIÓN:
+- Extrae estrictamente los valores clínicos presentes en los documentos.
+- IGNORA cualquier texto administrativo, descargos de responsabilidad o menciones de "visitas programadas con el proveedor" presentes en el documento.
+- Limítate a analizar los valores sin suponer condiciones genéticas (como Hipercolesterolemia Familiar) a menos que el contexto explícito del paciente lo indique.
+- Ofrece alternativas, no diagnósticos concluyentes.
+- NO inventes valores de laboratorio que no estén en los documentos.
+- Si un valor no tiene rango de referencia en el documento, usa rangos estándar clínicos.
 
-### 1. Tabla de marcadores de laboratorio (labResults)
-- Incluye TODOS los marcadores disponibles de los documentos procesados
-- Para cada marcador: valor actual, valor previo (si existe), interpretación, tendencia (improving/stable/worsening/new)
-${isFirstSession ? '- Primera sesión: análisis NORMAL de valores actuales contra rangos de referencia' : '- Sesiones siguientes: análisis COMPARATIVO con valores de sesiones anteriores'}
-- Marcadores típicos a analizar: LDL-C, HDL-C, Triglicéridos, ApoB, LDL-P, Small LDL-P, LDL Size, LP-IR Score, Glucosa, Insulina, HbA1c, hs-CRP, Homocisteína, Lipoproteína(a), TSH, Free T3, Reverse T3, Ferritina, Colesterol Total
+## FORMATO DE RESPUESTA REQUERIDO:
+Debes devolver un objeto JSON con DOS secciones principales:
 
-### 2. Hallazgos clínicos (clinicalFindings)
-- Aspectos positivos del caso
-- Aspectos preocupantes que requieren atención
-- Posibles explicaciones fisiológicas
-- NO concluir automáticamente enfermedad
+### 1. "exams" — Array de exámenes/paneles médicos
+Cada examen representa un panel de laboratorio distinto (ej: panel de lípidos, panel metabólico, panel tiroideo, etc.).
+Cada examen debe tener:
+- "intro": Texto introductorio contextual (ej. "El panel de lípidos de [nombre del paciente], recogido el [fecha]...")
+- "table": Array de objetos con: biomarcador, valor, rango_normal, estado ("Alto", "Bajo", "Normal")
+- "analysis": Análisis clínico derivado EXCLUSIVAMENTE de los valores de la tabla. No suponer condiciones no evidentes.
 
-### 3. Estudios recomendados (recommendedStudies)
-- Prioridad alta: Score de calcio coronario (CAC), CIMT, CCTA
-- Genéticos si aplica: Panel hipercolesterolemia familiar, ApoE genotype, LDL receptor mutations
-- Hierro/Ferritina si está elevada: Saturación de transferrina, Hierro sérico, TIBC
-- Hepáticos si aplica: Ultrasound hepático, FibroScan
-
-### 4. Recomendaciones de suplementos (supplementRecommendations)
+### 2. "supplements" — Array de suplementos recomendados
+Evalúa ACTIVAMENTE los biomarcadores alterados de TODAS las tablas generadas y propone suplementación específica.
 - SOLO recomendar suplementos si la ALIMENTACIÓN por sí sola NO puede cubrir la necesidad
-- Si el plan nutricional recomendado es suficiente, indicar "necessary: false" y explicar que la alimentación cubre el requerimiento
-- **CONSIDERA los suplementos que el cliente YA TOMA** (ver "Suplementos actuales" en datos del cliente)
-- **NO dupliques** suplementos que el cliente ya está tomando a menos que la dosis actual sea insuficiente
-- **Verifica interacciones** entre suplementos recomendados y los que ya toma
-- **Ajusta dosis** considerando lo que ya consume
-- Para cada suplemento: nombre, dosis, momento del día, razón/justificación, contraindicaciones
-- Ejemplos de suplementos a considerar: Omega-3 (si perfil lipídico alterado), Vitamina D3 + K2, Magnesio, CoQ10, Psyllium (fibra soluble), Probióticos específicos${hasDocuments ? '\n\n## DATOS DISPONIBLES:\nSe proporcionarán documentos médicos procesados (resultados de laboratorio, análisis previos, etc.) para tu análisis.' : ''}
+- Para cada suplemento: nombre, dosis, momento del día, razón/justificación (basada en biomarcadores específicos alterados), contraindicaciones
+- Ejemplos: Omega-3 (si triglicéridos o LDL alto), Vitamina D3 (si vitamina D baja), Magnesio (si magnesio bajo o estrés), CoQ10 (si colesterol alto y estatina), Psyllium (si colesterol alto), Probióticos (si problemas digestivos)
+- Si NO hay biomarcadores alterados que requieran suplementación, devuelve un array vacío []
 
-Responde SOLO con el array JSON al final.`;
+${hasDocuments ? '\n## DATOS DISPONIBLES:\nSe proporcionarán documentos médicos procesados (resultados de laboratorio, análisis previos, etc.) para tu análisis.' : ''}
+
+Responde SOLO con el objeto JSON al final.`;
 }
 
 function buildMedicalUserPrompt(
   state: RecommendationStateType,
-  weekNumbers: number[],
+  _weekNumbers: number[],
   isFirstSession: boolean
 ): string {
   const insights = state.clientInsights;
   const personalData = state.personalData;
   const medicalData = state.medicalData;
-  const weekList = weekNumbers.join(", ");
 
   // Perfil completo del cliente
   const fullProfile = formatFullClientProfile({
@@ -220,7 +198,7 @@ function buildMedicalUserPrompt(
   // Formatear documentos procesados
   const documentsInfo = state.processedDocuments && state.processedDocuments.length > 0
     ? state.processedDocuments.map((doc, i) =>
-        `**Documento ${i + 1}: ${doc.title}** (Tipo: ${doc.documentType}, Confianza: ${doc.confidence}%)\n${doc.content.substring(0, 3000)}`
+        `**Documento ${i + 1}: ${doc.title}** (Tipo: ${doc.documentType}, Confianza: ${doc.confidence}%)\n${doc.content.substring(0, 5000)}`
       ).join("\n\n---\n\n")
     : "No hay documentos médicos procesados disponibles. Usa los datos del formulario de salud.";
 
@@ -240,16 +218,6 @@ function buildMedicalUserPrompt(
       ).join("\n")
     : "No hay sesiones previas (primera evaluación)";
 
-  // Información de estilo de vida relevante
-  const lifestyleInfo = [
-    medicalData.currentActivityLevel ? `- Nivel de actividad: ${medicalData.currentActivityLevel}` : null,
-    medicalData.typicalWeekday ? `- Día típico: ${medicalData.typicalWeekday.substring(0, 200)}` : null,
-    personalData.occupation ? `- Ocupación: ${personalData.occupation}` : null,
-    personalData.weight ? `- Peso: ${personalData.weight} kg` : null,
-    personalData.height ? `- Altura: ${personalData.height} cm` : null,
-    personalData.age ? `- Edad: ${personalData.age} años` : null,
-  ].filter(Boolean).join("\n") || "Sin información de estilo de vida";
-
   return `${fullProfile}
 
 ## PERFIL DEL CLIENTE
@@ -259,9 +227,6 @@ function buildMedicalUserPrompt(
 **Riesgos clave:** ${insights?.keyRisks?.join(", ") ?? "No identificados"}
 **Oportunidades:** ${insights?.opportunities?.join(", ") ?? "No identificadas"}
 **Mejoras objetivo:** ${insights?.targetImprovements?.join(", ") ?? "Mejorar salud general"}
-
-## DATOS PERSONALES Y ESTILO DE VIDA
-${lifestyleInfo}
 
 ## CONDICIONES MÉDICAS
 ${medicalConditions}
@@ -278,64 +243,61 @@ ${isFirstSession
   : "**SESIÓN DE SEGUIMIENTO**: Realiza un análisis COMPARATIVO con las sesiones anteriores. Compara cada marcador contra sus valores previos. Identifica tendencias (mejora, estabilidad, empeoramiento). Evalúa el progreso del plan."}
 
 ## TU TAREA
-Genera un plan de análisis médico para las semanas: ${weekList}
+Genera un análisis médico estructurado basado en los documentos y datos del cliente.
 
-### Estructura de respuesta (array JSON):
+### Estructura de respuesta (objeto JSON):
 \`\`\`json
-[
-  {
-    "weekNumber": number,
-    "focus": "Enfoque del análisis médico para esta semana",
-    "labResults": [
-      {
-        "marker": "Nombre del marcador (ej: LDL-C)",
-        "currentValue": "Valor actual con unidades",
-        "previousValue": "Valor previo (si existe) o null",
-        "interpretation": "Interpretación clínica educativa",
-        "trend": "improving|stable|worsening|new"
-      }
-    ],
-    "clinicalFindings": [
-      "Hallazgo clínico 1 en texto descriptivo",
-      "Hallazgo clínico 2..."
-    ],
-    "recommendedStudies": [
-      "Estudio recomendado 1",
-      "Estudio recomendado 2..."
-    ],
-    "supplementRecommendations": [
-      {
-        "name": "Nombre del suplemento",
-        "dosage": "Dosis recomendada",
-        "timing": "Momento del día para tomarlo",
-        "rationale": "Justificación basada en los hallazgos",
-        "contraindications": "Contraindicaciones o null",
-        "necessary": true/false
-      }
-    ],
-    "comparativeNotes": "Notas comparativas (solo para sesiones > 1) o null"
-  }
-]
+{
+  "exams": [
+    {
+      "intro": "El panel de lípidos de [nombre del paciente], recogido el [fecha], muestra los siguientes resultados...",
+      "table": [
+        {
+          "biomarcador": "Colesterol Total",
+          "valor": "245 mg/dL",
+          "rango_normal": "125-200 mg/dL",
+          "estado": "Alto"
+        },
+        {
+          "biomarcador": "LDL-C",
+          "valor": "165 mg/dL",
+          "rango_normal": "<100 mg/dL",
+          "estado": "Alto"
+        }
+      ],
+      "analysis": "El colesterol total y LDL se encuentran significativamente elevados..."
+    }
+  ],
+  "supplements": [
+    {
+      "name": "Omega-3 (EPA/DHA)",
+      "dosage": "2000 mg/día",
+      "timing": "Con el almuerzo",
+      "rationale": "LDL-C de 165 mg/dL y triglicéridos elevados. Omega-3 ayuda a reducir triglicéridos y mejorar perfil lipídico.",
+      "contraindications": "Precaución si toma anticoagulantes"
+    }
+  ]
+}
 \`\`\`
 
 ### Reglas importantes:
-1. Si NO hay documentos con resultados de laboratorio, enfócate en el análisis clínico basado en los datos del formulario
-2. Para suplementos: si la alimentación recomendada + ejercicio cubren la necesidad → necessary: false
-3. **NO recomiendes suplementos que el cliente YA TOMA a menos que la dosis necesite ajuste** — revisa "Suplementos actuales" en los datos del cliente
-4. NO recomiendes medicamentos — solo suplementos nutricionales
-5. Incluye SIEMPRE el disclaimer de consulta médica
-6. Si es primera sesión y no hay labs, enfócate en qué estudios sería bueno que el cliente se realice
+1. Agrupa los biomarcadores por panel/examen (lípidos, metabólico, tiroideo, etc.) — NO mezcles todos en una sola tabla
+2. Para cada examen: genera un "intro" contextual, una "table" con los biomarcadores, y un "analysis" clínico
+3. Para suplementos: evalúa TODOS los biomarcadores alterados de todas las tablas y propone suplementos específicos
+4. **NO recomiendes suplementos que el cliente YA TOMA** a menos que la dosis necesite ajuste — revisa "Suplementos actuales"
+5. NO recomiendes medicamentos — solo suplementos nutricionales
+6. Incluye SIEMPRE el disclaimer de consulta médica en el analysis
+7. Si NO hay documentos con resultados de laboratorio, enfócate en el análisis clínico basado en los datos del formulario
+8. Si es primera sesión y no hay labs, enfócate en qué estudios sería bueno que el cliente se realice
 
-Responde SOLO con el array JSON, sin texto adicional.`;
+Responde SOLO con el objeto JSON, sin texto adicional.`;
 }
 
 /**
- * Parses the LLM response into an array of MedicalAnalysisWeek objects.
+ * Parses the LLM response into a StructuredMedicalAnalysis object.
+ * Expected format: { exams: [{ intro, table: [{ biomarcador, valor, rango_normal, estado }], analysis }], supplements: [...] }
  */
-function parseMedicalAnalysisResponse(
-  content: string,
-  expectedWeeks: number[]
-): MedicalAnalysisWeek[] {
+function parseStructuredMedicalResponse(content: string): StructuredMedicalAnalysis {
   let jsonStr = content;
 
   const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
@@ -343,79 +305,117 @@ function parseMedicalAnalysisResponse(
     jsonStr = codeBlockMatch[1];
   }
 
-  const parsed: unknown = robustJsonParse<unknown>(jsonStr);
+  try {
+    const parsed: Record<string, unknown> = robustJsonParse<Record<string, unknown>>(jsonStr);
 
-  if (!Array.isArray(parsed)) {
-    return generateFallbackMedicalAnalysis(expectedWeeks.length / 4);
-  }
+    // Validate exams array
+    const examsRaw = parsed.exams as Array<Record<string, unknown>> | undefined;
+    const exams: StructuredMedicalAnalysis['exams'] = Array.isArray(examsRaw)
+      ? examsRaw.map((exam: Record<string, unknown>) => {
+          const tableRaw = exam.table as Array<Record<string, unknown>> | undefined;
+          const table: LabBiomarker[] = Array.isArray(tableRaw)
+            ? tableRaw.map((row: Record<string, unknown>) => {
+                const estadoRaw = typeof row.estado === 'string' ? row.estado : 'Normal';
+                const estado: LabBiomarker['estado'] =
+                  estadoRaw === 'Alto' || estadoRaw === 'Bajo' || estadoRaw === 'Normal'
+                    ? estadoRaw : 'Normal';
+                return {
+                  biomarcador: typeof row.biomarcador === 'string' ? row.biomarcador : 'Marcador desconocido',
+                  valor: typeof row.valor === 'string' ? row.valor : 'N/D',
+                  rango_normal: typeof row.rango_normal === 'string' ? row.rango_normal : 'N/A',
+                  estado,
+                };
+              })
+            : [];
 
-  const result: MedicalAnalysisWeek[] = [];
-
-  for (let index = 0; index < parsed.length; index++) {
-    const item = parsed[index] as Record<string, unknown>;
-    const weekNumber = typeof item.weekNumber === "number"
-      ? item.weekNumber
-      : expectedWeeks[index] ?? index + 1;
-
-    const labResultsRaw = item.labResults as Array<Record<string, unknown>> | undefined;
-    const labResults = Array.isArray(labResultsRaw)
-      ? labResultsRaw.map((lr: Record<string, unknown>) => {
-          const trendRaw = lr.trend as string | undefined;
-          const trend: MedicalAnalysisWeek['labResults'][0]['trend'] =
-            trendRaw === 'improving' || trendRaw === 'stable' || trendRaw === 'worsening' || trendRaw === 'new'
-              ? trendRaw : 'new';
           return {
-            marker: typeof lr.marker === "string" ? lr.marker : "Marcador desconocido",
-            currentValue: typeof lr.currentValue === "string" ? lr.currentValue : "N/D",
-            previousValue: typeof lr.previousValue === "string" ? lr.previousValue : undefined,
-            interpretation: typeof lr.interpretation === "string" ? lr.interpretation : "Sin interpretación",
-            trend,
+            intro: typeof exam.intro === 'string' ? exam.intro : 'Análisis de resultados de laboratorio.',
+            table,
+            analysis: typeof exam.analysis === 'string' ? exam.analysis : 'Sin análisis disponible.',
           };
         })
       : [];
 
-    const clinicalFindingsRaw = item.clinicalFindings as Array<unknown> | undefined;
-    const clinicalFindings = Array.isArray(clinicalFindingsRaw)
-      ? clinicalFindingsRaw.filter((f): f is string => typeof f === "string")
-      : [];
-
-    const recommendedStudiesRaw = item.recommendedStudies as Array<unknown> | undefined;
-    const recommendedStudies = Array.isArray(recommendedStudiesRaw)
-      ? recommendedStudiesRaw.filter((s): s is string => typeof s === "string")
-      : [];
-
-    const supplementRecsRaw = item.supplementRecommendations as Array<Record<string, unknown>> | undefined;
-    const supplementRecommendations = Array.isArray(supplementRecsRaw)
-      ? supplementRecsRaw.map((sr: Record<string, unknown>) => ({
-          name: typeof sr.name === "string" ? sr.name : "Suplemento genérico",
-          dosage: typeof sr.dosage === "string" ? sr.dosage : "Consultar profesional",
-          timing: typeof sr.timing === "string" ? sr.timing : "Con alimentos",
-          rationale: typeof sr.rationale === "string" ? sr.rationale : "Basado en hallazgos clínicos",
-          contraindications: typeof sr.contraindications === "string" ? sr.contraindications : undefined,
-          necessary: typeof sr.necessary === "boolean" ? sr.necessary : false,
+    // Validate supplements array
+    const supplementsRaw = parsed.supplements as Array<Record<string, unknown>> | undefined;
+    const supplements: SupplementRecommendation[] = Array.isArray(supplementsRaw)
+      ? supplementsRaw.map((sr: Record<string, unknown>) => ({
+          name: typeof sr.name === 'string' ? sr.name : 'Suplemento genérico',
+          dosage: typeof sr.dosage === 'string' ? sr.dosage : 'Consultar profesional',
+          timing: typeof sr.timing === 'string' ? sr.timing : 'Con alimentos',
+          rationale: typeof sr.rationale === 'string' ? sr.rationale : 'Basado en hallazgos clínicos',
+          contraindications: typeof sr.contraindications === 'string' ? sr.contraindications : undefined,
         }))
       : [];
 
-    result.push({
-      weekNumber,
-      focus: typeof item.focus === "string" ? item.focus : "Análisis médico integral",
-      labResults,
-      clinicalFindings,
-      recommendedStudies,
-      supplementRecommendations,
-      comparativeNotes: typeof item.comparativeNotes === "string" ? item.comparativeNotes : undefined,
-    });
+    return { exams, supplements };
+  } catch {
+    return { exams: [], supplements: [] };
+  }
+}
+
+/**
+ * Converts a StructuredMedicalAnalysis into the weekly MedicalAnalysisPlan[] format
+ * for backward compatibility with the rest of the system.
+ */
+function convertStructuredToWeeklyPlan(
+  structured: StructuredMedicalAnalysis,
+  weekNumbers: number[],
+  state: RecommendationStateType
+): MedicalAnalysisPlan[] {
+  // Flatten all biomarkers from all exams into labResults format
+  const allLabResults: MedicalAnalysisPlan['labResults'] = [];
+  for (const exam of structured.exams) {
+    for (const row of exam.table) {
+      const trend: MedicalAnalysisPlan['labResults'][0]['trend'] =
+        row.estado === 'Normal' ? 'stable' : 'new';
+      allLabResults.push({
+        marker: row.biomarcador,
+        currentValue: row.valor,
+        interpretation: `${row.estado} — ${row.rango_normal}`,
+        trend,
+      });
+    }
   }
 
-  return result.filter((plan) => expectedWeeks.includes(plan.weekNumber));
+  // Convert supplements to the old format with 'necessary' flag
+  const supplementRecs: MedicalAnalysisPlan['supplementRecommendations'] = structured.supplements.map(s => ({
+    name: s.name,
+    dosage: s.dosage,
+    timing: s.timing,
+    rationale: s.rationale,
+    contraindications: s.contraindications,
+    necessary: true, // If the LLM recommended it, it's necessary
+  }));
+
+  // Clinical findings from exam analyses
+  const clinicalFindings = structured.exams.map(e => e.analysis);
+
+  // Generate one plan per week, all sharing the same structured analysis
+  return weekNumbers.map(weekNumber => ({
+    weekNumber,
+    focus: structured.exams.length > 0
+      ? `Análisis de ${structured.exams.length} panel(es) de laboratorio`
+      : 'Monitoreo de salud general',
+    labResults: allLabResults,
+    clinicalFindings,
+    recommendedStudies: [],
+    supplementRecommendations: supplementRecs,
+    structuredAnalysis: structured,
+  }));
 }
 
 /**
  * Generates a fallback medical analysis plan if the LLM fails.
  */
-function generateFallbackMedicalAnalysis(monthNumber: number): MedicalAnalysisWeek[] {
+function generateFallbackMedicalAnalysis(monthNumber: number): MedicalAnalysisPlan[] {
   const totalWeeks = monthNumber * 4;
-  const plans: MedicalAnalysisWeek[] = [];
+  const plans: MedicalAnalysisPlan[] = [];
+
+  const fallbackStructured: StructuredMedicalAnalysis = {
+    exams: [],
+    supplements: [],
+  };
 
   for (let week = 1; week <= totalWeeks; week++) {
     plans.push({
@@ -431,17 +431,8 @@ function generateFallbackMedicalAnalysis(monthNumber: number): MedicalAnalysisWe
         "Hemograma completo",
         "Panel metabólico básico",
       ],
-      supplementRecommendations: [
-        {
-          name: "Vitamina D3 + K2",
-          dosage: "Consultar con profesional",
-          timing: "Con comida principal",
-          rationale: "Salud ósea e inmunológica general",
-          contraindications: "Consultar si toma anticoagulantes",
-          necessary: false,
-        },
-      ],
-      comparativeNotes: undefined,
+      supplementRecommendations: [],
+      structuredAnalysis: fallbackStructured,
     });
   }
 
