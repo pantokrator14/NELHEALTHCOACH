@@ -5,6 +5,15 @@ import '../../lib/i18n';
 
 const HeroCarousel: React.FC = () => {
   const { t } = useTranslation();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const slides = [
     {
       id: 1,
@@ -50,7 +59,7 @@ const HeroCarousel: React.FC = () => {
           {/* Contenedor de la imagen */}
           <div className="relative w-full h-full">
             <Image
-              src={slide.image}
+              src={slide.id === 2 && isMobile ? "/images/hero/hero2p.png" : slide.image}
               alt={`Slide ${slide.id}`}
               fill
               sizes="100vw"
