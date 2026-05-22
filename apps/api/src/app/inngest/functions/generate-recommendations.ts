@@ -445,6 +445,20 @@ interface GraphResult {
       necessary: boolean;
     }>;
     comparativeNotes?: string;
+    structuredAnalysis?: {
+      exams: Array<{
+        intro: string;
+        table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+        analysis: string;
+      }>;
+      supplements: Array<{
+        name: string;
+        dosage: string;
+        timing: string;
+        rationale: string;
+        contraindications?: string;
+      }>;
+    };
   }>;
   nutritionPlan: Array<{
     weekNumber: number;
@@ -680,6 +694,13 @@ async function saveRecommendationsToDB(
         .join("\n\n");
       return comparativeNotes ? encrypt(comparativeNotes) : undefined;
     })(),
+    labResults: graphResult.medicalAnalysisPlan?.[0]?.labResults?.map(lr => ({
+      name: lr.marker,
+      value: lr.currentValue,
+      range: lr.interpretation,
+      status: lr.interpretation.toLowerCase().includes('alto') ? 'alto' : lr.interpretation.toLowerCase().includes('bajo') ? 'bajo' : 'normal' as 'normal' | 'alto' | 'bajo',
+    })),
+    structuredMedicalAnalysis: graphResult.medicalAnalysisPlan?.[0]?.structuredAnalysis,
     baselineMetrics: {
       currentLifestyle: graphResult.clientInsights.keyRisks,
       targetLifestyle: graphResult.clientInsights.targetImprovements,

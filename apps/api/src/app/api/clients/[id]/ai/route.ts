@@ -1,14 +1,14 @@
 // apps/api/src/app/api/clients/[id]/ai/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { getHealthFormsCollection, connectMongoose } from '@/app/lib/database';
+import { getHealthFormsCollection, getMedicalDocumentCacheCollection, connectMongoose } from '@/app/lib/database';
 import { requireAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
 import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationError } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
-import { generateCompositeRecommendation, CompositeOutputWithIds } from '@/app/lib/composite-recommendation';
+import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
 import { analyzeS3FileWithGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
 
@@ -20,6 +20,7 @@ function decryptAISessionCompletely(session: any): any {
       vision: safeDecrypt(session.vision),
       medicalSummary: safeDecrypt(session.medicalSummary) || '',
       medicalComparativeAnalysis: safeDecrypt(session.medicalComparativeAnalysis) || '',
+      structuredMedicalAnalysis: session.structuredMedicalAnalysis || { exams: [], supplements: [] },
       weeks: session.weeks?.map((week: any) => ({
         weekNumber: week.weekNumber,
         nutrition: {
@@ -74,6 +75,7 @@ function decryptAISessionCompletely(session: any): any {
       ...session,
       summary: safeDecrypt(session.summary) || 'Error desencriptando',
       vision: safeDecrypt(session.vision) || 'Error desencriptando',
+      structuredMedicalAnalysis: session.structuredMedicalAnalysis || { exams: [], supplements: [] },
       weeks: [],
       checklist: []
     };
@@ -269,7 +271,7 @@ export async function POST(
       });
 
       // 1. Preparar datos para la IA
-      const aiInput = await prepareAIInput(client, requestId);
+      const aiInput = await prepareAIInput(client, requestId, id);
 
       // 2. Agregar notas del coach si las hay
       if (coachNotes) {
@@ -309,6 +311,31 @@ export async function POST(
 
       loggerWithContext.info('AI', 'Recomendaciones generadas exitosamente', {
         weekCount: compositeResult.nutritionPlan?.weeklyPlan?.length || 7,
+      });
+
+      // ── FAIL-FAST: Validación de integridad antes de persistir ──
+      const hasDocuments = processedDocuments && processedDocuments.length > 0;
+      const medExams = compositeResult.clientInsights?.structuredMedicalAnalysis?.exams;
+      const medSupps = compositeResult.clientInsights?.structuredMedicalAnalysis?.supplements;
+      const nutritionPlan = compositeResult.nutritionPlan?.weeklyPlan;
+      const exercisePlan = compositeResult.exercisePlan?.weeklyRoutine;
+
+      if (hasDocuments && (!medExams || medExams.length === 0)) {
+        throw new Error('ABORTAR_GUARDADO: La IA devolvió un análisis médico vacío (exams=0) habiendo documentos procesados. No se deben persistir datos corruptos.');
+      }
+      if (!nutritionPlan || nutritionPlan.length === 0) {
+        throw new Error('ABORTAR_GUARDADO: La IA devolvió un plan de nutrición vacío. Componente fallido: Nutrición.');
+      }
+      if (!exercisePlan || exercisePlan.length === 0) {
+        throw new Error('ABORTAR_GUARDADO: La IA devolvió un plan de ejercicios vacío. Componente fallido: Ejercicio.');
+      }
+
+      loggerWithContext.info('AI', '✅ Validación de integridad superada', {
+        hasMedicalAnalysis: !!medExams && medExams.length > 0,
+        examCount: medExams?.length || 0,
+        supplementCount: medSupps?.length || 0,
+        nutritionDays: nutritionPlan.length,
+        exerciseDays: exercisePlan.length,
       });
 
       // IDs de recetas y ejercicios encontrados en la DB
@@ -454,6 +481,26 @@ export async function POST(
         timestamp: new Date(),
       } : null;
 
+      // ── Extraer la estructura médica directamente del orquestador ──
+      const extractedStructured = compositeResult.clientInsights?.structuredMedicalAnalysis || { exams: [], supplements: [] };
+
+      loggerWithContext.debug('AI', '🏥 [VERIFICACIÓN] Estructura médica a guardar', {
+        examCount: extractedStructured.exams?.length || 0,
+        supplementCount: extractedStructured.supplements?.length || 0,
+        structuredMedicalAnalysis: extractedStructured,
+      });
+
+      // ── Limpieza de duplicados en checklist antes de persistir ──
+      const uniqueChecklist = Array.from(
+        new Map(checklistItems.map(item => [item.description, item])).values()
+      ) as ChecklistItem[];
+
+      loggerWithContext.info('AI', 'Checklist deduplicado', {
+        originalCount: checklistItems.length,
+        uniqueCount: uniqueChecklist.length,
+        removedDuplicates: checklistItems.length - uniqueChecklist.length,
+      });
+
       const encryptedSession = {
         sessionId,
         monthNumber,
@@ -468,12 +515,13 @@ export async function POST(
         labResults: aiInput.allLabResults && aiInput.allLabResults.length > 0 
           ? aiInput.allLabResults 
           : (compositeResult.clientInsights?.labResults || []),
+        structuredMedicalAnalysis: extractedStructured,
         baselineMetrics: {
           currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
           targetLifestyle: compositeResult.clientInsights?.targetImprovements || [],
         },
         weeks,
-        checklist: checklistItems,
+        checklist: uniqueChecklist,
         regenerationCount: 0,
         regenerationHistory: [],
       };
@@ -753,6 +801,17 @@ export async function PUT(
           message = 'Lista de compras actualizada';
           break;
 
+        case 'update_weekly_plan':
+          console.log('📋 UPDATE_WEEKLY_PLAN: Iniciando...', {
+            sessionId,
+            checklistItemsCount: data?.checklistItems?.length || 0,
+            weekNumber: data?.weekNumber
+          });
+          const weeklyPlanResult = await updateWeeklyPlanAndShoppingList(
+            id, sessionId, data?.checklistItems, data?.weekNumber || 1, requestId
+          );
+          return NextResponse.json(weeklyPlanResult);
+
         case 'import_session':
           console.log('📥 IMPORT_SESSION: Iniciando...', {
             monthNumber: data?.monthNumber,
@@ -825,7 +884,8 @@ function extractJSONFromMarkdown(text: string): string {
 // Funciones auxiliares
 async function prepareAIInput(
   client: any,
-  requestId: string
+  requestId: string,
+  clientId: string
 ): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
 
@@ -870,106 +930,204 @@ async function prepareAIInput(
   let extractedMedicalSummary = '';
 
   if (client.medicalData?.documents && Array.isArray(client.medicalData.documents) && client.medicalData.documents.length > 0) {
-    loggerWithContext.debug('AI', 'Analizando documentos reales con Gemini nativo', {
+    loggerWithContext.debug('AI', 'Analizando documentos reales con Gemini nativo (SECUENCIAL)', {
       documentCount: client.medicalData.documents.length
     });
 
-    const docPromises = client.medicalData.documents.map(async (doc: any) => {
-      const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
-      const s3Key = safeDecrypt(doc.key || '');
-      if (!s3Key) return null;
+    const totalAttempted = client.medicalData.documents.length;
 
-      // Reintentar hasta 2 veces si da 503 (Service Unavailable)
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Procesar documentos SECUENCIALMENTE para evitar 503 por concurrencia
+      for (let docIndex = 0; docIndex < client.medicalData.documents.length; docIndex++) {
+        const doc = client.medicalData.documents[docIndex];
+        const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
+        const s3Key = safeDecrypt(doc.key || '');
+        if (!s3Key) continue;
+
+        // FAIL-FAST: 2 intentos máximo (1 inicial + 1 reintento)
+        let docResult: any = null;
+
+        // ── 1. Intentar caché antes de llamar a Gemini ──
         try {
-          loggerWithContext.debug('AI', 'Enviando documento a Gemini', {
-            fileName: fileName.substring(0, 50),
-            attempt: attempt + 1
-          });
+          const cacheColl = await getMedicalDocumentCacheCollection();
+          const cachedDoc = await cacheColl.findOne<{
+            s3Key: string;
+            clientId: ObjectId;
+            fileName: string;
+            analysis: string;
+            labResults: Array<{ name: string; value: string; range: string; status: string }>;
+            medicalSummary: string;
+            medicalComparativeAnalysis: string;
+            supplementRecommendations: Array<unknown>;
+            cachedAt: Date;
+          }>({ s3Key, clientId: new ObjectId(clientId) });
 
-          // Prompt para pedir JSON con resultados de laboratorio
-          const analysis = await analyzeS3FileWithGemini(s3Key, fileName,
-            `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
+          if (cachedDoc) {
+            loggerWithContext.info('AI', '📦 Usando análisis médico cacheado para el archivo: ' + fileName, {
+              cachedAt: cachedDoc.cachedAt,
+            });
+
+            const parsedAnalysis = JSON.parse(cachedDoc.analysis) as {
+              medicalSummary?: string;
+              medicalComparativeAnalysis?: string;
+              labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
+              supplementRecommendations?: Array<any>;
+            };
+
+            if (parsedAnalysis.labResults) {
+              allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+            }
+
+            docResult = {
+              title: fileName,
+              content: cachedDoc.analysis,
+              processedAt: cachedDoc.cachedAt.toISOString(),
+              confidence: 1,
+              type: 'document',
+              pageCount: 1,
+              language: 'es',
+              medicalSummary: parsedAnalysis.medicalSummary,
+              medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
+              labResults: parsedAnalysis.labResults,
+              supplementRecommendations: parsedAnalysis.supplementRecommendations,
+            };
+          }
+        } catch (cacheErr) {
+          loggerWithContext.warn('AI', 'Error consultando caché de documentos, procediendo con Gemini', cacheErr as Error);
+        }
+
+        // ── 2. Si no hay caché, llamar a Gemini ──
+        if (!docResult) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            loggerWithContext.debug('AI', 'Enviando documento a Gemini', {
+              fileName: fileName.substring(0, 50),
+              attempt: attempt + 1,
+              docIndex: docIndex + 1,
+              totalDocs: totalAttempted
+            });
+
+            // Prompt para pedir JSON con resultados de laboratorio
+            const analysis = await analyzeS3FileWithGemini(s3Key, fileName,
+              `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
 - "medicalSummary": Un resumen conciso de los hallazgos principales.
 - "medicalComparativeAnalysis": Si hay datos históricos, un análisis comparativo. Si no, indica que no aplica.
-- "labResults": Un array de objetos, donde cada objeto representa un resultado de laboratorio con "name", "value", "range", y "status" ('normal', 'alto', 'bajo'). Si no hay resultados de laboratorio explícitos, deja el array vacío.
+- "labResults": Un array de objetos con TODOS los biomarcadores encontrados en el documento sin omitir ninguno. Cada objeto debe tener "name", "value", "range", y "status" ('normal', 'alto', 'bajo'). EXTREMADAMENTE IMPORTANTE: Extrae todos los datos numéricos y de laboratorio. No resumas esta tabla.
 - "supplementRecommendations": Un array de objetos para suplementos recomendados con "name", "dosage", "timing", "rationale", "contraindications". Si no hay, deja el array vacío.`
-          );
+            );
 
-          if (analysis && analysis.length > 20) {
-            try {
-              const cleanJSON = extractJSONFromMarkdown(analysis);
-              const parsedAnalysis = JSON.parse(cleanJSON) as {
-                medicalSummary?: string;
-                medicalComparativeAnalysis?: string;
-                labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
-                supplementRecommendations?: Array<any>; // Add supplement recommendations
-              };
+            if (analysis && analysis.length > 20) {
+              try {
+                const cleanJSON = extractJSONFromMarkdown(analysis);
+                const parsedAnalysis = JSON.parse(cleanJSON) as {
+                  medicalSummary?: string;
+                  medicalComparativeAnalysis?: string;
+                  labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
+                  supplementRecommendations?: Array<any>;
+                };
 
-              if (parsedAnalysis.labResults) {
-                allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+                if (parsedAnalysis.labResults) {
+                  allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+                }
+
+                docResult = {
+                  title: fileName,
+                  content: JSON.stringify(parsedAnalysis),
+                  processedAt: new Date().toISOString(),
+                  confidence: 1,
+                  type: 'document',
+                  pageCount: 1,
+                  language: 'es',
+                  medicalSummary: parsedAnalysis.medicalSummary,
+                  medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
+                  labResults: parsedAnalysis.labResults,
+                  supplementRecommendations: parsedAnalysis.supplementRecommendations,
+                };
+
+                // ── 3. Guardar en caché tras análisis exitoso ──
+                try {
+                  const cacheColl = await getMedicalDocumentCacheCollection();
+                  await cacheColl.updateOne(
+                    { s3Key },
+                    {
+                      $set: {
+                        s3Key,
+                        clientId: new ObjectId(clientId),
+                        fileName,
+                        analysis: JSON.stringify(parsedAnalysis),
+                        labResults: parsedAnalysis.labResults || [],
+                        medicalSummary: parsedAnalysis.medicalSummary || '',
+                        medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis || '',
+                        supplementRecommendations: parsedAnalysis.supplementRecommendations || [],
+                        cachedAt: new Date(),
+                        updatedAt: new Date(),
+                      },
+                    },
+                    { upsert: true }
+                  );
+                  loggerWithContext.debug('AI', '💾 Análisis médico guardado en caché', { fileName });
+                } catch (cacheErr) {
+                  loggerWithContext.warn('AI', 'Error guardando caché de documento', cacheErr as Error);
+                }
+
+                break; // Success, exit retry loop
+              } catch (parseError) {
+                loggerWithContext.error('AI', 'Error parseando JSON de Gemini', parseError as Error, { fileName });
+                throw new Error(`Error parseando la respuesta JSON de Gemini para ${fileName}`);
               }
-              // TODO: Handle supplementRecommendations if needed for the composite result or separate storage
-
-              return {
-                title: fileName,
-                content: JSON.stringify(parsedAnalysis), // Store parsed JSON as content
-                processedAt: new Date().toISOString(),
-                confidence: 1,
-                type: 'document',
-                pageCount: 1,
-                language: 'es',
-                medicalSummary: parsedAnalysis.medicalSummary,
-                medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
-                labResults: parsedAnalysis.labResults,
-                supplementRecommendations: parsedAnalysis.supplementRecommendations, // Pass supplement recommendations
-              };
-            } catch (parseError) {
-              loggerWithContext.error('AI', 'Error parseando JSON de Gemini', parseError as Error, { fileName });
-              throw new Error(`Error parseando la respuesta JSON de Gemini para ${fileName}`);
             }
-          }
-          return null;
-        } catch (error: any) {
-          const is503 = error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
-          const is404 = error?.message?.includes('404'); // Add 404 check
-          const statusCode = error?.status || (is503 ? 503 : (is404 ? 404 : 500));
-          const errorMessage = error?.message || 'Error desconocido al analizar documento';
+            break; // No analysis but no error either
+          } catch (error: any) {
+            const is503 = error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
+            const is404 = error?.message?.includes('404');
+            const statusCode = error?.status || (is503 ? 503 : (is404 ? 404 : 500));
+            const errorMessage = error?.message || 'Error desconocido al analizar documento';
 
-          if ((is503 || is404) && attempt < 2) { // Retry for 404 as well
-            const delay = Math.pow(2, attempt) * 2000; // 2s, 4s
-            loggerWithContext.warn('AI', `${statusCode} en ${fileName}, reintento ${attempt + 2}/3 en ${delay}ms`);
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
+            // FAIL-FAST: Si es 503 y es el último intento, abortar inmediatamente
+            if (is503 && attempt >= 1) {
+              loggerWithContext.error('AI', 'FAIL-FAST: 503 persistente tras reintento, abortando cadena', new Error(`503 persistente para ${fileName}`), {
+                fileName,
+                attemptsMade: 2,
+              });
+              throw new Error(`ABORTAR_CADENA: Gemini 503 persistente para "${fileName}" tras 2 intentos. Deteniendo procesamiento para evitar consumo excesivo de tokens.`);
+            }
 
-          const errorObj: GenerationError = {
-            message: `Falló el análisis de ${fileName}: ${errorMessage}`,
-            timestamp: new Date(),
-            documentName: fileName,
-            statusCode,
-            stack: error?.stack,
-          };
-          loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
-            fileName: doc?.name || 'unknown',
-            errorDetails: errorMessage,
-            statusCode,
-          });
-          return errorObj; // Return error object instead of null
+            if ((is503 || is404) && attempt < 1) {
+              const delay = 8000; // 8 segundos de seguridad entre intentos
+              loggerWithContext.warn('AI', `${statusCode} en ${fileName}, reintento ${attempt + 2}/2 en ${delay}ms`);
+              await new Promise(r => setTimeout(r, delay));
+              continue;
+            }
+
+            const errorObj: GenerationError = {
+              message: `Falló el análisis de ${fileName}: ${errorMessage}`,
+              timestamp: new Date(),
+              documentName: fileName,
+              statusCode,
+              stack: error?.stack,
+            };
+            loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
+              fileName: doc?.name || 'unknown',
+              errorDetails: errorMessage,
+              statusCode,
+            });
+            docResult = errorObj;
+            break; // Exit retry loop on final failure
+          }
+        }
+        } // fin del bloque "si no hay caché"
+
+        // Classify result
+        if (docResult && !(docResult as GenerationError).message) {
+          processedDocs.push(docResult);
+        } else if (docResult) {
+          failedDocumentAnalyses.push(docResult as GenerationError);
+        }
+
+        // Delay de 8 segundos entre documentos para priorizar estabilidad sobre velocidad
+        if (docIndex < client.medicalData.documents.length - 1) {
+          await new Promise(r => setTimeout(r, 8000));
         }
       }
-      return null;
-    });
-
-    const totalAttempted = client.medicalData.documents.length;
-    const results = await Promise.all(docPromises);
-    for (const r of results) {
-      if (r && !(r as GenerationError).message) { // It's a processed document
-        processedDocs.push(r as any);
-      } else if (r) { // It's a GenerationError
-        failedDocumentAnalyses.push(r as GenerationError);
-      }
-    }
 
     const successCount = processedDocs.length;
     const failCount = failedDocumentAnalyses.length;
@@ -1570,7 +1728,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     // 4. Preparar datos para la IA incluyendo notas del coach
     loggerWithContext.info('AI_REGEN', '🔄 Preparando datos para regeneración');
 
-    const aiInput = await prepareAIInput(client, requestId);
+    const aiInput = await prepareAIInput(client, requestId, clientId);
 
     // Agregar notas del coach si las hay
     if (coachNotes && coachNotes.trim().length > 0) {
@@ -2161,6 +2319,165 @@ async function importSession(
     }
 
     return false;
+  }
+}
+
+/**
+ * Actualiza el plan semanal (checklist) y re-ejecuta Fase 3 para regenerar la lista de compras.
+ * Flujo:
+ *   1. Encripta y persiste el checklist editado en MongoDB
+ *   2. Extrae el weeklyPlan (7 días × 3 comidas) del checklist
+ *   3. Ejecuta Fase 3 (Asistente Logístico) sobre el weeklyPlan
+ *   4. Encripta la nueva shoppingList y la persiste en weeks[weekIndex].nutrition.shoppingList
+ *   5. Devuelve la sesión desencriptada con la nueva lista de compras
+ */
+async function updateWeeklyPlanAndShoppingList(
+  clientId: string,
+  sessionId: string,
+  checklistItems: ChecklistItem[],
+  weekNumber: number,
+  requestId: string
+): Promise<any> {
+  const loggerWithContext = logger.withContext({ requestId, clientId });
+
+  loggerWithContext.info('AI', '📋 Iniciando actualización de plan semanal + Fase 3', {
+    sessionId,
+    itemCount: checklistItems?.length || 0,
+    weekNumber,
+  });
+
+  try {
+    if (!checklistItems || checklistItems.length === 0) {
+      throw new Error('No se recibieron items del plan semanal para actualizar');
+    }
+
+    const healthForms = await getHealthFormsCollection();
+
+    // 1. Obtener cliente y sesión
+    const client = await healthForms.findOne({
+      _id: new ObjectId(clientId),
+      'aiProgress.sessions.sessionId': sessionId,
+    });
+
+    if (!client || !client.aiProgress) {
+      throw new Error('Cliente o sesión no encontrada');
+    }
+
+    const sessionIndex = client.aiProgress.sessions.findIndex(
+      (s: any) => s.sessionId === sessionId
+    );
+    if (sessionIndex === -1) throw new Error('Sesión no encontrada');
+
+    const session = client.aiProgress.sessions[sessionIndex];
+    const weekIndex = session.weeks.findIndex((w: any) => w.weekNumber === weekNumber);
+    if (weekIndex === -1) throw new Error('Semana no encontrada');
+
+    // 2. Encriptar y persistir el checklist editado
+    const encryptedChecklistItems: ChecklistItem[] = checklistItems.map((item) => ({
+      ...item,
+      description: encrypt(item.description),
+      details: item.details
+        ? {
+            ...item.details,
+            recipe: item.details.recipe
+              ? {
+                  ...item.details.recipe,
+                  ingredients: item.details.recipe.ingredients.map((ing) => ({
+                    name: encrypt(ing.name),
+                    quantity: encrypt(ing.quantity),
+                    notes: ing.notes ? encrypt(ing.notes) : undefined,
+                  })),
+                  preparation: encrypt(item.details.recipe.preparation),
+                  tips: item.details.recipe.tips ? encrypt(item.details.recipe.tips) : undefined,
+                }
+              : undefined,
+            frequency: item.details.frequency ? encrypt(item.details.frequency) : undefined,
+            duration: item.details.duration ? encrypt(item.details.duration) : undefined,
+            equipment: item.details.equipment?.map((eq) => encrypt(eq)),
+          }
+        : undefined,
+    }));
+
+    await healthForms.updateOne(
+      {
+        _id: new ObjectId(clientId),
+        'aiProgress.sessions.sessionId': sessionId,
+      },
+      {
+        $set: {
+          'aiProgress.sessions.$.checklist': encryptedChecklistItems,
+          'aiProgress.sessions.$.updatedAt': new Date(),
+          'aiProgress.lastEvaluation': new Date(),
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    // 3. Extraer weeklyPlan del checklist desencriptado
+    const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const mealTypeMap: Record<string, 'breakfast' | 'lunch' | 'dinner'> = {
+      desayuno: 'breakfast',
+      almuerzo: 'lunch',
+      cena: 'dinner',
+    };
+
+    const weeklyPlan = dayNames.map((day) => {
+      const dayItems = checklistItems.filter(
+        (item) => item.category === 'nutrition' && item.weekNumber === weekNumber && item.description.startsWith(day)
+      );
+      return {
+        day,
+        breakfast: dayItems.find((i) => i.type === 'desayuno')?.description.split(': ').slice(1).join(': ') || '',
+        lunch: dayItems.find((i) => i.type === 'almuerzo')?.description.split(': ').slice(1).join(': ') || '',
+        dinner: dayItems.find((i) => i.type === 'cena')?.description.split(': ').slice(1).join(': ') || '',
+      };
+    });
+
+    loggerWithContext.info('AI', '📋 WeeklyPlan extraído para Fase 3', {
+      daysWithMeals: weeklyPlan.filter((d) => d.breakfast || d.lunch || d.dinner).length,
+    });
+
+    // 4. Ejecutar Fase 3 (Asistente Logístico) para regenerar la lista de compras
+    const shoppingListOutput = await generateShoppingListFromWeeklyPlan(weeklyPlan);
+
+    // 5. Encriptar la nueva shoppingList
+    const encryptedShoppingList = shoppingListOutput.shoppingList.map((item) => ({
+      item: encrypt(item.item),
+      quantity: encrypt(item.quantity),
+      priority: item.priority,
+    }));
+
+    // 6. Persistir la shoppingList en la semana correspondiente
+    const updatePath = `aiProgress.sessions.${sessionIndex}.weeks.${weekIndex}.nutrition.shoppingList`;
+    await healthForms.updateOne(
+      { _id: new ObjectId(clientId) },
+      { $set: { [updatePath]: encryptedShoppingList } }
+    );
+
+    // 7. Obtener sesión actualizada y devolverla desencriptada
+    const updatedClient = await healthForms.findOne({ _id: new ObjectId(clientId) });
+    if (!updatedClient?.aiProgress) throw new Error('No se pudo obtener el cliente actualizado');
+
+    const updatedSession = updatedClient.aiProgress.sessions[sessionIndex];
+    const decryptedSession = decryptAISessionCompletely(updatedSession);
+
+    loggerWithContext.info('AI', '✅ Plan semanal + Fase 3 completado exitosamente', {
+      shoppingListItemCount: encryptedShoppingList.length,
+    });
+
+    return {
+      success: true,
+      data: {
+        session: decryptedSession,
+        shoppingList: shoppingListOutput.shoppingList,
+      },
+    };
+  } catch (error: any) {
+    loggerWithContext.error('AI', '💥 Error en updateWeeklyPlanAndShoppingList', error);
+    return {
+      success: false,
+      message: error.message || 'Error al actualizar el plan semanal y regenerar la lista de compras',
+    };
   }
 }
 

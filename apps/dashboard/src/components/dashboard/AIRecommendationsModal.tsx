@@ -29,6 +29,32 @@ interface LabResult {
   status: 'normal' | 'alto' | 'bajo';
 }
 
+interface LabBiomarker {
+  biomarcador: string;
+  valor: string;
+  rango_normal: string;
+  estado: 'Alto' | 'Bajo' | 'Normal';
+}
+
+interface MedicalExamAnalysis {
+  intro: string;
+  table: LabBiomarker[];
+  analysis: string;
+}
+
+interface SupplementRecommendation {
+  name: string;
+  dosage: string;
+  timing: string;
+  rationale: string;
+  contraindications?: string;
+}
+
+interface StructuredMedicalAnalysis {
+  exams: MedicalExamAnalysis[];
+  supplements: SupplementRecommendation[];
+}
+
 // Estructura antigua de una semana (cuando incluía checklistItems)
 interface OldWeekStructure {
   weekNumber?: number;
@@ -133,6 +159,7 @@ interface AIRecommendationSession {
     range: string;
     status: 'normal' | 'alto' | 'bajo';
   }>;
+  structuredMedicalAnalysis?: StructuredMedicalAnalysis;
   baselineMetrics: BaselineMetrics;
   weeks: AIRecommendationWeek[];
   checklist: ChecklistItem[];
@@ -176,6 +203,26 @@ interface ApiAIProgressData {
     vision?: string;
     medicalSummary?: string;
     medicalComparativeAnalysis?: string;
+    labResults?: Array<{
+      name: string;
+      value: string;
+      range: string;
+      status: 'normal' | 'alto' | 'bajo';
+    }>;
+    structuredMedicalAnalysis?: {
+      exams: Array<{
+        intro: string;
+        table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
+        analysis: string;
+      }>;
+      supplements: Array<{
+        name: string;
+        dosage: string;
+        timing: string;
+        rationale: string;
+        contraindications?: string;
+      }>;
+    };
     weeks?: unknown[];
     checklist?: ChecklistItem[];
     status?: 'draft' | 'approved' | 'sent';
@@ -353,6 +400,7 @@ export default function AIRecommendationsModal({
   } | null>(null);
   const [showAIRecipeEditModal, setShowAIRecipeEditModal] = useState(false);
   const [loadingShoppingList, setLoadingShoppingList] = useState<Record<number, boolean>>({});
+  const [loadingWeeklyPlan, setLoadingWeeklyPlan] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -375,6 +423,7 @@ export default function AIRecommendationsModal({
 
       // Caso 1: Ya tiene estructura nueva (sin checklistItems)
       if (typedWeek.nutrition && !('checklistItems' in typedWeek.nutrition)) {
+        const shoppingList = typedWeek.nutrition?.shoppingList || [];
         return {
           weekNumber: typedWeek.weekNumber || (weekIndex + 1) as AIRecommendationWeek['weekNumber'],
           medicalAnalysis: typedWeek.medicalAnalysis ? {
@@ -383,7 +432,7 @@ export default function AIRecommendationsModal({
           } : undefined,
           nutrition: {
             focus: typedWeek.nutrition?.focus || 'Nutrición keto',
-            shoppingList: typedWeek.nutrition?.shoppingList || []
+            shoppingList
           },
           exercise: {
             focus: typedWeek.exercise?.focus || 'Ejercicio adaptado',
@@ -444,9 +493,11 @@ export default function AIRecommendationsModal({
          status: session.status || 'draft',
          summary: session.summary || '',
          vision: session.vision || '',
-         medicalSummary: (session as { medicalSummary?: string }).medicalSummary,
-         medicalComparativeAnalysis: (session as { medicalComparativeAnalysis?: string }).medicalComparativeAnalysis,
-         baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
+          medicalSummary: (session as { medicalSummary?: string }).medicalSummary,
+          medicalComparativeAnalysis: (session as { medicalComparativeAnalysis?: string }).medicalComparativeAnalysis,
+          labResults: (session as { labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }> }).labResults,
+          structuredMedicalAnalysis: (session as { structuredMedicalAnalysis?: StructuredMedicalAnalysis }).structuredMedicalAnalysis,
+          baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
          weeks,
          checklist: session.checklist || [],
          emailSent: false
@@ -479,6 +530,21 @@ export default function AIRecommendationsModal({
     }
     return aiProgress.sessions.find(s => s.sessionId === activeSessionId) || null;
   }, [aiProgress, activeSessionId]);
+
+  // Lista de compras plana (fusionada de todas las semanas, sin duplicados)
+  const flatShoppingList = useMemo(() => {
+    if (!activeSession?.weeks) return [];
+    const seen = new Map<string, { item: string; quantity: string; priority?: string }>();
+    for (const week of activeSession.weeks) {
+      for (const item of week.nutrition?.shoppingList || []) {
+        const key = item.item.toLowerCase().trim();
+        if (!seen.has(key)) {
+          seen.set(key, item);
+        }
+      }
+    }
+    return Array.from(seen.values());
+  }, [activeSession]);
 
   const sessionTabs = useMemo(() => {
     if (!aiProgress?.sessions) return [];
@@ -832,6 +898,48 @@ export default function AIRecommendationsModal({
       setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
     }
   }, [clientId, loadAIProgress]);
+
+  const handleUpdateWeeklyPlan = useCallback(async () => {
+    if (!activeSession) return;
+    try {
+      setLoadingWeeklyPlan(true);
+
+      console.log('📋 handleUpdateWeeklyPlan: Enviando plan semanal + Fase 3...', {
+        sessionId: activeSession.sessionId,
+        checklistItemsCount: activeSession.checklist.length,
+      });
+
+      const response = await apiClient.updateWeeklyPlan(
+        clientId,
+        activeSession.sessionId,
+        activeSession.checklist,
+        1 // Siempre semana 1 por ahora
+      );
+
+      if (response.success && response.data && typeof response.data === 'object' && 'session' in response.data) {
+        const { session } = response.data as { session: AIRecommendationSession };
+        // Actualizar el estado local con la sesión devuelta (incluye la nueva shoppingList)
+        setAiProgress(prev =>
+          prev
+            ? {
+                ...prev,
+                sessions: prev.sessions.map(s =>
+                  s.sessionId === activeSession.sessionId ? session : s
+                ),
+              }
+            : prev
+        );
+        showToast('Plan actualizado y lista de compras regenerada', 'success');
+      } else {
+        throw new Error(response.message || 'Error al actualizar el plan semanal');
+      }
+    } catch (error) {
+      console.error('Error actualizando plan semanal + Fase 3', error);
+      showToast(t('common.error'), 'error');
+    } finally {
+      setLoadingWeeklyPlan(false);
+    }
+  }, [clientId, activeSession, setAiProgress]);
 
   const fetchRecipeAndOpenModal = useCallback(async (recipeId: string) => {
     try {
@@ -1911,7 +2019,7 @@ export default function AIRecommendationsModal({
                       <div className="grid grid-cols-1 gap-2">
                         {week.nutrition.shoppingList.map((shopItem, idx) => (
                           <div key={idx} className="p-2 bg-white rounded-lg border border-emerald-100 flex items-center justify-between">
-                            <span className="text-sm text-gray-700 break-words">{shopItem.item} (<span className="text-emerald-700 font-medium">{shopItem.quantity}</span>)</span>
+                            <span className="text-sm text-gray-900 font-medium break-words">{shopItem.item} (<span className="text-emerald-700 font-medium">{shopItem.quantity}</span>)</span>
                           </div>
                         ))}
                       </div>
@@ -2304,255 +2412,223 @@ export default function AIRecommendationsModal({
                 </div>
                 {expandedMonths.includes('accordion-medical') && activeSession.weeks.length > 0 && (
                   <div className="p-4 space-y-4">
-                    {/* Resumen del análisis médico */}
-                    {activeSession.medicalSummary && (
-                      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                        <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-                          <span>📋</span> Resumen del Análisis de Laboratorio
-                        </h4>
-                        <p className="text-sm text-gray-700 whitespace-pre-line">{activeSession.medicalSummary}</p>
-                      </div>
-                    )}
-                    {/* Análisis comparativo (a partir de la segunda sesión) */}
-                    {activeSession.monthNumber > 1 && (
-                      <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-200 mt-4 space-y-3">
-                        <h4 className="font-bold text-amber-800 flex items-center gap-2 text-base">
-                          <span>📊</span> Análisis Comparativo (vs Sesión Anterior)
-                        </h4>
-                        
-                        {/* Tabla comparativa de biomarcadores */}
-                        {(() => {
-                          const prevSession = aiProgress?.sessions?.find(s => s.monthNumber === activeSession.monthNumber - 1);
-                          const hasComparisonData = activeSession.labResults && activeSession.labResults.length > 0 && prevSession?.labResults && prevSession.labResults.length > 0;
-                          
-                          if (hasComparisonData) {
-                            return (
-                              <div className="overflow-x-auto my-2">
-                                <table className="w-full text-xs md:text-sm border-collapse border border-amber-300 rounded-lg overflow-hidden shadow-sm">
+                    {/* ===== ANÁLISIS MÉDICO ESTRUCTURADO (nuevo formato) ===== */}
+                    {activeSession.structuredMedicalAnalysis && activeSession.structuredMedicalAnalysis.exams.length > 0 ? (
+                      <>
+                        {activeSession.structuredMedicalAnalysis.exams.map((exam, examIdx) => (
+                          <div key={examIdx} className="space-y-3">
+                            {/* Intro del examen */}
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <p className="text-sm text-gray-800 leading-relaxed italic">{exam.intro}</p>
+                            </div>
+
+                            {/* Tabla de biomarcadores — SIN drag-and-drop */}
+                            {exam.table.length > 0 && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
                                   <thead>
-                                    <tr className="bg-amber-600 text-white">
-                                      <th className="text-left p-3 font-semibold border border-amber-300">Biomarcador</th>
-                                      <th className="text-left p-3 font-semibold border border-amber-300">Valor Anterior (Sesión {prevSession.monthNumber})</th>
-                                      <th className="text-left p-3 font-semibold border border-amber-300">Valor Actual (Sesión {activeSession.monthNumber})</th>
-                                      <th className="text-left p-3 font-semibold border border-amber-300">Evolución</th>
+                                    <tr className="bg-red-600 text-white">
+                                      <th className="text-left p-3 font-semibold border border-red-300">Biomarcador</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">Valor</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">Rango Normal</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">Estado</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {activeSession.labResults?.map((lr: LabResult, idx: number) => {
-                                      const prevLr = prevSession.labResults?.find((p: LabResult) => p.name.toLowerCase() === lr.name.toLowerCase());
-                                      
-                                      // Calcular evolución visual si es número
-                                      const currentNum = parseFloat(lr.value);
-                                      const prevNum = prevLr ? parseFloat(prevLr.value) : NaN;
-                                      
-                                      let evolutionText = '—';
-                                      let evolutionColor = 'text-gray-600';
-                                      
-                                      if (!isNaN(currentNum) && !isNaN(prevNum)) {
-                                        const diff = currentNum - prevNum;
-                                        const formattedDiff = diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
-                                        
-                                        // Suponer que si baja el valor, en general es favorable (ej: glucosa, colesterol, etc.)
-                                        const isLowerBetter = ['glucosa', 'colesterol', 'ldl', 'trigliceridos', 'insulina', 'hba1c', 'tsh', 'pcr'].some(term => lr.name.toLowerCase().includes(term));
-                                        
-                                        if (diff === 0) {
-                                          evolutionText = 'Estable (0)';
-                                          evolutionColor = 'text-amber-600 font-medium';
-                                        } else if (diff < 0) {
-                                          evolutionText = `${formattedDiff} (Mejora 🟢)`;
-                                          evolutionColor = isLowerBetter ? 'text-green-600 font-bold' : 'text-orange-600 font-bold';
-                                        } else {
-                                          evolutionText = `${formattedDiff} (Atención 🔴)`;
-                                          evolutionColor = isLowerBetter ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
-                                        }
-                                      } else if (prevLr) {
-                                        evolutionText = 'Cambio cualitativo';
-                                        evolutionColor = 'text-blue-600';
-                                      }
-
+                                    {exam.table.map((row, rowIdx) => {
+                                      const statusColors = row.estado === 'Alto' ? 'bg-red-100 text-red-800 font-bold' :
+                                        row.estado === 'Bajo' ? 'bg-orange-100 text-orange-800 font-bold' :
+                                        'bg-green-100 text-green-800';
                                       return (
-                                        <tr key={`comp-${idx}`} className="border-b border-amber-150 bg-white hover:bg-amber-50/20 transition-colors">
-                                          <td className="p-3 font-medium text-gray-800 border border-amber-100">{lr.name}</td>
-                                          <td className="p-3 text-gray-500 border border-amber-100">{prevLr ? prevLr.value : '—'}</td>
-                                          <td className="p-3 font-bold text-gray-900 border border-amber-100">{lr.value}</td>
-                                          <td className={`p-3 border border-amber-100 ${evolutionColor}`}>{evolutionText}</td>
+                                        <tr key={rowIdx} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
+                                          <td className="p-3 font-medium text-gray-800 border border-red-100">{row.biomarcador}</td>
+                                          <td className="p-3 font-bold text-gray-900 border border-red-100">{row.valor}</td>
+                                          <td className="p-3 text-gray-500 border border-red-100">{row.rango_normal}</td>
+                                          <td className="p-3 border border-red-100">
+                                            <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
+                                              {row.estado}
+                                            </span>
+                                          </td>
                                         </tr>
                                       );
                                     })}
                                   </tbody>
                                 </table>
                               </div>
-                            );
-                          } else {
-                            return (
-                              <p className="text-xs text-amber-600 italic">
-                                No se encontraron biomarcadores comparables estructurados entre la sesión anterior y esta.
-                              </p>
-                            );
-                          }
-                        })()}
+                            )}
 
-                        {/* Explicación textual del análisis comparativo */}
-                        {activeSession.medicalComparativeAnalysis && (
-                          <div className="p-3 bg-white rounded-lg border border-amber-150 text-sm text-gray-700 whitespace-pre-line leading-relaxed shadow-sm">
-                            {activeSession.medicalComparativeAnalysis}
+                            {/* Análisis clínico */}
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <h5 className="font-semibold text-red-800 mb-2 text-sm flex items-center gap-2">
+                                <span>🔬</span> Análisis Clínico
+                              </h5>
+                              <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{exam.analysis}</p>
+                            </div>
+
+                            {/* Divisor sutil entre exámenes */}
+                            {examIdx < activeSession.structuredMedicalAnalysis!.exams.length - 1 && (
+                              <div className="border-t-2 border-red-100 my-4" />
+                            )}
+                          </div>
+                        ))}
+
+                        {/* ===== SUPLEMENTOS (desde structuredMedicalAnalysis) ===== */}
+                        {activeSession.structuredMedicalAnalysis.supplements.length > 0 ? (
+                          <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
+                            <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
+                              <span>💊</span> Suplementación Estratégica Recomendada
+                            </h5>
+                            <div className="space-y-3">
+                              {activeSession.structuredMedicalAnalysis.supplements.map((supp, suppIdx) => (
+                                <div key={suppIdx} className="flex items-start gap-2 py-2 border-b border-amber-100 last:border-0">
+                                  <div className="mt-0.5 w-4 h-4 rounded bg-amber-400 flex-shrink-0 flex items-center justify-center">
+                                    <span className="text-white text-[8px] font-bold">+</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm text-gray-900 font-medium">{supp.name}</span>
+                                    <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
+                                      <p><span className="font-semibold">Dosis:</span> {supp.dosage} | <span className="font-semibold">Momento:</span> {supp.timing}</p>
+                                      <p className="text-gray-500"><span className="font-semibold">Razón:</span> {supp.rationale}</p>
+                                      {supp.contraindications && (
+                                        <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {supp.contraindications}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
+                            <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
+                              <span>🥗</span> Optimización Nutricional sin Suplementos
+                            </h5>
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
+                            </p>
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {/* Tabla de laboratorio compacta — Roja y no drag-and-drop */}
-                    {((activeSession.labResults && activeSession.labResults.length > 0) || activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'lab_result').length > 0) && (
-                      <div className="overflow-x-auto my-3">
-                        <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
-                          <thead>
-                            <tr className="bg-red-600 text-white">
-                              <th className="text-left p-3 font-semibold border border-red-300">Biomarcador / Examen</th>
-                              <th className="text-left p-3 font-semibold border border-red-300">Valor Encontrado</th>
-                              <th className="text-left p-3 font-semibold border border-red-300">Rango de Referencia</th>
-                              <th className="text-left p-3 font-semibold border border-red-300">Estado / Alerta</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {/* Primero renderizamos los labResults estructurados de la sesión */}
-                            {activeSession.labResults?.map((lr: LabResult, idx: number) => {
-                              const statusColors = lr.status === 'alto' ? 'bg-red-100 text-red-800 font-bold' :
-                                lr.status === 'bajo' ? 'bg-orange-100 text-orange-800 font-bold' :
-                                'bg-green-100 text-green-800';
-                              return (
-                                <tr key={`lab-${idx}`} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
-                                  <td className="p-3 font-medium text-gray-800 border border-red-100">{lr.name}</td>
-                                  <td className="p-3 font-bold text-gray-900 border border-red-100">{lr.value}</td>
-                                  <td className="p-3 text-gray-500 border border-red-100">{lr.range || 'N/A'}</td>
-                                  <td className="p-3 border border-red-100">
-                                    <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
-                                      {lr.status.toUpperCase()}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                            {/* Luego renderizamos los resultados de laboratorio del checklist si no están duplicados */}
-                            {activeSession.checklist
-                              .filter(i => i.category === 'medical' && i.type === 'lab_result')
-                              .map((item: ChecklistItem, idx: number) => {
-                                const lr = item.details?.labResults?.[0];
-                                const name = lr?.marker || item.description;
-                                // Evitar duplicados si ya está en labResults
-                                if (activeSession.labResults?.some((existing: LabResult) => existing.name.toLowerCase() === name.toLowerCase())) {
-                                  return null;
-                                }
-                                const status = lr?.trend === 'worsening' ? 'alto' : lr?.trend === 'improving' ? 'normal' : 'normal';
-                                const statusColors = status === 'alto' ? 'bg-red-100 text-red-800 font-bold' : 'bg-green-100 text-green-800';
-                                return (
-                                  <tr key={`chk-lab-${idx}`} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
-                                    <td className="p-3 font-medium text-gray-800 border border-red-100">{name}</td>
-                                    <td className="p-3 font-bold text-gray-900 border border-red-100">{lr?.currentValue || '—'}</td>
-                                    <td className="p-3 text-gray-500 border border-red-100">{lr?.previousValue ? `Prev: ${lr.previousValue}` : 'N/A'}</td>
-                                    <td className="p-3 border border-red-100">
-                                      <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
-                                        {lr?.interpretation || status.toUpperCase()}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {/* Hallazgos clínicos y estudios recomendados */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'clinical_finding').length > 0 && (
-                        <div className="p-4 bg-red-50 rounded-lg border border-red-150">
-                          <h5 className="font-semibold text-red-700 mb-2 text-sm">🔬 Hallazgos Clínicos</h5>
-                          <ul className="space-y-1">
-                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'clinical_finding').map((item) => (
-                              <li key={item.id} className="text-sm text-gray-700 flex items-start gap-2">
-                                <div
-                                  onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
-                                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-red-500 border-red-500' : 'bg-white border-red-300'}`}
-                                >
-                                  {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                </div>
-                                <span className={item.completed ? 'line-through text-gray-400' : ''}>{item.description}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'recommended_study').length > 0 && (
-                        <div className="p-4 bg-red-50 rounded-lg border border-red-150">
-                          <h5 className="font-semibold text-red-700 mb-2 text-sm">📅 Estudios Recomendados</h5>
-                          <ul className="space-y-1">
-                            {activeSession.checklist.filter(i => i.category === 'medical' && i.type === 'recommended_study').map((item) => (
-                              <li key={item.id} className="text-sm text-gray-700 flex items-start gap-2">
-                                <div
-                                  onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
-                                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-red-500 border-red-500' : 'bg-white border-red-300'}`}
-                                >
-                                  {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                </div>
-                                <span className={item.completed ? 'line-through text-gray-400' : ''}>{item.description}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sección de Suplementos / Plan Alimenticio Alternativo */}
-                    {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 ? (
-                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
-                        <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
-                          <span>💊</span> Suplementación Estratégica Recomendada
-                        </h5>
-                        <div className="space-y-3">
-                          {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
-                            <div key={item.id} className="flex items-start gap-2 py-2 border-b border-amber-100 last:border-0">
-                              <div
-                                onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
-                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
-                              >
-                                {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>
-                                  {item.description}
-                                </span>
-                                {item.details?.supplementInfo ? (
-                                  <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
-                                    <p><span className="font-semibold">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">Momento:</span> {item.details.supplementInfo.timing}</p>
-                                    <p className="text-gray-500"><span className="font-semibold">Razón científica:</span> {item.details.supplementInfo.rationale}</p>
-                                    {item.details.supplementInfo.contraindications && (
-                                      <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {item.details.supplementInfo.contraindications}</p>
-                                    )}
-                                  </div>
-                                ) : item.notes ? (
-                                  <p className="text-xs text-gray-500 mt-1 ml-2">{item.notes}</p>
-                                ) : null}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      </>
                     ) : (
-                      <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
-                        <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
-                          <span>🥗</span> Optimización Nutricional sin Suplementos
-                        </h5>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado en la sección de <strong>Nutrición</strong>, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores (como glucemia, perfil lipídico y marcadores inflamatorios) en un promedio de <strong>5 a 10 puntos</strong> al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
-                        </p>
-                      </div>
-                    )}
+                      /* ===== FALLBACK: formato antiguo (labResults + medicalSummary) ===== */
+                      <>
+                        {/* Resumen del análisis médico */}
+                        {(() => {
+                          const medSummary = activeSession.medicalSummary || '';
+                          const isEncrypted = medSummary.startsWith('U2FsdGVkX1');
+                          const isEmpty = !medSummary || medSummary.trim() === '';
 
-                    {!activeSession.medicalSummary && activeSession.checklist.filter(i => i.category === 'medical' || i.category === 'supplement').length === 0 && (
-                      <div className="text-center py-6 text-gray-500">
-                        <p className="text-sm">No hay datos de análisis médico aún.</p>
-                        <p className="text-xs mt-1">Sube documentos de laboratorio del cliente para obtener un análisis detallado de sus marcadores de salud.</p>
-                      </div>
+                          if (isEmpty || isEncrypted) {
+                            return (
+                              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                                <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                                  <span>📋</span> Resumen del Análisis de Laboratorio
+                                </h4>
+                                <p className="text-sm text-gray-600 italic">
+                                  No se pudieron verificar los documentos médicos en este momento. Por favor, intenta de nuevo más tarde.
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
+                                <span>📋</span> Resumen del Análisis de Laboratorio
+                              </h4>
+                              <p className="text-sm text-gray-700 whitespace-pre-line">{medSummary}</p>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Tabla de laboratorio compacta — Roja y no drag-and-drop */}
+                        {activeSession.labResults && activeSession.labResults.length > 0 && (
+                          <div className="overflow-x-auto my-3">
+                            <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
+                              <thead>
+                                <tr className="bg-red-600 text-white">
+                                  <th className="text-left p-3 font-semibold border border-red-300">Biomarcador / Examen</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">Valor Encontrado</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">Rango de Referencia</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">Estado / Alerta</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {activeSession.labResults.map((lr: LabResult, idx: number) => {
+                                  const statusColors = lr.status === 'alto' ? 'bg-red-100 text-red-800 font-bold' :
+                                    lr.status === 'bajo' ? 'bg-orange-100 text-orange-800 font-bold' :
+                                    'bg-green-100 text-green-800';
+                                  return (
+                                    <tr key={`lab-${idx}`} className="border-b border-red-150 hover:bg-red-50/40 transition-colors">
+                                      <td className="p-3 font-medium text-gray-800 border border-red-100">{lr.name}</td>
+                                      <td className="p-3 font-bold text-gray-900 border border-red-100">{lr.value}</td>
+                                      <td className="p-3 text-gray-500 border border-red-100">{lr.range || 'N/A'}</td>
+                                      <td className="p-3 border border-red-100">
+                                        <span className={`px-2 py-1 rounded-full text-xs ${statusColors}`}>
+                                          {lr.status.toUpperCase()}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Suplementos desde checklist (fallback) */}
+                        {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 ? (
+                          <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
+                            <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
+                              <span>💊</span> Suplementación Estratégica Recomendada
+                            </h5>
+                            <div className="space-y-3">
+                              {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
+                                <div key={item.id} className="flex items-start gap-2 py-2 border-b border-amber-100 last:border-0">
+                                  <div
+                                    onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
+                                    className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
+                                  >
+                                    {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 font-medium'}`}>
+                                      {item.description}
+                                    </span>
+                                    {item.details?.supplementInfo ? (
+                                      <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
+                                        <p><span className="font-semibold">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">Momento:</span> {item.details.supplementInfo.timing}</p>
+                                        <p className="text-gray-500"><span className="font-semibold">Razón científica:</span> {item.details.supplementInfo.rationale}</p>
+                                        {item.details.supplementInfo.contraindications && (
+                                          <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {item.details.supplementInfo.contraindications}</p>
+                                        )}
+                                      </div>
+                                    ) : item.notes ? (
+                                      <p className="text-xs text-gray-500 mt-1 ml-2">{item.notes}</p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
+                            <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
+                              <span>🥗</span> Optimización Nutricional sin Suplementos
+                            </h5>
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado en la sección de <strong>Nutrición</strong>, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores (como glucemia, perfil lipídico y marcadores inflamatorios) en un promedio de <strong>5 a 10 puntos</strong> al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
+                            </p>
+                          </div>
+                        )}
+
+                        {!activeSession.medicalSummary && (!activeSession.labResults || activeSession.labResults.length === 0) && activeSession.checklist.filter(i => i.category === 'medical' || i.category === 'supplement').length === 0 && (
+                          <div className="text-center py-6 text-gray-500">
+                            <p className="text-sm">No hay datos de análisis médico aún.</p>
+                            <p className="text-xs mt-1">Sube documentos de laboratorio del cliente para obtener un análisis detallado de sus marcadores de salud.</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -2727,41 +2803,6 @@ export default function AIRecommendationsModal({
                       })}
                     </div>
 
-                    {/* Lista de compras semanal */}
-                    {activeSession.weeks.some(w => w.nutrition.shoppingList?.length > 0) && (
-                      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-green-800 flex items-center gap-2">
-                            <span>🛒</span> Lista de compras
-                          </h4>
-                          <button
-                            onClick={() => handleUpdateShoppingList(activeSession.sessionId, 1)}
-                            disabled={loadingShoppingList[1]}
-                            className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50"
-                          >
-                            {loadingShoppingList[1] ? 'Actualizando...' : 'Actualizar'}
-                          </button>
-                        </div>
-                        {activeSession.weeks.map((week, wi) => (
-                          week.nutrition.shoppingList?.length > 0 && (
-                            <div key={wi} className="mb-2">
-                              <p className="text-xs font-medium text-green-700 mb-1">Semana {week.weekNumber}</p>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                                {week.nutrition.shoppingList.map((item, si) => (
-                                  <div key={si} className="flex items-center gap-1 text-xs">
-                                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                      item.priority === 'high' ? 'bg-red-400' : item.priority === 'medium' ? 'bg-yellow-400' : 'bg-green-400'
-                                    }`} />
-                                    <span>{item.item} <span className="text-gray-600">({item.quantity})</span></span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    )}
-
                     {/* Alternativas sugeridas */}
                     <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                       <h4 className="font-semibold text-amber-800 text-sm mb-1">💡 Alternativas sugeridas</h4>
@@ -2827,6 +2868,56 @@ export default function AIRecommendationsModal({
                           <p className="text-xs text-amber-500 italic">Sin alternativas generadas aún.</p>
                         )}
                       </div>
+                    </div>
+
+                    {/* Lista de compras (siempre visible el contenedor + botón) */}
+                    <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-green-800 flex items-center gap-2">
+                          <span>🛒</span> Lista de compras
+                        </h4>
+                        <button
+                          onClick={() => handleUpdateWeeklyPlan()}
+                          disabled={loadingWeeklyPlan}
+                          className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {loadingWeeklyPlan ? (
+                            <>
+                              <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                              Actualizando lista de ingredientes...
+                            </>
+                          ) : 'Actualizar'}
+                        </button>
+                      </div>
+
+                      {/* Indicador de carga durante Fase 3 */}
+                      {loadingWeeklyPlan && (
+                        <div className="flex items-center gap-2 mb-3 p-2 bg-emerald-100 rounded-lg text-emerald-700 text-xs animate-pulse">
+                          <svg className="animate-spin h-4 w-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <span>Gemini está procesando los ingredientes del nuevo plan...</span>
+                        </div>
+                      )}
+
+                      {flatShoppingList.length === 0 && !loadingWeeklyPlan && (
+                        <p className="text-sm text-green-700 italic">Presiona &quot;Actualizar&quot; para generar la lista de compras basada en el plan actual.</p>
+                      )}
+
+                      {/* Grid único de items */}
+                      {flatShoppingList.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                          {flatShoppingList.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-1 text-xs">
+                              <span className="text-gray-900 font-medium">{item.item}</span> <span className="text-gray-700">({item.quantity})</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
