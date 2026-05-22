@@ -337,9 +337,9 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 
 ## GENERA ESTE JSON USANDO LOS IDs DE LAS LISTAS DE ARRIBA
 
-### 1. clientInsights — Análisis del cliente (MUY IMPORTANTE: vision debe ser tan extensa como summary)
-- summary: Análisis detallado del estado actual del cliente
-- vision: Visión igualmente extensa de cómo estará el cliente en 4 semanas (1 mes)
+### 1. clientInsights — Análisis del cliente (BREVE: summary y vision deben ser cortos, sin tanto detalle)
+- summary: Resumen breve del estado actual del cliente (2-3 líneas máximo)
+- vision: Visión corta de cómo estará el cliente en 4 semanas (1 mes) (2-3 líneas máximo)
 
 ### 2. nutritionPlan — PLAN DE COMIDAS (7 días)
 - weeklyPlan: array de 7 objetos (Monday a Sunday)
@@ -366,8 +366,8 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 \`\`\`json
 {
   "clientInsights": {
-    "summary": "Análisis detallado y extenso del estado actual del cliente...",
-    "vision": "Visión igualmente extensa y detallada de cómo estará el cliente en 4 semanas (1 mes)...",
+    "summary": "Resumen breve del estado actual del cliente...",
+    "vision": "Visión corta de cómo estará el cliente en 4 semanas (1 mes)...",
     "keyRisks": ["..."],
     "opportunities": ["..."],
     "experienceLevel": "principiante|intermedio|avanzado",
