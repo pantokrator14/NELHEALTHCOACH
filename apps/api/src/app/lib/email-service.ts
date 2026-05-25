@@ -275,6 +275,7 @@ export class EmailService {
       progressNotes?: string;
       dashboardUrl?: string;
       joinLink?: string;
+      timeZone?: string;
     }
   ): Promise<boolean> {
     try {
@@ -293,6 +294,7 @@ export class EmailService {
         progressNotes: data.progressNotes,
         dashboardUrl: data.dashboardUrl,
         joinLink: data.joinLink,
+        timeZone: data.timeZone,
       });
       const subject = `📋 Sesión #${data.sessionNumber} - ${data.clientName} | NELHealthCoach`;
 

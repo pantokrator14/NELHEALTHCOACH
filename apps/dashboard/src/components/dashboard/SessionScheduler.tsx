@@ -69,6 +69,9 @@ export default function SessionScheduler({
         return;
       }
 
+      // Detectar zona horaria del navegador del coach
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
       // Llamar a la API para crear la sala
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No autorizado');
@@ -84,6 +87,7 @@ export default function SessionScheduler({
           scheduledAt: selectedDate.toISOString(),
           durationMinutes: duration,
           coachNotes: coachNotes || undefined,
+          timezone,
         }),
       });
 

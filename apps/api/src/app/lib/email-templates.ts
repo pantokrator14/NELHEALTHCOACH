@@ -292,6 +292,7 @@ export interface SessionEmailData {
   joinLink: string;
   coachName?: string;
   coachEmail?: string;
+  timeZone?: string;
 }
 
 /**
@@ -302,12 +303,14 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
   const currentYear = new Date().getFullYear();
   const coachName = data.coachName || 'Tu coach';
   const coachEmail = data.coachEmail || 'contact@nelhealthcoach.com';
-  const formattedDate = data.scheduledDate.toLocaleDateString('es-MX', {
+  const dateOpts: Intl.DateTimeFormatOptions = {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-  });
+  };
+  if (data.timeZone) dateOpts.timeZone = data.timeZone;
+  const formattedDate = data.scheduledDate.toLocaleDateString('es-MX', dateOpts);
   const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
 
   return `
@@ -321,7 +324,7 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
         @media only screen and (max-width: 600px) {
             .container { width: 100% !important; padding: 15px !important; }
             .header { padding: 25px !important; }
-            .button { display: block !important; width: 100% !important; }
+            .button { display: block !important; width: 100% !important; box-sizing: border-box !important; }
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -330,6 +333,19 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
             background: #f5f5f5;
             margin: 0;
             padding: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .container {
+            overflow: hidden;
+        }
+        .button {
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+        .detail-card {
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
     </style>
 </head>
@@ -348,7 +364,7 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
             </p>
 
             <!-- Tarjeta de detalles de la sesión -->
-            <div style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0e0e0;">
+            <div class="detail-card" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0e0e0;">
                 <div style="display: flex; align-items: center; margin-bottom: 12px;">
                     <span style="font-size: 20px; margin-right: 10px;">📅</span>
                     <span style="font-weight: 600;">${formattedDate}</span>
@@ -702,20 +718,25 @@ export function generateCoachSessionNotificationHTML(data: {
   progressNotes?: string;
   dashboardUrl?: string;
   joinLink?: string;
+  timeZone?: string;
 }): string {
   const currentYear = new Date().getFullYear();
   const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const dateOpts: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  };
+  if (data.timeZone) dateOpts.timeZone = data.timeZone;
   const formattedDate = data.scheduledDate
-    ? data.scheduledDate.toLocaleDateString('es-MX', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+    ? data.scheduledDate.toLocaleDateString('es-MX', dateOpts)
     : null;
 
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  if (data.timeZone) timeOpts.timeZone = data.timeZone;
   const timeStr = data.scheduledTime || (data.scheduledDate
-    ? data.scheduledDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    ? data.scheduledDate.toLocaleTimeString('es-MX', timeOpts)
     : null);
 
   return `
@@ -729,6 +750,7 @@ export function generateCoachSessionNotificationHTML(data: {
         @media only screen and (max-width: 600px) {
             .container { width: 100% !important; padding: 15px !important; }
             .header { padding: 25px !important; }
+            .button { display: block !important; width: 100% !important; box-sizing: border-box !important; }
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -737,6 +759,19 @@ export function generateCoachSessionNotificationHTML(data: {
             background: #f5f5f5;
             margin: 0;
             padding: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .container {
+            overflow: hidden;
+        }
+        .button {
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+        .detail-card {
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
     </style>
 </head>
@@ -750,7 +785,7 @@ export function generateCoachSessionNotificationHTML(data: {
         <!-- Contenido principal -->
         <div style="padding: 35px 30px;">
             <!-- Tarjeta de detalles -->
-            <div style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0e0e0;">
+            <div class="detail-card" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0e0e0;">
                 ${formattedDate ? `<div style="display: flex; align-items: center; margin-bottom: 12px;">
                     <span style="font-size: 20px; margin-right: 10px;">📅</span>
                     <span style="font-weight: 600;">${formattedDate}</span>
@@ -772,7 +807,7 @@ export function generateCoachSessionNotificationHTML(data: {
             <!-- Botón de unirse -->
             ${data.joinLink ? `
             <div style="text-align: center; margin-bottom: 25px;">
-                <a href="${data.joinLink}" style="
+                <a href="${data.joinLink}" class="button" style="
                     display: inline-block;
                     padding: 15px 40px;
                     background: #4CAF50;

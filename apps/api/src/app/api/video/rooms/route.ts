@@ -13,6 +13,7 @@ interface CreateRoomRequestBody {
   scheduledAt: string;
   durationMinutes?: number;
   coachNotes?: string;
+  timezone?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       body.clientId,
       body.scheduledAt,
       body.durationMinutes ?? 60,
-      body.coachNotes
+      body.coachNotes,
+      body.timezone
     );
 
     logger.info('VIDEO', 'Room created via API', {
