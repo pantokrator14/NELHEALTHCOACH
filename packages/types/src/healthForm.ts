@@ -312,6 +312,8 @@ export interface VideoSession {
   roomName: string;
   /** Fecha y hora programada para la sesión */
   scheduledAt: Date;
+  /** Zona horaria IANA (ej. "America/Mexico_City") en que se agendó */
+  timezone?: string;
   /** Duración estimada en minutos */
   durationMinutes: number;
   /** Estado actual de la sesión */

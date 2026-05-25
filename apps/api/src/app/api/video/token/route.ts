@@ -27,15 +27,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as TokenRequest;
 
-    if (!body.roomName || !body.role) {
+    if (!body.role) {
       return NextResponse.json(
-        { success: false, message: 'roomName y role son requeridos' },
+        { success: false, message: 'role es requerido' },
         { status: 400 }
       );
     }
 
     if (body.role === 'coach') {
       // ── Coach: autenticado con JWT del dashboard ──
+      if (!body.roomName) {
+        return NextResponse.json(
+          { success: false, message: 'roomName es requerido para rol coach' },
+          { status: 400 }
+        );
+      }
+
       const authHeader = request.headers.get('Authorization')?.replace('Bearer ', '');
       requireAuth(authHeader);
 
@@ -93,8 +100,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const doc = await collection.findOne({ _id: new ObjectId(decoded.sub) });
       const clientName = doc?.personalData?.name ?? 'Cliente';
 
+      // Usar el roomName de la sesión (ya almacenada en BD)
+      const roomName = session.roomName;
+
       const token = await generateParticipantToken({
-        roomName: body.roomName,
+        roomName,
         participantIdentity: `client_${decoded.sub.slice(-8)}`,
         participantName: body.displayName ?? clientName,
         metadata: {

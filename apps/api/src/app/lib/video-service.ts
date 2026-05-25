@@ -92,7 +92,8 @@ export async function createVideoSession(
   clientId: string,
   scheduledAt: string,
   durationMinutes: number = 60,
-  coachNotes?: string
+  coachNotes?: string,
+  timezone?: string
 ): Promise<CreateRoomResult> {
   validateConfig();
 
@@ -106,6 +107,7 @@ export async function createVideoSession(
     roomName,
     scheduledAt: new Date(scheduledAt),
     durationMinutes,
+    timezone,
     status: 'scheduled',
     coachNotes: coachNotes ? encrypt(coachNotes) : undefined,
   };

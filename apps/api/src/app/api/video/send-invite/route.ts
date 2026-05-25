@@ -97,10 +97,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Enviar email con Resend
     const emailService = EmailService.getInstance();
 
+    // Usar la zona horaria con la que se agendó la sesión; fallback a UTC
+    const timezone = session.timezone || 'UTC';
+
     const scheduledDate = new Date(session.scheduledAt);
     const timeString = scheduledDate.toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: timezone,
     });
 
     const emailSent = await emailService.sendSessionInviteEmail(clientEmail, {
@@ -110,6 +114,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       scheduledTime: timeString,
       durationMinutes: session.durationMinutes,
       joinLink,
+      timeZone: timezone,
     });
 
     logger.info('VIDEO', 'Session invite email sent', {
@@ -143,6 +148,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           durationMinutes: session.durationMinutes,
           joinLink: coachJoinLink,
           dashboardUrl: `${process.env.DASHBOARD_URL || 'http://localhost:3002'}/dashboard/clients/${body.clientId}`,
+          timeZone: timezone,
         });
 
         logger.info('VIDEO', 'Coach notification email sent', {
