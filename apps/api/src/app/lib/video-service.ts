@@ -193,7 +193,8 @@ export function generateClientSessionLink(
     { expiresIn: '7d' }
   );
 
-  const baseUrl = process.env.WEBSITE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  // La página /video/join está en la app dashboard; DASHBOARD_URL es la correcta
+  const baseUrl = process.env.DASHBOARD_URL || process.env.WEBSITE_URL || 'http://localhost:3002';
   const joinLink = `${baseUrl}/video/join?token=${encodeURIComponent(sessionToken)}`;
 
   return { joinLink, token: sessionToken };
