@@ -4,7 +4,7 @@
 // Mismo layout que VideoCallRoom pero con room name editable
 // y sin necesidad de agendar sesiones.
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
@@ -24,11 +24,13 @@ const ControlBar = dynamic(
   { ssr: false }
 );
 
-// ── LiveKit hooks y valores (import estático) ──
+// ── LiveKit hooks y componentes (import estático, solo se ejecutan
+//    cuando se renderizan DENTRO de LiveKitRoom, que es dynamic ssr:false) ──
 
 import {
   useRemoteParticipants,
   useDataChannel,
+  useConnectionState,
   GridLayout,
   ParticipantTile,
   type TrackReferenceOrPlaceholder,
@@ -61,38 +63,6 @@ function generateRoomName(): string {
 // CSS para corregir espejo del self-view
 // ─────────────────────────────────────────────
 
-const SELF_VIEW_STYLES = `
-  .self-view-pip video {
-    transform: scaleX(1) !important;
-  }
-  .self-view-pip .lk-participant-media-video {
-    transform: scaleX(1) !important;
-  }
-`;
-
-// ── Grid de video en vivo (solo remotos, sin useTracks) ──
-
-function LiveVideoGrid() {
-  const remoteParticipants = useRemoteParticipants();
-
-  // Construimos track refs solo de participantes remotos
-  // para evitar cualquier suscripción al track local
-  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
-    (p) => ({
-      participant: p,
-      source: Track.Source.Camera,
-    }),
-  );
-
-  return (
-    <div className="absolute inset-0 top-14 bottom-20">
-      <GridLayout tracks={tracks}>
-        <ParticipantTile />
-      </GridLayout>
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────
 // Tipos de estado
 // ─────────────────────────────────────────────
@@ -109,6 +79,163 @@ type PageState =
   | { status: 'ended'; role: string }
   | { status: 'error'; message: string };
 
+// ── Componente de UI de la sala (solo se renderiza DENTRO de LiveKitRoom) ──
+//    Todos los hooks de LiveKit viven aquí, no en el page component.
+//    Como LiveKitRoom es dynamic(ssr:false), este componente nunca se
+//    ejecuta durante SSR y puede usar hooks de LiveKit sin peligro.
+
+function LiveRoomUI({
+  role,
+  roomName,
+  onEnded,
+}: {
+  role: string;
+  roomName: string;
+  onEnded: () => void;
+}) {
+  const remoteParticipants = useRemoteParticipants();
+  const connectionState = useConnectionState();
+  const [connected, setConnected] = useState(false);
+
+  // Detectar desconexión inesperada
+  useEffect(() => {
+    if (connectionState === 'connected') {
+      setConnected(true);
+    } else if (connectionState === 'disconnected') {
+      setConnected(false);
+      // timeout para evitar doble llamada si endedRef ya se activó
+      setTimeout(() => {
+        if (!endedRef.current) {
+          endedRef.current = true;
+          onEnded();
+        }
+      }, 500);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionState]);
+
+  // ── Data channel: fin de sesión ──
+  const endedRef = useRef(false);
+  const { send: sendData } = useDataChannel('session', (msg) => {
+    const text = new TextDecoder().decode(msg.payload);
+    if (text === 'session_ended' && role === 'client' && !endedRef.current) {
+      endedRef.current = true;
+      onEnded();
+    }
+  });
+
+  const handleEndCall = useCallback(() => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+
+    if (role === 'coach') {
+      sendData(new TextEncoder().encode('session_ended'), {
+        topic: 'session',
+        reliable: true,
+      }).catch(() => {});
+      setTimeout(() => onEnded(), 300);
+    } else {
+      onEnded();
+    }
+  }, [role, sendData, onEnded]);
+
+  // ── Grid de video (solo remotos) ──
+
+  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
+    (p) => ({
+      participant: p,
+      source: Track.Source.Camera,
+    }),
+  );
+
+  return (
+    <>
+      {/* Estilos para corregir espejo del self-view */}
+      <style>{`
+        .self-view-pip video { transform: scaleX(1) !important; }
+        .self-view-pip .lk-participant-media-video { transform: scaleX(1) !important; }
+      `}</style>
+
+      {/* Header flotante */}
+      <div className="absolute top-0 left-0 right-0 z-30 h-14 bg-gradient-to-b from-black/60 to-transparent px-6 flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white font-bold text-xs shadow-lg">
+            N
+          </div>
+          <span className="font-medium text-white/80 text-sm hidden sm:inline">
+            Sala: {roomName}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 pointer-events-auto">
+          {connected ? (
+            <span className="flex items-center gap-1.5 text-[11px] text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              En vivo
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[11px] text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+              Conectando...
+            </span>
+          )}
+          <span className="px-2 py-0.5 text-[10px] rounded-full bg-white/10 text-white/60 font-medium uppercase tracking-wider">
+            {role}
+          </span>
+        </div>
+      </div>
+
+      {/* Audio */}
+      <RoomAudioRenderer />
+
+      {/* Grid de video en vivo — ocupa entre header y controles */}
+      <div className="absolute inset-0 top-14 bottom-20">
+        <GridLayout tracks={tracks}>
+          <ParticipantTile />
+        </GridLayout>
+      </div>
+
+      {/* Self-view overlay */}
+      <SelfViewPip />
+
+      {/* ControlBar (sin chat, sin leave) */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 h-20 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent flex items-center justify-center">
+        <ControlBar
+          variation="minimal"
+          controls={{
+            microphone: true,
+            camera: true,
+            screenShare: true,
+            chat: false,
+            leave: false,
+          }}
+        />
+      </div>
+
+      {/* Botón salir personalizado */}
+      <div className="absolute bottom-5 right-6 z-30">
+        <button
+          onClick={handleEndCall}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30 flex items-center gap-2 hover:scale-105 active:scale-95 text-sm"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span className="hidden sm:inline">Finalizar</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────
@@ -117,7 +244,6 @@ export default function TestVideoPage() {
   const router = useRouter();
   const [roomName, setRoomName] = useState('');
   const [state, setState] = useState<PageState>({ status: 'form' });
-  const [connected, setConnected] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -204,80 +330,9 @@ export default function TestVideoPage() {
     }
   }
 
-  // ── Salir / Data channel ──
-
-  const endedRef = useRef(false);
-
-  // El hook useDataChannel debe estar aquí (no condicional)
-  // El cliente escucha "session_ended" del coach
-  const { send: sendData } = useDataChannel('session', (msg) => {
-    const text = new TextDecoder().decode(msg.payload);
-    if (
-      text === 'session_ended' &&
-      state.status === 'ready' &&
-      state.role === 'client' &&
-      !endedRef.current
-    ) {
-      endedRef.current = true;
-      setState({ status: 'ended', role: state.role });
-    }
-  });
-
-  const handleDisconnect = useCallback(() => {
-    if (endedRef.current) {
-      if (state.status === 'ready') {
-        setState({ status: 'ended', role: state.role });
-      }
-      return;
-    }
-    endedRef.current = true;
-
-    if (state.status === 'ready') {
-      if (state.role === 'coach') {
-        // Avisar al cliente antes de cerrar la sala
-        sendData(new TextEncoder().encode('session_ended'), {
-          topic: 'session',
-          reliable: true,
-        }).catch(() => {
-          // Si falla el envío, salimos igual
-        });
-        // Pequeña pausa para dar tiempo a que el mensaje llegue
-        setTimeout(() => {
-          setState({ status: 'ended', role: state.role });
-        }, 300);
-      } else {
-        setState({ status: 'ended', role: state.role });
-      }
-    }
-  }, [state, sendData]);
-
   function resetForm() {
     setRoomName(generateRoomName());
     setState({ status: 'form' });
-    setConnected(false);
-  }
-
-  // ── Manejar error de LiveKit ──
-
-  function handleLiveKitError(error: Error) {
-    console.error('🔴 LiveKit error:', error);
-
-    const isPermissionError =
-      error.name === 'NotAllowedError' ||
-      error.message?.includes('Permission denied');
-
-    if (isPermissionError) {
-      setState({
-        status: 'error',
-        message:
-          'Permiso de cámara/micrófono denegado. Haz clic en el candado 🔒 en la barra de direcciones y permite "Cámara" y "Micrófono", luego recarga.',
-      });
-    } else {
-      setState({
-        status: 'error',
-        message: `Error: ${error.message}`,
-      });
-    }
   }
 
   // ════════════════════════════════════════════
@@ -448,8 +503,6 @@ export default function TestVideoPage() {
           />
         </Head>
         <div className="fixed inset-0 z-50 bg-gray-950">
-          <style>{SELF_VIEW_STYLES}</style>
-
           <LiveKitRoom
             token={state.liveKitToken}
             serverUrl={state.serverUrl}
@@ -459,84 +512,16 @@ export default function TestVideoPage() {
               resolution: { width: 640, height: 480 },
               facingMode: 'user',
             }}
-            onDisconnected={handleDisconnect}
-            onError={handleLiveKitError}
-            onConnected={() => setConnected(true)}
             style={{ height: '100vh' }}
             options={{ adaptiveStream: true, dynacast: true }}
           >
-            {/* Header flotante */}
-            <div className="absolute top-0 left-0 right-0 z-30 h-14 bg-gradient-to-b from-black/60 to-transparent px-6 flex items-center justify-between pointer-events-none">
-              <div className="flex items-center gap-3 pointer-events-auto">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white font-bold text-xs shadow-lg">
-                  N
-                </div>
-                <span className="font-medium text-white/80 text-sm hidden sm:inline">
-                  Sala: {roomName}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 pointer-events-auto">
-                {connected ? (
-                  <span className="flex items-center gap-1.5 text-[11px] text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    En vivo
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-[11px] text-yellow-400 bg-yellow-500/10 px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-                    Conectando...
-                  </span>
-                )}
-                <span className="px-2 py-0.5 text-[10px] rounded-full bg-white/10 text-white/60 font-medium uppercase tracking-wider">
-                  {state.role}
-                </span>
-              </div>
-            </div>
-
-            {/* Audio */}
-            <RoomAudioRenderer />
-
-            {/* Grid de video en vivo — ocupa entre header y controles */}
-            <LiveVideoGrid />
-
-            {/* Self-view overlay */}
-            <SelfViewPip />
-
-            {/* ControlBar (sin chat, sin leave) */}
-            <div className="absolute bottom-0 left-0 right-0 z-20 h-20 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent flex items-center justify-center">
-              <ControlBar
-                variation="minimal"
-                controls={{
-                  microphone: true,
-                  camera: true,
-                  screenShare: true,
-                  chat: false,
-                  leave: false,
-                }}
-              />
-            </div>
-
-            {/* Botón salir personalizado */}
-            <div className="absolute bottom-5 right-6 z-30">
-              <button
-                onClick={handleDisconnect}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30 flex items-center gap-2 hover:scale-105 active:scale-95 text-sm"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Salir</span>
-              </button>
-            </div>
+            <LiveRoomUI
+              role={state.role}
+              roomName={roomName}
+              onEnded={() =>
+                setState({ status: 'ended', role: state.role })
+              }
+            />
           </LiveKitRoom>
         </div>
       </>
