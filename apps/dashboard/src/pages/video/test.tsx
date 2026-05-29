@@ -4,7 +4,7 @@
 // Mismo layout que VideoCallRoom pero con room name editable
 // y sin necesidad de agendar sesiones.
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
@@ -26,7 +26,13 @@ const ControlBar = dynamic(
 
 // ── LiveKit hooks y valores (import estático) ──
 
-import { useTracks, GridLayout, ParticipantTile } from '@livekit/components-react';
+import {
+  useRemoteParticipants,
+  useDataChannel,
+  GridLayout,
+  ParticipantTile,
+  type TrackReferenceOrPlaceholder,
+} from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
 // ── Self-view PIP (import dinámico — usa hooks de LiveKit) ──
@@ -64,20 +70,23 @@ const SELF_VIEW_STYLES = `
   }
 `;
 
-// ── Grid de video en vivo (usa useTracks para resolver placeholders) ──
+// ── Grid de video en vivo (solo remotos, sin useTracks) ──
 
 function LiveVideoGrid() {
-  const tracks = useTracks([
-    { source: Track.Source.Camera, withPlaceholder: true },
-    { source: Track.Source.ScreenShare, withPlaceholder: false },
-  ]);
+  const remoteParticipants = useRemoteParticipants();
 
-  // Solo remotos en el grid — el local va en el PIP
-  const remoteTracks = tracks.filter((tr) => !tr.participant.isLocal);
+  // Construimos track refs solo de participantes remotos
+  // para evitar cualquier suscripción al track local
+  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
+    (p) => ({
+      participant: p,
+      source: Track.Source.Camera,
+    }),
+  );
 
   return (
     <div className="absolute inset-0 top-14 bottom-20">
-      <GridLayout tracks={remoteTracks}>
+      <GridLayout tracks={tracks}>
         <ParticipantTile />
       </GridLayout>
     </div>
@@ -195,13 +204,52 @@ export default function TestVideoPage() {
     }
   }
 
-  // ── Salir ──
+  // ── Salir / Data channel ──
 
-  const handleDisconnect = useCallback(() => {
-    if (state.status === 'ready') {
+  const endedRef = useRef(false);
+
+  // El hook useDataChannel debe estar aquí (no condicional)
+  // El cliente escucha "session_ended" del coach
+  const { send: sendData } = useDataChannel('session', (msg) => {
+    const text = new TextDecoder().decode(msg.payload);
+    if (
+      text === 'session_ended' &&
+      state.status === 'ready' &&
+      state.role === 'client' &&
+      !endedRef.current
+    ) {
+      endedRef.current = true;
       setState({ status: 'ended', role: state.role });
     }
-  }, [state]);
+  });
+
+  const handleDisconnect = useCallback(() => {
+    if (endedRef.current) {
+      if (state.status === 'ready') {
+        setState({ status: 'ended', role: state.role });
+      }
+      return;
+    }
+    endedRef.current = true;
+
+    if (state.status === 'ready') {
+      if (state.role === 'coach') {
+        // Avisar al cliente antes de cerrar la sala
+        sendData(new TextEncoder().encode('session_ended'), {
+          topic: 'session',
+          reliable: true,
+        }).catch(() => {
+          // Si falla el envío, salimos igual
+        });
+        // Pequeña pausa para dar tiempo a que el mensaje llegue
+        setTimeout(() => {
+          setState({ status: 'ended', role: state.role });
+        }, 300);
+      } else {
+        setState({ status: 'ended', role: state.role });
+      }
+    }
+  }, [state, sendData]);
 
   function resetForm() {
     setRoomName(generateRoomName());
@@ -407,7 +455,10 @@ export default function TestVideoPage() {
             serverUrl={state.serverUrl}
             connect={true}
             audio={true}
-            video={true}
+            video={{
+              resolution: { width: 640, height: 480 },
+              facingMode: 'user',
+            }}
             onDisconnected={handleDisconnect}
             onError={handleLiveKitError}
             onConnected={() => setConnected(true)}

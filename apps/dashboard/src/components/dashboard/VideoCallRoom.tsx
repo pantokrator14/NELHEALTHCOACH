@@ -7,7 +7,7 @@
 // - Active speaker highlight
 // - Sin VideoConference (evita duplicación de controles)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -15,7 +15,8 @@ import {
   GridLayout,
   ParticipantTile,
   useRemoteParticipants,
-  useTracks,
+  useDataChannel,
+  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 
 import SelfViewPip from './SelfViewPip';
@@ -46,17 +47,21 @@ const API_BASE_URL =
 // ─────────────────────────────────────────────
 
 function LiveVideoGrid() {
-  const tracks = useTracks([
-    { source: Track.Source.Camera, withPlaceholder: true },
-    { source: Track.Source.ScreenShare, withPlaceholder: false },
-  ]);
+  const remoteParticipants = useRemoteParticipants();
 
-  // Solo remotos en el grid — el local va en el PIP
-  const remoteTracks = tracks.filter((tr) => !tr.participant.isLocal);
+  // Construimos track refs solo de participantes remotos
+  // (evitamos useTracks para que no haya ninguna suscripción
+  // al track de cámara local que pueda interferir en móvil)
+  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
+    (p) => ({
+      participant: p,
+      source: Track.Source.Camera,
+    }),
+  );
 
   return (
     <div className="absolute inset-0 top-14 bottom-20">
-      <GridLayout tracks={remoteTracks}>
+      <GridLayout tracks={tracks}>
         <ParticipantTile />
       </GridLayout>
     </div>
@@ -205,11 +210,43 @@ export default function VideoCallRoom({
     };
   }, [roomName, role, sessionToken]);
 
+  // ── Data channel para fin de sesión ──
+  //    El coach envía "session_ended" antes de irse,
+  //    el cliente lo recibe y se desconecta automáticamente.
+
+  const endedRef = useRef(false);
+
+  const { send: sendData } = useDataChannel('session', (msg) => {
+    const text = new TextDecoder().decode(msg.payload);
+    if (text === 'session_ended' && role === 'client' && !endedRef.current) {
+      endedRef.current = true;
+      onLeave();
+    }
+  });
+
   // ── Manejar desconexión ──
 
   const handleDisconnect = useCallback(() => {
-    onLeave();
-  }, [onLeave]);
+    if (endedRef.current) {
+      onLeave();
+      return;
+    }
+    endedRef.current = true;
+
+    if (role === 'coach') {
+      // Avisar al cliente antes de cerrar la sala
+      sendData(new TextEncoder().encode('session_ended'), {
+        topic: 'session',
+        reliable: true,
+      }).catch(() => {
+        // Si falla el envío, salimos igual
+      });
+      // Pequeña pausa para dar tiempo a que el mensaje llegue
+      setTimeout(() => onLeave(), 300);
+    } else {
+      onLeave();
+    }
+  }, [role, onLeave, sendData]);
 
   // ── Manejar errores ──
 
@@ -283,7 +320,10 @@ export default function VideoCallRoom({
         serverUrl={serverUrl}
         connect={true}
         audio={true}
-        video={true}
+        video={{
+          resolution: { width: 640, height: 480 },
+          facingMode: 'user',
+        }}
         onConnected={() => setConnected(true)}
         onDisconnected={handleDisconnect}
         onError={handleError}
