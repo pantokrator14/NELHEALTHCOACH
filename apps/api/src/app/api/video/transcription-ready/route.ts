@@ -3,10 +3,8 @@
 // POST: Callback de Deepgram con el resultado de la transcripción
 // de una grabación de videollamada.
 //
-// Este endpoint recibe el transcript completo, lo guarda en S3,
-// lo anexa al documento MongoDB del cliente y dispara el pipeline
-// de post-procesamiento (resumen con Gemini +
-// re-generación de recomendaciones).
+// Recibe el transcript de Deepgram, lo guarda en S3 y MongoDB,
+// y genera un resumen con Gemini (sin usar Inngest).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection } from '@/app/lib/database';
@@ -15,6 +13,7 @@ import { uploadTextToS3 } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
+import { callGeminiAPI } from '@/app/lib/agents/utils/llm';
 
 // ─────────────────────────────────────────────
 // Tipos
@@ -144,9 +143,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       transcriptionId,
     });
 
-    // TODO: Disparar evento Inngest 'transcription.ready' para:
-    // 1. Resumir con Gemini
-    // 2. Regenerar recomendaciones con LangGraph
+    // ── Resumir con Gemini (sin Inngest, llamada directa) ──
+
+    let summaryText = '';
+    let agreementsText = '';
+
+    try {
+      const prompt = `Eres un asistente especializado en resumir sesiones de coaching de salud. 
+Analiza la siguiente transcripción de una videollamada entre un coach de salud y su cliente.
+
+Extrae y devuelve ÚNICAMENTE un JSON válido con esta estructura:
+{
+  "summary": "Resumen de 2-3 párrafos de los temas principales tratados en la sesión",
+  "agreements": "Acuerdos alcanzados, cambios en objetivos, próximos pasos concretos acordados entre coach y cliente",
+  "keyPoints": ["Punto clave 1", "Punto clave 2", ...]
+}
+
+TRANSCRIPCIÓN:
+${transcript.slice(0, 12000)}
+
+Responde solo con el JSON, sin explicaciones adicionales.`;
+
+      const geminiResult = await callGeminiAPI({
+        userPrompt: prompt,
+        temperature: 0.3,
+        maxOutputTokens: 2000,
+        responseMimeType: 'application/json',
+      });
+
+      const jsonMatch = geminiResult.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as {
+          summary: string;
+          agreements: string;
+        };
+        summaryText = parsed.summary || '';
+        agreementsText = parsed.agreements || '';
+      }
+
+      // Guardar el resumen en MongoDB
+      const updateFields: Record<string, unknown> = {
+        'transcriptions.$[tr].summary': encrypt(summaryText),
+        'transcriptions.$[tr].agreements': encrypt(agreementsText),
+        updatedAt: new Date(),
+      };
+
+      await collection.updateOne(
+        { _id: new ObjectId(clientId) },
+        { $set: updateFields },
+        { arrayFilters: [{ 'tr.transcriptionId': transcriptionId }] }
+      );
+
+      logger.info('VIDEO', 'Transcription summarized with Gemini', {
+        clientId,
+        transcriptionId,
+        summaryLength: summaryText.length,
+      });
+    } catch (geminiError: unknown) {
+      logger.warn('VIDEO', 'Gemini summarization failed (non-critical)', geminiError as Error);
+      // No fallamos — la transcripción ya está guardada
+    }
 
     return NextResponse.json({
       success: true,

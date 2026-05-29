@@ -13,6 +13,7 @@ import type { RequestContext } from './app/lib/security/types';
 // ─── Configuración ───
 
 const ALLOWED_ORIGINS = [
+  'http://localhost:2000',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
@@ -37,10 +38,11 @@ const CRITICAL_PATHS = [
   '/api/extract-text',
 ];
 
-// Rutas excluidas de verificación (health checks, debug interno)
+// Rutas excluidas de verificación (health checks, debug interno, test)
 const EXCLUDED_PATHS = [
   '/api/health/ping',
   '/api/hello',
+  '/api/video/test-token',
 ];
 
 // ─── Helpers ───
