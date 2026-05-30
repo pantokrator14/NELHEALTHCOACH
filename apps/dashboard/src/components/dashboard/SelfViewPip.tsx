@@ -58,7 +58,7 @@ export default function SelfViewPip() {
   if (!localParticipant) return null;
 
   return (
-    <div className="absolute bottom-24 right-4 z-20 w-44 h-32 rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700/60 bg-gray-800 transition-all duration-300 hover:w-52 hover:h-36 group self-view-pip">
+    <div className="absolute bottom-24 right-4 z-20 w-28 h-20 sm:w-44 sm:h-32 rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700/60 bg-gray-800 transition-all duration-300 hover:scale-105 group self-view-pip">
       {videoTrack ? (
         /* Video directo — más fiable que ParticipantTile para el PIP */
         <video
