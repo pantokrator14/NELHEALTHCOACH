@@ -197,40 +197,41 @@ function LiveRoomUI({
       {/* Self-view overlay */}
       <SelfViewPip />
 
-      {/* ControlBar (sin chat, sin leave) */}
+      {/* Barra de controles inferior */}
       <div className="absolute bottom-0 left-0 right-0 z-20 h-20 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent flex items-center justify-center">
-        <ControlBar
-          variation="minimal"
-          controls={{
-            microphone: true,
-            camera: true,
-            screenShare: true,
-            chat: false,
-            leave: false,
-          }}
-        />
-      </div>
+        <div className="flex items-center justify-center gap-2 sm:gap-4 w-full max-w-md px-2 sm:px-4">
+          <ControlBar
+            variation="minimal"
+            controls={{
+              microphone: true,
+              camera: true,
+              screenShare: true,
+              chat: false,
+              leave: false,
+            }}
+          />
 
-      {/* Botón salir personalizado */}
-      <div className="absolute bottom-5 right-6 z-30">
-        <button
-          onClick={handleEndCall}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30 flex items-center gap-2 hover:scale-105 active:scale-95 text-sm"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
+          {/* Botón salir personalizado (dentro de la barra, a la derecha) */}
+          <button
+            onClick={handleEndCall}
+            className="shrink-0 px-3 py-2 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30 flex items-center gap-1 sm:gap-2 hover:scale-105 active:scale-95 text-xs sm:text-sm"
+            aria-label="Finalizar llamada"
           >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <span className="hidden sm:inline">Finalizar</span>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 sm:h-4 sm:w-4"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span className="hidden sm:inline">Finalizar</span>
+          </button>
+        </div>
       </div>
     </>
   );
