@@ -29,11 +29,11 @@ const ControlBar = dynamic(
 
 import {
   useRemoteParticipants,
+  useTracks,
   useDataChannel,
   useConnectionState,
   GridLayout,
   ParticipantTile,
-  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
@@ -93,23 +93,32 @@ function LiveRoomUI({
   roomName: string;
   onEnded: () => void;
 }) {
-  const remoteParticipants = useRemoteParticipants();
   const connectionState = useConnectionState();
   const [connected, setConnected] = useState(false);
+  const wasConnectedRef = useRef(false);
 
   // Detectar desconexión inesperada
+  // Solo se considera "desconexión real" si antes hubo conexión exitosa.
+  // Esto evita que el permiso de cámara (que tarda unos segundos)
+  // dispare un falso "sesión terminada".
   useEffect(() => {
     if (connectionState === 'connected') {
       setConnected(true);
-    } else if (connectionState === 'disconnected') {
+      wasConnectedRef.current = true;
+    } else if (
+      connectionState === 'disconnected' &&
+      wasConnectedRef.current
+    ) {
       setConnected(false);
-      // timeout para evitar doble llamada si endedRef ya se activó
-      setTimeout(() => {
+      // Esperar 10 segundos por si es una reconexión breve
+      // (ej. Strict Mode de React en desarrollo monta/desmonta componentes)
+      const timer = setTimeout(() => {
         if (!endedRef.current) {
           endedRef.current = true;
           onEnded();
         }
-      }, 500);
+      }, 10000);
+      return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionState]);
@@ -140,13 +149,16 @@ function LiveRoomUI({
   }, [role, sendData, onEnded]);
 
   // ── Grid de video (solo remotos) ──
+  //    Usamos useTracks en vez de useRemoteParticipants para que el grid
+  //    se suscriba automáticamente a los tracks de cámara que publican
+  //    los participantes remotos. useRemoteParticipants solo devuelve
+  //    los objetos de participante sin suscripción a tracks.
 
-  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
-    (p) => ({
-      participant: p,
-      source: Track.Source.Camera,
-    }),
-  );
+  const allTracks = useTracks([
+    { source: Track.Source.Camera, withPlaceholder: true },
+    { source: Track.Source.ScreenShare, withPlaceholder: false },
+  ]);
+  const tracks = allTracks.filter((tr) => !tr.participant.isLocal);
 
   return (
     <>

@@ -332,6 +332,10 @@ export interface VideoSession {
   coachRemindedAt?: Date;
   /** Si se envió recordatorio al cliente */
   clientRemindedAt?: Date;
+  /** Fecha en que se envió el recordatorio matutino ("hoy es tu videollamada") */
+  morningReminderSentAt?: Date;
+  /** Fecha en que se envió el recordatorio de 5 minutos antes */
+  fiveMinReminderSentAt?: Date;
 }
 
 export interface Transcription {
