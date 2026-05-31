@@ -217,7 +217,7 @@ function VideoCallRoomInner({ role, roomName, onLeave }: InnerProps) {
       <SelfViewPip />
 
       {/* ── Barra de controles inferior ── */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 h-20 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent flex items-center justify-center">
+      <div className="absolute bottom-0 left-0 right-0 z-20 h-20 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent flex items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex items-center justify-center gap-2 sm:gap-4 w-full max-w-md px-2 sm:px-4">
           <ControlBar
             variation="minimal"
