@@ -120,7 +120,7 @@ const ContactFormSection: React.FC = () => {
   };
 
   return (
-    <section id="contacto" className="py-16 px-4 bg-blue-200">
+    <section id="contacto" className="min-h-screen py-16 px-4 bg-blue-200 flex items-center">
       <div className="container mx-auto max-w-5xl">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
           <div className="md:flex">

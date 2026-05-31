@@ -5,6 +5,8 @@ import {
   generateMonthlyPlanEmailText,
   generateSessionInviteHTML,
   generateCoachSessionNotificationHTML,
+  generateSessionReminderTodayHTML,
+  generateSessionReminderSoonHTML,
   EmailTemplateData,
   SessionEmailData,
 } from './email-templates';
@@ -307,6 +309,68 @@ export class EmailService {
       logger.error('EMAIL', 'Error enviando notificación al coach', error as Error, {
         coachEmail,
         clientName: data.clientName,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar recordatorio matutino: "Hoy es tu videollamada"
+   */
+  public async sendSessionReminderToday(
+    clientEmail: string,
+    data: SessionEmailData
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Enviando recordatorio matutino de videollamada', {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
+      });
+
+      const htmlContent = generateSessionReminderTodayHTML(data);
+      const subject = `📅 ¡Hoy es tu videollamada! Sesión #${data.sessionNumber} | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [clientEmail],
+        subject,
+        htmlBody: htmlContent,
+        replyTo: [this.fromEmail],
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando recordatorio matutino', error as Error, {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar recordatorio 5 minutos antes: "Tu videollamada va a empezar"
+   */
+  public async sendSessionReminderSoon(
+    clientEmail: string,
+    data: SessionEmailData
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Enviando recordatorio 5min antes de videollamada', {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
+      });
+
+      const htmlContent = generateSessionReminderSoonHTML(data);
+      const subject = `⏰ ¡Tu videollamada va a empezar! Sesión #${data.sessionNumber} | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [clientEmail],
+        subject,
+        htmlBody: htmlContent,
+        replyTo: [this.fromEmail],
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando recordatorio 5min antes', error as Error, {
+        clientEmail,
+        sessionNumber: data.sessionNumber,
       });
       return false;
     }

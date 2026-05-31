@@ -21,9 +21,9 @@ import {
   GridLayout,
   ParticipantTile,
   useRemoteParticipants,
+  useTracks,
   useDataChannel,
   useConnectionState,
-  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 
 import SelfViewPip from './SelfViewPip';
@@ -54,21 +54,17 @@ const API_BASE_URL =
 // ─────────────────────────────────────────────
 
 function LiveVideoGrid() {
-  const remoteParticipants = useRemoteParticipants();
+  const tracks = useTracks([
+    { source: Track.Source.Camera, withPlaceholder: true },
+    { source: Track.Source.ScreenShare, withPlaceholder: false },
+  ]);
 
-  // Construimos track refs solo de participantes remotos
-  // (evitamos useTracks para que no haya ninguna suscripción
-  // al track de cámara local que pueda interferir en móvil)
-  const tracks: TrackReferenceOrPlaceholder[] = remoteParticipants.map(
-    (p) => ({
-      participant: p,
-      source: Track.Source.Camera,
-    }),
-  );
+  // Solo remotos en el grid — el local va en el PIP
+  const remoteTracks = tracks.filter((tr) => !tr.participant.isLocal);
 
   return (
     <div className="absolute inset-0 top-14 bottom-20">
-      <GridLayout tracks={tracks}>
+      <GridLayout tracks={remoteTracks}>
         <ParticipantTile />
       </GridLayout>
     </div>
