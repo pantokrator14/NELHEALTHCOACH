@@ -1445,7 +1445,7 @@ i18n
     fallbackLng: 'es',
     supportedLngs: ['en', 'es', 'fr', 'it', 'pt', 'de'],
     detection: {
-      order: ['localStorage', 'cookie'],
+      order: ['navigator', 'localStorage', 'cookie'],
       caches: ['localStorage', 'cookie'],
       cookieMinutes: 10080,
     },
