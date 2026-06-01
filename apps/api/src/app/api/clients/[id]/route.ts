@@ -168,7 +168,9 @@ export async function GET(
         medicalData: decryptObject(rawMedicalData),
         contractAccepted: safeDecrypt(client.contractAccepted) === 'true',
         ipAddress: safeDecrypt(client.ipAddress),
-        submissionDate: client.submissionDate
+        submissionDate: client.submissionDate,
+        // Incluir sesiones de video para que el dashboard gestione transcripciones
+        videoSessions: (client.videoSessions as Record<string, unknown>[]) || [],
       };
 
       // Restaurar documents y processedDocuments para procesarlos aparte

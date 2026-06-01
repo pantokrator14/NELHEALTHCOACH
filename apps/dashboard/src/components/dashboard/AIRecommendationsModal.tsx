@@ -11,7 +11,7 @@ import OriginPin from './OriginPin';
 import SessionScheduler from './SessionScheduler';
 import VideoCallRoom from './VideoCallRoom';
 import { useToast } from '@/components/ui/Toast';
-import { ChecklistItem } from '../../../../../packages/types/src/healthForm';
+import { ChecklistItem, VideoSession, TranscriptStatus } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation } from 'react-i18next';
 
@@ -414,6 +414,13 @@ export default function AIRecommendationsModal({
   const [clientSessionLink, setClientSessionLink] = useState<string>('');
   const [schedulingSession, setSchedulingSession] = useState(false);
 
+  // ===== ESTADOS DE TRANSCRIPCIÓN =====
+  const [videoSessions, setVideoSessions] = useState<VideoSession[]>([]);
+  const [loadingVideoSessions, setLoadingVideoSessions] = useState(false);
+  const [transcriptStatus, setTranscriptStatus] = useState<TranscriptStatus | null>(null);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [transcriptPolling, setTranscriptPolling] = useState(false);
+
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
     if (!weeks || !Array.isArray(weeks)) return [];
@@ -591,7 +598,38 @@ export default function AIRecommendationsModal({
     return months;
   }, [activeSession]);
 
+  // Última sesión de video completada (para lógica de transcripción)
+  const latestCompletedVideoSession = useMemo(() => {
+    return videoSessions
+      .filter(s => s.status === 'completed')
+      .sort((a, b) => new Date(b.endedAt || b.scheduledAt).getTime() - new Date(a.endedAt || a.scheduledAt).getTime())[0] ?? null;
+  }, [videoSessions]);
 
+  // ===== CARGA DE SESIONES DE VIDEO =====
+  const loadVideoSessions = useCallback(async () => {
+    try {
+      setLoadingVideoSessions(true);
+      const response = await apiClient.getClient(clientId) as { success: boolean; data?: { videoSessions?: VideoSession[] } };
+      if (response.success && response.data?.videoSessions) {
+        const sessions = response.data.videoSessions;
+        setVideoSessions(sessions);
+
+        // Actualizar transcriptStatus desde la sesión de video más reciente
+        const latestCompleted = sessions
+          .filter(s => s.status === 'completed')
+          .sort((a, b) => new Date(b.endedAt || b.scheduledAt).getTime() - new Date(a.endedAt || a.scheduledAt).getTime())[0];
+
+        if (latestCompleted?.transcriptStatus) {
+          setTranscriptStatus(latestCompleted.transcriptStatus);
+          setTranscriptError(latestCompleted.transcriptError || null);
+        }
+      }
+    } catch {
+      // Silencioso — no crítico
+    } finally {
+      setLoadingVideoSessions(false);
+    }
+  }, [clientId]);
 
   // ===== MANEJADORES DE DATOS =====
   const loadAIProgress = useCallback(async () => {
@@ -679,7 +717,59 @@ export default function AIRecommendationsModal({
   // ===== EFECTOS =====
   useEffect(() => {
     loadAIProgress();
-  }, [loadAIProgress]);
+    loadVideoSessions();
+  }, [loadAIProgress, loadVideoSessions]);
+
+  // Polling: verificar estado de la transcripción después de una videollamada
+  useEffect(() => {
+    if (!transcriptPolling) return;
+
+    let pollCount = 0;
+    const MAX_POLLS = 36; // 6 minutos máximo (36 × 10s)
+
+    const pollInterval = setInterval(async () => {
+      pollCount++;
+      try {
+        const response = await apiClient.getClient(clientId) as { success: boolean; data?: { videoSessions?: VideoSession[] } };
+        if (response.success && response.data?.videoSessions) {
+          const sessions = response.data.videoSessions;
+          setVideoSessions(sessions);
+
+          // Buscar la sesión de video más reciente completada
+          const latestCompleted = sessions
+            .filter(s => s.status === 'completed')
+            .sort((a, b) => new Date(b.endedAt || b.scheduledAt).getTime() - new Date(a.endedAt || a.scheduledAt).getTime())[0];
+
+          if (latestCompleted?.transcriptStatus === 'completed') {
+            setTranscriptStatus('completed');
+            setTranscriptPolling(false);
+            clearInterval(pollInterval);
+            showToast('Transcripción completada. Ya puedes generar nuevas recomendaciones.', 'success');
+            return;
+          }
+
+          if (latestCompleted?.transcriptStatus === 'failed') {
+            setTranscriptStatus('failed');
+            setTranscriptError(latestCompleted.transcriptError || 'Error en la transcripción');
+            setTranscriptPolling(false);
+            clearInterval(pollInterval);
+            showToast('La transcripción falló. Puedes reintentarla.', 'error');
+            return;
+          }
+        }
+      } catch {
+        // Silencioso
+      }
+
+      if (pollCount >= MAX_POLLS) {
+        setTranscriptPolling(false);
+        clearInterval(pollInterval);
+        showToast('La transcripción está tomando más tiempo del esperado. Verifica más tarde.', 'warning');
+      }
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
+  }, [transcriptPolling, clientId]);
 
   // Reaccionar a cambios en generationStatus/generationError desde el padre
   useEffect(() => {
@@ -1376,13 +1466,62 @@ export default function AIRecommendationsModal({
   }, []);
 
   /**
-   * Cierra el modal de videollamada.
+   * Cierra el modal de videollamada e inicia el monitoreo de transcripción.
    */
   const handleCloseVideoCall = useCallback(() => {
     setShowVideoCall(false);
     // Recargar para reflejar el estado 'completed'
     loadAIProgress();
-  }, [loadAIProgress]);
+    loadVideoSessions();
+    // Iniciar polling para detectar transcripción completada
+    showToast('Procesando transcripción de la videollamada...', 'info');
+    setTranscriptPolling(true);
+  }, [loadAIProgress, loadVideoSessions]);
+
+  /**
+   * Reintenta la transcripción de una sesión de video fallida.
+   * Ahora parsea la respuesta del backend para mostrar mensajes de error
+   * más detallados (como los generados por explainTranscriptionError).
+   */
+  const handleRetryTranscription = useCallback(async (sessionId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/video/rooms/${encodeURIComponent(sessionId)}/retry-transcription`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = (await response.json()) as { success: boolean; message?: string; data?: { message?: string } };
+
+      if (data.success) {
+        setTranscriptStatus('pending');
+        setTranscriptError(null);
+        setTranscriptPolling(true);
+        // Mostrar el mensaje del backend si viene (incluye instrucciones para el coach)
+        const successMsg = data.data?.message || 'Reintentando transcripción...';
+        showToast(successMsg, 'info');
+      } else {
+        // El backend devuelve un mensaje descriptivo (con causas y recomendaciones)
+        const errorMsg = data.message || 'Error al reintentar transcripción';
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      // Solo mostrar toast si no se mostró ya desde la rama success=false
+      if (!(err instanceof Error && err.message.includes('Error al reintentar'))) {
+        showToast(`Error: ${message}`, 'error');
+      }
+    }
+  }, []);
 
   /**
    * Copia el enlace del cliente al portapapeles.
@@ -2114,6 +2253,20 @@ export default function AIRecommendationsModal({
   const activeSessionNumber = aiProgress?.sessions && activeSessionId
     ? aiProgress.sessions.findIndex(s => s.sessionId === activeSessionId) + 1
     : 0;
+
+  // ── Lógica de transcripción para el botón "Nueva Evaluación" ──
+  // Session 1 (sin sesiones previas): siempre se permite generar
+  // Session 2+: se requiere una videollamada completada con transcripción exitosa
+  const hasExistingSessions = (aiProgress?.sessions.length ?? 0) > 0;
+  const isFirstSession = !hasExistingSessions;
+
+  // latestCompletedVideoSession se computa via useMemo antes del early return
+  const canGenerateNewEvaluation = isFirstSession ||
+    latestCompletedVideoSession?.transcriptStatus === 'completed' ||
+    // Fallback: sesión de video completada sin transcriptStatus (datos legacy anteriores a la feature)
+    (latestCompletedVideoSession !== null && !latestCompletedVideoSession.transcriptStatus) ||
+    // Fallback: hay sesiones de IA pero no hay sesiones de video (legacy), permitir
+    (hasExistingSessions && videoSessions.length === 0);
 
   return (
     <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${
@@ -3341,7 +3494,50 @@ export default function AIRecommendationsModal({
             </div>
             <div className={`${footerExpanded ? 'flex' : 'hidden'} md:flex flex-col md:flex-row gap-2 justify-end w-full md:w-auto transition-all`}>
               {!showNewEvaluationForm && (
-                <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">Nueva Evaluación</button>
+                <>
+                  {canGenerateNewEvaluation ? (
+                    <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">Nueva Evaluación</button>
+                  ) : hasExistingSessions && transcriptStatus === 'pending' ? (
+                    <button disabled className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-amber-400 text-white rounded-lg font-medium text-sm md:text-base flex items-center justify-center gap-2 cursor-not-allowed opacity-80">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Transcribiendo...
+                    </button>
+                  ) : hasExistingSessions && transcriptStatus === 'failed' && latestCompletedVideoSession ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <button
+                        onClick={() => handleRetryTranscription(latestCompletedVideoSession.sessionId)}
+                        className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
+                        title="Reintentar transcripción manualmente"
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reintentar Transcripción
+                      </button>
+                      {transcriptError && (
+                        <details className="group w-full max-w-xs">
+                          <summary className="text-[10px] text-red-400 cursor-pointer hover:text-red-600 transition-colors text-right">
+                            ¿Por qué falló? — ver detalle
+                          </summary>
+                          <p className="text-[10px] text-red-500 bg-red-50 rounded p-1.5 mt-0.5 leading-relaxed whitespace-pre-line">
+                            {transcriptError}
+                          </p>
+                        </details>
+                      )}
+                    </div>
+                  ) : hasExistingSessions && (transcriptPolling || loadingVideoSessions) ? (
+                    <button disabled className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-amber-400 text-white rounded-lg font-medium text-sm md:text-base flex items-center justify-center gap-2 cursor-not-allowed opacity-80">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Verificando transcripción...
+                    </button>
+                  ) : null}
+                </>
               )}
               {activeSession && (
                 <>

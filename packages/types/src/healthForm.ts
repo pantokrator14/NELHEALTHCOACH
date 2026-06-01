@@ -303,6 +303,9 @@ export interface ClientAIProgress {
 
 export type VideoSessionStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
+/** Estado de transcripción de una videollamada */
+export type TranscriptStatus = 'pending' | 'completed' | 'failed';
+
 export interface VideoSession {
   /** ID único de la sesión de video */
   sessionId: string;
@@ -336,6 +339,12 @@ export interface VideoSession {
   morningReminderSentAt?: Date;
   /** Fecha en que se envió el recordatorio de 5 minutos antes */
   fiveMinReminderSentAt?: Date;
+  /** Estado de la transcripción de la grabación de la sesión */
+  transcriptStatus?: TranscriptStatus;
+  /** Mensaje de error si la transcripción falló */
+  transcriptError?: string;
+  /** Número de reintentos de transcripción realizados (0 = intento original, 1 = primer reintento, etc.) */
+  transcriptRetryCount?: number;
 }
 
 export interface Transcription {
