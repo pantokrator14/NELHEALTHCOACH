@@ -4,6 +4,7 @@
 // - room_started: Se actualiza el estado de la sesión a 'in_progress'
 // - room_finished: Se actualiza a 'completed'
 // - egress_ended: Envía la grabación a Deepgram para transcripción
+//   con reintento automático integrado (vía transcription-ready)
 //
 // Seguridad: Valida que el token del webhook coincida (configurable).
 
@@ -12,6 +13,11 @@ import { updateVideoSessionStatus } from '@/app/lib/video-service';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
 import { logger } from '@/app/lib/logger';
+import {
+  isDeepgramConfigured,
+  submitTranscriptionRequest,
+  buildCallbackUrl,
+} from '@/app/lib/deepgram';
 
 interface LiveKitWebhookEvent {
   event: string;
@@ -33,46 +39,6 @@ interface LiveKitWebhookEvent {
       location: string;
     }>;
   };
-}
-
-// ─────────────────────────────────────────────
-// Helpers Deepgram
-// ─────────────────────────────────────────────
-
-function isDeepgramConfigured(): boolean {
-  return !!(process.env.DEEPGRAM_API_KEY && process.env.DEEPGRAM_API_KEY.length > 5);
-}
-
-async function submitTranscriptionRequest(
-  audioUrl: string,
-  callbackUrl: string,
-  metadata: Record<string, string>
-): Promise<{ request_id: string }> {
-  const apiKey = process.env.DEEPGRAM_API_KEY!;
-
-  const response = await fetch(
-    `https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&diarize=true&utterances=true`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: audioUrl,
-        callback: callbackUrl,
-        metadata,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Deepgram API error ${response.status}: ${errorText}`);
-  }
-
-  const data = (await response.json()) as { request_id: string };
-  return data;
 }
 
 // ─────────────────────────────────────────────
@@ -146,9 +112,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // 2. Enviar a Deepgram (si está configurado)
           if (isDeepgramConfigured()) {
             try {
-              const callbackUrl = `${
-                process.env.WEBSITE_URL || 'http://localhost:3001'
-              }/api/video/transcription-ready`;
+              const callbackUrl = buildCallbackUrl();
 
               const result = await submitTranscriptionRequest(
                 recordingUrl,
@@ -161,18 +125,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 }
               );
 
-              logger.info('VIDEO', 'Audio submitted to Deepgram', {
-                requestId: result.request_id,
+              logger.info('TRANSCRIPTION', 'Audio submitted to Deepgram from webhook', {
+                requestId: result.requestId,
+                clientId: roomInfo.clientId,
+                sessionId: roomInfo.sessionId,
+                sessionNumber: roomInfo.sessionNumber,
+                roomName,
               });
+
+              // 3. Marcar transcripción como pendiente + resetear contador de reintentos
+              await collection.updateOne(
+                { _id: new ObjectId(roomInfo.clientId) },
+                {
+                  $set: {
+                    'videoSessions.$[session].transcriptStatus': 'pending',
+                    'videoSessions.$[session].transcriptRetryCount': 0,
+                    'videoSessions.$[session].transcriptError': '',
+                    updatedAt: new Date(),
+                  },
+                } as Record<string, unknown>,
+                {
+                  arrayFilters: [{ 'session.sessionId': roomInfo.sessionId }],
+                }
+              );
             } catch (deepgramError: unknown) {
               const errMsg =
                 deepgramError instanceof Error
                   ? deepgramError.message
-                  : 'Unknown Deepgram error';
-              logger.error('VIDEO', `Deepgram submission failed: ${errMsg}`);
+                  : 'Error desconocido al enviar a Deepgram';
+              logger.error('TRANSCRIPTION', 'Deepgram submission failed in webhook', deepgramError as Error, undefined, {
+                clientId: roomInfo.clientId,
+                sessionId: roomInfo.sessionId,
+                roomName,
+              });
+
+              // Marcar como fallido para que el coach pueda reintentar manualmente
+              try {
+                await collection.updateOne(
+                  { _id: new ObjectId(roomInfo.clientId) },
+                  {
+                    $set: {
+                      'videoSessions.$[session].transcriptStatus': 'failed',
+                      'videoSessions.$[session].transcriptError': errMsg,
+                      'videoSessions.$[session].transcriptRetryCount': 0,
+                      updatedAt: new Date(),
+                    },
+                  } as Record<string, unknown>,
+                  {
+                    arrayFilters: [{ 'session.sessionId': roomInfo.sessionId }],
+                  }
+                );
+              } catch (dbError: unknown) {
+                logger.error('TRANSCRIPTION', 'Failed to mark transcript as failed after submission error', dbError as Error);
+              }
             }
           } else {
-            logger.warn('VIDEO', 'Deepgram not configured — transcription skipped');
+            logger.warn('TRANSCRIPTION', 'Deepgram not configured — transcription skipped entirely', undefined, {
+              clientId: roomInfo.clientId,
+              sessionId: roomInfo.sessionId,
+              roomName,
+            });
           }
         }
       }
