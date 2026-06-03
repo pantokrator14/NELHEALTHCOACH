@@ -5,7 +5,7 @@
 // y 'client' (autenticado con token temporal de sesión).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, verifySessionToken } from '@/app/lib/auth';
+import { requireCoachAuth, verifySessionToken } from '@/app/lib/auth';
 import {
   generateParticipantToken,
   getVideoSession,
@@ -43,8 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const authHeader = request.headers.get('Authorization')?.replace('Bearer ', '');
-      requireAuth(authHeader);
+      const auth = requireCoachAuth(request);
 
       const token = await generateParticipantToken({
         roomName: body.roomName,

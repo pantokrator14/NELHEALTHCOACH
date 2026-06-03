@@ -112,6 +112,38 @@ export async function uploadTextToS3(
 }
 
 /**
+ * Sube un buffer/binario directamente a S3 (sin URL prefirmada).
+ * Útil para subidas desde el servidor (ej: foto de perfil durante registro).
+ */
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string,
+  fileCategory: 'profile' | 'document' | 'recipe' = 'document'
+): Promise<{ url: string; key: string }> {
+  const { v4: uuidv4 } = await import('uuid');
+  const fileKey = `${fileCategory}/${uuidv4()}-${fileName}`;
+  const bucket = process.env.AWS_S3_BUCKET_NAME!;
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: fileKey,
+    Body: buffer,
+    ContentType: contentType,
+    Metadata: {
+      'original-name': fileName,
+      'uploaded-at': new Date().toISOString(),
+    },
+  });
+
+  await s3Client.send(command);
+
+  const region = process.env.AWS_REGION || 'us-west-1';
+  const url = `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
+  return { url, key: fileKey };
+}
+
+/**
  * Genera una URL prefirmada para leer/descargar un archivo de S3.
  * Usada para el análisis de PDFs con Gemini.
  */

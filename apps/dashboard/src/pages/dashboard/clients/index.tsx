@@ -27,7 +27,20 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [copyMsg, setCopyMsg] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
+
+  // Detectar si el usuario es admin (para mostrar opción de link gratuito)
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        setIsAdmin(payload.role === 'admin')
+      } catch { /* ignore */ }
+    }
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -56,9 +69,23 @@ export default function Clients() {
 
   const handleCopyRegisterLink = async () => {
     try {
-      const res = await apiClient.getCoachLink()
+      const res = await apiClient.getCoachLink('paid')
       await navigator.clipboard.writeText(res.data.link)
-      setCopyMsg('¡Enlace copiado al portapapeles!')
+      setCopyMsg('✅ Enlace con pago copiado al portapapeles')
+      setShowDropdown(false)
+      setTimeout(() => setCopyMsg(''), 3000)
+    } catch {
+      setCopyMsg('Error al obtener el enlace')
+      setTimeout(() => setCopyMsg(''), 3000)
+    }
+  }
+
+  const handleCopyFreeLink = async () => {
+    try {
+      const res = await apiClient.getCoachLink('free')
+      await navigator.clipboard.writeText(res.data.link)
+      setCopyMsg('✅ Enlace gratuito copiado al portapapeles')
+      setShowDropdown(false)
       setTimeout(() => setCopyMsg(''), 3000)
     } catch {
       setCopyMsg('Error al obtener el enlace')
@@ -108,17 +135,65 @@ export default function Clients() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Botón Agregar nuevo cliente */}
-              <button
-                onClick={handleCopyRegisterLink}
-                title="Copiar enlace de registro"
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition duration-200 font-medium shadow-sm"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Agregar nuevo cliente
-              </button>
+              {/* Dropdown Agregar nuevo cliente */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                  title="Agregar nuevo cliente"
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition duration-200 font-medium shadow-sm"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Agregar nuevo cliente
+                  <svg className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showDropdown && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    {/* Opción con pago */}
+                    <button
+                      onClick={handleCopyRegisterLink}
+                      className="w-full flex items-start gap-3 px-4 py-3.5 hover:bg-blue-50 transition text-left border-b border-gray-100"
+                    >
+                      <div className="flex-shrink-0 w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Link con pago</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          El cliente paga $150 USD por la consulta de onboarding
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Opción gratuita — solo admin */}
+                    {isAdmin && (
+                    <button
+                      onClick={handleCopyFreeLink}
+                      className="w-full flex items-start gap-3 px-4 py-3.5 hover:bg-emerald-50 transition text-left"
+                    >
+                      <div className="flex-shrink-0 w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center mt-0.5">
+                        <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Link gratuito</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Sin costo para el cliente. Ideal para personas de bajos recursos que lo necesiten
+                        </p>
+                      </div>
+                    </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                 <div className="text-lg text-gray-700">

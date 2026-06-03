@@ -43,6 +43,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Coach no encontrado' }, { status: 404 });
     }
 
+    // Determinar estado de Stripe Connect
+    const stripeConnectStatus = coach.stripeConnectAccountId
+      ? {
+          hasAccount: true,
+          onboardingComplete: coach.stripeOnboardingComplete || false,
+          payoutsEnabled: coach.stripePayoutsEnabled || false,
+          sessionPrice: coach.sessionPrice || 15000,
+        }
+      : {
+          hasAccount: false,
+          onboardingComplete: false,
+          payoutsEnabled: false,
+          sessionPrice: coach.sessionPrice || 15000,
+        };
+
     return NextResponse.json({
       success: true,
       data: {
@@ -54,6 +69,7 @@ export async function GET(request: NextRequest) {
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
+        stripeConnect: stripeConnectStatus,
       },
     });
   } catch (error: unknown) {

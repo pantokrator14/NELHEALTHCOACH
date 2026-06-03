@@ -6,18 +6,50 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { requireCoachAuth } from '@/app/lib/auth';
 
-// GET: Obtener URL firmada de descarga para un documento
+/**
+ * Verifica que el coach autenticado sea admin o el coach asignado al cliente.
+ * Devuelve el cliente si existe, o lanza una respuesta 401/403.
+ * NOTA: Los throw usan objetos con {status, message} para que los catch blocks
+ * los distingan de errores inesperados (Error sin .status).
+ */
+async function authorizeCoachForClient(request: NextRequest, clientId: string): Promise<{ auth: any, client: any }> {
+  let auth;
+  try {
+    auth = requireCoachAuth(request);
+  } catch {
+    throw { status: 401, message: 'No autorizado' };
+  }
+  const healthForms = await getHealthFormsCollection();
+  const client = await healthForms.findOne(
+    { _id: new ObjectId(clientId) },
+    { projection: { coachId: 1 } }
+  );
+  if (!client) {
+    throw { status: 404, message: 'Cliente no encontrado' };
+  }
+  if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
+    throw { status: 403, message: 'No tienes permiso para modificar este cliente' };
+  }
+  return { auth, client };
+}
+
+// GET: Obtener URL firmada de descarga para un documento (requiere auth)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const fileKey = request.nextUrl.searchParams.get('fileKey');
-  if (!fileKey) {
-    return NextResponse.json({ success: false, message: 'fileKey requerido' }, { status: 400 });
-  }
+  let fileKey: string | null = null;
   try {
+    const { id } = await params;
+    await authorizeCoachForClient(request, id);
+
+    fileKey = request.nextUrl.searchParams.get('fileKey');
+    if (!fileKey) {
+      return NextResponse.json({ success: false, message: 'fileKey requerido' }, { status: 400 });
+    }
+
     const s3 = new S3Client({
       region: process.env.AWS_REGION! || 'us-west-1',
       credentials: {
@@ -29,13 +61,16 @@ export async function GET(
     const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
     const downloadURL = await getSignedUrl(s3, command, { expiresIn: 3600 });
     return NextResponse.json({ success: true, data: { downloadURL } });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) {
+      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    }
     logger.error('UPLOAD', 'Error generando URL de descarga', error as Error, { fileKey });
     return NextResponse.json({ success: false, message: 'Error generando URL' }, { status: 500 });
   }
 }
 
-// POST: Obtener URLs para upload (ACCESO PÚBLICO COMPLETO - SIN AUTENTICACIÓN)
+// POST: Obtener URLs para upload (requiere auth)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -43,6 +78,9 @@ export async function POST(
   return logger.time('UPLOAD', 'Generar URL de upload', async () => {
     try {
       const { id } = await params;
+
+      // Verificar autenticación + ownership
+      await authorizeCoachForClient(request, id);
       
       console.log('🔑 Solicitando URL de upload para cliente:', id);
       logger.info('UPLOAD', `Solicitando URL de upload para cliente: ${id}`);
@@ -58,7 +96,7 @@ export async function POST(
 
       const { fileName, fileType, fileSize, fileCategory } = await request.json();
 
-      logger.info('UPLOAD', 'Solicitud de upload recibida (acceso público)', {
+      logger.info('UPLOAD', 'Solicitud de upload recibida', {
         fileName,
         fileType,
         fileSize,
@@ -124,6 +162,9 @@ export async function POST(
       });
 
     } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       console.error('❌ Error en POST /upload:', error);
       logger.error('UPLOAD', 'Error generando URL de upload', error, undefined, {
         clientId: (await params).id
@@ -136,7 +177,7 @@ export async function POST(
   }, { endpoint: `/api/clients/${(await params).id}/upload`, method: 'POST', clientId: (await params).id });
 }
 
-// PUT: Confirmar upload y guardar referencia (ACCESO PÚBLICO COMPLETO - SIN AUTENTICACIÓN)
+// PUT: Confirmar upload y guardar referencia (requiere auth)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -145,6 +186,10 @@ export async function PUT(
     let body: { fileKey?: string; fileName?: string; fileType?: string; fileSize?: number; fileCategory?: string; fileURL?: string } | undefined;
     try {
       const { id } = await params;
+
+      // Verificar autenticación + ownership
+      await authorizeCoachForClient(request, id);
+
       body = await request.json();
       const fileKey = (body?.fileKey || '') as string;
       const fileName = (body?.fileName || '') as string;
@@ -301,7 +346,10 @@ export async function PUT(
         data: uploadedFile
       });
 
-    } catch (error: unknown) {
+    } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       const err = error as Error;
       console.error('❌ Error en PUT /upload:', err);
       try {
@@ -324,7 +372,7 @@ export async function PUT(
   }, { endpoint: `/api/clients/${(await params).id}/upload`, method: 'PUT', clientId: (await params).id });
 }
 
-// DELETE: Eliminar documento
+// DELETE: Eliminar documento (requiere auth)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -332,6 +380,10 @@ export async function DELETE(
   return logger.time('UPLOAD', 'Eliminar documento', async () => {
     try {
       const { id } = await params;
+
+      // Verificar autenticación + ownership
+      await authorizeCoachForClient(request, id);
+
       const { fileKey } = await request.json();
 
       logger.info('UPLOAD', '🗑️ Iniciando eliminación de documento', {
@@ -574,6 +626,9 @@ export async function DELETE(
       });
 
     } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       console.error('❌ Error en DELETE /upload:', error);
       logger.error('UPLOAD', '💥 Error eliminando documento', error, undefined, {
         clientId: (await params).id
@@ -592,6 +647,10 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+
+    // Verificar autenticación + ownership
+    await authorizeCoachForClient(request, id);
+
     const { action } = await request.json();
     
     if (action === 'repair_documents') {
@@ -609,7 +668,10 @@ export async function PATCH(
       { status: 400 }
     );
     
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) {
+      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    }
     logger.error('REPAIR', 'Error en endpoint de reparación', error as Error);
     return NextResponse.json(
       { success: false, message: 'Error reparando documentos' },

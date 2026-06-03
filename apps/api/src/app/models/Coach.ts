@@ -22,6 +22,20 @@ export interface ICoach extends Document {
   resetToken: string | null;
   resetTokenExpiry: Date | null;
   isActive: boolean;
+  /** ID del cliente en Stripe (encriptado) */
+  stripeCustomerId?: string;
+  /** ID de la suscripción en Stripe */
+  subscriptionId?: string;
+  /** Estado de la suscripción: active, past_due, canceled, incomplete */
+  subscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'incomplete';
+  /** ID de cuenta Connect Express en Stripe (no encriptado, es público) */
+  stripeConnectAccountId?: string;
+  /** El coach completó el onboarding de Stripe Connect */
+  stripeOnboardingComplete?: boolean;
+  /** Stripe habilitó los pagos para esta cuenta */
+  stripePayoutsEnabled?: boolean;
+  /** Precio por sesión en centavos USD (ej. 15000 = $150.00) */
+  sessionPrice?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -88,6 +102,35 @@ const CoachSchema = new Schema<ICoach>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    stripeCustomerId: {
+      type: String,
+      default: '',
+    },
+    subscriptionId: {
+      type: String,
+      default: '',
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'past_due', 'canceled', 'incomplete'],
+      default: 'incomplete',
+    },
+    stripeConnectAccountId: {
+      type: String,
+      default: '',
+    },
+    stripeOnboardingComplete: {
+      type: Boolean,
+      default: false,
+    },
+    stripePayoutsEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    sessionPrice: {
+      type: Number,
+      default: 15000, // $150 USD en centavos (valor por defecto)
     },
   },
   {

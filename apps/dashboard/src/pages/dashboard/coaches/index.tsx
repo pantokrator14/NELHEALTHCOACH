@@ -15,6 +15,11 @@ interface Coach {
   emailVerified: boolean;
   isActive: boolean;
   createdAt: string;
+  stripeConnect?: {
+    hasAccount: boolean;
+    onboardingComplete: boolean;
+    payoutsEnabled: boolean;
+  };
 }
 
 export default function CoachesPage() {
@@ -174,6 +179,28 @@ export default function CoachesPage() {
                     <p className="text-gray-800">{new Date(selectedCoach.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                   </div>
                 </div>
+                {/* Stripe Connect status */}
+                {selectedCoach.role !== 'admin' && (
+                  <div className="flex items-center">
+                    {selectedCoach.stripeConnect?.onboardingComplete ? (
+                      <>
+                        <span className="text-lg mr-3">💳</span>
+                        <div>
+                          <p className="text-xs text-gray-400">Datos de pago</p>
+                          <p className="text-gray-800">Verificados ✅</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-lg mr-3">💳</span>
+                        <div>
+                          <p className="text-xs text-gray-400">Datos de pago</p>
+                          <p className="text-amber-600 font-medium">Pendiente de configurar</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="px-6 pb-6">
                 <button

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection, getMedicalDocumentCacheCollection, connectMongoose } from '@/app/lib/database';
-import { requireAuth } from '@/app/lib/auth';
+import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
@@ -11,6 +11,28 @@ import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
 import { analyzeS3FileWithGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
+
+/** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
+async function authorizeCoachForClient(request: NextRequest, clientId: string) {
+  let auth;
+  try {
+    auth = requireCoachAuth(request);
+  } catch {
+    throw { status: 401, message: 'No autorizado' };
+  }
+  const healthForms = await getHealthFormsCollection();
+  const client = await healthForms.findOne(
+    { _id: new ObjectId(clientId) },
+    { projection: { coachId: 1 } }
+  );
+  if (!client) {
+    throw { status: 404, message: 'Cliente no encontrado' };
+  }
+  if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
+    throw { status: 403, message: 'No tienes permiso para acceder a este cliente' };
+  }
+  return auth;
+}
 
 function decryptAISessionCompletely(session: any): any {
   try {
@@ -101,8 +123,8 @@ export async function GET(
     try {
       loggerWithContext.info('AI', 'Iniciando obtención de progreso de IA');
 
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Autenticación + ownership check
+      const auth = await authorizeCoachForClient(request, id);
 
       const healthForms = await getHealthFormsCollection();
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
@@ -189,7 +211,14 @@ export async function GET(
       });
 
     } catch (error: any) {
-      // Corrección: Usar error directamente
+      // Si es un error estructurado (auth/ownership), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
       loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', error);
 
       return NextResponse.json(
@@ -206,6 +235,8 @@ export async function GET(
     }
   });
 }
+
+/**
 
 // POST: Generar nuevas recomendaciones de IA
 export async function POST(
@@ -226,8 +257,8 @@ export async function POST(
     try {
       loggerWithContext.info('AI', 'Iniciando generación de recomendaciones IA');
 
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Autenticación + ownership check
+      const auth = await authorizeCoachForClient(request, id);
 
       let body;
       try {
@@ -569,7 +600,15 @@ export async function POST(
         },
       });
 
-    } catch (error: unknown) {
+    } catch (error: any) {
+      // Si es un error estructurado (auth/ownership), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
       const errorObj = error instanceof Error ? error : new Error('Unknown error');
       loggerWithContext.error('AI', 'Error generando recomendaciones IA', errorObj);
 
@@ -678,8 +717,8 @@ export async function PUT(
     try {
       loggerWithContext.info('AI', 'Actualizando recomendaciones IA');
 
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Autenticación + ownership check
+      const auth = await authorizeCoachForClient(request, id);
 
       requestBody = await request.json();
       console.log('📦 Body recibido en PUT:', requestBody);
@@ -846,6 +885,14 @@ export async function PUT(
       });
 
     } catch (error: any) {
+      // Si es un error estructurado (auth/ownership), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
       console.error('💥 ERROR en endpoint PUT:', error.message);
       logger.error('AI', 'Error en endpoint PUT', error);
 

@@ -5,7 +5,7 @@
 // Solo accesible por el coach autenticado.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth } from '@/app/lib/auth';
 import { generateClientSessionLink, getVideoSession } from '@/app/lib/video-service';
 import { EmailService } from '@/app/lib/email-service';
 import { getHealthFormsCollection, connectToDatabase } from '@/app/lib/database';
@@ -21,9 +21,8 @@ interface SendInviteRequest {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Auth
-    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    requireAuth(token);
+    // Auth — coach autenticado
+    const auth = requireCoachAuth(request);
 
     const body = (await request.json()) as SendInviteRequest;
 
@@ -127,8 +126,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // También enviar notificación al coach con enlace para unirse
     try {
-      const coachAuth = requireCoachAuth(request);
-      const coachEmail = coachAuth.email;
+      const coachEmail = auth.email;  // reuse auth from earlier
 
       if (coachEmail) {
         // Obtener colección de coaches para el nombre

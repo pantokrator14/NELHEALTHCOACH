@@ -1170,8 +1170,9 @@ export const apiClient = {
     return result;
   },
 
-  async getCoachLink() {
-    const response = await fetch(`${API_BASE_URL}/api/coaches/link`, {
+  async getCoachLink(type?: 'paid' | 'free') {
+    const params = type ? `?type=${type}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/coaches/link${params}`, {
       headers: getAuthHeaders(),
     });
     if (!response.ok) {
@@ -1228,6 +1229,56 @@ export const apiClient = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al obtener coaches');
+    }
+    return response.json();
+  },
+
+  // ─── Stripe Connect ───
+
+  async createConnectAccount() {
+    const response = await fetch(`${API_BASE_URL}/api/payments/create-connect-account`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al conectar con Stripe');
+    }
+    return response.json();
+  },
+
+  async getConnectOnboardingLink() {
+    const response = await fetch(`${API_BASE_URL}/api/payments/connect-onboarding-link`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener enlace de configuración');
+    }
+    return response.json();
+  },
+
+  async getConnectAccountStatus() {
+    const response = await fetch(`${API_BASE_URL}/api/payments/connect-account-status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener estado de Stripe');
+    }
+    return response.json();
+  },
+
+  async updateSessionPrice(price: number) {
+    const response = await fetch(`${API_BASE_URL}/api/payments/session-price`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ price }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al actualizar precio');
     }
     return response.json();
   },

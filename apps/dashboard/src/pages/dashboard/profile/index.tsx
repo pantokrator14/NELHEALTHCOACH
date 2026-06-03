@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { apiClient } from '@/lib/api';
 import Layout from '@/components/dashboard/Layout';
 import PasswordInput from '@/components/PasswordInput';
+import { useRouter } from 'next/router';
 
 interface CoachProfile {
   id: string;
@@ -14,9 +15,16 @@ interface CoachProfile {
   profilePhoto?: { url: string } | null;
   role: string;
   emailVerified: boolean;
+  stripeConnect?: {
+    hasAccount: boolean;
+    onboardingComplete: boolean;
+    payoutsEnabled: boolean;
+    sessionPrice: number;
+  };
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<CoachProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,9 +36,34 @@ export default function ProfilePage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Stripe Connect state
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [connectingStripe, setConnectingStripe] = useState(false);
+  const [stripeMsg, setStripeMsg] = useState('');
+  const [sessionPriceInput, setSessionPriceInput] = useState('200');
+  const [savingPrice, setSavingPrice] = useState(false);
+
   useEffect(() => {
     loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Detectar ?stripe=success al cargar o al cambiar URL
+  useEffect(() => {
+    if (router.query.stripe === 'success') {
+      setStripeMsg('✅ Stripe conectado exitosamente');
+      // Limpiar query param sin recargar
+      router.replace('/dashboard/profile', undefined, { shallow: true });
+      // Refrescar perfil para obtener estado actualizado
+      loadProfile();
+    } else if (router.query.stripe === 'canceled') {
+      setStripeMsg('⚠️ Configuración cancelada. Puedes intentarlo de nuevo cuando quieras.');
+      // Limpiar query param sin recargar
+      router.replace('/dashboard/profile', undefined, { shallow: true });
+      // Refrescar perfil por si acaso
+      loadProfile();
+    }
+  }, [router.query.stripe]);
 
   const loadProfile = async () => {
     try {
@@ -38,6 +71,10 @@ export default function ProfilePage() {
       if (res?.data) {
         setProfile(res.data);
         setForm({ firstName: res.data.firstName, lastName: res.data.lastName, phone: res.data.phone || '' });
+        // Inicializar precio desde el perfil
+        if (res.data.stripeConnect?.sessionPrice) {
+          setSessionPriceInput(String(res.data.stripeConnect.sessionPrice / 100));
+        }
       }
     } catch {
       // handle redirect
@@ -107,6 +144,59 @@ export default function ProfilePage() {
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ─── Stripe Connect handlers ───
+
+  const handleConnectStripe = async () => {
+    setConnectingStripe(true);
+    setStripeMsg('');
+    try {
+      const res = await apiClient.createConnectAccount();
+      if (res.url) {
+        // Redirigir al onboarding de Stripe
+        window.location.href = res.url;
+      }
+    } catch (err: unknown) {
+      setStripeMsg(err instanceof Error ? err.message : 'Error al conectar Stripe');
+    } finally {
+      setConnectingStripe(false);
+    }
+  };
+
+  const handleContinueOnboarding = async () => {
+    setConnectingStripe(true);
+    setStripeMsg('');
+    try {
+      const res = await apiClient.getConnectOnboardingLink();
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: unknown) {
+      setStripeMsg(err instanceof Error ? err.message : 'Error al obtener enlace');
+    } finally {
+      setConnectingStripe(false);
+    }
+  };
+
+  const handleSavePrice = async () => {
+    const priceDollars = parseFloat(sessionPriceInput);
+    if (isNaN(priceDollars) || priceDollars < 50 || priceDollars > 1000) {
+      setStripeMsg('El precio debe ser entre $50 y $1,000 USD');
+      return;
+    }
+    const priceCents = Math.round(priceDollars * 100);
+    setSavingPrice(true);
+    setStripeMsg('');
+    try {
+      await apiClient.updateSessionPrice(priceCents);
+      setStripeMsg('Precio actualizado exitosamente');
+      loadProfile();
+    } catch (err: unknown) {
+      setStripeMsg(err instanceof Error ? err.message : 'Error al guardar precio');
+    } finally {
+      setSavingPrice(false);
     }
   };
 
@@ -211,6 +301,176 @@ export default function ProfilePage() {
               {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </form>
+        </div>
+
+        {/* Configuración de pagos — Stripe Connect */}
+        <div className="bg-white rounded-xl shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-emerald-600 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            Configuración de pagos
+          </h2>
+
+          {stripeMsg && (
+            <div className={`px-4 py-3 rounded-lg text-sm mb-4 ${
+              stripeMsg.includes('Error') ? 'bg-red-50 border border-red-200 text-red-700' :
+              stripeMsg.includes('exitosa') ? 'bg-green-50 border border-green-200 text-green-700' :
+              stripeMsg.includes('cancelada') ? 'bg-amber-50 border border-amber-200 text-amber-700' :
+              'bg-blue-50 border border-blue-200 text-blue-700'
+            }`}>
+              {stripeMsg}
+            </div>
+          )}
+
+          {/* Caso 1: No tiene cuenta Connect */}
+          {!profile?.stripeConnect?.hasAccount && (
+            <div className="bg-amber-50 rounded-lg border border-amber-200 p-5">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div className="ml-4 flex-1">
+                  <h3 className="text-sm font-semibold text-amber-800">Stripe no conectado</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Para recibir pagos de tus clientes necesitas conectar una cuenta de Stripe.
+                    Stripe te guiará en un proceso rápido de 2 minutos para registrar tus datos bancarios.
+                  </p>
+                  <button
+                    onClick={handleConnectStripe}
+                    disabled={connectingStripe}
+                    className="mt-4 inline-flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                  >
+                    {connectingStripe ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Conectando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        Conectar Stripe
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Caso 2: Tiene cuenta pero no completó onboarding */}
+          {profile?.stripeConnect?.hasAccount && !profile.stripeConnect.onboardingComplete && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-5">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="ml-4 flex-1">
+                  <h3 className="text-sm font-semibold text-blue-800">Configuración incompleta</h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Ya creamos tu cuenta de Stripe, pero falta que completes tus datos bancarios y fiscales.
+                    Continúa el proceso en Stripe para empezar a recibir pagos.
+                  </p>
+                  <button
+                    onClick={handleContinueOnboarding}
+                    disabled={connectingStripe}
+                    className="mt-4 inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                  >
+                    {connectingStripe ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Cargando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                        Continuar configuración en Stripe
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Caso 3: Onboarding completado — mostrar estado y precio */}
+          {profile?.stripeConnect?.hasAccount && profile.stripeConnect.onboardingComplete && (
+            <div>
+              {/* Estado de la cuenta */}
+              <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4 mb-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-sm font-semibold text-emerald-800">Stripe conectado</h3>
+                    <p className="text-sm text-emerald-700">
+                      {profile.stripeConnect.payoutsEnabled
+                        ? 'Tu cuenta está verificada y lista para recibir pagos.'
+                        : 'Cuenta verificada. Los pagos se habilitarán en breve.'}
+                    </p>
+                  </div>
+                  {profile.stripeConnect.payoutsEnabled && (
+                    <span className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                      Activo
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Precio por sesión */}
+              <div className="border-t border-gray-100 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Precio por sesión (USD)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
+                    <input
+                      type="number"
+                      min="50"
+                      max="1000"
+                      step="5"
+                      value={sessionPriceInput}
+                      onChange={(e) => setSessionPriceInput(e.target.value)}
+                      className="w-32 pl-7 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-center"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-500">USD</span>
+                  <button
+                    onClick={handleSavePrice}
+                    disabled={savingPrice}
+                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                  >
+                    {savingPrice ? 'Guardando...' : 'Guardar precio'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Este es el monto que se cobrará a cada cliente por sesión. Mínimo $50, máximo $1,000 USD.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Para admin: mostrar info si el perfil es de admin */}
+          {profile?.role === 'admin' && (
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mt-2">
+              <p className="text-sm text-gray-600">
+                Como administrador, el precio fijo por sesión es de <strong>$150 USD</strong>.
+                Los coaches pueden configurar su propio precio desde su perfil.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Cambiar contraseña */}

@@ -4,6 +4,21 @@ import { getRecipesCollection } from '@/app/lib/database';
 import { S3Service } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject } from '@/app/lib/encryption';
+import { requireCoachAuth } from '@/app/lib/auth';
+
+/** Verifica que el usuario sea admin o coach autenticado para operaciones en recetas */
+function authorizeRecipeUpload(request: NextRequest) {
+  let auth;
+  try {
+    auth = requireCoachAuth(request);
+  } catch {
+    throw { status: 401, message: 'No autorizado' };
+  }
+  if (auth.role !== 'admin' && auth.role !== 'coach') {
+    throw { status: 403, message: 'No autorizado para modificar recetas' };
+  }
+  return auth;
+}
 
 // POST: Obtener URLs para upload de imagen de receta
 export async function POST(
@@ -13,6 +28,9 @@ export async function POST(
   return logger.time('RECIPE_UPLOAD', 'Generar URL de upload para receta', async () => {
     try {
       const { id } = await params;
+
+      // Autenticación requerida
+      authorizeRecipeUpload(request);
       
       console.log('📤 RECIPE_UPLOAD_POST - Iniciando solicitud para receta:', id);
       logger.info('RECIPE_UPLOAD', 'Solicitando URL de upload para receta', { recipeId: id });
@@ -151,6 +169,9 @@ export async function POST(
       }
 
     } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       console.error('❌ Error en POST /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error generando URL de upload para receta', error, undefined, {
         recipeId: (await params).id
@@ -175,6 +196,9 @@ export async function PUT(
   return logger.time('RECIPE_UPLOAD', 'Confirmar upload y guardar imagen en receta', async () => {
     try {
       const { id } = await params;
+
+      // Autenticación requerida
+      authorizeRecipeUpload(request);
       
       console.log('💾 RECIPE_UPLOAD_PUT - Confirmando upload para receta:', id);
       
@@ -366,6 +390,9 @@ export async function PUT(
       });
 
     } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       console.error('❌ Error en PUT /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error guardando imagen en receta', error, {
         fileName: (await request.json())?.fileName,
@@ -392,6 +419,9 @@ export async function DELETE(
   return logger.time('RECIPE_UPLOAD', 'Eliminar imagen de receta', async () => {
     try {
       const { id } = await params;
+
+      // Autenticación requerida
+      authorizeRecipeUpload(request);
 
       console.log('🗑️ RECIPE_UPLOAD_DELETE - Iniciando eliminación para receta:', id);
 
@@ -528,6 +558,9 @@ export async function DELETE(
       });
 
     } catch (error: any) {
+      if (error?.status) {
+        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+      }
       console.error('❌ Error en DELETE /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error eliminando imagen de receta', error, undefined, {
         recipeId: (await params).id
@@ -551,6 +584,10 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+
+    // Autenticación requerida
+    authorizeRecipeUpload(request);
+
     const { action } = await request.json();
     
     console.log('🔧 PATCH recibido para receta:', id, 'acción:', action);
@@ -629,7 +666,10 @@ export async function PATCH(
       { status: 400 }
     );
     
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) {
+      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    }
     console.error('❌ Error en PATCH /recipes/[id]/upload:', error);
     logger.error('RECIPE_UPLOAD', 'Error en endpoint PATCH', error as Error);
     return NextResponse.json(

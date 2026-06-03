@@ -12,7 +12,7 @@
 // Seguridad: Requiere autenticación del coach.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/app/lib/auth';
+import { requireCoachAuth } from '@/app/lib/auth';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
 import { logger } from '@/app/lib/logger';
@@ -36,8 +36,7 @@ export async function POST(
 
   try {
     // Verificar autenticación del coach
-    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    requireAuth(token);
+    const auth = requireCoachAuth(request);
 
     sessionId = (await params).sessionId;
 
