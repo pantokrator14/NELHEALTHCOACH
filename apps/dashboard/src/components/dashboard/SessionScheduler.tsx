@@ -1,11 +1,11 @@
 // apps/dashboard/src/components/dashboard/SessionScheduler.tsx
 //
 // Modal para agendar una nueva sesión de videollamada con el cliente.
+// Ahora crea una solicitud pendiente de pago (PendingSession).
 // El coach selecciona fecha/hora, duración, y opcionalmente añade notas.
-// Al confirmar, se crea la sala en LiveKit y se registra la sesión en MongoDB.
+// Se envía email al cliente para que pague y se confirme la sesión.
 
 import { useState } from 'react';
-import { apiClient } from '@/lib/api';
 
 // ─────────────────────────────────────────────
 // Tipos
@@ -14,12 +14,12 @@ import { apiClient } from '@/lib/api';
 interface SessionSchedulerProps {
   clientId: string;
   clientName: string;
+  clientEmail: string;
   onClose: () => void;
   onSessionCreated: (data: {
-    roomName: string;
-    sessionId: string;
-    sessionNumber: number;
-    scheduledAt: string;
+    pendingSessionId: string;
+    status: string;
+    proposedDate: string;
   }) => void;
   /** Sesión de recomendaciones actual (para asociar la videollamada) */
   recommendationSessionId?: string;
@@ -38,6 +38,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 export default function SessionScheduler({
   clientId,
   clientName,
+  clientEmail,
   onClose,
   onSessionCreated,
 }: SessionSchedulerProps) {
@@ -72,7 +73,7 @@ export default function SessionScheduler({
       // Detectar zona horaria del navegador del coach
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      // Llamar a la API para crear la sala
+      // Crear solicitud pendiente de pago (en lugar de crear sala directamente)
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No autorizado');
 
@@ -84,6 +85,8 @@ export default function SessionScheduler({
         },
         body: JSON.stringify({
           clientId,
+          clientName,
+          clientEmail,
           scheduledAt: selectedDate.toISOString(),
           durationMinutes: duration,
           coachNotes: coachNotes || undefined,
@@ -94,25 +97,24 @@ export default function SessionScheduler({
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(
-          (errData as { message?: string }).message || 'Error al crear la sala'
+          (errData as { message?: string }).message || 'Error al crear la solicitud'
         );
       }
 
       const data = (await response.json()) as {
         success: boolean;
         data: {
-          roomName: string;
-          sessionId: string;
-          sessionNumber: number;
-          scheduledAt: string;
+          pendingSessionId: string;
+          status: string;
+          proposedDate: string;
+          message: string;
         };
       };
 
       onSessionCreated({
-        roomName: data.data.roomName,
-        sessionId: data.data.sessionId,
-        sessionNumber: data.data.sessionNumber,
-        scheduledAt: data.data.scheduledAt,
+        pendingSessionId: data.data.pendingSessionId,
+        status: data.data.status,
+        proposedDate: data.data.proposedDate,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al agendar la sesión');
@@ -144,7 +146,7 @@ export default function SessionScheduler({
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Encabezado */}
         <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-          <h2 className="text-xl font-bold text-white">Agendar Videollamada</h2>
+          <h2 className="text-xl font-bold text-white">Solicitar Videollamada</h2>
           <p className="text-blue-100 text-sm mt-1">
             {clientName} — Sesión de seguimiento
           </p>
@@ -199,17 +201,16 @@ export default function SessionScheduler({
             />
           </div>
 
-          {/* Información de privacidad */}
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          {/* Info del flujo */}
+          <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
             <div className="flex items-start gap-3">
-              <span className="text-lg">🔒</span>
-              <div className="text-sm text-gray-600">
-                <p className="font-medium text-gray-700 mb-1">Privacidad de la sesión</p>
+              <span className="text-lg">💡</span>
+              <div className="text-sm text-yellow-800">
+                <p className="font-medium mb-1">¿Cómo funciona?</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Cifrado DTLS-SRTP (estándar WebRTC)</li>
-                  <li>La grabación se almacena cifrada en S3</li>
-                  <li>Solo el coach tiene acceso a las grabaciones</li>
-                  <li>La transcripción se cifra antes de guardarse</li>
+                  <li>Se enviará un email al cliente para que realice el pago.</li>
+                  <li>Una vez pagado, podrás confirmar y crear la sala.</li>
+                  <li>El cliente recibirá el enlace para unirse a la videollamada.</li>
                 </ul>
               </div>
             </div>
@@ -240,7 +241,7 @@ export default function SessionScheduler({
             {submitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white" />
-                Creando sala...
+                Creando solicitud...
               </>
             ) : (
               <>
@@ -252,7 +253,7 @@ export default function SessionScheduler({
                 >
                   <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
                 </svg>
-                Agendar videollamada
+                Solicitar videollamada
               </>
             )}
           </button>

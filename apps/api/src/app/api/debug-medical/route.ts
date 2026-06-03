@@ -1,10 +1,23 @@
 // apps/api/src/app/api/debug-medical/route.ts
+// PROTEGIDO: Solo accesible en desarrollo o por administradores
 import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
+import { requireCoachAuth } from '@/app/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Solo admin en producción, o cualquier coach en desarrollo
+    if (process.env.NODE_ENV === 'production') {
+      const auth = requireCoachAuth(request);
+      if (auth.role !== 'admin') {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 403 }
+        );
+      }
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     

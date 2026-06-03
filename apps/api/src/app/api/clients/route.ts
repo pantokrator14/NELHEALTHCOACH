@@ -88,25 +88,18 @@ export async function GET(request: NextRequest) {
         method: 'GET'
       });
 
-      // Autenticar coach
-      let auth;
-      try {
-        auth = requireCoachAuth(request);
-      } catch {
-        // Si no hay token, devolver todos (backward compat para form)
-        auth = null;
-      }
+      // Autenticar coach (obligatorio)
+      const auth = requireCoachAuth(request);
 
       const healthForms = await getHealthFormsCollection();
 
       // Construir filtro
       const filter: Record<string, unknown> = {};
-      if (auth && auth.role === 'coach') {
+      if (auth.role === 'coach') {
         // Coach solo ve sus clientes
         filter.coachId = auth.coachId;
       }
       // Admin ve todos (no filtra)
-      // Sin auth también ve todos (backward compat)
 
       const totalCount = await healthForms.countDocuments(filter);
       logger.debug('CLIENTS', `Total documentos en BD para este filtro: ${totalCount}`);
@@ -212,6 +205,14 @@ export async function GET(request: NextRequest) {
       });
 
     } catch (error: any) {
+      // Si es un error estructurado (auth), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
       logger.error('CLIENTS', 'Error obteniendo lista de clientes', error, {
         endpoint: '/api/clients',
         method: 'GET'
@@ -247,6 +248,78 @@ export async function POST(request: NextRequest) {
 
     // Extraer coachId del body (enviado por el form)
     const coachId = data.coachId || null;
+    const isFree = data.free === true;
+    const stripeSessionId = data.stripeSessionId as string | undefined;
+
+    // ─── Validación de pago ────────────────────────────────────────
+    // 1. Si es gratuito, validar que el coach sea admin
+    // 2. Si no es gratuito, verificar que Stripe confirme el pago
+
+    if (isFree) {
+      if (!coachId) {
+        // &free=1 sin coachId: alguien lo añadió manualmente a la URL
+        logger.warn('CLIENTS', 'Intento de registro gratuito sin coachId — posible manipulación', {
+          isFree,
+        });
+        return NextResponse.json(
+          { success: false, message: 'Acción no autorizada. El enlace gratuito solo es válido con un coach administrador.' },
+          { status: 403 }
+        );
+      }
+
+      // Verificar que el coach sea administrador
+      const coach = await Coach.findById(coachId).select('role').lean() as { role: string } | null;
+      if (!coach || coach.role !== 'admin') {
+        logger.warn('CLIENTS', 'Intento de registro gratuito con coach no autorizado', {
+          coachId,
+        });
+        return NextResponse.json(
+          { success: false, message: 'Acción no autorizada. El enlace gratuito solo puede ser generado por un administrador.' },
+          { status: 403 }
+        );
+      }
+      logger.info('CLIENTS', 'Registro gratuito autorizado — coach admin verificado', { coachId });
+    } else {
+      // No es gratuito: requiere verificación de pago con Stripe
+      if (!stripeSessionId) {
+        logger.warn('CLIENTS', 'Intento de registro sin pago y sin stripeSessionId', {
+          hasCoachId: !!coachId,
+        });
+        return NextResponse.json(
+          { success: false, message: 'No se puede completar el registro sin un pago válido.' },
+          { status: 402 }
+        );
+      }
+
+      // Verificar la sesión de Stripe
+      try {
+        const { stripeClient } = await import('@/app/lib/stripe');
+        const session = await stripeClient.checkout.sessions.retrieve(stripeSessionId);
+
+        if (session.payment_status !== 'paid') {
+          logger.warn('CLIENTS', 'Sesión de Stripe no pagada', {
+            stripeSessionId,
+            paymentStatus: session.payment_status,
+          });
+          return NextResponse.json(
+            { success: false, message: 'El pago no fue completado. Por favor intenta de nuevo.' },
+            { status: 402 }
+          );
+        }
+
+        logger.info('CLIENTS', 'Pago verificado con Stripe exitosamente', {
+          stripeSessionId,
+        });
+      } catch (stripeError) {
+        logger.error('CLIENTS', 'Error verificando sesión de Stripe', stripeError as Error, {
+          stripeSessionId,
+        });
+        return NextResponse.json(
+          { success: false, message: 'Error verificando el pago. Contacta a soporte.' },
+          { status: 500 }
+        );
+      }
+    }
 
     // Zod validation
     const parsed = clientFormSchema.safeParse(data);

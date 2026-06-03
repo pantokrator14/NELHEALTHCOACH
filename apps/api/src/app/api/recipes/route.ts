@@ -106,14 +106,9 @@ export async function POST(request: NextRequest) {
 
       const recipesCollection = await getRecipesCollection();
 
-      // Obtener info del coach para el campo author
-      let authorName = 'NelHealthCoach';
-      try {
-        const auth = requireCoachAuth(request);
-        authorName = auth.email || 'NelHealthCoach';
-      } catch {
-        // Sin auth, usar default
-      }
+      // Obtener info del coach para el campo author (autenticación requerida)
+      const auth = requireCoachAuth(request);
+      const authorName = auth.email || 'NelHealthCoach';
 
       // ✅ ENCRIPTAR DIRECTAMENTE CADA CAMPO (sin funciones wrapper)
       const encryptedRecipeData: any = {
@@ -207,6 +202,13 @@ export async function POST(request: NextRequest) {
       }, { status: 201 });
       
     } catch (error: any) {
+      // Si es un error estructurado (auth), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
       logger.error('RECIPES', 'Error creando receta', error);
       return NextResponse.json(
         { success: false, message: 'Error creando receta' },

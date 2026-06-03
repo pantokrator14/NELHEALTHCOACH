@@ -7,10 +7,27 @@ export async function GET(request: NextRequest) {
     const auth = requireCoachAuth(request);
     const formUrl = process.env.FORM_URL || 'https://form.nelhealthcoach.com';
 
-    const link = `${formUrl}?coach=${auth.coachId}`;
+    // Leer el tipo de link: 'paid' (default) o 'free'
+    const type = request.nextUrl.searchParams.get('type') || 'paid';
+
+    // Solo administradores pueden generar enlaces gratuitos
+    if (type === 'free' && auth.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, message: 'Solo administradores pueden generar enlaces gratuitos' },
+        { status: 403 }
+      );
+    }
+
+    let link: string;
+    if (type === 'free') {
+      link = `${formUrl}?coach=${auth.coachId}&free=1`;
+    } else {
+      link = `${formUrl}?coach=${auth.coachId}`;
+    }
 
     logger.info('OTHER', 'Enlace de registro generado', {
       coachId: auth.coachId,
+      type,
     });
 
     return NextResponse.json({
@@ -18,6 +35,7 @@ export async function GET(request: NextRequest) {
       data: {
         link,
         coachId: auth.coachId,
+        type,
       },
     });
     } catch (error: unknown) {

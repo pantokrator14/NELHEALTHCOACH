@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import ContractStep from '@/components/ContractStep';
+import PaymentStep from '@/components/PaymentStep';
 import PersonalDataStep from '@/components/PersonalDataStep';
 import BasicMedicalStep from '@/components/BasicMedicalStep';
 import HealthEvaluationsStep from '@/components/HealthEvaluationsStep';
@@ -21,8 +22,10 @@ interface CompleteHealthFormData {
 
 interface HealthFormData {
   contractAccepted?: boolean;
+  paymentCompleted?: boolean;
   personalData?: Partial<PersonalDataFormValues>;
   medicalData?: Partial<MedicalDataFormValues>;
+  stripeSessionId?: string;
 }
 
 interface HealthEvaluationsStepData {
@@ -89,6 +92,8 @@ const FormPage: React.FC = () => {
   const [coachId, setCoachId] = useState<string | null>(null);
 
   // Leer coachId de query params al montar
+  const [isFree, setIsFree] = useState(false);
+
   useEffect(() => {
     if (router.isReady) {
       const coachParam = router.query.coach as string;
@@ -96,18 +101,78 @@ const FormPage: React.FC = () => {
         setCoachId(coachParam);
         console.log('🔗 Coach ID recibido via query param:', coachParam);
       }
+
+      // Detectar si es link gratuito (sin pago)
+      const freeParam = router.query.free === '1';
+      if (freeParam) {
+        setIsFree(true);
+        console.log('🆓 Acceso gratuito — se saltará el paso de pago');
+      }
+
+      // Verificar si volvemos de Stripe con pago exitoso
+      const paymentSuccess = router.query.payment === 'success';
+      if (paymentSuccess) {
+        const paymentPending = sessionStorage.getItem('nel_payment_pending');
+        if (paymentPending) {
+          console.log('✅ Pago verificado, saltando PaymentStep');
+          sessionStorage.removeItem('nel_payment_pending');
+          // Leer el paso guardado antes de ir a Stripe
+          const savedStep = Number(sessionStorage.getItem('nel_current_step')) || 1;
+          sessionStorage.removeItem('nel_current_step');
+
+          // Capturar el session_id de Stripe para verificación backend
+          const sessionId = router.query.session_id as string;
+          console.log('🔑 Stripe Session ID recibido:', sessionId);
+
+          updateFormData({
+            paymentCompleted: true,
+            stripeSessionId: sessionId || undefined,
+          });
+          setStep(savedStep + 1);
+        }
+      }
+
+      // Si venimos con payment=canceled, volver al PaymentStep
+      if (router.query.payment === 'canceled') {
+        console.log('⚠️ Pago cancelado, el usuario puede reintentar');
+        const savedStep = Number(sessionStorage.getItem('nel_current_step')) || 1;
+        sessionStorage.removeItem('nel_current_step');
+        sessionStorage.removeItem('nel_payment_pending');
+        setStep(savedStep);
+      }
     }
-  }, [router.isReady, router.query.coach]);
+  }, [router.isReady, router.query.coach, router.query.payment]);
 
   const nextStep = () => { setStep(step + 1); window.scrollTo(0, 0); };
-  const prevStep = () => { setStep(step - 1); window.scrollTo(0, 0); };
+  const prevStep = () => {
+    const newStep = step - 1;
+    // En modo gratuito: saltar PaymentStep (índice 1) al ir hacia atrás
+    if (isFree && newStep === 1) {
+      setStep(0);
+    } else {
+      setStep(newStep);
+    }
+    window.scrollTo(0, 0);
+  };
 
   const updateFormData = (newData: Partial<HealthFormData>) => {
     setFormData(prev => ({ ...prev, ...newData }));
   };
 
   const handleContractAccept = () => {
-    updateFormData({ contractAccepted: true });
+    updateFormData({ contractAccepted: true, paymentCompleted: isFree });
+    if (isFree) {
+      // Link gratuito: saltar PaymentStep (índice 1), ir directo a ObjectivesStep (índice 2)
+      console.log('🆓 Modo gratuito — saltando paso de pago');
+      setStep(2);
+    } else {
+      nextStep(); // Va al PaymentStep
+    }
+  };
+
+  const handlePaymentComplete = () => {
+    // El pago ya fue verificado por Stripe, avanzamos al siguiente paso
+    sessionStorage.removeItem('nel_payment_pending');
     nextStep();
   };
 
@@ -313,6 +378,10 @@ const FormPage: React.FC = () => {
         contractAccepted: completeData.contractAccepted,
         personalData: convertPersonalDataForApi(completeData.personalData),
         medicalData: convertMedicalDataForApi(medicalDataWithDocs),
+        // Stripe Session ID para verificar el pago en backend
+        ...(formData.stripeSessionId && { stripeSessionId: formData.stripeSessionId }),
+        // Indicar si el cliente accedió por link gratuito (validación backend)
+        ...(isFree && { free: true }),
       };
 
       console.log('📤 Enviando formulario con documentos:', {
@@ -394,6 +463,11 @@ const FormPage: React.FC = () => {
 
   const steps = [
     <ContractStep key="contract" onAccept={handleContractAccept} onReject={handleContractReject} />,
+    <PaymentStep
+      key="payment"
+      onPaymentComplete={handlePaymentComplete}
+      coachId={coachId || undefined}
+    />,
     <ObjectivesStep
       key="objectives"
       data={formData.medicalData || {}}

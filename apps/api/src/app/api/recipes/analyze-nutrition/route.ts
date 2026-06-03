@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCoachAuth } from '@/app/lib/auth';
 import { NutritionService } from '@/app/lib/nutrition-service';
 import { logger } from '@/app/lib/logger';
 
 export async function POST(request: NextRequest) {
   return logger.time('NUTRITION_ANALYSIS', 'Analizando nutrición de ingredientes', async () => {
     try {
+      // Autenticación requerida (solo coaches)
+      requireCoachAuth(request);
+
       const body = await request.json();
       const { ingredients, servings, recipeId } = body;
       
@@ -36,6 +40,14 @@ export async function POST(request: NextRequest) {
       });
       
     } catch (error: any) {
+      // Si es un error estructurado (auth), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
       logger.error('NUTRITION_ANALYSIS', 'Error analizando nutrición', error);
       
       // Intentar cálculo local como fallback

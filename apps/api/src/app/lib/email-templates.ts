@@ -94,9 +94,8 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
         border-radius: 50%;
         background: linear-gradient(135deg, #4CAF50, #2E7D32);
         color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        line-height: 80px;
+        text-align: center;
         font-size: 32px;
         font-weight: bold;
         margin: 0 auto 15px;
@@ -395,6 +394,7 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
                     font-weight: 600;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+                    white-space: nowrap;
                 ">
                     🎥 Unirme a la videollamada
                 </a>
@@ -518,6 +518,8 @@ export function generateSessionReminderTodayHTML(data: SessionEmailData): string
             background: #f5f5f5;
             margin: 0;
             padding: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
     </style>
 </head>
@@ -569,6 +571,7 @@ export function generateSessionReminderTodayHTML(data: SessionEmailData): string
                     font-weight: 600;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+                    white-space: nowrap;
                 ">
                     🎥 Unirme a la videollamada
                 </a>
@@ -624,13 +627,15 @@ export function generateSessionReminderSoonHTML(data: SessionEmailData): string 
             background: #f5f5f5;
             margin: 0;
             padding: 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
     </style>
 </head>
 <body>
     <div class="container" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%); padding: 50px 30px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 50px 30px; text-align: center;">
             <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
 
@@ -638,7 +643,7 @@ export function generateSessionReminderSoonHTML(data: SessionEmailData): string 
         <div style="padding: 35px 30px;">
             <div style="text-align: center; margin-bottom: 25px;">
                 <div style="font-size: 48px; margin-bottom: 15px;">⏰</div>
-                <h1 style="margin: 0 0 10px 0; font-size: 24px; color: #388E3C;">
+                <h1 style="margin: 0 0 10px 0; font-size: 24px; color: #1976D2;">
                     ¡Tu videollamada va a empezar!
                 </h1>
                 <p style="font-size: 16px; color: #555; margin: 0;">
@@ -659,6 +664,7 @@ export function generateSessionReminderSoonHTML(data: SessionEmailData): string 
                     font-weight: 700;
                     border-radius: 8px;
                     box-shadow: 0 4px 16px rgba(76,175,80,0.4);
+                    white-space: nowrap;
                 ">
                     🎥 Entrar a la videollamada
                 </a>
@@ -689,6 +695,149 @@ export function generateSessionReminderSoonHTML(data: SessionEmailData): string 
 
         ${renderFooter(currentYear, coachEmail)}
     </div>
+</body>
+</html>`;
+}
+
+// ─────────────────────────────────────────────
+// Plantilla: Solicitud de pago para sesión
+// ─────────────────────────────────────────────
+
+export interface PaymentRequestEmailData {
+  coachName: string;
+  clientName: string;
+  scheduledDate: Date;
+  scheduledTime: string;
+  durationMinutes: number;
+  paymentLink: string;
+  coachEmail?: string;
+}
+
+/**
+ * Email al cliente: "Tu asesor ha solicitado una videollamada. Proceder al pago."
+ */
+export function generatePaymentRequestEmailHTML(data: PaymentRequestEmailData): string {
+  const currentYear = new Date().getFullYear();
+  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+
+  const dateOpts: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  };
+  const formattedDate = data.scheduledDate.toLocaleDateString('es-MX', dateOpts);
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitud de videollamada - NELHEALTHCOACH</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .container { width: 100% !important; padding: 15px !important; }
+      .header { padding: 25px !important; }
+      .button { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 50px 30px; text-align: center;">
+      <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
+    </div>
+
+    <!-- Contenido -->
+    <div style="padding: 35px 30px;">
+      <h1 style="margin: 0 0 15px; color: #1976D2; font-size: 24px;">
+        ¡Tu asesor solicitó una videollamada!
+      </h1>
+      <p style="font-size: 16px; margin-bottom: 25px;">
+        Hola <strong>${data.clientName}</strong>, tu asesor
+        <strong>${data.coachName}</strong> ha solicitado una sesión de seguimiento
+        contigo. Confirma tu asistencia realizando el pago para que podamos
+        agendarla oficialmente.
+      </p>
+
+      <!-- Detalles de la sesión propuesta -->
+      <div style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0e0e0;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 20px; margin-right: 10px;">📅</span>
+          <span style="font-weight: 600;">${formattedDate}</span>
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 20px; margin-right: 10px;">🕒</span>
+          <span>${data.scheduledTime} (${data.durationMinutes} minutos)</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <span style="font-size: 20px; margin-right: 10px;">👤</span>
+          <span>${data.coachName} — Tu asesor de salud</span>
+        </div>
+      </div>
+
+      <!-- Botón de pago -->
+      <div style="text-align: center; margin-bottom: 30px;">
+        <a href="${data.paymentLink}" class="button" style="
+          display: inline-block;
+          padding: 16px 45px;
+          background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+          color: white;
+          text-decoration: none;
+          font-size: 18px;
+          font-weight: 700;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+          white-space: nowrap;
+        ">
+          💳 Proceder al pago
+        </a>
+        <p style="font-size: 12px; color: #999; margin-top: 10px;">
+          Una vez confirmado tu pago, recibirás el enlace para unirte a la videollamada.
+        </p>
+      </div>
+
+      <!-- Info de pago -->
+      <div style="background: #e3f2fd; border-radius: 10px; padding: 20px; border-left: 4px solid #2196F3;">
+        <p style="margin: 0; color: #1976D2; font-size: 14px;">
+          🔒 Pago 100% seguro procesado por Stripe. No almacenamos datos de tu tarjeta.
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+      <img src="https://nelhealthcoach.com/images/logo-blue.png" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+      <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+        Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+      </div>
+      <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+        <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+      </div>
+      <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+        33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+      </div>
+      <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+        📧 <a href="mailto:${data.coachEmail || 'contact@nelhealthcoach.com'}" style="color: #90CAF9; text-decoration: none;">${data.coachEmail || 'contact@nelhealthcoach.com'}</a>
+        &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+      </div>
+      <div style="opacity: 0.6; font-size: 12px;">
+        &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+      </div>
+    </div>
+  </div>
 </body>
 </html>`;
 }
@@ -726,7 +875,7 @@ export function generateVerificationEmailHTML(data: {
                 Gracias por registrarte como coach en NELHEALTHCOACH. Para activar tu cuenta, haz clic en el botón de abajo:
             </p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${data.verifyUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                <a href="${data.verifyUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
                     Verificar mi cuenta
                 </a>
             </div>
@@ -759,7 +908,7 @@ export function generateWelcomeCoachEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; padding: 40px 30px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
             <h1 style="margin: 0; font-size: 22px;">¡Bienvenido a NELHEALTHCOACH!</h1>
         </div>
@@ -768,11 +917,16 @@ export function generateWelcomeCoachEmailHTML(data: {
                 Hola <strong>${data.coachName}</strong>,
             </p>
             <p style="color: #555;">
-                Tu cuenta ha sido verificada exitosamente. Ya puedes acceder al panel de coach para gestionar tus clientes.
+                Tu cuenta ha sido creada exitosamente. Ya puedes acceder al panel de coach para gestionar tus clientes.
             </p>
+            <div style="background: #e3f2fd; border-radius: 10px; padding: 15px; margin: 20px 0; border-left: 4px solid #2196F3;">
+                <p style="margin: 0; color: #1565C0; font-size: 14px;">
+                    📧 No olvides verificar tu dirección de email antes de iniciar sesión. Revisa tu bandeja de entrada.
+                </p>
+            </div>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${data.loginUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                    Ir al panel de coach
+                <a href="${data.loginUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
+                    Ir al inicio de sesión
                 </a>
             </div>
         </div>
@@ -801,7 +955,7 @@ export function generatePasswordResetHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); color: white; padding: 40px 30px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 10px;">🔑</div>
             <h1 style="margin: 0; font-size: 22px;">Recupera tu contraseña</h1>
         </div>
@@ -813,7 +967,7 @@ export function generatePasswordResetHTML(data: {
                 Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el botón de abajo para crear una nueva contraseña:
             </p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${data.resetUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                <a href="${data.resetUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
                     Restablecer contraseña
                 </a>
             </div>
@@ -841,7 +995,7 @@ export function generateNewClientClientNotificationHTML(data: {
 }): string {
   const coachPhotoHtml = data.coachPhoto
     ? `<img src="${data.coachPhoto}" alt="${data.coachName}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #2196F3; margin: 0 auto 15px; display: block;">`
-    : `<div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #2196F3, #1976D2); color: white; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: bold; margin: 0 auto 15px;">${data.coachName.charAt(0)}</div>`;
+    : `<div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #2196F3, #1976D2); color: white; line-height: 100px; text-align: center; font-size: 36px; font-weight: bold; margin: 0 auto 15px;">${data.coachName.charAt(0)}</div>`;
 
   return `
 <!DOCTYPE html>
@@ -913,7 +1067,7 @@ export function generateNewClientCoachNotificationHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; padding: 40px 30px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
             <h1 style="margin: 0; font-size: 22px;">Nuevo Cliente Registrado</h1>
         </div>
@@ -938,7 +1092,7 @@ export function generateNewClientCoachNotificationHTML(data: {
                 ` : ''}
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                <a href="${data.dashboardUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                <a href="${data.dashboardUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
                     Ver perfil del cliente
                 </a>
             </div>
@@ -955,6 +1109,116 @@ export function generateNewClientCoachNotificationHTML(data: {
  * Email para el coach: notifica que se agendó una videollamada con un cliente
  * e incluye enlace para que el coach se una.
  */
+/**
+ * Email al coach: nuevo pago de onboarding recibido (cliente pagó pero aún no completa formulario).
+ */
+export function generateOnboardingPaymentCoachNotificationHTML(data: {
+  coachName: string;
+  clientName: string;
+  clientEmail: string;
+  dashboardUrl: string;
+}): string {
+  const currentYear = new Date().getFullYear();
+  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nuevo pago de onboarding - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+  <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+      <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 160px; height: auto;">
+    </div>
+    <div style="padding: 30px;">
+      <h1 style="margin: 0 0 10px; font-size: 22px; color: #1976D2;">🎉 Nuevo pago recibido</h1>
+      <p style="color: #555;">Hola <strong>${data.coachName}</strong>,</p>
+      <p style="color: #555;">
+        <strong>${data.clientName}</strong> ha realizado el pago de onboarding
+        exitosamente. El cliente está listo para completar su formulario de registro.
+      </p>
+      <div style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin: 20px 0; border: 1px solid #e0e0e0;">
+        <div style="margin-bottom: 10px;">
+          <span style="font-weight: 600; color: #333;">👤 Cliente:</span>
+          <span style="color: #555;"> ${data.clientName}</span>
+        </div>
+        <div>
+          <span style="font-weight: 600; color: #333;">📧 Email:</span>
+          <span style="color: #555;"> ${data.clientEmail}</span>
+        </div>
+      </div>
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${data.dashboardUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; white-space: nowrap;">
+          👤 Ver perfil del cliente
+        </a>
+      </div>
+      <p style="color: #888; font-size: 13px;">
+        El cliente completará su formulario de salud próximamente. Recibirás otra
+        notificación cuando termine su registro.
+      </p>
+    </div>
+    <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
+      NELHEALTHCOACH &copy; ${currentYear}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Email al cliente: confirmación de pago de sesión realizado.
+ */
+export function generateSessionPaymentClientConfirmationHTML(data: {
+  clientName: string;
+  coachName: string;
+  amount: number;
+}): string {
+  const currentYear = new Date().getFullYear();
+  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pago confirmado - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+  <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+      <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 160px; height: auto;">
+    </div>
+    <div style="padding: 30px;">
+      <h1 style="margin: 0 0 10px; font-size: 22px; color: #1976D2;">✅ Pago confirmado</h1>
+      <p style="color: #555;">Hola <strong>${data.clientName}</strong>,</p>
+      <p style="color: #555;">
+        Te confirmamos que tu pago de <strong>$${data.amount} USD</strong> por tu
+        sesión de coaching ha sido procesado exitosamente.
+      </p>
+      <div style="background: #e3f2fd; border-radius: 10px; padding: 20px; margin: 20px 0; border-left: 4px solid #2196F3;">
+        <p style="margin: 0 0 10px; color: #1976D2; font-weight: 600;">
+          📋 ¿Qué sigue?
+        </p>
+        <p style="margin: 0; color: #555;">
+          Tu asesor <strong>${data.coachName}</strong> recibirá la notificación
+          de tu pago y confirmará la sesión próximamente. Recibirás un enlace
+          para unirte a la videollamada cuando esté lista.
+        </p>
+      </div>
+    </div>
+    <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
+      NELHEALTHCOACH &copy; ${currentYear}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export function generateCoachSessionNotificationHTML(data: {
   clientName: string;
   sessionNumber: number;
@@ -1063,6 +1327,7 @@ export function generateCoachSessionNotificationHTML(data: {
                     font-weight: 600;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+                    white-space: nowrap;
                 ">
                     🔗 Unirme a la videollamada
                 </a>
@@ -1087,6 +1352,7 @@ export function generateCoachSessionNotificationHTML(data: {
                     text-decoration: none;
                     border-radius: 6px;
                     font-weight: 600;
+                    white-space: nowrap;
                 ">
                     👤 Ver perfil del cliente
                 </a>

@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { logger } from '@/app/lib/logger';
+import { requireCoachAuth } from '@/app/lib/auth';
 
 export async function GET(request: NextRequest) {
+  // Solo accesible en desarrollo o por administradores
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      const auth = requireCoachAuth(request);
+      if (auth.role !== 'admin') {
+        return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 403 });
+      }
+    } catch {
+      return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
+    }
+  }
+
   console.log('🧪 Iniciando prueba de diagnóstico de Recipes...');
   logger.debug('DATABASE', 'Iniciando prueba de diagnóstico de Recipes');
   

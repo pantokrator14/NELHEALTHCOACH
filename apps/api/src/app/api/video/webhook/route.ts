@@ -6,9 +6,10 @@
 // - egress_ended: Envía la grabación a Deepgram para transcripción
 //   con reintento automático integrado (vía transcription-ready)
 //
-// Seguridad: Valida que el token del webhook coincida (configurable).
+// Seguridad: Valida el token JWT de LiveKit en el header Authorization.
 
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { updateVideoSessionStatus } from '@/app/lib/video-service';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
@@ -47,9 +48,29 @@ interface LiveKitWebhookEvent {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // ── Verificar webhook signature de LiveKit ──
+    const authHeader = request.headers.get('Authorization')?.replace('Bearer ', '');
+    const liveKitSecret = process.env.LIVEKIT_API_SECRET;
+    if (!authHeader || !liveKitSecret) {
+      logger.warn('VIDEO', 'Webhook sin Authorization o LIVEKIT_API_SECRET no configurado');
+      return NextResponse.json(
+        { success: false, message: 'No autorizado' },
+        { status: 401 }
+      );
+    }
+    try {
+      jwt.verify(authHeader, liveKitSecret);
+    } catch {
+      logger.warn('VIDEO', 'Webhook con token inválido');
+      return NextResponse.json(
+        { success: false, message: 'Token inválido' },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as LiveKitWebhookEvent;
 
-    logger.info('VIDEO', 'Webhook received', {
+    logger.info('VIDEO', 'Webhook recibido y verificado', {
       event: body.event,
       roomName: body.room?.name,
     });

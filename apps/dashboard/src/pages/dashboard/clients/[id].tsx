@@ -134,6 +134,7 @@ export default function ClientProfile() {
   const currentDocIndex = selectedDocument ? documents.findIndex(d => d.key === selectedDocument.key) : -1
   const hasPrevDoc = currentDocIndex > 0
   const hasNextDoc = currentDocIndex >= 0 && currentDocIndex < documents.length - 1
+  const [isAdmin, setIsAdmin] = useState(false)
   const [isProfilePhotoModalOpen, setIsProfilePhotoModalOpen] = useState(false)
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -192,6 +193,11 @@ export default function ClientProfile() {
       router.push('/login')
       return
     }
+    // Determinar si es admin por el rol en el JWT
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      setIsAdmin(payload.role === 'admin')
+    } catch { /* ignore */ }
     if (clientId) {
       fetchClient()
     }
@@ -706,12 +712,14 @@ export default function ClientProfile() {
 
               {/* Botones de acción */}
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <button onClick={handleExportPDF} className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Descargar información en PDF
-                </button>
+                {isAdmin && (
+                  <button onClick={handleExportPDF} className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar información en PDF
+                  </button>
+                )}
                 <button onClick={() => setIsEditModalOpen(true)} className="w-full mt-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1257,6 +1265,7 @@ export default function ClientProfile() {
           <AIRecommendationsModal
             clientId={clientId}
             _clientName={client.personalData.name}
+            clientEmail={client.personalData.email}
             onClose={() => setIsAIModalOpen(false)}
             generationStatus={aiGenerationStatus}
             generationError={aiError}

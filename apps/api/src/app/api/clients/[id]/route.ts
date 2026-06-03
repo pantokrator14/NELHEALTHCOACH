@@ -358,8 +358,42 @@ export async function PUT(
         expectedLengths
       });
 
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Verificar autenticación + ownership
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
+      }
+
+      // Verificar ownership: solo admin o el coach dueño del cliente puede editar
+      const healthForms = await getHealthFormsCollection();
+      const existingClient = await healthForms.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { coachId: 1 } }
+      );
+
+      if (!existingClient) {
+        return NextResponse.json(
+          { success: false, message: 'Cliente no encontrado' },
+          { status: 404 }
+        );
+      }
+
+      if (auth.role !== 'admin' && existingClient.coachId !== auth.coachId) {
+        logger.warn('CLIENTS', 'Intento de acceso no autorizado a cliente', {
+          coachId: auth.coachId,
+          clientId: id,
+          clientCoachId: existingClient.coachId,
+        });
+        return NextResponse.json(
+          { success: false, message: 'No tienes permiso para modificar este cliente' },
+          { status: 403 }
+        );
+      }
 
       const data = await request.json();
       
@@ -376,8 +410,6 @@ export async function PUT(
         medicalDataKeys: Object.keys(data.medicalData || {}),
         evaluationFields: evaluationFields as any
       });
-
-      const healthForms = await getHealthFormsCollection();
 
       // Validar datos
       if (!data.personalData || !data.medicalData) {
@@ -590,22 +622,42 @@ export async function DELETE(
         clientId: id
       });
 
-      const token = request.headers.get('authorization')?.replace('Bearer ', '');
-      requireAuth(token);
+      // Verificar autenticación + ownership
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
+      }
 
       const healthForms = await getHealthFormsCollection();
       
-      // Primero obtener el cliente para extraer las claves de S3
+      // Primero obtener el cliente para extraer las claves de S3 y verificar ownership
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
-      
+
       if (!client) {
-        logger.warn('CLIENTS', 'Cliente no encontrado para eliminación', undefined, { clientId: id });
         return NextResponse.json(
           { success: false, message: 'Cliente no encontrado' },
           { status: 404 }
         );
       }
 
+      // Solo admin o coach dueño del cliente puede eliminar
+      if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
+        logger.warn('CLIENTS', 'Intento de eliminar cliente no autorizado', {
+          coachId: auth.coachId,
+          clientId: id,
+          clientCoachId: client.coachId,
+        });
+        return NextResponse.json(
+          { success: false, message: 'No tienes permiso para eliminar este cliente' },
+          { status: 403 }
+        );
+      }
+      
       // Función para extraer claves S3 de los archivos del cliente
       const extractS3Keys = async (client: any): Promise<string[]> => {
         const keys: string[] = [];

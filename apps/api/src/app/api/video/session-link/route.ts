@@ -4,7 +4,7 @@
 // Solo el coach autenticado puede generar estos enlaces.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/app/lib/auth';
+import { requireCoachAuth } from '@/app/lib/auth';
 import { generateClientSessionLink } from '@/app/lib/video-service';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt } from '@/app/lib/encryption';
@@ -18,8 +18,7 @@ interface SessionLinkRequest {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    requireAuth(token);
+    const auth = requireCoachAuth(request);
 
     const body = (await request.json()) as SessionLinkRequest;
 

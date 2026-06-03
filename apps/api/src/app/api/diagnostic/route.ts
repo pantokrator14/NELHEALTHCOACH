@@ -1,10 +1,22 @@
-// apps/api/src/app/api/diagnostic/route.ts - NUEVO ARCHIVO
+// apps/api/src/app/api/diagnostic/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
+import { requireCoachAuth } from '@/app/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // Solo admin en producción; cualquiera en desarrollo
+    if (process.env.NODE_ENV === 'production') {
+      const auth = requireCoachAuth(request);
+      if (auth.role !== 'admin') {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 403 }
+        );
+      }
+    }
+
     console.log('🔍 Ejecutando diagnóstico de conexión...');
     logger.debug('DATABASE', 'Ejecutando diagnóstico de conexión');
     

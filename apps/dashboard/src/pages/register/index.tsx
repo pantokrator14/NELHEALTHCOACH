@@ -1,179 +1,172 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { apiClient } from '@/lib/api';
-import PasswordInput from '@/components/PasswordInput';
+import CoachContractStep from '@/components/CoachContractStep';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+type RegisterStep = 'contract' | 'checkout' | 'form' | 'success';
 
 export default function Register() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [step, setStep] = useState<RegisterStep>('contract');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [canceled, setCanceled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.id]: e.target.value });
-  };
+  // ── Detectar cancelación desde Stripe ──
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('La foto no debe superar 5MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => setPhotoPreview(reader.result as string);
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    if (router.isReady && router.query.canceled === 'true') {
+      setCanceled(true);
+      setStep('contract');
     }
-  };
+  }, [router.isReady, router.query.canceled]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── Paso 1: Aceptar contrato ──
+
+  const handleContractAccept = () => {
+    // Limpiar estado de cancelación
+    setCanceled(false);
     setError('');
-    setSuccess('');
 
-    if (form.password !== form.confirmPassword) {
-      setError('Las contraseñas no coinciden');
+    // Pedir email antes de ir a Stripe
+    const userEmail = window.prompt('Ingresa tu email para continuar con el pago:');
+    if (!userEmail || !userEmail.includes('@')) {
+      setError('Debes ingresar un email válido');
       return;
     }
-    if (form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
+    setEmail(userEmail);
+    setError('');
+    setStep('checkout');
+    handleProceedToCheckout(userEmail);
+  };
 
+  const handleContractReject = () => {
+    setCanceled(false);
+    setError('');
+    window.location.href = '/login';
+  };
+
+  // ── Paso 2: Ir a Stripe Checkout ──
+
+  const handleProceedToCheckout = async (userEmail: string) => {
     setLoading(true);
+    setError('');
+
     try {
-      await apiClient.register({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone,
-        password: form.password,
+      const response = await fetch(`${API_BASE_URL}/api/payments/create-coach-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          contractAccepted: true,
+        }),
       });
-      setSuccess('Cuenta creada exitosamente. Revisa tu email para verificar tu cuenta.');
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Error al iniciar el pago');
+      }
+
+      setCheckoutUrl(result.url);
+      setPendingToken(result.token);
+
+      // Redirigir a Stripe Checkout
+      window.location.href = result.url;
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al registrarse');
+      setError(err instanceof Error ? err.message : 'Error al procesar el pago');
+      setStep('contract');
+    } finally {
       setLoading(false);
     }
   };
 
-  // Si ya se registró, subir la foto (después de verificar email podrá hacerlo)
-  // Por ahora, mostramos el mensaje de éxito y redirigimos al login
+  // ── Renderizar según el paso ──
+
+  const renderStep = () => {
+    switch (step) {
+      case 'contract':
+        return (
+          <CoachContractStep
+            onAccept={handleContractAccept}
+            onReject={handleContractReject}
+          />
+        );
+
+      case 'checkout':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+              <div className="relative w-48 h-16 mx-auto mb-6">
+                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+              </div>
+              <h1 className="text-2xl font-bold text-blue-700 mb-4">
+                Redirigiendo a Stripe...
+              </h1>
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 mx-auto mb-4" />
+              <p className="text-gray-600 text-sm">
+                Serás redirigido a Stripe para completar el pago de tu suscripción.
+              </p>
+              {checkoutUrl && (
+                <button
+                  onClick={() => { window.location.href = checkoutUrl!; }}
+                  className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-medium"
+                >
+                  Ir a Stripe
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
       <Head>
         <title>Registro - NELHEALTHCOACH</title>
       </Head>
-      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-          <div className="p-8 flex justify-center">
-            <div className="relative w-48 h-16">
-              <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+
+      {canceled && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-6 py-3 rounded-lg shadow-lg max-w-md text-sm flex items-start gap-3">
+            <span className="text-lg shrink-0 mt-0.5">ℹ️</span>
+            <div>
+              <p className="font-medium">Pago cancelado</p>
+              <p className="text-amber-700 mt-1">
+                No se realizó ningún cobro. Si deseas intentarlo de nuevo, acepta el contrato para continuar.
+              </p>
             </div>
-          </div>
-          <div className="px-8 pb-8">
-            <h1 className="text-2xl font-bold text-blue-700 text-center mb-6">Registro</h1>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">{error}</div>
-            )}
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4">
-                <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-2">📧</span>
-                  {success}
-                </div>
-                <p className="text-sm text-green-600 mb-3">
-                  Después de verificar tu email, podrás subir tu foto de perfil desde la sección Mi Perfil.
-                </p>
-                <button
-                  onClick={() => router.push('/login')}
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-                >
-                  Ir al inicio de sesión
-                </button>
-              </div>
-            )}
-
-            {!success && (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Foto de perfil */}
-                <div className="flex flex-col items-center">
-                  <label htmlFor="photo" className="cursor-pointer group">
-                    <div className="w-24 h-24 rounded-full bg-blue-100 border-2 border-dashed border-blue-400 flex items-center justify-center overflow-hidden group-hover:border-blue-600 transition relative">
-                      {photoPreview ? (
-                        <Image src={photoPreview} alt="Preview" fill className="object-cover" />
-                      ) : (
-                        <div className="text-center text-blue-500">
-                          <svg className="w-8 h-8 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          <span className="text-xs">Foto</span>
-                        </div>
-                      )}
-                    </div>
-                  </label>
-                  <input
-                    id="photo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-500 mt-2">Opcional. Máx 5MB</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                    <input id="firstName" type="text" value={form.firstName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required disabled={loading} />
-                  </div>
-                  <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
-                    <input id="lastName" type="text" value={form.lastName} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required disabled={loading} />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input id="email" type="email" value={form.email} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required disabled={loading} />
-                </div>
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                  <input id="phone" type="tel" value={form.phone} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={loading} />
-                </div>
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                  <PasswordInput id="password" value={form.password} onChange={handleChange} placeholder="Mínimo 6 caracteres" required disabled={loading} />
-                </div>
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
-                  <PasswordInput id="confirmPassword" value={form.confirmPassword} onChange={handleChange} required disabled={loading} />
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
-                  {loading ? 'Creando cuenta...' : 'Crear cuenta'}
-                </button>
-                <p className="text-center text-sm text-gray-500">
-                  ¿Ya tienes cuenta?{' '}
-                  <Link href="/login" className="text-blue-600 hover:text-blue-800">Iniciar sesión</Link>
-                </p>
-              </form>
-            )}
+            <button
+              onClick={() => setCanceled(false)}
+              className="shrink-0 text-amber-400 hover:text-amber-600 transition ml-2"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
           </div>
         </div>
-      </div>
+      )}
+
+      {error && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-3 rounded-lg shadow-lg max-w-md text-sm">
+            {error}
+          </div>
+        </div>
+      )}
+
+      {renderStep()}
     </>
   );
 }

@@ -1,5 +1,6 @@
 // apps/api/src/app/api/extract-text/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCoachAuth } from '@/app/lib/auth';
 import mammoth from 'mammoth';
 
 import pdfParse from 'pdf-parse';
@@ -18,6 +19,9 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
+    // Autenticación requerida (solo coaches)
+    requireCoachAuth(request);
+
     // Obtener el FormData de la solicitud
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -125,7 +129,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: unknown) {
+  } catch (error: any) {
+    // Si es un error estructurado (auth), devolver su status específico
+    if (error?.status) {
+      return NextResponse.json(
+        { success: false, message: error.message || 'Error' },
+        { status: error.status }
+      );
+    }
     console.error('Error en extract-text endpoint:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(

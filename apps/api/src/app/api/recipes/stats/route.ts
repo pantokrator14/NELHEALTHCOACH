@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import { logger } from '@/app/lib/logger';
+import { requireCoachAuth } from '@/app/lib/auth';
 
 export async function GET(request: NextRequest) {
+  try {
+    requireCoachAuth(request);
+  } catch {
+    return NextResponse.json(
+      { success: false, message: 'No autorizado' },
+      { status: 401 }
+    );
+  }
   let client: MongoClient | null = null;
   
   try {

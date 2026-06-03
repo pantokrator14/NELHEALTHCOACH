@@ -240,11 +240,13 @@ export async function PUT(
       try {
         auth = requireCoachAuth(request);
       } catch {
-        // Sin autenticación, actualizar directo (backward compat)
-        auth = null;
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
       }
 
-      if (auth && auth.role !== 'admin') {
+      if (auth.role !== 'admin') {
         // Coach no-admin: crear propuesta de edición
         await connectMongoose();
         const proposal = await EditProposal.create({
@@ -272,7 +274,7 @@ export async function PUT(
         });
       }
 
-      // ✅ 6. ACTUALIZAR EN MONGODB (admin o legacy)
+      // ✅ 6. ACTUALIZAR EN MONGODB (admin)
       const result = await recipesCollection.findOneAndUpdate(
         { _id: new ObjectId(id) },
         { $set: updateData },
@@ -341,6 +343,24 @@ export async function DELETE(
 ) {
   return logger.time('RECIPES', 'Eliminar receta', async () => {
     try {
+      // Solo administradores pueden eliminar recetas
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
+      }
+
+      if (auth.role !== 'admin') {
+        return NextResponse.json(
+          { success: false, message: 'Solo administradores pueden eliminar recetas' },
+          { status: 403 }
+        );
+      }
+
       const { id } = await params;
       const recipesCollection = await getRecipesCollection();
       

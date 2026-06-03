@@ -131,14 +131,9 @@ export async function POST(request: NextRequest) {
       const validData = parsed.data;
       const collection = await getExerciseCollection();
 
-      // Obtener info del coach para el campo author
-      let authorName = 'NelHealthCoach';
-      try {
-        const auth = requireCoachAuth(request);
-        authorName = auth.email || 'NelHealthCoach';
-      } catch {
-        // Sin auth, usar default
-      }
+      // Obtener info del coach para el campo author (autenticación requerida)
+      const auth = requireCoachAuth(request);
+      const authorName = auth.email || 'NelHealthCoach';
 
       const exerciseDoc = {
         name: encrypt(body.name),
@@ -177,7 +172,14 @@ export async function POST(request: NextRequest) {
         success: true,
         data: { id: result.insertedId.toString() },
       });
-    } catch (error: unknown) {
+    } catch (error: any) {
+      // Si es un error estructurado (auth), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
       const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('EXERCISES', 'Error al crear ejercicio', error as Error);
       return NextResponse.json(
@@ -242,10 +244,13 @@ export async function PUT(request: NextRequest) {
       try {
         auth = requireCoachAuth(request);
       } catch {
-        auth = null;
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
       }
 
-      if (auth && auth.role !== 'admin') {
+      if (auth.role !== 'admin') {
         // Coach no-admin: crear propuesta
         await connectMongoose();
         const proposal = await EditProposal.create({
@@ -273,7 +278,7 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      // Admin o legacy: actualizar directamente
+      // Admin: actualizar directamente
       const result = await collection.updateOne(
         { _id: new ObjectId(id) },
         { $set: encryptedUpdate }
@@ -298,10 +303,28 @@ export async function PUT(request: NextRequest) {
   });
 }
 
-// DELETE: Eliminar ejercicios
+// DELETE: Eliminar ejercicios (solo admin)
 export async function DELETE(request: NextRequest) {
   return logger.time('EXERCISES', 'Eliminar ejercicios', async () => {
     try {
+      // Solo administradores pueden eliminar ejercicios
+      let auth;
+      try {
+        auth = requireCoachAuth(request);
+      } catch {
+        return NextResponse.json(
+          { success: false, message: 'No autorizado' },
+          { status: 401 }
+        );
+      }
+
+      if (auth.role !== 'admin') {
+        return NextResponse.json(
+          { success: false, message: 'Solo administradores pueden eliminar ejercicios' },
+          { status: 403 }
+        );
+      }
+
       const body = await request.json();
       const { ids } = body as { ids: string[] };
 

@@ -249,6 +249,7 @@ interface ApiAIProgressResponse {
 interface AIRecommendationsModalProps {
   clientId: string;
   _clientName: string;
+  clientEmail?: string;
   onClose: () => void;
   onRecommendationsGenerated?: (info?: { status: string; jobId?: string }) => void;
   // El padre notifica al modal cuándo la generación asíncrona terminó o falló
@@ -323,6 +324,7 @@ interface ImportableAISessionData {
 export default function AIRecommendationsModal({
   clientId,
   _clientName,
+  clientEmail: clientEmailProp,
   onClose,
   onRecommendationsGenerated,
   generationStatus = 'idle',
@@ -1404,23 +1406,13 @@ export default function AIRecommendationsModal({
    * Si la sesión es para ahora (dentro de 5 min), ofrece unirse.
    */
   const handleSessionCreated = useCallback(
-    (data: { roomName: string; sessionId: string; sessionNumber: number; scheduledAt: string }): void => {
+    (_data: { pendingSessionId: string; status: string; proposedDate: string; duration?: number; message?: string }): void => {
       setShowSessionScheduler(false);
-      setVideoRoomName(data.roomName);
-      setVideoSessionId(data.sessionId);
-      // Enviar invitación por email al cliente y notificación al coach
-      sendSessionInvite(data.sessionId);
-
-      const scheduledTime = new Date(data.scheduledAt).getTime();
-      const now = Date.now();
-      const fiveMinutesFromNow = now + 5 * 60 * 1000;
-
-      // Solo ofrecer unirse si la sesión es ahora o dentro de los próximos 5 minutos
-      if (scheduledTime <= fiveMinutesFromNow) {
-        setJoinNowOffer(true);
-      }
+      // En modo PendingSession, la sala se crea después del pago del cliente.
+      // No se envía invitación inmediata; el cliente recibe email con link para pagar.
+      setJoinNowOffer(false);
     },
-    [clientId, sendSessionInvite]
+    []
   );
 
   /**
@@ -3745,6 +3737,7 @@ export default function AIRecommendationsModal({
         <SessionScheduler
           clientId={clientId}
           clientName={_clientName}
+          clientEmail={clientEmailProp || ''}
           onClose={() => setShowSessionScheduler(false)}
           onSessionCreated={handleSessionCreated}
         />

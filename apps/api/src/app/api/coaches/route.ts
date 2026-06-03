@@ -50,6 +50,11 @@ export async function GET(request: NextRequest) {
         emailVerified: c.emailVerified,
         isActive: c.isActive,
         createdAt: c.createdAt,
+        stripeConnect: {
+          hasAccount: !!c.stripeConnectAccountId,
+          onboardingComplete: c.stripeOnboardingComplete || false,
+          payoutsEnabled: c.stripePayoutsEnabled || false,
+        },
       })),
     });
   } catch (error: unknown) {
