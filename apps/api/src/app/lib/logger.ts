@@ -1,7 +1,7 @@
 // apps/api/src/app/lib/logger.ts
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION' | 'REMINDER' | 'PAYMENTS' | 'STRIPE_CONNECT';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'EXERCISE_UPLOAD' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION' | 'REMINDER' | 'PAYMENTS' | 'STRIPE_CONNECT';
 
 // ✅ INTERFAZ ACTUALIZADA: Permite propiedades dinámicas
 interface LogMetadata {

@@ -160,6 +160,11 @@ export function checkBrowserConsistency(headers: Headers): boolean {
 
   // Los navegadores modernos envían sec-ch-ua
   if (userAgent && userAgent.includes('Mozilla') && userAgent.length > 50) {
+    // Firefox NO envía Sec-CH-UA, pero es un navegador legítimo
+    if (/Firefox\/\d/.test(userAgent)) {
+      return true;
+    }
+
     // Si tiene Sec-CH-UA, bien. Si no, podría ser bot.
     if (!secChUa && !secChUaPlatform) {
       // Navegadores muy viejos o bots — verificamos con User-Agent

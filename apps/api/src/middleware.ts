@@ -86,10 +86,22 @@ function createBlockedResponse(
   reason: string,
   message: string,
   retryAfter?: number,
+  origin?: string | null,
 ): NextResponse {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+
+  // Incluir CORS headers para que el navegador pueda leer el error
+  const isAllowedOrigin = origin !== null && ALLOWED_ORIGINS.includes(origin ?? '');
+  if (isAllowedOrigin) {
+    headers['Access-Control-Allow-Origin'] = origin!;
+  } else {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+  headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+  headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID';
+  headers['Access-Control-Allow-Credentials'] = 'true';
 
   if (retryAfter !== undefined) {
     headers['Retry-After'] = String(retryAfter);
@@ -142,6 +154,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         shieldResult.statusCode ?? 403,
         shieldResult.reason ?? 'SHIELD',
         shieldResult.message ?? 'Solicitud bloqueada por medidas de seguridad',
+        undefined,
+        origin,
       );
     }
 
@@ -153,6 +167,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         botResult.statusCode ?? 403,
         botResult.reason ?? 'BOT',
         botResult.message ?? 'Acceso bloqueado',
+        undefined,
+        origin,
       );
     }
   }

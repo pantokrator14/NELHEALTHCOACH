@@ -214,19 +214,19 @@ const ContactFormSection: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">{t('common.name')} *</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.name')} *</label>
                 <input
                   type="text"
                   name="name"
                   required
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ringblue-500 focus:border-blue-500 text-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">{t('auth.email')} *</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.email')} *</label>
                 <input
                   type="email"
                   name="email"
@@ -238,7 +238,7 @@ const ContactFormSection: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-700 mb-1">Teléfono (opcional)</label>
+                <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.phone')}</label>
                 <input
                   type="tel"
                   name="phone"
@@ -266,13 +266,13 @@ const ContactFormSection: React.FC = () => {
               {/* Campo adicional si se selecciona "Otro" */}
               {formData.objective === 'otro' && (
                 <div>
-                  <label className="block text-sm font-medium text-blue-700 mb-1">Especifica tu objetivo</label>
+                  <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.specifyObjective')}</label>
                   <input
                     type="text"
                     name="otherObjective"
                     value={formData.otherObjective}
                     onChange={handleInputChange}
-                    placeholder="Ej: Mejorar mi rendimiento deportivo"
+                    placeholder={t('landing.contact.objectivePlaceholder')}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
                     required
                   />
@@ -287,7 +287,7 @@ const ContactFormSection: React.FC = () => {
                   disabled={loading}
                   className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                 >
-                  {loading ? 'Enviando...' : 'Continuar'}
+                  {loading ? t('landing.contact.sendingLabel') : t('landing.contact.continueLabel')}
                 </button>
               </div>
             </form>

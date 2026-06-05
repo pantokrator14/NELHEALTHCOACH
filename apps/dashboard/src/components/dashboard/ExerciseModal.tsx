@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, ChangeEvent } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, ChangeEvent } from 'react';
 import DragDropList from '../ui/DragDropList';
 import AutocompleteInput from '../ui/AutocompleteInput';
 import { useToast } from '../ui/Toast';
 import Tooltip from '../ui/Tooltip';
 import type { Exercise, ExerciseFormData } from '../../lib/api';
+import { apiClient } from '../../lib/api';
 import { useTranslation } from 'react-i18next';
 
 interface ExerciseModalProps {
@@ -211,6 +212,74 @@ export default function ExerciseModal({
     }
   };
 
+  // Upload demo file to S3
+  const uploadDemoToS3 = useCallback(async (file: File, exerciseId: string) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const uploadResponse = await apiClient.generateExerciseUploadURL(
+        exerciseId,
+        file.name,
+        file.type,
+        file.size,
+      );
+
+      const { uploadURL, fileKey } = uploadResponse;
+      const fileURL = uploadResponse.fileURL || '';
+
+      return new Promise<{ url: string; key: string; name: string; type: string; size: number; uploadedAt: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+
+        xhr.addEventListener('load', async () => {
+          if (xhr.status === 200) {
+            try {
+              await apiClient.confirmExerciseUpload(
+                exerciseId,
+                fileKey,
+                file.name,
+                file.type,
+                file.size,
+                fileURL,
+              );
+
+              resolve({
+                url: fileURL || '',
+                key: fileKey,
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                uploadedAt: new Date().toISOString(),
+              });
+            } catch (confirmError) {
+              reject(new Error(`Error confirmando upload: ${confirmError instanceof Error ? confirmError.message : 'Error desconocido'}`));
+            }
+          } else {
+            reject(new Error(`Error subiendo archivo a S3: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Error de conexión al subir archivo')));
+        xhr.addEventListener('abort', () => reject(new Error('Upload cancelado')));
+
+        xhr.open('PUT', uploadURL);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+    } catch (error) {
+      throw new Error(`Error generando URL de upload: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  }, []);
+
   // Filter exercises for progression dropdowns
   const easierExercises = useMemo(() => {
     const diffOrder = { easy: 1, medium: 2, hard: 3 };
@@ -240,7 +309,6 @@ if (!description.trim()) newErrors.description = t('common.required');
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const { apiClient } = await import('../../lib/api');
       const formData: ExerciseFormData = {
         name,
         description,
@@ -259,7 +327,7 @@ if (!description.trim()) newErrors.description = t('common.required');
         tags,
         isPublished,
         demo: {
-          url: demoPreview || demoUrl || '',
+          url: demoUrl || '',
           key: '',
           type: demoType,
           name: demoFile?.name || name,
@@ -272,10 +340,82 @@ if (!description.trim()) newErrors.description = t('common.required');
       };
 
       if (isEditing && exercise) {
+        // === EDICIÓN ===
+        // Si hay un archivo demo nuevo, subirlo a S3 primero
+        if (demoFile) {
+          try {
+            const demoData = await uploadDemoToS3(demoFile, exercise.id);
+            formData.demo = {
+              ...formData.demo!,
+              url: demoData.url,
+              key: demoData.key,
+              name: demoData.name,
+              type: demoData.type,
+              size: demoData.size,
+              uploadedAt: demoData.uploadedAt,
+            };
+          } catch (uploadError) {
+            console.error('Error subiendo demo:', uploadError);
+            showToast(t('exercises.errorUploading'), 'warning');
+          }
+        } else if (demoUrl && demoUrl !== exercise?.demo?.url) {
+          // Usar URL directa si no hay archivo
+          formData.demo!.url = demoUrl;
+          formData.demo!.key = '';
+        }
+
         await apiClient.updateExercise(exercise.id, formData);
         showToast(t('exercises.updated'), 'success');
       } else {
-        await apiClient.createExercise(formData);
+        // === CREACIÓN ===
+        let createdExerciseId: string | null = null;
+
+        // 1. Crear ejercicio sin demo (para obtener ID)
+        const createResponse = await apiClient.createExercise({
+          ...formData,
+          demo: undefined,
+        });
+
+        if (!createResponse.success || !createResponse.data?.id) {
+          throw new Error('Error creando ejercicio: No se pudo obtener el ID');
+        }
+
+        createdExerciseId = createResponse.data.id;
+
+        // 2. Si hay archivo, subirlo a S3 y actualizar el ejercicio
+        if (demoFile) {
+          try {
+            const demoData = await uploadDemoToS3(demoFile, createdExerciseId);
+            await apiClient.updateExercise(createdExerciseId, {
+              demo: {
+                url: demoData.url,
+                key: demoData.key,
+                type: demoData.type,
+                name: demoData.name,
+                size: demoData.size,
+                uploadedAt: demoData.uploadedAt,
+                videoSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}+tutorial`,
+              },
+            });
+          } catch (uploadError) {
+            console.error('Error subiendo demo:', uploadError);
+            showToast(t('exercises.createdUploadError'), 'warning');
+          }
+        } else if (demoUrl) {
+          // 3. Si hay URL directa pero no archivo, actualizar
+          await apiClient.updateExercise(createdExerciseId, {
+            demo: {
+              url: demoUrl,
+              key: '',
+              type: 'image',
+              name: name,
+              size: 0,
+              uploadedAt: new Date().toISOString(),
+              videoSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}+tutorial`,
+            },
+          });
+        }
+
         showToast(t('exercises.created'), 'success');
       }
       onSuccess();

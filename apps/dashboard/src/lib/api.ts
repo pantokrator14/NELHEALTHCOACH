@@ -1086,6 +1086,70 @@ export const apiClient = {
     return response.json();
   },
 
+  async generateExerciseUploadURL(
+    exerciseId: string,
+    fileName: string,
+    fileType: string,
+    fileSize: number,
+  ): Promise<UploadResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/exercises/${exerciseId}/upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fileName, fileType, fileSize }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error generando URL de upload');
+    }
+
+    const result = await response.json();
+    if (result.success && result.data) {
+      return {
+        uploadURL: result.data.uploadURL,
+        fileKey: result.data.fileKey,
+        fileURL: result.data.fileURL,
+      };
+    }
+
+    throw new Error('Respuesta del servidor inválida');
+  },
+
+  async confirmExerciseUpload(
+    exerciseId: string,
+    fileKey: string,
+    fileName: string,
+    fileType: string,
+    fileSize: number,
+    fileURL: string,
+  ): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/exercises/${exerciseId}/upload`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fileKey, fileName, fileType, fileSize, fileURL }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error confirmando upload');
+    }
+    return response.json();
+  },
+
+  async deleteExerciseImage(exerciseId: string, fileKey: string): Promise<ApiResponse<unknown>> {
+    const response = await fetch(`${API_BASE_URL}/api/exercises/${exerciseId}/upload`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ fileKey }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error eliminando demo');
+    }
+    return response.json();
+  },
+
   async deleteExercises(ids: string[]): Promise<ApiResponse<{ deletedCount: number }>> {
     const response = await fetch(`${API_BASE_URL}/api/exercises`, {
       method: 'DELETE',
