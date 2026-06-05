@@ -24,7 +24,7 @@ export class S3Service {
     fileName: string, 
     fileType: string, 
     fileSize: number,
-    fileCategory: 'profile' | 'document' | 'recipe' = 'document'
+    fileCategory: 'profile' | 'document' | 'recipe' | 'exercise' = 'document'
   ): Promise<{ uploadURL: string; fileKey: string }> {
     console.log('🔧 Generando URL de upload para:', {
       fileName,
@@ -119,7 +119,7 @@ export async function uploadBufferToS3(
   buffer: Buffer,
   fileName: string,
   contentType: string,
-  fileCategory: 'profile' | 'document' | 'recipe' = 'document'
+  fileCategory: 'profile' | 'document' | 'recipe' | 'exercise' = 'document'
 ): Promise<{ url: string; key: string }> {
   const { v4: uuidv4 } = await import('uuid');
   const fileKey = `${fileCategory}/${uuidv4()}-${fileName}`;

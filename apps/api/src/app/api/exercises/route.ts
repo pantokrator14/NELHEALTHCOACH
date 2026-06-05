@@ -4,6 +4,7 @@ import { getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { S3Service } from '@/app/lib/s3';
 import { exerciseSchema } from '@/app/lib/schemas';
 import EditProposal from '@/app/models/EditProposal';
 
@@ -336,9 +337,44 @@ export async function DELETE(request: NextRequest) {
       }
 
       const collection = await getExerciseCollection();
+
+      // Obtener los ejercicios antes de eliminarlos para limpiar S3
+      const exercisesToDelete = await collection.find({
+        _id: { $in: ids.map((id: string) => new ObjectId(id)) },
+      }).toArray();
+
       const result = await collection.deleteMany({
         _id: { $in: ids.map((id: string) => new ObjectId(id)) },
       });
+
+      // Eliminar demos de S3
+      for (const exercise of exercisesToDelete) {
+        if (exercise.demo?.key) {
+          try {
+            let fileKey = exercise.demo.key;
+            // Desencriptar si está encriptada
+            if (typeof fileKey === 'string' && fileKey.startsWith('U2FsdGVkX1')) {
+              try {
+                fileKey = decrypt(fileKey);
+              } catch {
+                // Usar original si falla
+              }
+            }
+            if (fileKey) {
+              await S3Service.deleteFile(fileKey);
+              logger.info('EXERCISES', 'Demo eliminado de S3 durante borrado de ejercicio', {
+                exerciseId: exercise._id.toString(),
+                fileKey: fileKey.substring(0, 30) + '...',
+              });
+            }
+          } catch (s3Error) {
+            logger.error('EXERCISES', 'Error eliminando demo de S3 durante borrado de ejercicio', s3Error as Error, {
+              exerciseId: exercise._id.toString(),
+            });
+            // No fallar la operación principal
+          }
+        }
+      }
 
       return NextResponse.json({
         success: true,
