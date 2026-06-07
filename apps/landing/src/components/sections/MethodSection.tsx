@@ -39,11 +39,11 @@ const MethodSection: React.FC = () => {
           {t('landing.method.subtitle')}
         </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           {methods.map((method) => (
             <div 
               key={method.id} 
-              className="bg-white p-6 rounded-xl shadow-md text-center transition-transform hover:scale-105"
+              className="px-6 lg:px-8 py-6 text-center border-r-0 lg:border-r-2 lg:border-gray-200 last:border-r-0"
             >
               <div className="text-4xl mb-4">{method.icon}</div>
               <h3 className="text-xl text-blue-500 font-bold mb-3">{t(method.titleKey)}</h3>
