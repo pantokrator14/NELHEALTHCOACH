@@ -134,14 +134,14 @@ export default function Clients() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col-reverse lg:flex-row lg:items-center gap-3 w-full lg:w-auto">
               {/* Dropdown Agregar nuevo cliente */}
-              <div className="relative">
+              <div className="relative w-full lg:w-auto">
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
                   onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                   title="Agregar nuevo cliente"
-                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition duration-200 font-medium shadow-sm"
+                  className="w-full lg:w-auto flex items-center justify-center lg:justify-start gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition duration-200 font-medium shadow-sm"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -153,7 +153,7 @@ export default function Clients() {
                 </button>
 
                 {showDropdown && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="absolute left-0 right-0 lg:left-auto lg:right-0 mt-2 w-full lg:w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
                     {/* Opción con pago */}
                     <button
                       onClick={handleCopyRegisterLink}
@@ -195,7 +195,7 @@ export default function Clients() {
                 )}
               </div>
 
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 w-full lg:w-auto">
                 <div className="text-lg text-gray-700">
                   Total: <span className="font-semibold text-blue-600">{clients.length} clientes</span>
                 </div>
