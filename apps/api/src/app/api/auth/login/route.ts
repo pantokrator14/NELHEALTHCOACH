@@ -40,6 +40,26 @@ export async function POST(request: NextRequest) {
 
     if (coach) {
       if (!coach.isActive) {
+        // Si está inactivo por trial no verificado, dar mensaje específico
+        if (coach.trialStatus === 'active' && coach.trialPaymentIntentId) {
+          return NextResponse.json(
+            { success: false, message: 'Debes verificar tu tarjeta para activar tu cuenta. Revisa tu proceso de registro.', needsCardVerification: true },
+            { status: 403 }
+          );
+        }
+        // Si el trial expiró
+        if (coach.trialStatus === 'expired' || (coach.trialStatus === 'active' && coach.trialEndDate && new Date() > coach.trialEndDate)) {
+          // Marcar como expirado si es necesario
+          if (coach.trialStatus === 'active') {
+            coach.trialStatus = 'expired';
+            coach.isActive = false;
+            await coach.save();
+          }
+          return NextResponse.json(
+            { success: false, message: 'Tu período de prueba gratuita ha terminado. Paga tu suscripción para continuar o tu cuenta será eliminada.', trialExpired: true },
+            { status: 403 }
+          );
+        }
         return NextResponse.json(
           { success: false, message: 'Cuenta desactivada. Contacta al administrador.' },
           { status: 403 }

@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as unknown as Record<string, unknown>;
+        await handlePaymentIntentSucceeded(paymentIntent);
+        break;
+      }
+
       case 'invoice.paid': {
         const invoice = event.data.object as unknown as Record<string, unknown>;
         await handleInvoicePaid(invoice);
@@ -69,6 +75,104 @@ export async function POST(request: NextRequest) {
       { error: 'Webhook error' },
       { status: 400 }
     );
+  }
+}
+
+/**
+ * Maneja payment_intent.succeeded — activa coaches en trial después de verificación de $1.
+ */
+async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknown>): Promise<void> {
+  const metadata = (paymentIntent.metadata as Record<string, string>) || {};
+  const type = metadata.type;
+
+  if (type !== 'trial_verification') {
+    logger.debug('PAYMENTS', 'PaymentIntent no es de trial, ignorando', { type });
+    return;
+  }
+
+  const coachEmail = metadata.coachEmail;
+  if (!coachEmail) {
+    logger.error('PAYMENTS', 'PaymentIntent trial sin coachEmail en metadata');
+    return;
+  }
+
+  const { default: Coach, hashEmail } = await import('@/app/models/Coach');
+  const { refundTrialPayment, stripeClient } = await import('@/app/lib/stripe');
+  const { decrypt, encrypt } = await import('@/app/lib/encryption');
+  const emailService = (await import('@/app/lib/email-service')).EmailService.getInstance();
+
+  const emailHash = hashEmail(coachEmail.toLowerCase().trim());
+  const coach = await Coach.findOne({ emailHash });
+
+  if (!coach) {
+    logger.error('PAYMENTS', 'Coach no encontrado para trial_verification', { coachEmail });
+    return;
+  }
+
+  const paymentIntentId = paymentIntent.id as string;
+
+  // Reembolsar los $1 inmediatamente
+  try {
+    await refundTrialPayment(paymentIntentId);
+    logger.info('PAYMENTS', 'Reembolso de verificación trial emitido', {
+      coachId: coach._id.toString(),
+      paymentIntentId,
+    });
+  } catch (refundError) {
+    logger.error('PAYMENTS', 'Error al reembolsar verificación trial', refundError as Error);
+  }
+
+  // Obtener PaymentMethod
+  let paymentMethodId = '';
+  try {
+    const retrievedPI = await stripeClient.paymentIntents.retrieve(paymentIntentId);
+    if (retrievedPI.payment_method) {
+      paymentMethodId = String(retrievedPI.payment_method);
+    }
+  } catch {
+    logger.warn('PAYMENTS', 'No se pudo obtener PaymentMethod del PaymentIntent trial');
+  }
+
+  // Crear Stripe Customer si no existe
+  let customerId = (paymentIntent.customer as string) || '';
+  if (!customerId) {
+    try {
+      const customer = await stripeClient.customers.create({
+        email: coachEmail,
+        metadata: { coachId: coach._id.toString() },
+      });
+      customerId = customer.id;
+    } catch (customerError) {
+      logger.error('PAYMENTS', 'Error creando Stripe Customer', customerError as Error);
+    }
+  }
+
+  // Activar coach
+  coach.isActive = true;
+  if (customerId) {
+    coach.stripeCustomerId = encrypt(customerId);
+  }
+  if (paymentMethodId) {
+    coach.trialPaymentMethodId = encrypt(paymentMethodId);
+  }
+  await coach.save();
+
+  logger.info('PAYMENTS', 'Coach activado después de verificación trial', {
+    coachId: coach._id.toString(),
+    hasPaymentMethod: !!paymentMethodId,
+    customerId,
+  });
+
+  // Enviar email de bienvenida al trial
+  try {
+    const coachName = coach.firstName ? decrypt(coach.firstName as string) : 'Coach';
+    await emailService.sendTrialWelcomeEmail(
+      coachEmail,
+      coachName,
+      coach.trialEndDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    );
+  } catch (emailError) {
+    logger.error('PAYMENTS', 'Error enviando email de bienvenida trial', emailError as Error);
   }
 }
 

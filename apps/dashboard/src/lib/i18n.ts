@@ -43,7 +43,8 @@ const en = {
     confirmDelete: 'Are you sure you want to delete this item?',
     deleteSuccess: 'Deleted successfully',
     saveSuccess: 'Saved successfully',
-    errorSaving: 'Error saving data'
+    errorSaving: 'Error saving data',
+    continue: 'Continue'
   },
   navigation: {
     home: 'Home',
@@ -266,6 +267,164 @@ const en = {
     order: 'Order',
     ascending: 'Ascending',
     descending: 'Descending'
+  },
+  register: {
+    planSelector: {
+      title: 'Welcome to NELHEALTHCOACH',
+      subtitle: 'Choose how you want to get started',
+      trial: {
+        title: 'Try free for 30 days',
+        features: [
+          'Full access to all features',
+          'No cost for 30 days',
+          'Only need to verify your card ($1 refundable)',
+          'Cancel anytime'
+        ],
+        cta: 'Start free trial →'
+      },
+      paid: {
+        title: 'Paid plan',
+        features: [
+          'Full unlimited access',
+          '$ {{amount}} USD/month',
+          'Single monthly payment',
+          'Cancel anytime'
+        ],
+        cta: 'Subscribe now →'
+      },
+      loginPrompt: 'Already have an account?',
+      loginLink: 'Sign in'
+    },
+    contract: {
+      title: 'Coach Agreement / Contract',
+      section1Title: '1. COACH SERVICES',
+      section1Content: 'The Coach agrees to provide health and wellness coaching services to assigned clients, including:',
+      section1Items: [
+        'Personalized action plans for each client.',
+        'Monthly follow-up video call sessions.',
+        'Educational resources on nutrition and wellness.',
+        'Motivational support and continuous follow-up.'
+      ],
+      section2Title: '2. FEES AND SUBSCRIPTION',
+      section2Content: 'Access to the NELHEALTHCOACH platform as a coach costs',
+      section2Price: '$ {{amount}} USD per month.',
+      section2Items: [
+        'Payment is made through automatic monthly subscription.',
+        'The subscription renews each month until cancelled.',
+        'You can cancel anytime from the billing portal.',
+        'When you cancel, you keep access until the end of the paid period.'
+      ],
+      section3Title: '3. RESPONSIBILITIES',
+      section3Intro: 'The Coach agrees to:',
+      section3Items: [
+        'Maintain confidentiality of all client data.',
+        'Comply with HIPAA and CCPA regulations in data handling.',
+        'Provide a professional and supportive environment.',
+        'Maintain professional and ethical boundaries.',
+        'Use the assigned platform for all client communications.'
+      ],
+      section4Title: '4. INTELLECTUAL PROPERTY',
+      section4Content: 'The materials, methodologies and resources provided by NELHEALTHCOACH are company property and may not be shared, reproduced or used outside the platform without express authorization.',
+      section5Title: '5. TERMINATION',
+      section5Content: 'Either party may terminate this agreement with 7 days notice. Upon termination of the subscription, the Coach must complete pending sessions with active clients or transfer them to another coach assigned by the company.',
+      section6Title: '6. APPLICABLE LAW',
+      section6Content: 'This agreement shall be governed by the laws of the state of California, and any disputes shall be resolved in the courts of Riverside, California.',
+      acceptInfo: 'By clicking "Accept", you confirm that you have read and agree to the terms of this contract.',
+      acceptButton: 'Accept and continue',
+      rejectButton: 'Reject',
+      emailPrompt: 'Enter your email to continue:',
+      emailInvalid: 'You must enter a valid email'
+    },
+    form: {
+      trialTitle: 'Free 30-day trial',
+      trialSubtitle: 'Create your account. You will only pay $1 to verify your card (100% refundable).',
+      paidTitle: 'Create your account',
+      firstName: 'First name',
+      firstNamePlaceholder: 'Your first name',
+      lastName: 'Last name',
+      lastNamePlaceholder: 'Your last name',
+      email: 'Email',
+      emailPlaceholder: 'email@example.com',
+      phone: 'Phone (optional)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Password',
+      passwordPlaceholder: 'Minimum 6 characters',
+      professionalInfo: 'Professional information',
+      professionalTitle: 'Professional title (optional)',
+      professionalTitlePlaceholder: 'e.g. Certified Nutrition Coach, NASM-CPT',
+      specialties: 'Specialties (optional)',
+      specialtiesPlaceholder: 'e.g. Weight loss, Sports nutrition, General wellness',
+      yearsOfExperience: 'Years of experience (optional)',
+      bio: 'Professional bio (optional)',
+      bioPlaceholder: 'Brief description of your professional background...',
+      timezone: 'Timezone (optional)',
+      securityNote: 'Your data is encrypted and protected. We will charge $1 USD to verify your card. This charge will be refunded immediately after verification.',
+      submitTrial: 'Register payment method',
+      submitPaid: 'Subscribe now',
+      loading: 'Creating account...',
+      backLink: '← Back to plan selection'
+    },
+    checkout: {
+      title: 'Redirecting to Stripe...',
+      redirectText: 'You will be redirected to Stripe to complete your subscription payment.',
+      goToStripe: 'Go to Stripe'
+    },
+    errors: {
+      trialAlreadyUsed: 'This email has already used the trial period. Please sign up for the paid plan.',
+      emailExists: 'An account with this email already exists',
+      generic: 'An error occurred. Please try again.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Free trial mode.',
+      daysRemaining: 'You have {{days}} remaining.',
+      lastDay: 'Last day!',
+      paySubscription: 'Pay subscription',
+      dismiss: 'Dismiss banner'
+    },
+    verifyCard: {
+      title: 'Card verification',
+      verifying: 'Verifying your card',
+      verifyingMessage: 'Verifying your payment...',
+      refundNote: 'The $1 USD charge will be refunded immediately.',
+      pageTitle: 'Welcome - NELHEALTHCOACH',
+      success: 'Welcome to NELHEALTHCOACH!',
+      successMessage: 'Your card has been verified. Check your email to verify your profile.',
+      redirecting: 'Redirecting to the dashboard...',
+      goToDashboard: 'Go to dashboard now',
+      error: 'Verification error',
+      errorMessage: 'No Stripe session ID received. Please try registering again.',
+      tryAgain: 'Try again'
+    },
+    cancel: {
+      title: 'Cancel account',
+      confirmTitle: 'Are you sure you want to cancel?',
+      warning: 'This action is irreversible. The following will be deleted:',
+      warningItems: [
+        'Your coach profile',
+        'All registered clients',
+        'Client health data',
+        'All generated progress and recommendations'
+      ],
+      backToDashboard: 'Back to dashboard',
+      confirmButton: 'Yes, cancel and delete everything',
+      loading: 'Processing...',
+      loadingMessage: 'Deleting your account and client data...',
+      doneTitle: 'Account cancelled',
+      doneMessage: 'Your account has been cancelled and all your data has been deleted.',
+      registerAgain: 'Register again',
+      errorTitle: 'Error',
+      tryAgain: 'Try again'
+    },
+    convert: {
+      title: 'Convert to paid',
+      description: 'Your trial period is still active. Do you want to switch to the paid plan now?',
+      subscribeButton: 'Pay $ {{amount}}/month',
+      loading: 'Processing payment...',
+      success: 'Welcome aboard! You are now on the paid plan.',
+      error: 'Error processing payment. Please try again.'
+    }
   }
 };
 
@@ -307,7 +466,8 @@ const es = {
     confirmDelete: '¿Estás seguro de que deseas eliminar este elemento?',
     deleteSuccess: 'Eliminado exitosamente',
     saveSuccess: 'Guardado exitosamente',
-    errorSaving: 'Error al guardar'
+    errorSaving: 'Error al guardar',
+    continue: 'Continuar'
   },
   navigation: {
     home: 'Inicio',
@@ -530,6 +690,164 @@ const es = {
     order: 'Orden',
     ascending: 'Ascendente',
     descending: 'Descendente'
+  },
+  register: {
+    planSelector: {
+      title: 'Bienvenido a NELHEALTHCOACH',
+      subtitle: 'Elige c\u00f3mo deseas comenzar',
+      trial: {
+        title: 'Probar gratis 30 d\u00edas',
+        features: [
+          'Acceso completo a todas las funciones',
+          'Sin costo durante 30 d\u00edas',
+          'Solo necesitas verificar tu tarjeta ($1 reembolsable)',
+          'Cancela cuando quieras'
+        ],
+        cta: 'Comenzar prueba gratuita \u2192'
+      },
+      paid: {
+        title: 'Plan de pago',
+        features: [
+          'Acceso completo ilimitado',
+          '$ {{amount}} USD/mes',
+          'Pago \u00fanico mensual',
+          'Cancela cuando quieras'
+        ],
+        cta: 'Suscribirme ahora \u2192'
+      },
+      loginPrompt: '\u00bfYa tienes una cuenta?',
+      loginLink: 'Iniciar sesi\u00f3n'
+    },
+    contract: {
+      title: 'Contrato de Asesor / Coach',
+      section1Title: '1. SERVICIOS DEL COACH',
+      section1Content: 'El Coach se compromete a proporcionar servicios de coaching en salud y bienestar a los clientes asignados, incluyendo:',
+      section1Items: [
+        'Planes de acci\u00f3n personalizados para cada cliente.',
+        'Sesiones de seguimiento mensuales por videollamada.',
+        'Recursos educativos sobre nutrici\u00f3n y bienestar.',
+        'Apoyo motivacional y seguimiento continuo.'
+      ],
+      section2Title: '2. TARIFAS Y SUSCRIPCI\u00d3N',
+      section2Content: 'El acceso a la plataforma de NELHEALTHCOACH como coach tiene un costo de',
+      section2Price: '$ {{amount}} USD mensuales.',
+      section2Items: [
+        'El pago se realiza mediante suscripci\u00f3n mensual autom\u00e1tica.',
+        'La suscripci\u00f3n se renueva cada mes hasta que sea cancelada.',
+        'Puedes cancelar en cualquier momento desde el portal de facturaci\u00f3n.',
+        'Al cancelar, conservar\u00e1s acceso hasta el final del per\u00edodo pagado.'
+      ],
+      section3Title: '3. RESPONSABILIDADES',
+      section3Intro: 'El Coach se compromete a:',
+      section3Items: [
+        'Mantener la confidencialidad de todos los datos de los clientes.',
+        'Cumplir con las regulaciones HIPAA y CCPA en el manejo de datos.',
+        'Proporcionar un ambiente profesional y de apoyo.',
+        'Mantener l\u00edmites profesionales y \u00e9ticos.',
+        'Utilizar la plataforma asignada para todas las comunicaciones con clientes.'
+      ],
+      section4Title: '4. PROPIEDAD INTELECTUAL',
+      section4Content: 'Los materiales, metodolog\u00edas y recursos proporcionados por NELHEALTHCOACH son propiedad de la empresa y no pueden ser compartidos, reproducidos o utilizados fuera de la plataforma sin autorizaci\u00f3n expresa.',
+      section5Title: '5. TERMINACI\u00d3N',
+      section5Content: 'Cualquiera de las partes puede terminar este acuerdo con 7 d\u00edas de notificaci\u00f3n. Al terminar la suscripci\u00f3n, el Coach deber\u00e1 completar las sesiones pendientes con sus clientes activos o transferirlos a otro coach asignado por la empresa.',
+      section6Title: '6. LEY APLICABLE',
+      section6Content: 'Este acuerdo se regir\u00e1 por las leyes del estado de California, y cualquier disputa se resolver\u00e1 en los tribunales de Riverside, California.',
+      acceptInfo: 'Al hacer clic en "Aceptar", confirmas que has le\u00eddo y aceptas los t\u00e9rminos de este contrato.',
+      acceptButton: 'Aceptar y continuar',
+      rejectButton: 'Rechazar',
+      emailPrompt: 'Ingresa tu email para continuar:',
+      emailInvalid: 'Debes ingresar un email v\u00e1lido'
+    },
+    form: {
+      trialTitle: 'Prueba gratuita 30 d\u00edas',
+      trialSubtitle: 'Crea tu cuenta. Solo pagar\u00e1s $1 para verificar tu tarjeta (100% reembolsable).',
+      paidTitle: 'Crea tu cuenta',
+      firstName: 'Nombre',
+      firstNamePlaceholder: 'Tu nombre',
+      lastName: 'Apellido',
+      lastNamePlaceholder: 'Tu apellido',
+      email: 'Correo electr\u00f3nico',
+      emailPlaceholder: 'correo@ejemplo.com',
+      phone: 'Tel\u00e9fono (opcional)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Contrase\u00f1a',
+      passwordPlaceholder: 'M\u00ednimo 6 caracteres',
+      professionalInfo: 'Informaci\u00f3n profesional',
+      professionalTitle: 'T\u00edtulo profesional (opcional)',
+      professionalTitlePlaceholder: 'Ej: Coach certificado en nutrici\u00f3n, NASM-CPT',
+      specialties: 'Especialidades (opcional)',
+      specialtiesPlaceholder: 'Ej: P\u00e9rdida de peso, Nutrici\u00f3n deportiva, Bienestar general',
+      yearsOfExperience: 'A\u00f1os de experiencia (opcional)',
+      bio: 'Breve biograf\u00eda profesional (opcional)',
+      bioPlaceholder: 'Breve descripci\u00f3n de tu trayectoria profesional...',
+      timezone: 'Zona horaria (opcional)',
+      securityNote: 'Tus datos est\u00e1n encriptados y protegidos. Se te cobrar\u00e1 $1 USD para verificar tu tarjeta. Este cargo ser\u00e1 reembolsado inmediatamente despu\u00e9s de la verificaci\u00f3n.',
+      submitTrial: 'Registrar datos de pago',
+      submitPaid: 'Suscribirme ahora',
+      loading: 'Creando cuenta...',
+      backLink: '\u2190 Volver a selecci\u00f3n de plan'
+    },
+    checkout: {
+      title: 'Redirigiendo a Stripe...',
+      redirectText: 'Ser\u00e1s redirigido a Stripe para completar el pago de tu suscripci\u00f3n.',
+      goToStripe: 'Ir a Stripe'
+    },
+    errors: {
+      trialAlreadyUsed: 'Este email ya us\u00f3 el per\u00edodo de prueba. Reg\u00edstrate al plan de pago.',
+      emailExists: 'Ya existe una cuenta con este email',
+      generic: 'Ocurri\u00f3 un error. Intenta nuevamente.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Modo de prueba gratuita.',
+      daysRemaining: 'Te quedan {{days}}.',
+      lastDay: '\u00daltimo d\u00eda',
+      paySubscription: 'Pagar suscripci\u00f3n',
+      dismiss: 'Cerrar banner'
+    },
+    verifyCard: {
+      title: 'Verificaci\u00f3n de tarjeta',
+      verifying: 'Verificando tu tarjeta',
+      verifyingMessage: 'Verificando tu pago...',
+      refundNote: 'El cargo de $1 USD ser\u00e1 reembolsado inmediatamente.',
+      pageTitle: 'Bienvenido - NELHEALTHCOACH',
+      success: '\u00a1Bienvenido a NELHEALTHCOACH!',
+      successMessage: 'Tu tarjeta ha sido verificada. Revisa tu correo para verificar tu perfil.',
+      redirecting: 'Redirigiendo al dashboard...',
+      goToDashboard: 'Ir al dashboard ahora',
+      error: 'Error de verificaci\u00f3n',
+      errorMessage: 'No se recibi\u00f3 el ID de sesi\u00f3n de Stripe. Intenta registrarte nuevamente.',
+      tryAgain: 'Intentar nuevamente'
+    },
+    cancel: {
+      title: 'Cancelar cuenta',
+      confirmTitle: '\u00bfEst\u00e1s seguro de cancelar?',
+      warning: 'Esta acci\u00f3n es irreversible. Se eliminar\u00e1n:',
+      warningItems: [
+        'Tu perfil de coach',
+        'Todos los clientes que hayas registrado',
+        'Los datos de salud de tus clientes',
+        'Todo el progreso y recomendaciones generadas'
+      ],
+      backToDashboard: 'Volver al dashboard',
+      confirmButton: 'S\u00ed, cancelar y eliminar todo',
+      loading: 'Procesando...',
+      loadingMessage: 'Eliminando tu cuenta y datos de clientes...',
+      doneTitle: 'Cuenta cancelada',
+      doneMessage: 'Tu cuenta ha sido cancelada y todos tus datos han sido eliminados.',
+      registerAgain: 'Registrarse nuevamente',
+      errorTitle: 'Error',
+      tryAgain: 'Intentar nuevamente'
+    },
+    convert: {
+      title: 'Convertir a pago',
+      description: 'Tu per\u00edodo de prueba a\u00fan est\u00e1 activo. \u00bfDeseas cambiarte al plan de pago ahora?',
+      subscribeButton: 'Pagar $ {{amount}}/mes',
+      loading: 'Procesando pago...',
+      success: '\u00a1Bienvenido! Ahora est\u00e1s en el plan de pago.',
+      error: 'Error al procesar el pago. Intenta nuevamente.'
+    }
   }
 };
 
@@ -571,7 +889,8 @@ const fr = {
     confirmDelete: 'Êtes-vous sûr de vouloir supprimer cet élément ?',
     deleteSuccess: 'Supprimé avec succès',
     saveSuccess: 'Enregistré avec succès',
-    errorSaving: 'Erreur lors de l\'enregistrement'
+    errorSaving: 'Erreur lors de l\'enregistrement',
+    continue: 'Continuer'
   },
   navigation: {
     home: 'Accueil',
@@ -778,7 +1097,165 @@ const fr = {
     sortBy: 'Trier par',
     order: 'Ordre',
     ascending: 'Croissant',
-    descending: 'Décroissant'
+    descending: 'D\u00e9croissant'
+  },
+  register: {
+    planSelector: {
+      title: 'Bienvenue sur NELHEALTHCOACH',
+      subtitle: 'Choisissez comment vous souhaitez commencer',
+      trial: {
+        title: 'Essai gratuit 30 jours',
+        features: [
+          'Acc\u00e8s complet \u00e0 toutes les fonctionnalit\u00e9s',
+          'Sans frais pendant 30 jours',
+          'V\u00e9rifiez simplement votre carte (1 $ remboursable)',
+          'Annulez \u00e0 tout moment'
+        ],
+        cta: 'Commencer l\'essai gratuit \u2192'
+      },
+      paid: {
+        title: 'Forfait payant',
+        features: [
+          'Acc\u00e8s complet illimit\u00e9',
+          '$ {{amount}} USD/mois',
+          'Paiement mensuel unique',
+          'Annulez \u00e0 tout moment'
+        ],
+        cta: 'S\'abonner maintenant \u2192'
+      },
+      loginPrompt: 'Vous avez d\u00e9j\u00e0 un compte?',
+      loginLink: 'Se connecter'
+    },
+    contract: {
+      title: 'Contrat de Coach / Convention',
+      section1Title: '1. SERVICES DU COACH',
+      section1Content: 'Le Coach s\'engage \u00e0 fournir des services de coaching en sant\u00e9 et bien-\u00eatre aux clients assign\u00e9s, notamment:',
+      section1Items: [
+        'Plans d\'action personnalis\u00e9s pour chaque client.',
+        'S\u00e9ances de suivi mensuelles par visioconf\u00e9rence.',
+        'Ressources \u00e9ducatives sur la nutrition et le bien-\u00eatre.',
+        'Soutien motivationnel et suivi continu.'
+      ],
+      section2Title: '2. FRAIS ET ABONNEMENT',
+      section2Content: 'L\'acc\u00e8s \u00e0 la plateforme NELHEALTHCOACH en tant que coach co\u00fbte',
+      section2Price: '$ {{amount}} USD par mois.',
+      section2Items: [
+        'Le paiement s\'effectue par abonnement mensuel automatique.',
+        'L\'abonnement se renouvelle chaque mois jusqu\'\u00e0 annulation.',
+        'Vous pouvez annuler \u00e0 tout moment depuis le portail de facturation.',
+        'En cas d\'annulation, vous conservez l\'acc\u00e8s jusqu\'\u00e0 la fin de la p\u00e9riode pay\u00e9e.'
+      ],
+      section3Title: '3. RESPONSABILIT\u00c9S',
+      section3Intro: 'Le Coach s\'engage \u00e0:',
+      section3Items: [
+        'Maintenir la confidentialit\u00e9 de toutes les donn\u00e9es des clients.',
+        'Respecter les r\u00e9glementations HIPAA et CCPA dans le traitement des donn\u00e9es.',
+        'Offrir un environnement professionnel et bienveillant.',
+        'Maintenir des limites professionnelles et \u00e9thiques.',
+        'Utiliser la plateforme assign\u00e9e pour toutes les communications avec les clients.'
+      ],
+      section4Title: '4. PROPRI\u00c9T\u00c9 INTELLECTUELLE',
+      section4Content: 'Les mat\u00e9riels, m\u00e9thodologies et ressources fournis par NELHEALTHCOACH sont la propri\u00e9t\u00e9 de l\'entreprise et ne peuvent \u00eatre partag\u00e9s, reproduits ou utilis\u00e9s hors de la plateforme sans autorisation expresse.',
+      section5Title: '5. R\u00c9SILIATION',
+      section5Content: 'Chaque partie peut r\u00e9silier ce contrat avec un pr\u00e9avis de 7 jours. En cas de r\u00e9siliation de l\'abonnement, le Coach doit terminer les s\u00e9ances en cours avec les clients actifs ou les transf\u00e9rer \u00e0 un autre coach assign\u00e9 par l\'entreprise.',
+      section6Title: '6. DROIT APPLICABLE',
+      section6Content: 'Ce contrat est r\u00e9gi par les lois de l\u2019\u00c9tat de Californie, et tout litige sera port\u00e9 devant les tribunaux de Riverside, Californie.',
+      acceptInfo: 'En cliquant sur "Accepter", vous confirmez avoir lu et accept\u00e9 les termes de ce contrat.',
+      acceptButton: 'Accepter et continuer',
+      rejectButton: 'Refuser',
+      emailPrompt: 'Entrez votre email pour continuer:',
+      emailInvalid: 'Vous devez entrer un email valide'
+    },
+    form: {
+      trialTitle: 'Essai gratuit de 30 jours',
+      trialSubtitle: 'Cr\u00e9ez votre compte. Vous ne paierez que 1 $ pour v\u00e9rifier votre carte (100 % remboursable).',
+      paidTitle: 'Cr\u00e9ez votre compte',
+      firstName: 'Pr\u00e9nom',
+      firstNamePlaceholder: 'Votre pr\u00e9nom',
+      lastName: 'Nom de famille',
+      lastNamePlaceholder: 'Votre nom de famille',
+      email: 'E-mail',
+      emailPlaceholder: 'email@exemple.com',
+      phone: 'T\u00e9l\u00e9phone (optionnel)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Mot de passe',
+      passwordPlaceholder: 'Minimum 6 caract\u00e8res',
+      professionalInfo: 'Informations professionnelles',
+      professionalTitle: 'Titre professionnel (optionnel)',
+      professionalTitlePlaceholder: 'Ex: Coach en nutrition certifi\u00e9, NASM-CPT',
+      specialties: 'Sp\u00e9cialit\u00e9s (optionnel)',
+      specialtiesPlaceholder: 'Ex: Perte de poids, Nutrition sportive, Bien-\u00eatre g\u00e9n\u00e9ral',
+      yearsOfExperience: 'Ann\u00e9es d\'exp\u00e9rience (optionnel)',
+      bio: 'Biographie professionnelle (optionnel)',
+      bioPlaceholder: 'Br\u00e8ve description de votre parcours professionnel...',
+      timezone: 'Fuseau horaire (optionnel)',
+      securityNote: 'Vos donn\u00e9es sont crypt\u00e9es et prot\u00e9g\u00e9es. Nous facturerons 1 $ USD pour v\u00e9rifier votre carte. Ce montant sera rembours\u00e9 imm\u00e9diatement apr\u00e8s la v\u00e9rification.',
+      submitTrial: 'Enregistrer le moyen de paiement',
+      submitPaid: 'S\'abonner maintenant',
+      loading: 'Cr\u00e9ation du compte...',
+      backLink: '\u2190 Retour au choix du forfait'
+    },
+    checkout: {
+      title: 'Redirection vers Stripe...',
+      redirectText: 'Vous serez redirig\u00e9 vers Stripe pour finaliser le paiement de votre abonnement.',
+      goToStripe: 'Aller sur Stripe'
+    },
+    errors: {
+      trialAlreadyUsed: 'Cet email a d\u00e9j\u00e0 utilis\u00e9 la p\u00e9riode d\'essai. Inscrivez-vous au forfait payant.',
+      emailExists: 'Un compte avec cet email existe d\u00e9j\u00e0',
+      generic: 'Une erreur est survenue. Veuillez r\u00e9essayer.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Mode d\'essai gratuit.',
+      daysRemaining: 'Il vous reste {{days}}.',
+      lastDay: 'Dernier jour!',
+      paySubscription: 'Payer l\'abonnement',
+      dismiss: 'Fermer la banni\u00e8re'
+    },
+    verifyCard: {
+      title: 'V\u00e9rification de carte',
+      verifying: 'V\u00e9rification de votre carte',
+      verifyingMessage: 'V\u00e9rification de votre paiement...',
+      refundNote: 'Les frais de 1 $ USD seront rembours\u00e9s imm\u00e9diatement.',
+      pageTitle: 'Bienvenue - NELHEALTHCOACH',
+      success: 'Bienvenue sur NELHEALTHCOACH!',
+      successMessage: 'Votre carte a \u00e9t\u00e9 v\u00e9rifi\u00e9e. Consultez vos emails pour v\u00e9rifier votre profil.',
+      redirecting: 'Redirection vers le tableau de bord...',
+      goToDashboard: 'Aller au tableau de bord',
+      error: 'Erreur de v\u00e9rification',
+      errorMessage: 'Aucun ID de session Stripe re\u00e7u. Veuillez r\u00e9essayer de vous inscrire.',
+      tryAgain: 'R\u00e9essayer'
+    },
+    cancel: {
+      title: 'Annuler le compte',
+      confirmTitle: '\u00cates-vous s\u00fbr de vouloir annuler?',
+      warning: 'Cette action est irr\u00e9versible. Les \u00e9l\u00e9ments suivants seront supprim\u00e9s:',
+      warningItems: [
+        'Votre profil de coach',
+        'Tous les clients enregistr\u00e9s',
+        'Les donn\u00e9es de sant\u00e9 des clients',
+        'Tous les progr\u00e8s et recommandations g\u00e9n\u00e9r\u00e9s'
+      ],
+      backToDashboard: 'Retour au tableau de bord',
+      confirmButton: 'Oui, annuler et tout supprimer',
+      loading: 'Traitement en cours...',
+      loadingMessage: 'Suppression de votre compte et des donn\u00e9es clients...',
+      doneTitle: 'Compte annul\u00e9',
+      doneMessage: 'Votre compte a \u00e9t\u00e9 annul\u00e9 et toutes vos donn\u00e9es ont \u00e9t\u00e9 supprim\u00e9es.',
+      registerAgain: 'S\'inscrire \u00e0 nouveau',
+      errorTitle: 'Erreur',
+      tryAgain: 'R\u00e9essayer'
+    },
+    convert: {
+      title: 'Passer au forfait payant',
+      description: 'Votre p\u00e9riode d\'essai est toujours active. Souhaitez-vous passer au forfait payant maintenant?',
+      subscribeButton: 'Payer $ {{amount}}/mois',
+      loading: 'Traitement du paiement...',
+      success: 'Bienvenue! Vous \u00eates maintenant sur le forfait payant.',
+      error: 'Erreur lors du traitement du paiement. Veuillez r\u00e9essayer.'
+    }
   }
 };
 
@@ -820,7 +1297,8 @@ const it = {
     confirmDelete: 'Sei sicuro di voler eliminare questo elemento?',
     deleteSuccess: 'Eliminato con successo',
     saveSuccess: 'Salvato con successo',
-    errorSaving: 'Errore nel salvataggio'
+    errorSaving: 'Errore nel salvataggio',
+    continue: 'Continua'
   },
   navigation: {
     home: 'Home',
@@ -1028,6 +1506,164 @@ const it = {
     order: 'Ordine',
     ascending: 'Crescente',
     descending: 'Decrescente'
+  },
+  register: {
+    planSelector: {
+      title: 'Benvenuto su NELHEALTHCOACH',
+      subtitle: 'Scegli come vuoi iniziare',
+      trial: {
+        title: 'Prova gratis 30 giorni',
+        features: [
+          'Accesso completo a tutte le funzionalit\u00e0',
+          'Nessun costo per 30 giorni',
+          'Devi solo verificare la tua carta ($1 rimborsabile)',
+          'Annulla quando vuoi'
+        ],
+        cta: 'Inizia la prova gratuita \u2192'
+      },
+      paid: {
+        title: 'Piano a pagamento',
+        features: [
+          'Accesso completo illimitato',
+          '$ {{amount}} USD/mese',
+          'Pagamento mensile unico',
+          'Annulla quando vuoi'
+        ],
+        cta: 'Abbonati ora \u2192'
+      },
+      loginPrompt: 'Hai gi\u00e0 un account?',
+      loginLink: 'Accedi'
+    },
+    contract: {
+      title: 'Contratto del Coach / Convenzione',
+      section1Title: '1. SERVIZI DEL COACH',
+      section1Content: 'Il Coach si impegna a fornire servizi di coaching sulla salute e il benessere ai clienti assegnati, tra cui:',
+      section1Items: [
+        'Piani d\'azione personalizzati per ogni cliente.',
+        'Sessioni mensili di follow-up in videocall.',
+        'Risorse educative su nutrizione e benessere.',
+        'Supporto motivazionale e follow-up continuo.'
+      ],
+      section2Title: '2. TARIFFE E ABBONAMENTO',
+      section2Content: 'L\'accesso alla piattaforma NELHEALTHCOACH come coach costa',
+      section2Price: '$ {{amount}} USD al mese.',
+      section2Items: [
+        'Il pagamento avviene tramite abbonamento mensile automatico.',
+        'L\'abbonamento si rinnova ogni mese fino alla disdetta.',
+        'Puoi annullare in qualsiasi momento dal portale di fatturazione.',
+        'Se annulli, mantieni l\'accesso fino alla fine del periodo pagato.'
+      ],
+      section3Title: '3. RESPONSABILIT\u00c0',
+      section3Intro: 'Il Coach si impegna a:',
+      section3Items: [
+        'Mantenere la riservatezza di tutti i dati dei clienti.',
+        'Conformarsi alle normative HIPAA e CCPA nel trattamento dei dati.',
+        'Fornire un ambiente professionale e di supporto.',
+        'Mantenere confini professionali ed etici.',
+        'Utilizzare la piattaforma assegnata per tutte le comunicazioni con i clienti.'
+      ],
+      section4Title: '4. PROPRIET\u00c0 INTELLETTUALE',
+      section4Content: 'I materiali, le metodologie e le risorse fornite da NELHEALTHCOACH sono di propriet\u00e0 dell\'azienda e non possono essere condivisi, riprodotti o utilizzati al di fuori della piattaforma senza autorizzazione espressa.',
+      section5Title: '5. RECESSO',
+      section5Content: 'Ciascuna parte pu\u00f2 recedere da questo accordo con un preavviso di 7 giorni. In caso di recesso dall\'abbonamento, il Coach deve completare le sessioni in sospeso con i clienti attivi o trasferirli a un altro coach assegnato dall\'azienda.',
+      section6Title: '6. LEGGE APPLICABILE',
+      section6Content: 'Il presente accordo \u00e8 regolato dalle leggi dello stato della California e qualsiasi controversia sar\u00e0 risolta presso i tribunali di Riverside, California.',
+      acceptInfo: 'Facendo clic su "Accetta", confermi di aver letto e accettato i termini di questo contratto.',
+      acceptButton: 'Accetta e continua',
+      rejectButton: 'Rifiuta',
+      emailPrompt: 'Inserisci la tua email per continuare:',
+      emailInvalid: 'Devi inserire un\'email valida'
+    },
+    form: {
+      trialTitle: 'Prova gratuita 30 giorni',
+      trialSubtitle: 'Crea il tuo account. Pagherai solo $1 per verificare la tua carta (100% rimborsabile).',
+      paidTitle: 'Crea il tuo account',
+      firstName: 'Nome',
+      firstNamePlaceholder: 'Il tuo nome',
+      lastName: 'Cognome',
+      lastNamePlaceholder: 'Il tuo cognome',
+      email: 'E-mail',
+      emailPlaceholder: 'email@esempio.com',
+      phone: 'Telefono (opzionale)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Password',
+      passwordPlaceholder: 'Minimo 6 caratteri',
+      professionalInfo: 'Informazioni professionali',
+      professionalTitle: 'Titolo professionale (opzionale)',
+      professionalTitlePlaceholder: 'Es: Coach nutrizionista certificato, NASM-CPT',
+      specialties: 'Specialit\u00e0 (opzionale)',
+      specialtiesPlaceholder: 'Es: Perdita di peso, Nutrizione sportiva, Benessere generale',
+      yearsOfExperience: 'Anni di esperienza (opzionale)',
+      bio: 'Biografia professionale (opzionale)',
+      bioPlaceholder: 'Breve descrizione del tuo background professionale...',
+      timezone: 'Fuso orario (opzionale)',
+      securityNote: 'I tuoi dati sono crittografati e protetti. Addebiteremo $1 USD per verificare la tua carta. Questo importo verr\u00e0 rimborsato immediatamente dopo la verifica.',
+      submitTrial: 'Registra metodo di pagamento',
+      submitPaid: 'Abbonati ora',
+      loading: 'Creazione account in corso...',
+      backLink: '\u2190 Torna alla selezione del piano'
+    },
+    checkout: {
+      title: 'Reindirizzamento a Stripe...',
+      redirectText: 'Verrai reindirizzato a Stripe per completare il pagamento del tuo abbonamento.',
+      goToStripe: 'Vai a Stripe'
+    },
+    errors: {
+      trialAlreadyUsed: 'Questa email ha gi\u00e0 utilizzato il periodo di prova. Iscriviti al piano a pagamento.',
+      emailExists: 'Esiste gi\u00e0 un account con questa email',
+      generic: 'Si \u00e8 verificato un errore. Riprova.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Modalit\u00e0 di prova gratuita.',
+      daysRemaining: 'Ti rimangono {{days}}.',
+      lastDay: 'Ultimo giorno!',
+      paySubscription: 'Paga abbonamento',
+      dismiss: 'Chiudi banner'
+    },
+    verifyCard: {
+      title: 'Verifica carta',
+      verifying: 'Verifica della tua carta',
+      verifyingMessage: 'Verifica del pagamento in corso...',
+      refundNote: 'L\'addebito di $1 USD sar\u00e0 rimborsato immediatamente.',
+      pageTitle: 'Benvenuto - NELHEALTHCOACH',
+      success: 'Benvenuto su NELHEALTHCOACH!',
+      successMessage: 'La tua carta \u00e8 stata verificata. Controlla la tua email per verificare il profilo.',
+      redirecting: 'Reindirizzamento alla dashboard...',
+      goToDashboard: 'Vai alla dashboard',
+      error: 'Errore di verifica',
+      errorMessage: 'Nessun ID sessione Stripe ricevuto. Prova a registrarti di nuovo.',
+      tryAgain: 'Riprova'
+    },
+    cancel: {
+      title: 'Annulla account',
+      confirmTitle: 'Sei sicuro di voler annullare?',
+      warning: 'Questa azione \u00e8 irreversibile. Verranno eliminati:',
+      warningItems: [
+        'Il tuo profilo coach',
+        'Tutti i clienti registrati',
+        'I dati sanitari dei clienti',
+        'Tutti i progressi e i consigli generati'
+      ],
+      backToDashboard: 'Torna alla dashboard',
+      confirmButton: 'S\u00ec, annulla ed elimina tutto',
+      loading: 'Elaborazione...',
+      loadingMessage: 'Eliminazione del tuo account e dei dati dei clienti...',
+      doneTitle: 'Account annullato',
+      doneMessage: 'Il tuo account \u00e8 stato annullato e tutti i tuoi dati sono stati eliminati.',
+      registerAgain: 'Registrati di nuovo',
+      errorTitle: 'Errore',
+      tryAgain: 'Riprova'
+    },
+    convert: {
+      title: 'Converti in pagamento',
+      description: 'Il tuo periodo di prova \u00e8 ancora attivo. Desideri passare al piano a pagamento ora?',
+      subscribeButton: 'Paga $ {{amount}}/mese',
+      loading: 'Elaborazione pagamento...',
+      success: 'Benvenuto! Ora sei sul piano a pagamento.',
+      error: 'Errore nell\'elaborazione del pagamento. Riprova.'
+    }
   }
 };
 
@@ -1069,7 +1705,8 @@ const pt = {
     confirmDelete: 'Tem certeza de que deseja excluir este item?',
     deleteSuccess: 'Excluído com sucesso',
     saveSuccess: 'Salvo com sucesso',
-    errorSaving: 'Erro ao salvar'
+    errorSaving: 'Erro ao salvar',
+    continue: 'Continuar'
   },
   navigation: {
     home: 'Início',
@@ -1277,6 +1914,164 @@ const pt = {
     order: 'Ordem',
     ascending: 'Crescente',
     descending: 'Decrescente'
+  },
+  register: {
+    planSelector: {
+      title: 'Bem-vindo ao NELHEALTHCOACH',
+      subtitle: 'Escolha como deseja come\u00e7ar',
+      trial: {
+        title: 'Experimente gr\u00e1tis 30 dias',
+        features: [
+          'Acesso completo a todos os recursos',
+          'Sem custo por 30 dias',
+          'Apenas verifique seu cart\u00e3o ($1 reembols\u00e1vel)',
+          'Cancele quando quiser'
+        ],
+        cta: 'Iniciar teste gratuito \u2192'
+      },
+      paid: {
+        title: 'Plano pago',
+        features: [
+          'Acesso completo ilimitado',
+          '$ {{amount}} USD/m\u00eas',
+          'Pagamento mensal \u00fanico',
+          'Cancele quando quiser'
+        ],
+        cta: 'Assine agora \u2192'
+      },
+      loginPrompt: 'J\u00e1 tem uma conta?',
+      loginLink: 'Entrar'
+    },
+    contract: {
+      title: 'Contrato de Coach / Conv\u00eanio',
+      section1Title: '1. SERVI\u00c7OS DO COACH',
+      section1Content: 'O Coach concorda em fornecer servi\u00e7os de coaching em sa\u00fade e bem-estar aos clientes designados, incluindo:',
+      section1Items: [
+        'Planos de a\u00e7\u00e3o personalizados para cada cliente.',
+        'Sess\u00f5es mensais de acompanhamento por videochamada.',
+        'Recursos educacionais sobre nutri\u00e7\u00e3o e bem-estar.',
+        'Suporte motivacional e acompanhamento cont\u00ednuo.'
+      ],
+      section2Title: '2. TAXAS E ASSINATURA',
+      section2Content: 'O acesso \u00e0 plataforma NELHEALTHCOACH como coach custa',
+      section2Price: '$ {{amount}} USD por m\u00eas.',
+      section2Items: [
+        'O pagamento \u00e9 feito atrav\u00e9s de assinatura mensal autom\u00e1tica.',
+        'A assinatura renova a cada m\u00eas at\u00e9 ser cancelada.',
+        'Voc\u00ea pode cancelar a qualquer momento pelo portal de faturamento.',
+        'Ao cancelar, voc\u00ea mant\u00e9m o acesso at\u00e9 o final do per\u00edodo pago.'
+      ],
+      section3Title: '3. RESPONSABILIDADES',
+      section3Intro: 'O Coach concorda em:',
+      section3Items: [
+        'Manter a confidencialidade de todos os dados dos clientes.',
+        'Cumprir as regulamenta\u00e7\u00f5es HIPAA e CCPA no tratamento de dados.',
+        'Proporcionar um ambiente profissional e de apoio.',
+        'Manter limites profissionais e \u00e9ticos.',
+        'Utilizar a plataforma designada para todas as comunica\u00e7\u00f5es com os clientes.'
+      ],
+      section4Title: '4. PROPRIEDADE INTELECTUAL',
+      section4Content: 'Os materiais, metodologias e recursos fornecidos pela NELHEALTHCOACH s\u00e3o propriedade da empresa e n\u00e3o podem ser compartilhados, reproduzidos ou usados fora da plataforma sem autoriza\u00e7\u00e3o expressa.',
+      section5Title: '5. RESCIS\u00c3O',
+      section5Content: 'Qualquer uma das partes pode rescindir este acordo com 7 dias de aviso pr\u00e9vio. Ao rescindir a assinatura, o Coach deve concluir as sess\u00f5es pendentes com clientes ativos ou transferi-los para outro coach designado pela empresa.',
+      section6Title: '6. LEI APLIC\u00c1VEL',
+      section6Content: 'Este acordo ser\u00e1 regido pelas leis do estado da Calif\u00f3rnia, e quaisquer disputas ser\u00e3o resolvidas nos tribunais de Riverside, Calif\u00f3rnia.',
+      acceptInfo: 'Ao clicar em "Aceitar", voc\u00ea confirma que leu e concorda com os termos deste contrato.',
+      acceptButton: 'Aceitar e continuar',
+      rejectButton: 'Rejeitar',
+      emailPrompt: 'Digite seu email para continuar:',
+      emailInvalid: 'Voc\u00ea deve inserir um email v\u00e1lido'
+    },
+    form: {
+      trialTitle: 'Teste gratuito de 30 dias',
+      trialSubtitle: 'Crie sua conta. Voc\u00ea pagar\u00e1 apenas $1 para verificar seu cart\u00e3o (100% reembols\u00e1vel).',
+      paidTitle: 'Crie sua conta',
+      firstName: 'Nome',
+      firstNamePlaceholder: 'Seu nome',
+      lastName: 'Sobrenome',
+      lastNamePlaceholder: 'Seu sobrenome',
+      email: 'E-mail',
+      emailPlaceholder: 'email@exemplo.com',
+      phone: 'Telefone (opcional)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Senha',
+      passwordPlaceholder: 'M\u00ednimo 6 caracteres',
+      professionalInfo: 'Informa\u00e7\u00f5es profissionais',
+      professionalTitle: 'T\u00edtulo profissional (opcional)',
+      professionalTitlePlaceholder: 'Ex: Coach de nutri\u00e7\u00e3o certificado, NASM-CPT',
+      specialties: 'Especialidades (opcional)',
+      specialtiesPlaceholder: 'Ex: Perda de peso, Nutri\u00e7\u00e3o esportiva, Bem-estar geral',
+      yearsOfExperience: 'Anos de experi\u00eancia (opcional)',
+      bio: 'Biografia profissional (opcional)',
+      bioPlaceholder: 'Breve descri\u00e7\u00e3o da sua trajet\u00f3ria profissional...',
+      timezone: 'Fuso hor\u00e1rio (opcional)',
+      securityNote: 'Seus dados s\u00e3o criptografados e protegidos. Cobraremos $1 USD para verificar seu cart\u00e3o. Este valor ser\u00e1 reembolsado imediatamente ap\u00f3s a verifica\u00e7\u00e3o.',
+      submitTrial: 'Registrar dados de pagamento',
+      submitPaid: 'Assine agora',
+      loading: 'Criando conta...',
+      backLink: '\u2190 Voltar \u00e0 sele\u00e7\u00e3o de plano'
+    },
+    checkout: {
+      title: 'Redirecionando para o Stripe...',
+      redirectText: 'Voc\u00ea ser\u00e1 redirecionado ao Stripe para concluir o pagamento da sua assinatura.',
+      goToStripe: 'Ir para o Stripe'
+    },
+    errors: {
+      trialAlreadyUsed: 'Este email j\u00e1 usou o per\u00edodo de teste. Inscreva-se no plano pago.',
+      emailExists: 'J\u00e1 existe uma conta com este email',
+      generic: 'Ocorreu um erro. Tente novamente.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Modo de teste gratuito.',
+      daysRemaining: 'Restam {{days}}.',
+      lastDay: '\u00daltimo dia!',
+      paySubscription: 'Pagar assinatura',
+      dismiss: 'Fechar banner'
+    },
+    verifyCard: {
+      title: 'Verifica\u00e7\u00e3o de cart\u00e3o',
+      verifying: 'Verificando seu cart\u00e3o',
+      verifyingMessage: 'Verificando seu pagamento...',
+      refundNote: 'A cobran\u00e7a de $1 USD ser\u00e1 reembolsada imediatamente.',
+      pageTitle: 'Bem-vindo - NELHEALTHCOACH',
+      success: 'Bem-vindo ao NELHEALTHCOACH!',
+      successMessage: 'Seu cart\u00e3o foi verificado. Verifique seu e-mail para confirmar seu perfil.',
+      redirecting: 'Redirecionando ao painel...',
+      goToDashboard: 'Ir ao painel agora',
+      error: 'Erro de verifica\u00e7\u00e3o',
+      errorMessage: 'Nenhum ID de sess\u00e3o do Stripe recebido. Tente se registrar novamente.',
+      tryAgain: 'Tentar novamente'
+    },
+    cancel: {
+      title: 'Cancelar conta',
+      confirmTitle: 'Tem certeza de que deseja cancelar?',
+      warning: 'Esta a\u00e7\u00e3o \u00e9 irrevers\u00edvel. Os seguintes itens ser\u00e3o exclu\u00eddos:',
+      warningItems: [
+        'Seu perfil de coach',
+        'Todos os clientes registrados',
+        'Dados de sa\u00fade dos clientes',
+        'Todo o progresso e recomenda\u00e7\u00f5es geradas'
+      ],
+      backToDashboard: 'Voltar ao painel',
+      confirmButton: 'Sim, cancelar e excluir tudo',
+      loading: 'Processando...',
+      loadingMessage: 'Excluindo sua conta e dados de clientes...',
+      doneTitle: 'Conta cancelada',
+      doneMessage: 'Sua conta foi cancelada e todos os seus dados foram exclu\u00eddos.',
+      registerAgain: 'Registrar novamente',
+      errorTitle: 'Erro',
+      tryAgain: 'Tentar novamente'
+    },
+    convert: {
+      title: 'Converter para pago',
+      description: 'Seu per\u00edodo de teste ainda est\u00e1 ativo. Deseja mudar para o plano pago agora?',
+      subscribeButton: 'Pagar $ {{amount}}/m\u00eas',
+      loading: 'Processando pagamento...',
+      success: 'Bem-vindo! Agora voc\u00ea est\u00e1 no plano pago.',
+      error: 'Erro ao processar pagamento. Tente novamente.'
+    }
   }
 };
 
@@ -1318,7 +2113,8 @@ const de = {
     confirmDelete: 'Sind Sie sicher, dass Sie dieses Element löschen möchten?',
     deleteSuccess: 'Erfolgreich gelöscht',
     saveSuccess: 'Erfolgreich gespeichert',
-    errorSaving: 'Fehler beim Speichern'
+    errorSaving: 'Fehler beim Speichern',
+    continue: 'Fortfahren'
   },
   navigation: {
     home: 'Startseite',
@@ -1526,6 +2322,164 @@ const de = {
     order: 'Reihenfolge',
     ascending: 'Aufsteigend',
     descending: 'Absteigend'
+  },
+  register: {
+    planSelector: {
+      title: 'Willkommen bei NELHEALTHCOACH',
+      subtitle: 'W\u00e4hlen Sie, wie Sie beginnen m\u00f6chten',
+      trial: {
+        title: '30 Tage kostenlos testen',
+        features: [
+          'Vollst\u00e4ndiger Zugriff auf alle Funktionen',
+          '30 Tage lang kostenlos',
+          'Nur Karte verifizieren (1 $ erstattbar)',
+          'Jederzeit k\u00fcndbar'
+        ],
+        cta: 'Kostenlose Testversion starten \u2192'
+      },
+      paid: {
+        title: 'Bezahlter Plan',
+        features: [
+          'Vollst\u00e4ndiger uneingeschr\u00e4nkter Zugriff',
+          '$ {{amount}} USD/Monat',
+          'Einmalige monatliche Zahlung',
+          'Jederzeit k\u00fcndbar'
+        ],
+        cta: 'Jetzt abonnieren \u2192'
+      },
+      loginPrompt: 'Haben Sie bereits ein Konto?',
+      loginLink: 'Anmelden'
+    },
+    contract: {
+      title: 'Coach-Vereinbarung / Vertrag',
+      section1Title: '1. COACH-DIENSTLEISTUNGEN',
+      section1Content: 'Der Coach verpflichtet sich, den zugewiesenen Kunden Gesundheits- und Wellness-Coaching-Dienstleistungen zu erbringen, einschlie\u00dflich:',
+      section1Items: [
+        'Personalisierte Aktionspl\u00e4ne f\u00fcr jeden Kunden.',
+        'Monatliche Follow-up-Videocall-Sitzungen.',
+        'Bildungsressourcen zu Ern\u00e4hrung und Wellness.',
+        'Motivationsunterst\u00fctzung und kontinuierliche Nachbetreuung.'
+      ],
+      section2Title: '2. GEB\u00dcHREN UND ABONNEMENT',
+      section2Content: 'Der Zugriff auf die NELHEALTHCOACH-Plattform als Coach kostet',
+      section2Price: '$ {{amount}} USD pro Monat.',
+      section2Items: [
+        'Die Zahlung erfolgt per automatischem monatlichem Abonnement.',
+        'Das Abonnement verl\u00e4ngert sich monatlich bis zur K\u00fcndigung.',
+        'Sie k\u00f6nnen jederzeit \u00fcber das Abrechnungsportal k\u00fcndigen.',
+        'Bei K\u00fcndigung behalten Sie den Zugriff bis zum Ende des bezahlten Zeitraums.'
+      ],
+      section3Title: '3. VERANTWORTLICHKEITEN',
+      section3Intro: 'Der Coach verpflichtet sich:',
+      section3Items: [
+        'Die Vertraulichkeit aller Kundendaten zu wahren.',
+        'Die HIPAA- und CCPA-Vorschriften bei der Datenverarbeitung einzuhalten.',
+        'Ein professionelles und unterst\u00fctzendes Umfeld zu schaffen.',
+        'Professionelle und ethische Grenzen einzuhalten.',
+        'Die zugewiesene Plattform f\u00fcr alle Kundenkommunikationen zu nutzen.'
+      ],
+      section4Title: '4. GEISTIGES EIGENTUM',
+      section4Content: 'Die von NELHEALTHCOACH bereitgestellten Materialien, Methoden und Ressourcen sind Eigentum des Unternehmens und d\u00fcrfen ohne ausdr\u00fcckliche Genehmigung nicht au\u00dferhalb der Plattform geteilt, reproduziert oder genutzt werden.',
+      section5Title: '5. K\u00dcNDIGUNG',
+      section5Content: 'Beide Parteien k\u00f6nnen diesen Vertrag mit einer Frist von 7 Tagen k\u00fcndigen. Bei K\u00fcndigung des Abonnements muss der Coach ausstehende Sitzungen mit aktiven Kunden abschlie\u00dfen oder an einen anderen vom Unternehmen zugewiesenen Coach \u00fcbertragen.',
+      section6Title: '6. ANWENDBARES RECHT',
+      section6Content: 'Diese Vereinbarung unterliegt den Gesetzen des Bundesstaates Kalifornien, und Streitigkeiten werden vor den Gerichten von Riverside, Kalifornien, beigelegt.',
+      acceptInfo: 'Mit Klick auf "Akzeptieren" best\u00e4tigen Sie, dass Sie die Bedingungen dieses Vertrags gelesen haben und ihnen zustimmen.',
+      acceptButton: 'Akzeptieren und fortfahren',
+      rejectButton: 'Ablehnen',
+      emailPrompt: 'Geben Sie Ihre E-Mail ein, um fortzufahren:',
+      emailInvalid: 'Sie m\u00fcssen eine g\u00fcltige E-Mail-Adresse eingeben'
+    },
+    form: {
+      trialTitle: '30-t\u00e4gige kostenlose Testversion',
+      trialSubtitle: 'Erstellen Sie Ihr Konto. Sie zahlen nur 1 $ zur Verifizierung Ihrer Karte (100 % erstattbar).',
+      paidTitle: 'Erstellen Sie Ihr Konto',
+      firstName: 'Vorname',
+      firstNamePlaceholder: 'Ihr Vorname',
+      lastName: 'Nachname',
+      lastNamePlaceholder: 'Ihr Nachname',
+      email: 'E-Mail',
+      emailPlaceholder: 'email@beispiel.com',
+      phone: 'Telefon (optional)',
+      phonePlaceholder: '+1 (555) 000-0000',
+      password: 'Passwort',
+      passwordPlaceholder: 'Mindestens 6 Zeichen',
+      professionalInfo: 'Berufliche Informationen',
+      professionalTitle: 'Berufsbezeichnung (optional)',
+      professionalTitlePlaceholder: 'z.B. Zertifizierter Ern\u00e4hrungscoach, NASM-CPT',
+      specialties: 'Spezialgebiete (optional)',
+      specialtiesPlaceholder: 'z.B. Gewichtsverlust, Sportern\u00e4hrung, Allgemeines Wohlbefinden',
+      yearsOfExperience: 'Berufserfahrung in Jahren (optional)',
+      bio: 'Beruflicher Werdegang (optional)',
+      bioPlaceholder: 'Kurze Beschreibung Ihres beruflichen Hintergrunds...',
+      timezone: 'Zeitzone (optional)',
+      securityNote: 'Ihre Daten sind verschl\u00fcsselt und gesch\u00fctzt. Wir belasten 1 $ USD zur Verifizierung Ihrer Karte. Dieser Betrag wird nach der Verifizierung sofort zur\u00fcckerstattet.',
+      submitTrial: 'Zahlungsmethode registrieren',
+      submitPaid: 'Jetzt abonnieren',
+      loading: 'Konto wird erstellt...',
+      backLink: '\u2190 Zur\u00fcck zur Planauswahl'
+    },
+    checkout: {
+      title: 'Weiterleitung zu Stripe...',
+      redirectText: 'Sie werden zu Stripe weitergeleitet, um die Zahlung Ihres Abonnements abzuschlie\u00dfen.',
+      goToStripe: 'Zu Stripe gehen'
+    },
+    errors: {
+      trialAlreadyUsed: 'Diese E-Mail hat den Testzeitraum bereits genutzt. Bitte melden Sie sich f\u00fcr den kostenpflichtigen Plan an.',
+      emailExists: 'Ein Konto mit dieser E-Mail existiert bereits',
+      generic: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'
+    }
+  },
+  trial: {
+    banner: {
+      trialMode: 'Kostenloser Testmodus.',
+      daysRemaining: 'Sie haben noch {{days}}.',
+      lastDay: 'Letzter Tag!',
+      paySubscription: 'Abonnement bezahlen',
+      dismiss: 'Banner schlie\u00dfen'
+    },
+    verifyCard: {
+      title: 'Kartenverifizierung',
+      verifying: 'Ihre Karte wird verifiziert',
+      verifyingMessage: 'Ihre Zahlung wird verifiziert...',
+      refundNote: 'Die Geb\u00fchr von 1 $ USD wird sofort zur\u00fcckerstattet.',
+      pageTitle: 'Willkommen - NELHEALTHCOACH',
+      success: 'Willkommen bei NELHEALTHCOACH!',
+      successMessage: 'Ihre Karte wurde verifiziert. Pr\u00fcfen Sie Ihre E-Mails, um Ihr Profil zu verifizieren.',
+      redirecting: 'Weiterleitung zum Dashboard...',
+      goToDashboard: 'Jetzt zum Dashboard',
+      error: 'Verifizierungsfehler',
+      errorMessage: 'Keine Stripe-Sitzungs-ID erhalten. Bitte versuchen Sie die Registrierung erneut.',
+      tryAgain: 'Erneut versuchen'
+    },
+    cancel: {
+      title: 'Konto k\u00fcndigen',
+      confirmTitle: 'Sind Sie sicher, dass Sie k\u00fcndigen m\u00f6chten?',
+      warning: 'Diese Aktion ist unwiderruflich. Folgende Daten werden gel\u00f6scht:',
+      warningItems: [
+        'Ihr Coach-Profil',
+        'Alle registrierten Kunden',
+        'Kundengesundheitsdaten',
+        'Alle generierten Fortschritte und Empfehlungen'
+      ],
+      backToDashboard: 'Zur\u00fcck zum Dashboard',
+      confirmButton: 'Ja, k\u00fcndigen und alles l\u00f6schen',
+      loading: 'Verarbeitung...',
+      loadingMessage: 'Ihr Konto und Kundendaten werden gel\u00f6scht...',
+      doneTitle: 'Konto gek\u00fcndigt',
+      doneMessage: 'Ihr Konto wurde gek\u00fcndigt und alle Ihre Daten wurden gel\u00f6scht.',
+      registerAgain: 'Erneut registrieren',
+      errorTitle: 'Fehler',
+      tryAgain: 'Erneut versuchen'
+    },
+    convert: {
+      title: 'Zu kostenpflichtig wechseln',
+      description: 'Ihr Testzeitraum ist noch aktiv. M\u00f6chten Sie jetzt zum kostenpflichtigen Plan wechseln?',
+      subscribeButton: 'Bezahlen $ {{amount}}/Monat',
+      loading: 'Zahlung wird verarbeitet...',
+      success: 'Willkommen! Sie sind jetzt im kostenpflichtigen Plan.',
+      error: 'Fehler bei der Zahlungsverarbeitung. Bitte versuchen Sie es erneut.'
+    }
   }
 };
 

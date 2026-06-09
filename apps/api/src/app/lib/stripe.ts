@@ -33,3 +33,55 @@ export function getCoachSubscriptionAmount(): number {
   const dollars = Number(process.env.COACH_SUBSCRIPTION_AMOUNT) || 150;
   return Math.round(dollars * 100);
 }
+
+/**
+ * Crea un Checkout Session de $1 USD para verificar la tarjeta del coach en el trial.
+ * Se reembolsa inmediatamente después de confirmar el pago.
+ */
+export async function createTrialCheckoutSession(
+  coachEmail: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<Record<string, unknown>> {
+  const session = await stripeClient.checkout.sessions.create({
+    mode: 'payment',
+    payment_method_types: ['card'],
+    customer_email: coachEmail,
+    line_items: [
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: 'Verificación de tarjeta — Prueba gratuita NELHealthCoach',
+            description: 'Este cargo de $1 USD será reembolsado inmediatamente. Es solo para verificar tu método de pago.',
+          },
+          unit_amount: 100, // $1.00 USD
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      type: 'trial_verification',
+      coachEmail,
+    },
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+  });
+  return session as unknown as Record<string, unknown>;
+}
+
+/**
+ * Reembolsa completamente un pago de trial a partir del PaymentIntent ID.
+ */
+export async function refundTrialPayment(
+  paymentIntentId: string
+): Promise<Record<string, unknown>> {
+  const refund = await stripeClient.refunds.create({
+    payment_intent: paymentIntentId,
+    reason: 'requested_by_customer',
+    metadata: {
+      type: 'trial_verification_refund',
+    },
+  });
+  return refund as unknown as Record<string, unknown>;
+}

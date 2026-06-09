@@ -3,6 +3,7 @@ import { inngest } from "../../inngest/client";
 import { generateRecommendationsFn } from "../../inngest/functions/generate-recommendations";
 import { sendSessionRemindersFn } from "../../inngest/functions/session-reminders";
 import { monthlyRemindersFn } from "../../inngest/functions/monthly-reminders";
+import { trialRemindersFn } from "../../inngest/functions/trial-reminders";
 
 // Aumentar timeout para funciones largas (LangGraph)
 export const maxDuration = 120;
@@ -14,5 +15,6 @@ export const { GET, POST, PUT } = serve({
     generateRecommendationsFn,
     sendSessionRemindersFn,
     monthlyRemindersFn,
+    trialRemindersFn,
   ] as unknown as Parameters<typeof serve>["0"]["functions"],
 });

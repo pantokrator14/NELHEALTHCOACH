@@ -58,6 +58,17 @@ export async function GET(request: NextRequest) {
           sessionPrice: coach.sessionPrice || 15000,
         };
 
+    // Calcular días restantes de trial
+    let trialDaysRemaining = 0;
+    let trialIsActive = false;
+    if (coach.trialStatus === 'active' && coach.trialEndDate) {
+      const now = new Date();
+      trialIsActive = now < coach.trialEndDate;
+      trialDaysRemaining = trialIsActive
+        ? Math.ceil((coach.trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -66,10 +77,22 @@ export async function GET(request: NextRequest) {
         firstName: decrypt(coach.firstName),
         lastName: decrypt(coach.lastName),
         phone: coach.phone ? decrypt(coach.phone) : '',
+        professionalTitle: coach.professionalTitle ? decrypt(coach.professionalTitle) : '',
+        specialties: coach.specialties || [],
+        yearsOfExperience: coach.yearsOfExperience || 0,
+        bio: coach.bio ? decrypt(coach.bio) : '',
+        timezone: coach.timezone || '',
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
         stripeConnect: stripeConnectStatus,
+        trial: {
+          status: coach.trialStatus || 'none',
+          startDate: coach.trialStartDate,
+          endDate: coach.trialEndDate,
+          daysRemaining: trialDaysRemaining,
+          isActive: trialIsActive,
+        },
       },
     });
   } catch (error: unknown) {
@@ -95,11 +118,27 @@ export async function PUT(request: NextRequest) {
     if (body.firstName !== undefined) coach.firstName = encrypt(body.firstName.trim());
     if (body.lastName !== undefined) coach.lastName = encrypt(body.lastName.trim());
     if (body.phone !== undefined) coach.phone = encrypt(body.phone);
+    if (body.professionalTitle !== undefined) coach.professionalTitle = encrypt(body.professionalTitle.trim());
+    if (body.specialties !== undefined) coach.specialties = body.specialties;
+    if (body.yearsOfExperience !== undefined) coach.yearsOfExperience = body.yearsOfExperience;
+    if (body.bio !== undefined) coach.bio = encrypt(body.bio.trim());
+    if (body.timezone !== undefined) coach.timezone = body.timezone;
     if (body.profilePhoto !== undefined) {
       coach.profilePhoto = encryptPhoto(body.profilePhoto) as unknown as typeof coach.profilePhoto;
     }
 
     await coach.save();
+
+    // Calcular días restantes de trial
+    let trialDaysRemaining = 0;
+    let trialIsActive = false;
+    if (coach.trialStatus === 'active' && coach.trialEndDate) {
+      const now = new Date();
+      trialIsActive = now < coach.trialEndDate;
+      trialDaysRemaining = trialIsActive
+        ? Math.ceil((coach.trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+    }
 
     return NextResponse.json({
       success: true,
@@ -110,9 +149,21 @@ export async function PUT(request: NextRequest) {
         firstName: decrypt(coach.firstName),
         lastName: decrypt(coach.lastName),
         phone: coach.phone ? decrypt(coach.phone) : '',
+        professionalTitle: coach.professionalTitle ? decrypt(coach.professionalTitle) : '',
+        specialties: coach.specialties || [],
+        yearsOfExperience: coach.yearsOfExperience || 0,
+        bio: coach.bio ? decrypt(coach.bio) : '',
+        timezone: coach.timezone || '',
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
+        trial: {
+          status: coach.trialStatus || 'none',
+          startDate: coach.trialStartDate,
+          endDate: coach.trialEndDate,
+          daysRemaining: trialDaysRemaining,
+          isActive: trialIsActive,
+        },
       },
     });
   } catch (error: unknown) {

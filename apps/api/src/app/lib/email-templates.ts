@@ -833,11 +833,180 @@ export function generatePaymentRequestEmailHTML(data: PaymentRequestEmailData): 
         📧 <a href="mailto:${data.coachEmail || 'contact@nelhealthcoach.com'}" style="color: #90CAF9; text-decoration: none;">${data.coachEmail || 'contact@nelhealthcoach.com'}</a>
         &nbsp;|&nbsp; 📞 +1 (442) 342-5050
       </div>
-      <div style="opacity: 0.6; font-size: 12px;">
-        &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
-      </div>
+            <div style="opacity: 0.6; font-size: 12px;">
+                &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
+        </div>
     </div>
-  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Email de bienvenida al trial para nuevos coaches.
+ */
+export function generateTrialWelcomeEmailHTML(data: {
+  coachName: string;
+  trialDays: number;
+  trialEndDate: string;
+  dashboardUrl: string;
+}): string {
+  const currentYear = new Date().getFullYear();
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bienvenido a tu prueba gratuita - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+    <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+            <h1 style="margin: 0; font-size: 22px;">¡Bienvenido a NELHEALTHCOACH!</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333;">
+                Hola <strong>${data.coachName}</strong>,
+            </p>
+            <p style="color: #555;">
+                Tu cuenta de prueba gratuita ha sido creada exitosamente. Disfruta de <strong>${data.trialDays} días</strong> de acceso completo a todas las funciones del sistema.
+            </p>
+            <div style="background: #e3f2fd; border-radius: 10px; padding: 15px; margin: 20px 0; border-left: 4px solid #2196F3;">
+                <p style="margin: 0; color: #1565C0; font-size: 14px;">
+                    📅 Tu período de prueba vence el <strong>${data.trialEndDate}</strong>.
+                </p>
+            </div>
+            <p style="color: #555;">
+                Durante este tiempo podrás gestionar clientes, crear recetas y ejercicios, y explorar todas las herramientas que NELHEALTHCOACH tiene para ofrecer.
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${data.dashboardUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                    🚀 Ir al panel de control
+                </a>
+            </div>
+            <p style="color: #999; font-size: 13px;">
+                ¿Preguntas? Escríbenos a <a href="mailto:contact@nelhealthcoach.com" style="color: #2196F3;">contact@nelhealthcoach.com</a>
+            </p>
+        </div>
+        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
+            NELHEALTHCOACH &copy; ${currentYear}
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+/**
+ * Email de recordatorio de trial próximo a vencer (días 21 y 27).
+ */
+export function generateTrialEndingSoonEmailHTML(data: {
+  coachName: string;
+  daysRemaining: number;
+  payUrl: string;
+  cancelUrl: string;
+}): string {
+  const currentYear = new Date().getFullYear();
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu prueba gratuita está por terminar - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+    <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); color: white; padding: 40px 30px; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
+            <h1 style="margin: 0; font-size: 22px;">Tu prueba está por terminar</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333;">
+                Hola <strong>${data.coachName}</strong>,
+            </p>
+            <p style="color: #555;">
+                Te recordamos que tu período de prueba gratuita de NELHEALTHCOACH vence en <strong>${data.daysRemaining} día${data.daysRemaining !== 1 ? 's' : ''}</strong>.
+            </p>
+            <div style="background: #FFF8E1; border-radius: 10px; padding: 20px; margin: 20px 0; border-left: 4px solid #FFB300;">
+                <p style="margin: 0 0 10px; color: #F57F17; font-size: 14px; font-weight: 600;">
+                    ¿Qué pasa si no hago nada?
+                </p>
+                <p style="margin: 0; color: #795548; font-size: 13px;">
+                    Al finalizar el período, tu acceso será bloqueado. Si no realizas el pago en los siguientes días, tu cuenta y los datos de tus clientes serán eliminados permanentemente.
+                </p>
+            </div>
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="${data.payUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; margin-bottom: 12px;">
+                    💳 Pagar suscripción ahora
+                </a>
+                <br>
+                <a href="${data.cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #fff; color: #e53935; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px; border: 1px solid #e53935;">
+                    ✕ Cancelar y eliminar mi cuenta
+                </a>
+            </div>
+            <p style="color: #999; font-size: 12px; text-align: center;">
+                Si cancelas, todos tus datos y los de tus clientes serán eliminados irreversiblemente.
+            </p>
+        </div>
+        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
+            NELHEALTHCOACH &copy; ${currentYear}
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+/**
+ * Email de trial expirado (día 30).
+ */
+export function generateTrialExpiredEmailHTML(data: {
+  coachName: string;
+  payUrl: string;
+  cancelUrl: string;
+}): string {
+  const currentYear = new Date().getFullYear();
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu prueba gratuita ha terminado - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+    <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #e53935 0%, #c62828 100%); color: white; padding: 40px 30px; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 10px;">⛔</div>
+            <h1 style="margin: 0; font-size: 22px;">Tu prueba gratuita ha terminado</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="font-size: 16px; color: #333;">
+                Hola <strong>${data.coachName}</strong>,
+            </p>
+            <p style="color: #555;">
+                Tu período de prueba gratuita de NELHEALTHCOACH ha expirado. Aún estás a tiempo de recuperar tu acceso y el de tus clientes.
+            </p>
+            <div style="background: #FFEBEE; border-radius: 10px; padding: 20px; margin: 20px 0; border-left: 4px solid #e53935;">
+                <p style="margin: 0; color: #c62828; font-size: 14px;">
+                    ⚠️ Si no realizas el pago en las próximas <strong>24 horas</strong>, tu cuenta y todos los datos de tus clientes serán eliminados permanentemente.
+                </p>
+            </div>
+            <div style="text-align: center; margin: 25px 0;">
+                <a href="${data.payUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; margin-bottom: 12px;">
+                    💳 Recuperar mi cuenta ahora
+                </a>
+                <br>
+                <a href="${data.cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #fff; color: #e53935; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px; border: 1px solid #e53935;">
+                    ✕ Cancelar y eliminar mi cuenta
+                </a>
+            </div>
+        </div>
+        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
+            NELHEALTHCOACH &copy; ${currentYear}
+        </div>
+    </div>
 </body>
 </html>`;
 }

@@ -1371,4 +1371,37 @@ export const apiClient = {
     if (!confirmRes.ok) throw new Error('Error al confirmar foto');
     return confirmRes.json();
   },
+
+  // ── Trial methods ──
+
+  async trialRegister(data: { firstName: string; lastName: string; email: string; phone: string; password: string }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/trial-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al registrarse en prueba gratuita');
+    return result;
+  },
+
+  async trialCancel() {
+    const response = await fetch(`${API_BASE_URL}/api/trial/cancel`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al cancelar cuenta');
+    return result;
+  },
+
+  async trialConvert() {
+    const response = await fetch(`${API_BASE_URL}/api/trial/convert`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al convertir a suscripción paga');
+    return result;
+  },
 };
