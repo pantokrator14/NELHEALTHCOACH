@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api'
+import TrialBanner from './TrialBanner'
 
 interface LayoutProps {
   children: ReactNode
@@ -208,6 +209,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Área principal - 80% */}
       <div className="flex-1 lg:w-4/5 bg-blue-50 overflow-hidden">
         <div className="h-full overflow-y-auto">
+          <TrialBanner />
           {children}
         </div>
       </div>

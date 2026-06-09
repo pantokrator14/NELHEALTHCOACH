@@ -34,7 +34,7 @@ export function constructStripeEvent(
 export function extractCheckoutMetadata(
   session: Record<string, unknown>
 ): {
-  type: 'coach_subscription' | 'client_session' | 'client_onboarding' | 'unknown';
+  type: 'coach_subscription' | 'client_session' | 'client_onboarding' | 'trial_verification' | 'unknown';
   coachEmail?: string;
   clientId?: string;
   pendingCoachToken?: string;
@@ -47,6 +47,7 @@ export function extractCheckoutMetadata(
     | 'coach_subscription'
     | 'client_session'
     | 'client_onboarding'
+    | 'trial_verification'
     | 'unknown') || 'unknown';
 
   return {
@@ -84,6 +85,9 @@ export async function handleCheckoutCompleted(
       break;
     case 'client_onboarding':
       await handleClientOnboardingCheckout(session, metadata, customerId);
+      break;
+    case 'trial_verification':
+      await handleTrialVerificationCheckout(session, metadata, customerId);
       break;
     default:
       logger.warn('PAYMENTS', 'Tipo de checkout desconocido', { metadata });
@@ -288,6 +292,96 @@ async function handleClientOnboardingCheckout(
     } catch (emailError) {
       logger.error('PAYMENTS', 'Error enviando notificación de onboarding al coach', emailError as Error);
     }
+  }
+}
+
+/**
+ * Maneja checkout completado de verificación de trial ($1).
+ * Reembolsa inmediatamente y activa la cuenta del coach.
+ */
+async function handleTrialVerificationCheckout(
+  session: Record<string, unknown>,
+  metadata: ReturnType<typeof extractCheckoutMetadata>,
+  customerId: string | null
+): Promise<void> {
+  const { coachEmail } = metadata;
+  const paymentIntentId = session.payment_intent as string | null;
+
+  if (!coachEmail) {
+    logger.error('PAYMENTS', 'Falta coachEmail en metadata de trial_verification');
+    return;
+  }
+
+  const { default: Coach } = await import('@/app/models/Coach');
+  const { hashEmail } = await import('@/app/models/Coach');
+  const { refundTrialPayment } = await import('@/app/lib/stripe');
+  const { EmailService } = await import('@/app/lib/email-service');
+  const { decrypt } = await import('@/app/lib/encryption');
+
+  const emailHash = hashEmail(coachEmail.toLowerCase().trim());
+  const coach = await Coach.findOne({ emailHash });
+
+  if (!coach) {
+    logger.error('PAYMENTS', 'Coach no encontrado para trial_verification', { coachEmail });
+    return;
+  }
+
+  // Reembolsar los $1 inmediatamente
+  if (paymentIntentId) {
+    try {
+      await refundTrialPayment(paymentIntentId);
+      logger.info('PAYMENTS', 'Reembolso de verificación trial emitido', {
+        coachId: coach._id.toString(),
+        paymentIntentId,
+      });
+    } catch (refundError) {
+      logger.error('PAYMENTS', 'Error al reembolsar verificación trial', refundError as Error);
+      // Continuamos aunque falle el reembolso (se puede hacer manual)
+    }
+  }
+
+  // Guardar PaymentMethod del checkout
+  let paymentMethodId = '';
+  if (paymentIntentId) {
+    try {
+      const paymentIntent = await stripeClient.paymentIntents.retrieve(paymentIntentId);
+      if (paymentIntent.payment_method) {
+        paymentMethodId = String(paymentIntent.payment_method);
+      }
+    } catch {
+      logger.warn('PAYMENTS', 'No se pudo obtener PaymentMethod del checkout trial');
+    }
+  }
+
+  // Activar la cuenta del coach
+  const { encrypt } = await import('@/app/lib/encryption');
+
+  coach.isActive = true;
+  if (customerId) {
+    coach.stripeCustomerId = encrypt(customerId);
+  }
+  if (paymentMethodId) {
+    coach.trialPaymentMethodId = encrypt(paymentMethodId);
+  }
+  await coach.save();
+
+  logger.info('PAYMENTS', 'Coach activado después de verificación trial', {
+    coachId: coach._id.toString(),
+    hasPaymentMethod: !!paymentMethodId,
+  });
+
+  // Enviar email de bienvenida al trial
+  try {
+    const emailService = EmailService.getInstance();
+    const coachName = coach.firstName ? decrypt(coach.firstName as string) : 'Coach';
+
+    await emailService.sendTrialWelcomeEmail(
+      coachEmail,
+      coachName,
+      coach.trialEndDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    );
+  } catch (emailError) {
+    logger.error('PAYMENTS', 'Error enviando email de bienvenida trial', emailError as Error);
   }
 }
 

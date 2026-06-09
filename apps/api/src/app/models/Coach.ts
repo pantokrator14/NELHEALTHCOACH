@@ -36,6 +36,26 @@ export interface ICoach extends Document {
   stripePayoutsEnabled?: boolean;
   /** Precio por sesión en centavos USD (ej. 15000 = $150.00) */
   sessionPrice?: number;
+  /** Estado del trial gratuito */
+  trialStatus?: 'none' | 'active' | 'expired' | 'converted';
+  /** Fecha de inicio del trial */
+  trialStartDate?: Date | null;
+  /** Fecha de fin del trial */
+  trialEndDate?: Date | null;
+  /** ID del PaymentMethod de Stripe guardado para cobros futuros (encriptado) */
+  trialPaymentMethodId?: string;
+  /** ID del PaymentIntent del $1 de verificación (para trackear reembolso) */
+  trialPaymentIntentId?: string;
+  /** Título profesional del coach (ej: "Coach certificado en nutrición") — encriptado */
+  professionalTitle?: string;
+  /** Especialidades del coach (ej: ["weightLoss", "sportsNutrition"]) — array encriptado (JSON string) */
+  specialties?: string[];
+  /** Años de experiencia */
+  yearsOfExperience?: number;
+  /** Biografía / resumen profesional — encriptado */
+  bio?: string;
+  /** Zona horaria del coach (ej: "America/Los_Angeles") */
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -131,6 +151,47 @@ const CoachSchema = new Schema<ICoach>(
     sessionPrice: {
       type: Number,
       default: 15000, // $150 USD en centavos (valor por defecto)
+    },
+    trialStatus: {
+      type: String,
+      enum: ['none', 'active', 'expired', 'converted'],
+      default: 'none',
+    },
+    trialStartDate: {
+      type: Date,
+      default: null,
+    },
+    trialEndDate: {
+      type: Date,
+      default: null,
+    },
+    trialPaymentMethodId: {
+      type: String,
+      default: '',
+    },
+    trialPaymentIntentId: {
+      type: String,
+      default: '',
+    },
+    professionalTitle: {
+      type: String,
+      default: '',
+    },
+    specialties: {
+      type: [String],
+      default: [],
+    },
+    yearsOfExperience: {
+      type: Number,
+      default: 0,
+    },
+    bio: {
+      type: String,
+      default: '',
+    },
+    timezone: {
+      type: String,
+      default: '',
     },
   },
   {

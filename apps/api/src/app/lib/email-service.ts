@@ -7,6 +7,9 @@ import {
   generateCoachSessionNotificationHTML,
   generateSessionReminderTodayHTML,
   generateSessionReminderSoonHTML,
+  generateTrialWelcomeEmailHTML,
+  generateTrialEndingSoonEmailHTML,
+  generateTrialExpiredEmailHTML,
   EmailTemplateData,
   SessionEmailData,
 } from './email-templates';
@@ -372,6 +375,101 @@ export class EmailService {
         clientEmail,
         sessionNumber: data.sessionNumber,
       });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar email de bienvenida al trial.
+   */
+  public async sendTrialWelcomeEmail(
+    coachEmail: string,
+    coachName: string,
+    trialEndDate: Date
+  ): Promise<boolean> {
+    try {
+      const trialDays = 30;
+      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+      const endDateStr = trialEndDate.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const htmlContent = generateTrialWelcomeEmailHTML({
+        coachName,
+        trialDays,
+        trialEndDate: endDateStr,
+        dashboardUrl: `${dashboardUrl}/dashboard`,
+      });
+
+      return await this.sendEmail({
+        to: [coachEmail],
+        subject: '🎉 ¡Bienvenido a NELHEALTHCOACH! — 30 días de prueba gratuita',
+        htmlBody: htmlContent,
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando email de bienvenida trial', error as Error, { coachEmail });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar recordatorio de trial próximo a vencer.
+   */
+  public async sendTrialEndingSoonEmail(
+    coachEmail: string,
+    coachName: string,
+    daysRemaining: number
+  ): Promise<boolean> {
+    try {
+      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+
+      const htmlContent = generateTrialEndingSoonEmailHTML({
+        coachName,
+        daysRemaining,
+        payUrl: `${dashboardUrl}/dashboard/profile?subscribe=1`,
+        cancelUrl: `${dashboardUrl}/dashboard/trial/cancel`,
+      });
+
+      const subject = daysRemaining <= 3
+        ? `⏰ Solo quedan ${daysRemaining} días — Tu prueba gratuita está por terminar`
+        : `⏰ Te quedan ${daysRemaining} días de prueba gratuita`;
+
+      return await this.sendEmail({
+        to: [coachEmail],
+        subject: `${subject} | NELHealthCoach`,
+        htmlBody: htmlContent,
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando recordatorio trial', error as Error, { coachEmail, daysRemaining });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar email de trial expirado.
+   */
+  public async sendTrialExpiredEmail(
+    coachEmail: string,
+    coachName: string
+  ): Promise<boolean> {
+    try {
+      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+
+      const htmlContent = generateTrialExpiredEmailHTML({
+        coachName,
+        payUrl: `${dashboardUrl}/dashboard/profile?subscribe=1`,
+        cancelUrl: `${dashboardUrl}/dashboard/trial/cancel`,
+      });
+
+      return await this.sendEmail({
+        to: [coachEmail],
+        subject: '⛔ Tu prueba gratuita ha terminado — Recupera tu acceso | NELHealthCoach',
+        htmlBody: htmlContent,
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando email de trial expirado', error as Error, { coachEmail });
       return false;
     }
   }

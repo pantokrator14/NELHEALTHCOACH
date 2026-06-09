@@ -38,6 +38,32 @@ export const registerSchema = z.object({
     .string()
     .min(6, 'La contraseña debe tener al menos 6 caracteres')
     .max(128),
+  professionalTitle: z
+    .string()
+    .max(200)
+    .optional()
+    .default(''),
+  specialties: z
+    .array(z.string().max(100))
+    .max(20)
+    .optional()
+    .default([]),
+  yearsOfExperience: z
+    .number()
+    .min(0)
+    .max(100)
+    .optional()
+    .default(0),
+  bio: z
+    .string()
+    .max(500)
+    .optional()
+    .default(''),
+  timezone: z
+    .string()
+    .max(50)
+    .optional()
+    .default(''),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

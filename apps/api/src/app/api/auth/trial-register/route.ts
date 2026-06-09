@@ -1,8 +1,14 @@
+// apps/api/src/app/api/auth/trial-register/route.ts
+// Registro de coach con prueba gratuita de 30 días + verificación de tarjeta por $1
+// Usa Stripe Checkout Session (mismo patrón que create-coach-checkout)
+
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import Coach, { hashEmail } from '@/app/models/Coach';
+import TrialRecord from '@/app/models/TrialRecord';
 import { generateToken } from '@/app/lib/auth';
+import { createTrialCheckoutSession } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
@@ -12,23 +18,23 @@ import {
   generateVerificationEmailHTML,
 } from '@/app/lib/email-templates';
 
-function encryptPhoto(photo: Record<string, unknown> | null): Record<string, unknown> | null {
-  if (!photo) return null;
-  return {
-    url: encrypt(String(photo.url || '')),
-    key: encrypt(String(photo.key || '')),
-    name: encrypt(String(photo.name || '')),
-    type: encrypt(String(photo.type || '')),
-    size: photo.size as number,
-    uploadedAt: String(photo.uploadedAt || ''),
-  };
-}
+const TRIAL_DAYS = 30;
 
+/**
+ * POST /api/auth/trial-register
+ *
+ * Body: { firstName, lastName, email, phone, password }
+ *
+ * 1. Crea el coach con trialStatus='active' (isActive=false hasta verificar tarjeta)
+ * 2. Crea un Checkout Session de $1 para verificar tarjeta
+ * 3. Devuelve la URL de Stripe para redirigir al coach
+ * 4. El webhook confirma el pago, reembolsa y activa la cuenta
+ */
 export async function POST(request: NextRequest) {
   try {
     await connectMongoose();
+
     const body = await request.json();
-    const { firstName, lastName, email, phone, password, professionalTitle, specialties, yearsOfExperience, bio, timezone } = body;
 
     // Zod validation
     const parsed = registerSchema.safeParse(body);
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
     const emailLower = validEmail.toLowerCase().trim();
     const emailHash = hashEmail(emailLower);
 
-    // Verificar si ya existe por hash
+    // Verificar si ya existe como coach
     const existingCoach = await Coach.findOne({ emailHash });
     if (existingCoach) {
       return NextResponse.json(
@@ -65,11 +71,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Protección: solo puede existir un admin (el creado por init-admin)
-    // Los nuevos registros siempre son role 'coach'
-    const salt = await bcrypt.genSalt(10);
+    // Verificar si ya usó trial anteriormente (persiste aunque la cuenta se haya borrado)
+    const existingTrial = await TrialRecord.findOne({ emailHash });
+    if (existingTrial) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'TRIAL_ALREADY_USED',
+          message: 'Este email ya usó el período de prueba. Regístrate al plan de pago.',
+        },
+        { status: 409 }
+      );
+    }
 
-    // Verificar que no se intente suplantar al admin
+    // Protección: admin no puede suplantarse
     const adminEmailHash = process.env.ADMIN_EMAIL
       ? hashEmail(process.env.ADMIN_EMAIL.toLowerCase().trim())
       : null;
@@ -80,9 +95,17 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // Crear fechas del trial
+    const now = new Date();
+    const trialEndDate = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+    // Hash de password
+    const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(validPassword, salt);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
+    // Crear coach (inactivo hasta verificar tarjeta via Stripe Checkout)
     const coach = await Coach.create({
       email: encrypt(emailLower),
       emailHash,
@@ -98,16 +121,53 @@ export async function POST(request: NextRequest) {
       role: 'coach',
       emailVerified: false,
       verificationToken,
-      isActive: true,
+      isActive: false,
+      subscriptionStatus: 'incomplete',
+      trialStatus: 'active',
+      trialStartDate: now,
+      trialEndDate: trialEndDate,
     });
 
-    logger.info('AUTH', 'Nuevo coach registrado', {
+    logger.info('AUTH', 'Nuevo coach registrado en trial', {
       coachId: coach._id.toString(),
+      trialEndDate: trialEndDate.toISOString(),
     });
 
+    // Crear Checkout Session de $1
+    const appUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+
+    let checkoutUrl: string;
+    try {
+      const session = await createTrialCheckoutSession(
+        emailLower,
+        `${appUrl}/dashboard/trial/verify-card?coachId=${coach._id.toString()}&session_id={CHECKOUT_SESSION_ID}`,
+        `${appUrl}/register?canceled=true`
+      );
+      checkoutUrl = String((session as Record<string, unknown>).url || '');
+      if (!checkoutUrl) {
+        throw new Error('Stripe no devolvió URL de checkout');
+      }
+    } catch (stripeError) {
+      // Si falla Stripe, eliminar el coach creado
+      await Coach.findByIdAndDelete(coach._id);
+      logger.error('AUTH', 'Error creando Checkout Session de trial', stripeError as Error);
+      return NextResponse.json(
+        { success: false, message: 'Error al procesar la verificación de pago' },
+        { status: 500 }
+      );
+    }
+
+    // Registrar el trial en TrialRecord (persiste aunque el coach se elimine)
+    try {
+      await TrialRecord.create({ emailHash });
+    } catch (trialRecordError) {
+      // Si falla, no bloqueamos — el coach ya fue creado
+      logger.error('AUTH', 'Error creando TrialRecord', trialRecordError as Error);
+    }
+
+    // Enviar email de verificación
     try {
       const emailService = EmailService.getInstance();
-      const appUrl = process.env.APP_URL || 'https://dashboard.nelhealthcoach.com';
       const verifyUrl = `${appUrl}/verify-email?token=${verificationToken}`;
 
       await emailService.sendEmail({
@@ -125,12 +185,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Cuenta creada exitosamente. Revisa tu email para verificar tu cuenta.',
+        message: 'Cuenta creada exitosamente. Verifica tu tarjeta para activar tu prueba gratuita.',
+        data: {
+          checkoutUrl,
+          coachId: coach._id.toString(),
+        },
       },
       { status: 201 }
     );
   } catch (error: unknown) {
-    logger.error('AUTH', 'Error en registro', error instanceof Error ? error : new Error(String(error)));
+    logger.error('AUTH', 'Error en trial-register', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { success: false, message: 'Error interno del servidor' },
       { status: 500 }
