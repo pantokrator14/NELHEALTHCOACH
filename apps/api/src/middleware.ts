@@ -38,11 +38,12 @@ const CRITICAL_PATHS = [
   '/api/extract-text',
 ];
 
-// Rutas excluidas de verificación (health checks, debug interno, test)
+// Rutas excluidas de verificación (health checks, debug interno, test, verificación de email)
 const EXCLUDED_PATHS = [
   '/api/health/ping',
   '/api/hello',
   '/api/video/test-token',
+  '/api/auth/verify-email',
 ];
 
 // ─── Helpers ───
