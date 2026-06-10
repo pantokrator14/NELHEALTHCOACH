@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRecipesCollection } from '@/app/lib/database';
+import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { MongoClient, ObjectId } from 'mongodb';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { recipeSchema } from '@/app/lib/schemas';
+import EditProposal from '@/app/models/EditProposal';
 
 // GET: Obtener recetas
 export async function GET(request: NextRequest) {
@@ -14,11 +15,24 @@ export async function GET(request: NextRequest) {
       const query = searchParams.get('search') || '';
       const mode = searchParams.get('mode') || 'full'; // 'search' o 'full'
       const limitParam = searchParams.get('limit');
+
+      // Determinar si el usuario es admin (para mostrar no publicados)
+      let isAdmin = false;
+      try {
+        const auth = requireCoachAuth(request);
+        isAdmin = auth.role === 'admin';
+      } catch {
+        // No autenticado: solo ver publicados
+      }
       
       const collection = await getRecipesCollection();
 
-      // 1. Obtener todas las recetas (sin límite previo)
-      const recipes = await collection.find({}).toArray();
+      // 1. Obtener recetas (solo publicadas para no-admin)
+      const filter: Record<string, unknown> = {};
+      if (!isAdmin) {
+        filter.isPublished = true;
+      }
+      const recipes = await collection.find(filter).toArray();
 
       // 2. Desencriptar todas las recetas
       const decryptedRecipes = recipes.map(recipe => ({
@@ -34,6 +48,7 @@ export async function GET(request: NextRequest) {
         instructions: recipe.instructions.map((inst: string) => safeDecrypt(inst)),
         tags: recipe.tags.map((tag: string) => safeDecrypt(tag)),
         author: safeDecrypt(recipe.author),
+        isPublished: recipe.isPublished,
         createdAt: recipe.createdAt,
         updatedAt: recipe.updatedAt,
       }));
@@ -72,10 +87,10 @@ export async function GET(request: NextRequest) {
       // Modo 'full': devolver todos los campos (sin límite cuando no hay búsqueda)
       return NextResponse.json({ success: true, data: results });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('RECIPES', 'Error en búsqueda', error);
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : 'Error en búsqueda' },
         { status: 500 }
       );
     }
@@ -109,9 +124,13 @@ export async function POST(request: NextRequest) {
       // Obtener info del coach para el campo author (autenticación requerida)
       const auth = requireCoachAuth(request);
       const authorName = auth.email || 'NelHealthCoach';
+      const isAdmin = auth.role === 'admin';
+
+      // Si no es admin, la creación necesita aprobación
+      const isPublished = isAdmin ? (data.isPublished !== undefined ? data.isPublished : true) : false;
 
       // ✅ ENCRIPTAR DIRECTAMENTE CADA CAMPO (sin funciones wrapper)
-      const encryptedRecipeData: any = {
+      const encryptedRecipeData: Record<string, unknown> = {
         title: encrypt(data.title),
         description: encrypt(data.description),
         category: Array.isArray(data.category)
@@ -127,7 +146,7 @@ export async function POST(request: NextRequest) {
         cookTime: data.cookTime || 0,
         difficulty: encrypt(data.difficulty || 'easy'),
         author: data.author ? encrypt(data.author) : encrypt(authorName),
-        isPublished: data.isPublished !== undefined ? data.isPublished : true,
+        isPublished,
         tags: Array.isArray(data.tags)
           ? data.tags.map((tag: string) => encrypt(tag))
           : [],
@@ -150,6 +169,70 @@ export async function POST(request: NextRequest) {
       }
       
       const result = await recipesCollection.insertOne(encryptedRecipeData);
+
+      // Si no es admin, crear propuesta de creación para moderación
+      if (!isAdmin) {
+        await connectMongoose();
+        await EditProposal.create({
+          targetType: 'recipe',
+          targetId: new ObjectId(result.insertedId.toString()),
+          proposalType: 'creation',
+          proposedChanges: {},
+          proposedBy: new ObjectId(auth.coachId),
+          proposedByName: auth.email,
+          status: 'pending',
+        });
+
+        logger.info('RECIPES', 'Receta creada pendiente de aprobación', {
+          recipeId: result.insertedId.toString(),
+          coachId: auth.coachId,
+        });
+
+        // Devolver la receta (con indicador de pendiente)
+        const insertedRecipe = await recipesCollection.findOne({ _id: result.insertedId });
+
+        if (!insertedRecipe) {
+          throw new Error('No se pudo recuperar la receta recién creada');
+        }
+
+        const decryptedRecipe: Record<string, unknown> = {
+          ...insertedRecipe,
+          id: insertedRecipe._id.toString(),
+          title: safeDecrypt(insertedRecipe.title),
+          description: safeDecrypt(insertedRecipe.description),
+          category: Array.isArray(insertedRecipe.category) 
+            ? insertedRecipe.category.map((cat: string) => safeDecrypt(cat))
+            : [],
+          ingredients: Array.isArray(insertedRecipe.ingredients)
+            ? insertedRecipe.ingredients.map((ing: string) => safeDecrypt(ing))
+            : [],
+          instructions: Array.isArray(insertedRecipe.instructions)
+            ? insertedRecipe.instructions.map((inst: string) => safeDecrypt(inst))
+            : [],
+          nutrition: insertedRecipe.nutrition,
+          cookTime: insertedRecipe.cookTime,
+          difficulty: safeDecrypt(insertedRecipe.difficulty),
+          author: insertedRecipe.author ? safeDecrypt(insertedRecipe.author) : 'NelHealthCoach',
+          isPublished: insertedRecipe.isPublished,
+          tags: Array.isArray(insertedRecipe.tags)
+            ? insertedRecipe.tags.map((tag: string) => safeDecrypt(tag))
+            : [],
+          createdAt: insertedRecipe.createdAt,
+          updatedAt: insertedRecipe.updatedAt,
+        };
+
+        if (insertedRecipe.image) {
+          decryptedRecipe.image = decryptFileObject(insertedRecipe.image);
+        } else {
+          decryptedRecipe.image = null;
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Tu receta ha sido enviada para revisión del administrador',
+          data: { ...decryptedRecipe, pendingApproval: true },
+        }, { status: 201 });
+      }
       
       logger.info('RECIPES', 'Receta creada exitosamente', {
         insertedId: result.insertedId.toString()
@@ -162,7 +245,7 @@ export async function POST(request: NextRequest) {
       }
       
       // ✅ DESENCRIPTAR PARA RESPONSE
-      const decryptedRecipe: any = {
+      const decryptedRecipe: Record<string, unknown> = {
         ...insertedRecipe,
         id: insertedRecipe._id.toString(),
         title: safeDecrypt(insertedRecipe.title),
@@ -201,12 +284,13 @@ export async function POST(request: NextRequest) {
         data: decryptedRecipe,
       }, { status: 201 });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = error as { status?: number; message?: string };
       // Si es un error estructurado (auth), devolver su status específico
-      if (error?.status) {
+      if (apiError?.status) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: apiError.message || 'Error' },
+          { status: apiError.status }
         );
       }
       logger.error('RECIPES', 'Error creando receta', error);

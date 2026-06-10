@@ -56,6 +56,8 @@ export interface ICoach extends Document {
   bio?: string;
   /** Zona horaria del coach (ej: "America/Los_Angeles") */
   timezone?: string;
+  /** Cuenta suspendida temporalmente por el coach */
+  isSuspended?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -192,6 +194,10 @@ const CoachSchema = new Schema<ICoach>(
     timezone: {
       type: String,
       default: '',
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
     },
   },
   {
