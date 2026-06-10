@@ -36,6 +36,7 @@ export function getCoachSubscriptionAmount(): number {
 
 /**
  * Crea un Checkout Session de $1 USD para verificar la tarjeta del coach en el trial.
+ * En producción, usa TRIAL_VERIFICATION_PRICE_ID si está definido.
  * Se reembolsa inmediatamente después de confirmar el pago.
  */
 export async function createTrialCheckoutSession(
@@ -43,12 +44,14 @@ export async function createTrialCheckoutSession(
   successUrl: string,
   cancelUrl: string
 ): Promise<Record<string, unknown>> {
-  const session = await stripeClient.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    customer_email: coachEmail,
-    line_items: [
-      {
+  const trialPriceId = process.env.TRIAL_VERIFICATION_PRICE_ID;
+
+  const lineItem = trialPriceId
+    ? {
+        price: trialPriceId,
+        quantity: 1,
+      }
+    : {
         price_data: {
           currency: 'usd',
           product_data: {
@@ -58,8 +61,13 @@ export async function createTrialCheckoutSession(
           unit_amount: 100, // $1.00 USD
         },
         quantity: 1,
-      },
-    ],
+      };
+
+  const session = await stripeClient.checkout.sessions.create({
+    mode: 'payment',
+    payment_method_types: ['card'],
+    customer_email: coachEmail,
+    line_items: [lineItem],
     metadata: {
       type: 'trial_verification',
       coachEmail,

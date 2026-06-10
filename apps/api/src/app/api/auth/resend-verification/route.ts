@@ -4,13 +4,12 @@ import Coach, { hashEmail } from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
-import { decrypt } from '@/app/lib/encryption';
 
 /**
  * POST /api/auth/resend-verification
  *
  * Reenvía el enlace de verificación al email del coach.
- * Solo funciona si el coach existe y aún no ha verificado su email.
+ * Si ya existe un token pendiente, lo REUTILIZA (no invalida el anterior).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,16 +37,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generar nuevo token de verificación
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    coach.verificationToken = verificationToken;
-    await coach.save();
+    // Reutilizar token existente si ya hay uno pendiente
+    // Así el enlace del email anterior SEGUIRÁ FUNCIONANDO
+    const verificationToken = coach.verificationToken || crypto.randomBytes(32).toString('hex');
+    if (!coach.verificationToken) {
+      coach.verificationToken = verificationToken;
+      await coach.save();
+    }
 
     // Construir URL de verificación
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const verifyUrl = `${appUrl}/verify-email?token=${verificationToken}`;
 
-    // Enviar email al email en texto plano (el que envió el usuario)
+    // Enviar email
     const emailService = EmailService.getInstance();
     await emailService.sendEmail({
       to: [emailLower],
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('AUTH', 'Enlace de verificación reenviado', {
       email: coach.email,
+      reusedToken: !!coach.verificationToken,
     });
 
     return NextResponse.json({

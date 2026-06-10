@@ -90,6 +90,16 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
     return;
   }
 
+  // Validar que el monto sea al menos $1 (100 centavos)
+  const amount = (paymentIntent.amount as number) || 0;
+  if (amount < 100) {
+    logger.warn('PAYMENTS',
+      `PaymentIntent trial ignorado: amount ${amount} es menor a $1 USD mínimo requerido`,
+      { paymentIntentId: paymentIntent.id as string }
+    );
+    return;
+  }
+
   const coachEmail = metadata.coachEmail;
   if (!coachEmail) {
     logger.error('PAYMENTS', 'PaymentIntent trial sin coachEmail en metadata');
@@ -133,7 +143,8 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
     logger.warn('PAYMENTS', 'No se pudo obtener PaymentMethod del PaymentIntent trial');
   }
 
-  // Crear Stripe Customer si no existe
+  // Stripe Customer: normalmente Stripe ya creó uno automáticamente
+  // al usar customer_email en el Checkout Session
   let customerId = (paymentIntent.customer as string) || '';
   if (!customerId) {
     try {
@@ -144,6 +155,27 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
       customerId = customer.id;
     } catch (customerError) {
       logger.error('PAYMENTS', 'Error creando Stripe Customer', customerError as Error);
+    }
+  }
+
+  // Adjuntar PaymentMethod al Customer (para cobros futuros)
+  if (paymentMethodId && customerId) {
+    try {
+      await stripeClient.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+      });
+      // Establecer como método de pago por defecto
+      await stripeClient.customers.update(customerId, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      });
+      logger.info('PAYMENTS', 'PaymentMethod adjuntado al Customer', {
+        customerId,
+        paymentMethodId,
+      });
+    } catch (pmError) {
+      logger.error('PAYMENTS', 'Error adjuntando PaymentMethod al Customer', pmError as Error);
     }
   }
 

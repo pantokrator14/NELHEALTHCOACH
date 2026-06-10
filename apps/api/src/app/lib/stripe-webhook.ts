@@ -312,6 +312,16 @@ async function handleTrialVerificationCheckout(
     return;
   }
 
+  // Validar que el monto total sea al menos $1 (100 centavos)
+  const amountTotal = (session.amount_total as number) || 0;
+  if (amountTotal < 100) {
+    logger.warn('PAYMENTS',
+      `Checkout trial ignorado: amount_total ${amountTotal} es menor a $1 USD mínimo requerido`,
+      { sessionId: session.id as string }
+    );
+    return;
+  }
+
   const { default: Coach } = await import('@/app/models/Coach');
   const { hashEmail } = await import('@/app/models/Coach');
   const { refundTrialPayment } = await import('@/app/lib/stripe');
@@ -350,6 +360,40 @@ async function handleTrialVerificationCheckout(
       }
     } catch {
       logger.warn('PAYMENTS', 'No se pudo obtener PaymentMethod del checkout trial');
+    }
+  }
+
+  // Stripe Customer: normalmente Stripe ya creó uno automáticamente
+  // al usar customer_email en el Checkout Session
+  if (!customerId && paymentIntentId) {
+    try {
+      const retrievedPI = await stripeClient.paymentIntents.retrieve(paymentIntentId);
+      if (retrievedPI.customer) {
+        customerId = String(retrievedPI.customer);
+      }
+    } catch {
+      logger.warn('PAYMENTS', 'No se pudo obtener Customer del PaymentIntent');
+    }
+  }
+
+  // Adjuntar PaymentMethod al Customer (para cobros futuros)
+  if (paymentMethodId && customerId) {
+    try {
+      await stripeClient.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+      });
+      // Establecer como método de pago por defecto
+      await stripeClient.customers.update(customerId, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      });
+      logger.info('PAYMENTS', 'PaymentMethod adjuntado al Customer', {
+        customerId,
+        paymentMethodId,
+      });
+    } catch (pmError) {
+      logger.error('PAYMENTS', 'Error adjuntando PaymentMethod al Customer', pmError as Error);
     }
   }
 

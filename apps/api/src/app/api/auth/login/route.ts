@@ -39,36 +39,64 @@ export async function POST(request: NextRequest) {
     const coach = await Coach.findOne({ emailHash });
 
     if (coach) {
-      if (!coach.isActive) {
-        // Si está inactivo por trial no verificado, dar mensaje específico
-        if (coach.trialStatus === 'active' && coach.trialPaymentIntentId) {
-          return NextResponse.json(
-            { success: false, message: 'Debes verificar tu tarjeta para activar tu cuenta. Revisa tu proceso de registro.', needsCardVerification: true },
-            { status: 403 }
-          );
+      // Recolectar TODAS las razones por las que no puede iniciar sesión
+      const blockers: string[] = [];
+      const extra: Record<string, boolean> = {};
+
+      // 1. Verificar email pendiente
+      if (!coach.emailVerified) {
+        blockers.push('verificar tu email');
+        extra.needsEmailVerification = true;
+      }
+
+      // 2. Verificar si la tarjeta no ha sido verificada (trial)
+      if (!coach.isActive && coach.trialStatus === 'active') {
+        if (coach.trialPaymentIntentId) {
+          // Tiene payment intent pero la cuenta no se activó (webhook pendiente? monto $0?)
+          blockers.push('confirmar el pago de verificación de tarjeta');
+          extra.needsCardVerification = true;
+        } else {
+          // No tiene payment intent, nunca llegó a Stripe
+          blockers.push('completar el registro con verificación de tarjeta');
+          extra.needsCardVerification = true;
         }
-        // Si el trial expiró
-        if (coach.trialStatus === 'expired' || (coach.trialStatus === 'active' && coach.trialEndDate && new Date() > coach.trialEndDate)) {
-          // Marcar como expirado si es necesario
-          if (coach.trialStatus === 'active') {
-            coach.trialStatus = 'expired';
-            coach.isActive = false;
-            await coach.save();
-          }
-          return NextResponse.json(
-            { success: false, message: 'Tu período de prueba gratuita ha terminado. Paga tu suscripción para continuar o tu cuenta será eliminada.', trialExpired: true },
-            { status: 403 }
-          );
+      }
+
+      // 3. Verificar si el trial expiró
+      if (coach.trialStatus === 'expired' || (coach.trialStatus === 'active' && coach.trialEndDate && new Date() > coach.trialEndDate)) {
+        if (coach.trialStatus === 'active') {
+          coach.trialStatus = 'expired';
+          coach.isActive = false;
+          await coach.save();
         }
+        blockers.length = 0; // Limpiar blockers previos, la expiración es lo principal
+        blockers.push('Tu período de prueba gratuita ha terminado. Paga tu suscripción para continuar.');
+        extra.trialExpired = true;
+      }
+
+      // Si hay blockers, devolver el más relevante
+      if (blockers.length > 0) {
+        const message = blockers.length === 1
+          ? blockers[0]
+          : `Debes ${blockers.slice(0, -1).join(', ')} y ${blockers[blockers.length - 1]} antes de iniciar sesión.`;
+
+        const statusCode = extra.trialExpired ? 403 : 403;
         return NextResponse.json(
-          { success: false, message: 'Cuenta desactivada. Contacta al administrador.' },
-          { status: 403 }
+          {
+            success: false,
+            message: extra.trialExpired
+              ? blockers[0]
+              : `Debes ${blockers.join(' y ')} antes de iniciar sesión.`,
+            ...extra,
+          },
+          { status: statusCode }
         );
       }
 
-      if (!coach.emailVerified) {
+      // Si no está activo (caso genérico) pero no hay blockers específicos
+      if (!coach.isActive) {
         return NextResponse.json(
-          { success: false, message: 'Debes verificar tu email antes de iniciar sesión.' },
+          { success: false, message: 'Cuenta desactivada. Contacta al administrador.' },
           { status: 403 }
         );
       }
