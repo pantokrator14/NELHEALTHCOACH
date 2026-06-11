@@ -101,6 +101,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Auto-reactivar si estaba suspendido
+      if (coach.isSuspended) {
+        coach.isSuspended = false;
+        await coach.save();
+        logger.info('AUTH', 'Cuenta suspendida reactivada automáticamente por login', {
+          coachId: coach._id.toString(),
+        });
+      }
+
       const isMatch = await bcrypt.compare(password, coach.passwordHash);
       if (isMatch) {
         const token = generateToken({

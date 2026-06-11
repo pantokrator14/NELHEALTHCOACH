@@ -16,8 +16,21 @@ export async function GET(request: NextRequest) {
       const query = searchParams.get('search') || '';
       const mode = searchParams.get('mode') || 'full';
 
+      // Determinar si el usuario es admin (para mostrar no publicados)
+      let isAdmin = false;
+      try {
+        const auth = requireCoachAuth(request);
+        isAdmin = auth.role === 'admin';
+      } catch {
+        // No autenticado: solo ver publicados
+      }
+
       const collection = await getExerciseCollection();
-      const exercises = await collection.find({}).toArray();
+      const filter: Record<string, unknown> = {};
+      if (!isAdmin) {
+        filter.isPublished = true;
+      }
+      const exercises = await collection.find(filter).toArray();
 
       const decryptedExercises = exercises.map((ex) => {
         const demoRaw = ex.demo as Record<string, unknown> | undefined;
@@ -135,6 +148,10 @@ export async function POST(request: NextRequest) {
       // Obtener info del coach para el campo author (autenticación requerida)
       const auth = requireCoachAuth(request);
       const authorName = auth.email || 'NelHealthCoach';
+      const isAdmin = auth.role === 'admin';
+
+      // Si no es admin, la creación necesita aprobación
+      const isPublished = isAdmin ? (body.isPublished ?? true) : false;
 
       const exerciseDoc = {
         name: encrypt(body.name),
@@ -163,22 +180,51 @@ export async function POST(request: NextRequest) {
         progressionOf: body.progressionOf ? new ObjectId(body.progressionOf) : null,
         progressesTo: (body.progressesTo || []).map((id: string) => new ObjectId(id)),
         author: encrypt(body.author || authorName),
-        isPublished: body.isPublished ?? true,
+        isPublished,
         tags: body.tags.map((t: string) => encrypt(t)),
       };
 
       const result = await collection.insertOne(exerciseDoc);
 
+      // Si no es admin, crear propuesta de creación para moderación
+      if (!isAdmin) {
+        await connectMongoose();
+        await EditProposal.create({
+          targetType: 'exercise',
+          targetId: new ObjectId(result.insertedId.toString()),
+          proposalType: 'creation',
+          proposedChanges: {},
+          proposedBy: new ObjectId(auth.coachId),
+          proposedByName: auth.email,
+          status: 'pending',
+        });
+
+        logger.info('EXERCISES', 'Ejercicio creado pendiente de aprobación', {
+          exerciseId: result.insertedId.toString(),
+          coachId: auth.coachId,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Tu ejercicio ha sido enviado para revisión del administrador',
+          data: {
+            id: result.insertedId.toString(),
+            pendingApproval: true,
+          },
+        });
+      }
+
       return NextResponse.json({
         success: true,
         data: { id: result.insertedId.toString() },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = error as { status?: number; message?: string };
       // Si es un error estructurado (auth), devolver su status específico
-      if (error?.status) {
+      if (apiError?.status) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: apiError.message || 'Error' },
+          { status: apiError.status }
         );
       }
       const errMsg = error instanceof Error ? error.message : 'Error desconocido';

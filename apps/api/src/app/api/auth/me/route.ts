@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import Coach from '@/app/models/Coach';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
@@ -85,6 +86,14 @@ export async function GET(request: NextRequest) {
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
+        isSuspended: coach.isSuspended || false,
+        isActive: coach.isActive !== false,
+        trialStatus: coach.trialStatus || 'none',
+        subscriptionStatus: coach.subscriptionStatus,
+        trialEndDate: coach.trialEndDate?.toISOString(),
+        hasStripeCustomer: !!coach.stripeCustomerId,
+        daysRemaining: trialDaysRemaining,
+        subscriptionLabel: getSubscriptionLabel(coach, trialDaysRemaining, trialIsActive),
         stripeConnect: stripeConnectStatus,
         trial: {
           status: coach.trialStatus || 'none',
@@ -100,6 +109,64 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error obteniendo perfil', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await connectMongoose();
+    const auth = requireCoachAuth(request);
+    const body = await request.json();
+    const { action } = body;
+
+    const coach = await Coach.findById(auth.coachId);
+    if (!coach) {
+      return NextResponse.json({ success: false, message: 'Coach no encontrado' }, { status: 404 });
+    }
+
+    switch (action) {
+      case 'verify-password': {
+        const { currentPassword } = body;
+        if (!currentPassword) {
+          return NextResponse.json({ success: false, message: 'Ingresa tu contraseña actual' }, { status: 400 });
+        }
+        const isMatch = await bcrypt.compare(currentPassword, coach.passwordHash);
+        if (!isMatch) {
+          return NextResponse.json({ success: false, message: 'Contraseña incorrecta' }, { status: 401 });
+        }
+        return NextResponse.json({ success: true, message: 'Contraseña verificada' });
+      }
+
+      case 'suspend': {
+        coach.isSuspended = true;
+        await coach.save();
+        logger.info('ACCOUNT', `Coach ${coach.email} suspendió su cuenta`);
+        return NextResponse.json({ success: true, message: 'Cuenta suspendida exitosamente' });
+      }
+
+      case 'delete': {
+        const { currentPassword } = body;
+        if (!currentPassword) {
+          return NextResponse.json({ success: false, message: 'Ingresa tu contraseña para confirmar' }, { status: 400 });
+        }
+        const isMatch = await bcrypt.compare(currentPassword, coach.passwordHash);
+        if (!isMatch) {
+          return NextResponse.json({ success: false, message: 'Contraseña incorrecta' }, { status: 401 });
+        }
+        await Coach.findByIdAndDelete(auth.coachId);
+        logger.info('ACCOUNT', `Coach eliminó su cuenta: ${coach.email}`);
+        return NextResponse.json({ success: true, message: 'Cuenta eliminada exitosamente' });
+      }
+
+      default:
+        return NextResponse.json({ success: false, message: `Acción desconocida: ${action}` }, { status: 400 });
+    }
+  } catch (error: unknown) {
+    if ((error as Error).message?.includes('Token')) {
+      return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
+    }
+    logger.error('ACCOUNT', 'Error en gestión de cuenta', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
   }
 }
@@ -157,6 +224,10 @@ export async function PUT(request: NextRequest) {
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
+        isSuspended: coach.isSuspended || false,
+        subscriptionStatus: coach.subscriptionStatus,
+        daysRemaining: trialDaysRemaining,
+        subscriptionLabel: getSubscriptionLabel(coach, trialDaysRemaining, trialIsActive),
         trial: {
           status: coach.trialStatus || 'none',
           startDate: coach.trialStartDate,
@@ -173,4 +244,20 @@ export async function PUT(request: NextRequest) {
     logger.error('AUTH', 'Error actualizando perfil', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
   }
+}
+
+function getSubscriptionLabel(
+  coach: { isSuspended?: boolean; trialStatus?: string; subscriptionStatus?: string },
+  daysRemaining: number,
+  trialIsActive: boolean
+): string {
+  if (coach.isSuspended) return 'Cuenta suspendida';
+  if (coach.trialStatus === 'active' && trialIsActive) {
+    return `Tienes ${daysRemaining} días restantes de prueba`;
+  }
+  if (coach.trialStatus === 'expired') return 'Prueba gratuita finalizada';
+  if (coach.subscriptionStatus === 'active') return 'Suscripción activa';
+  if (coach.subscriptionStatus === 'past_due') return 'Suscripción con pago atrasado';
+  if (coach.subscriptionStatus === 'canceled') return 'Suscripción cancelada';
+  return 'Sin suscripción activa';
 }

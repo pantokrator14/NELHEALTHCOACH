@@ -23,6 +23,20 @@ interface CoachProfile {
   };
 }
 
+interface AccountInfo {
+  isSuspended: boolean;
+  isActive: boolean;
+  trialStatus?: string;
+  subscriptionStatus?: string;
+  role: string;
+  daysRemaining: number;
+  subscriptionLabel: string;
+  trialEndDate?: string;
+  hasStripeCustomer: boolean;
+}
+
+type AcctStep = 'idle' | 'verify-password' | 'options' | 'processing' | 'done' | 'error';
+
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<CoachProfile | null>(null);
@@ -37,11 +51,22 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Stripe Connect state
-  const [stripeLoading, setStripeLoading] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeMsg, setStripeMsg] = useState('');
   const [sessionPriceInput, setSessionPriceInput] = useState('200');
   const [savingPrice, setSavingPrice] = useState(false);
+
+  // Account management state
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  const [acctStep, setAcctStep] = useState<AcctStep>('idle');
+  const [acctPassword, setAcctPassword] = useState('');
+  const [acctPasswordError, setAcctPasswordError] = useState('');
+  const [acctMessage, setAcctMessage] = useState('');
+  const [acctProcessing, setAcctProcessing] = useState(false);
+
+  const isNearRenewal = accountInfo
+    ? accountInfo.daysRemaining <= 7 && accountInfo.subscriptionLabel.includes('restante')
+    : false;
 
   useEffect(() => {
     loadProfile();
@@ -52,15 +77,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (router.query.stripe === 'success') {
       setStripeMsg('✅ Stripe conectado exitosamente');
-      // Limpiar query param sin recargar
       router.replace('/dashboard/profile', undefined, { shallow: true });
-      // Refrescar perfil para obtener estado actualizado
       loadProfile();
     } else if (router.query.stripe === 'canceled') {
       setStripeMsg('⚠️ Configuración cancelada. Puedes intentarlo de nuevo cuando quieras.');
-      // Limpiar query param sin recargar
       router.replace('/dashboard/profile', undefined, { shallow: true });
-      // Refrescar perfil por si acaso
       loadProfile();
     }
   }, [router.query.stripe]);
@@ -71,7 +92,6 @@ export default function ProfilePage() {
       if (res?.data) {
         setProfile(res.data);
         setForm({ firstName: res.data.firstName, lastName: res.data.lastName, phone: res.data.phone || '' });
-        // Inicializar precio desde el perfil
         if (res.data.stripeConnect?.sessionPrice) {
           setSessionPriceInput(String(res.data.stripeConnect.sessionPrice / 100));
         }
@@ -80,6 +100,17 @@ export default function ProfilePage() {
       // handle redirect
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAccountInfo = async () => {
+    try {
+      const res = await apiClient.getAccountInfo();
+      if (res?.data) {
+        setAccountInfo(res.data);
+      }
+    } catch {
+      // Silently fail
     }
   };
 
@@ -155,7 +186,6 @@ export default function ProfilePage() {
     try {
       const res = await apiClient.createConnectAccount();
       if (res.url) {
-        // Redirigir al onboarding de Stripe
         window.location.href = res.url;
       }
     } catch (err: unknown) {
@@ -200,6 +230,96 @@ export default function ProfilePage() {
     }
   };
 
+  // ─── Account Management handlers ───
+
+  const handleStartAccountMgmt = async () => {
+    setAcctPassword('');
+    setAcctPasswordError('');
+    await loadAccountInfo();
+    setAcctStep('verify-password');
+  };
+
+  const handleVerifyPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAcctPasswordError('');
+
+    if (!acctPassword) {
+      setAcctPasswordError('Ingresa tu contraseña actual');
+      return;
+    }
+
+    setAcctProcessing(true);
+    try {
+      await apiClient.verifyPassword(acctPassword);
+      setAcctStep('options');
+    } catch (err: unknown) {
+      setAcctPasswordError(err instanceof Error ? err.message : 'Contraseña incorrecta');
+    } finally {
+      setAcctProcessing(false);
+    }
+  };
+
+  const handleSuspend = async () => {
+    setAcctProcessing(true);
+    setAcctStep('processing');
+    setAcctMessage('Suspendiendo cuenta...');
+
+    try {
+      await apiClient.suspendAccount();
+      setAcctStep('done');
+      setAcctMessage('Tu cuenta ha sido suspendida. Al iniciar sesión nuevamente se reactivará automáticamente.');
+    } catch (err: unknown) {
+      setAcctStep('error');
+      setAcctMessage(err instanceof Error ? err.message : 'Error al suspender la cuenta');
+    } finally {
+      setAcctProcessing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('¿Estás completamente seguro? Esta acción eliminará todos tus datos, clientes y contenido. No se puede deshacer.')) {
+      return;
+    }
+
+    setAcctProcessing(true);
+    setAcctStep('processing');
+    setAcctMessage('Eliminando cuenta...');
+
+    try {
+      await apiClient.deleteAccount(acctPassword);
+      localStorage.removeItem('token');
+      setAcctStep('done');
+      setAcctMessage('Tu cuenta y todos tus datos han sido eliminados exitosamente.');
+    } catch (err: unknown) {
+      setAcctStep('error');
+      setAcctMessage(err instanceof Error ? err.message : 'Error al eliminar la cuenta');
+    } finally {
+      setAcctProcessing(false);
+    }
+  };
+
+  const handleRenew = () => {
+    router.push('/dashboard/subscription');
+  };
+
+  const statusBadge = () => {
+    if (!accountInfo) return null;
+
+    if (accountInfo.isSuspended) {
+      return <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Suspendida</span>;
+    }
+    if (accountInfo.trialStatus === 'active') {
+      return <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Prueba gratuita</span>;
+    }
+    if (accountInfo.subscriptionStatus === 'active') {
+      return <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Activa</span>;
+    }
+    if (accountInfo.trialStatus === 'expired') {
+      return <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Vencida</span>;
+    }
+    return null;
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -242,7 +362,6 @@ export default function ProfilePage() {
                   profile?.firstName?.charAt(0)?.toUpperCase()
                 )}
               </div>
-              {/* Botón circular para cambiar foto */}
               <button
                 onClick={handlePhotoClick}
                 disabled={uploadingPhoto}
@@ -323,7 +442,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Caso 1: No tiene cuenta Connect */}
           {!profile?.stripeConnect?.hasAccount && (
             <div className="bg-amber-50 rounded-lg border border-amber-200 p-5">
               <div className="flex items-start">
@@ -362,7 +480,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Caso 2: Tiene cuenta pero no completó onboarding */}
           {profile?.stripeConnect?.hasAccount && !profile.stripeConnect.onboardingComplete && (
             <div className="bg-blue-50 rounded-lg border border-blue-200 p-5">
               <div className="flex items-start">
@@ -401,10 +518,8 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Caso 3: Onboarding completado — mostrar estado y precio */}
           {profile?.stripeConnect?.hasAccount && profile.stripeConnect.onboardingComplete && (
             <div>
-              {/* Estado de la cuenta */}
               <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4 mb-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -428,7 +543,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Precio por sesión */}
               <div className="border-t border-gray-100 pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Precio por sesión (USD)
@@ -462,7 +576,6 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Para admin: mostrar info si el perfil es de admin */}
           {profile?.role === 'admin' && (
             <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mt-2">
               <p className="text-sm text-gray-600">
@@ -474,7 +587,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Cambiar contraseña */}
-        <div className="bg-white rounded-xl shadow p-6">
+        <div className="bg-white rounded-xl shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-orange-600 mb-4 flex items-center">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -503,6 +616,207 @@ export default function ProfilePage() {
               {changingPass ? 'Cambiando...' : 'Cambiar contraseña'}
             </button>
           </form>
+        </div>
+
+        {/* ─── GESTIÓN DE CUENTA ─── */}
+        <div className="bg-white rounded-xl shadow p-6">
+          <h2 className="text-lg font-semibold text-red-600 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            </svg>
+            Gestión de cuenta
+          </h2>
+
+          {acctStep === 'idle' && (
+            <div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-red-700">
+                  <strong>Zona de peligro:</strong> Aquí puedes suspender temporalmente o eliminar tu cuenta permanentemente.
+                </p>
+              </div>
+              <button
+                onClick={handleStartAccountMgmt}
+                className="bg-red-600 text-white px-6 py-2.5 rounded-lg hover:bg-red-700 transition font-medium shadow-sm"
+              >
+                Gestionar cuenta
+              </button>
+            </div>
+          )}
+
+          {acctStep === 'verify-password' && (
+            <div>
+              <p className="text-sm text-gray-500 mb-4">
+                Ingresa tu contraseña actual para continuar.
+              </p>
+              <form onSubmit={handleVerifyPassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-red-600 mb-1">Contraseña actual</label>
+                  <PasswordInput
+                    value={acctPassword}
+                    onChange={(e) => { setAcctPassword(e.target.value); setAcctPasswordError(''); }}
+                    required
+                  />
+                  {acctPasswordError && (
+                    <p className="text-red-500 text-sm mt-1">{acctPasswordError}</p>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAcctStep('idle')}
+                    className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={acctProcessing}
+                    className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50"
+                  >
+                    {acctProcessing ? 'Verificando...' : 'Verificar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {acctStep === 'options' && accountInfo && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-gray-600">
+                  {isNearRenewal
+                    ? 'Tu período está por terminar. ¿Qué deseas hacer?'
+                    : `Aún te quedan ${accountInfo.daysRemaining} días. ¿Qué deseas hacer?`}
+                </p>
+                {statusBadge()}
+              </div>
+
+              {isNearRenewal ? (
+                <>
+                  <button onClick={handleRenew} disabled={acctProcessing}
+                    className="w-full bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4 text-left hover:bg-emerald-100 transition flex items-start gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-emerald-800">Renovar suscripción</h3>
+                      <p className="text-sm text-emerald-600 mt-1">Continúa usando NELHEALTHCOACH sin interrupciones.</p>
+                    </div>
+                  </button>
+
+                  <button onClick={handleDelete} disabled={acctProcessing}
+                    className="w-full bg-red-50 border-2 border-red-200 rounded-xl p-4 text-left hover:bg-red-100 transition flex items-start gap-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-red-800">Eliminar cuenta permanentemente</h3>
+                      <p className="text-sm text-red-600 mt-1">Se eliminarán todos tus datos, clientes y contenido. No se puede deshacer.</p>
+                    </div>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setAcctStep('idle')}
+                    className="w-full bg-blue-50 border-2 border-blue-200 rounded-xl p-4 text-left hover:bg-blue-100 transition flex items-start gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-blue-800">Seguir usando la cuenta</h3>
+                      <p className="text-sm text-blue-600 mt-1">No realizar cambios. Todo sigue normal.</p>
+                    </div>
+                  </button>
+
+                  <button onClick={handleSuspend} disabled={acctProcessing}
+                    className="w-full bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-left hover:bg-amber-100 transition flex items-start gap-3">
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-amber-800">Suspender temporalmente</h3>
+                      <p className="text-sm text-amber-600 mt-1">La cuenta queda en pausa. Al iniciar sesión se reactivará automáticamente.</p>
+                    </div>
+                  </button>
+
+                  <button onClick={handleDelete} disabled={acctProcessing}
+                    className="w-full bg-red-50 border-2 border-red-200 rounded-xl p-4 text-left hover:bg-red-100 transition flex items-start gap-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-red-800">Eliminar cuenta permanentemente</h3>
+                      <p className="text-sm text-red-600 mt-1">Se eliminarán todos tus datos, clientes y contenido. No se puede deshacer.</p>
+                    </div>
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => setAcctStep('idle')}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                ← Volver
+              </button>
+            </div>
+          )}
+
+          {acctStep === 'processing' && (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-3" />
+              <p className="text-gray-600">{acctMessage}</p>
+            </div>
+          )}
+
+          {acctStep === 'done' && (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-gray-700 mb-4">{acctMessage}</p>
+              <button
+                onClick={() => {
+                  if (acctMessage.includes('eliminados')) {
+                    router.push('/login');
+                  } else {
+                    router.push('/dashboard');
+                  }
+                }}
+                className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+              >
+                {acctMessage.includes('eliminados') ? 'Ir al inicio de sesión' : 'Ir al dashboard'}
+              </button>
+            </div>
+          )}
+
+          {acctStep === 'error' && (
+            <div className="text-center py-4">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <p className="text-gray-700 mb-4">{acctMessage}</p>
+              <button
+                onClick={() => setAcctStep('idle')}
+                className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+              >
+                Volver
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

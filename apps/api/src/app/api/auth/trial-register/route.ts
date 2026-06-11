@@ -17,6 +17,7 @@ import { registerSchema } from '@/app/lib/schemas';
 import {
   generateVerificationEmailHTML,
 } from '@/app/lib/email-templates';
+import { uploadBufferToS3 } from '@/app/lib/s3';
 
 const TRIAL_DAYS = 30;
 
@@ -58,6 +59,9 @@ export async function POST(request: NextRequest) {
       bio: validBio,
       timezone: validTimezone,
     } = parsed.data;
+
+    // profilePhoto no está en el schema (es dato opcional base64)
+    const { profilePhoto } = body as { profilePhoto?: string };
 
     const emailLower = validEmail.toLowerCase().trim();
     const emailHash = hashEmail(emailLower);
@@ -127,6 +131,34 @@ export async function POST(request: NextRequest) {
       trialStartDate: now,
       trialEndDate: trialEndDate,
     });
+
+    // Subir foto de perfil si se proporcionó (base64)
+    if (profilePhoto && typeof profilePhoto === 'string' && profilePhoto.startsWith('data:image/')) {
+      try {
+        const matches = profilePhoto.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (matches) {
+          const mimeType = matches[1];
+          const ext = mimeType.split('/')[1] || 'jpg';
+          const buffer = Buffer.from(matches[2], 'base64');
+          const { url, key } = await uploadBufferToS3(buffer, `profile.${ext}`, mimeType, 'profile');
+          await Coach.findByIdAndUpdate(coach._id, {
+            $set: {
+              profilePhoto: {
+                url: encrypt(url),
+                key: encrypt(key),
+                name: encrypt('profile.' + ext),
+                type: encrypt(mimeType),
+                size: buffer.length,
+                uploadedAt: new Date().toISOString(),
+              },
+            },
+          });
+        }
+      } catch (uploadError) {
+        logger.error('AUTH', 'Error subiendo foto de perfil en trial-register', uploadError as Error);
+        // No bloquear el registro si la foto falla
+      }
+    }
 
     logger.info('AUTH', 'Nuevo coach registrado en trial', {
       coachId: coach._id.toString(),

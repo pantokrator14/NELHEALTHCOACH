@@ -1404,4 +1404,51 @@ export const apiClient = {
     if (!response.ok) throw new Error(result.message || 'Error al convertir a suscripción paga');
     return result;
   },
+
+  // ─── Gestión de cuenta ───
+
+  async getAccountInfo() {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      if (response.status === 401) { window.location.href = '/login'; return null; }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener info de cuenta');
+    }
+    return response.json();
+  },
+
+  async verifyPassword(currentPassword: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-password', currentPassword }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al verificar contraseña');
+    return result;
+  },
+
+  async suspendAccount() {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'suspend' }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al suspender cuenta');
+    return result;
+  },
+
+  async deleteAccount(currentPassword: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', currentPassword }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Error al eliminar cuenta');
+    return result;
+  },
 };

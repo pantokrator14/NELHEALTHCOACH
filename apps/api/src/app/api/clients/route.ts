@@ -55,7 +55,7 @@ interface MedicalData {
   gymAccessDetails?: string;
   preferredExerciseTypes?: string;
   exerciseTimeAvailability?: string;
-  documents?: any[];
+  documents?: unknown[];
 }
 
 interface PersonalData {
@@ -204,12 +204,13 @@ export async function GET(request: NextRequest) {
         }
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = error as { status?: number; message?: string };
       // Si es un error estructurado (auth), devolver su status específico
-      if (error?.status) {
+      if (apiError?.status) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: apiError.message || 'Error' },
+          { status: apiError.status }
         );
       }
 
@@ -344,8 +345,8 @@ export async function POST(request: NextRequest) {
     const healthForms = await getHealthFormsCollection();
 
     // Función para encriptar objetos
-    const encryptObject = (obj: Record<string, any>): Record<string, any> => {
-      const encrypted: Record<string, any> = {};
+    const encryptObject = (obj: Record<string, unknown>): Record<string, unknown> => {
+      const encrypted: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         // Manejar array de documentos de forma especial (no encriptar el array completo)
         if (key === 'documents' && Array.isArray(value)) {
@@ -359,12 +360,12 @@ export async function POST(request: NextRequest) {
           // ✅ ENCRIPTAR OBJETOS COMPLETOS como profilePhoto y documents
           if (Array.isArray(value)) {
             // Para arrays como documents, encriptar cada elemento del array
-            encrypted[key] = encrypt(JSON.stringify(value.map(item => 
-              typeof item === 'object' ? encryptObject(item) : item
+            encrypted[key] = encrypt(JSON.stringify(value.map((item: unknown) => 
+              typeof item === 'object' && item !== null ? encryptObject(item as Record<string, unknown>) : item
             )));
           } else {
             // Para objetos como profilePhoto
-            encrypted[key] = encrypt(JSON.stringify(encryptObject(value)));
+            encrypted[key] = encrypt(JSON.stringify(encryptObject(value as Record<string, unknown>)));
           }
         } else {
           encrypted[key] = value;
@@ -386,22 +387,23 @@ export async function POST(request: NextRequest) {
       microbiotaHealth: 10,
     };
 
+    const typedMedicalData = processedMedicalData as Record<string, unknown>;
     const arrayFields = [
       'carbohydrateAddiction', 'leptinResistance', 'circadianRhythms',
       'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'
     ];
 
     arrayFields.forEach(field => {
-      const arrayData = (processedMedicalData as any)[field];
+      const arrayData = typedMedicalData[field];
       const expectedLength = expectedLengths[field];
       
       if (!arrayData || !Array.isArray(arrayData)) {
-        (processedMedicalData as any)[field] = JSON.stringify([]);
+        typedMedicalData[field] = JSON.stringify([]);
         return;
       }
 
       // ✅ CORREGIDO: Ya no convertimos a booleano, mantenemos los strings originales
-      const cleanedArray = arrayData.map((value: any) => {
+      const cleanedArray = arrayData.map((value: unknown) => {
         // Si ya es string, lo dejamos como está
         if (typeof value === 'string') return value;
         // Si es booleano (por si acaso), lo convertimos a 'si'/'no'
@@ -421,7 +423,7 @@ export async function POST(request: NextRequest) {
         cleanedArray.length = expectedLength;
       }
 
-      (processedMedicalData as any)[field] = JSON.stringify(cleanedArray);
+      typedMedicalData[field] = JSON.stringify(cleanedArray);
     });
 
     // Inicializar array de documentos vacío

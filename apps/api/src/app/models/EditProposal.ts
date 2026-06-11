@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface IEditProposal extends Document {
   targetType: 'recipe' | 'exercise';
   targetId: Types.ObjectId;
+  proposalType: 'edit' | 'creation';
   proposedChanges: Record<string, unknown>;
   proposedBy: Types.ObjectId;
   proposedByName: string;
@@ -19,6 +20,12 @@ const EditProposalSchema = new Schema<IEditProposal>(
     targetType: {
       type: String,
       enum: ['recipe', 'exercise'],
+      required: true,
+    },
+    proposalType: {
+      type: String,
+      enum: ['edit', 'creation'],
+      default: 'edit',
       required: true,
     },
     targetId: {

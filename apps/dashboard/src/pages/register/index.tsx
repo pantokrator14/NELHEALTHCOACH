@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Image from 'next/image';
@@ -67,6 +67,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormDataState>(emptyForm);
   const [canceled, setCanceled] = useState(false);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
+  const [profilePhotoBase64, setProfilePhotoBase64] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Detectar cancelación desde Stripe ──
 
@@ -117,6 +120,31 @@ export default function Register() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ── Manejo de foto de perfil ──
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Selecciona un archivo de imagen válido');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('La imagen no debe superar los 5 MB');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setProfilePhotoPreview(previewUrl);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfilePhotoBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ── Enviar formulario ──
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -139,6 +167,7 @@ export default function Register() {
       yearsOfExperience: Number(formData.yearsOfExperience) || 0,
       bio: formData.bio,
       timezone: formData.timezone,
+      profilePhoto: profilePhotoBase64 || undefined,
     };
 
     // Guardar en sessionStorage por si Stripe cancela
@@ -290,6 +319,41 @@ export default function Register() {
               )}
 
               <form onSubmit={handleRegister} className="space-y-4">
+                {/* Foto de perfil */}
+                <div className="flex flex-col items-center mb-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    className="relative group cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                  >
+                    <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden transition group-hover:border-emerald-400 group-hover:bg-emerald-50">
+                      {profilePhotoPreview ? (
+                        <img
+                          src={profilePhotoPreview}
+                          alt="Foto de perfil"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+                      {profilePhotoPreview ? 'Cambiar foto' : 'Agregar foto'}
+                    </span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoSelect}
+                    className="hidden"
+                    disabled={loading}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="firstName" className={labelClasses}>
