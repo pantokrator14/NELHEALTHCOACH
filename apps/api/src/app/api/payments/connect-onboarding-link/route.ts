@@ -6,6 +6,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { generateOnboardingLink } from '@/app/lib/stripe-connect';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/payments/connect-onboarding-link
@@ -13,7 +14,7 @@ import { generateOnboardingLink } from '@/app/lib/stripe-connect';
  * Genera un nuevo Account Link para que el coach complete su onboarding
  * en Stripe. Requiere que ya tenga una cuenta Connect creada.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const auth = requireCoachAuth(request);
     await connectMongoose();
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const appUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
     const refreshUrl = `${appUrl}/dashboard/profile?stripe=canceled`;
     const returnUrl = `${appUrl}/dashboard/profile?stripe=success`;
 
@@ -62,3 +63,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

@@ -57,7 +57,6 @@ export interface EmailTemplateData {
   pdfDownloadUrl?: string;
   // URLs de los logos
   logoWhiteUrl?: string;
-  logoBlueUrl?: string;
 }
 
 /**
@@ -68,9 +67,7 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
   const contactEmail = data.coachEmail || 'contact@nelhealthcoach.com';
   const replyTo = data.replyToEmail || contactEmail;
   const websiteUrl = data.websiteUrl || 'https://nelhealthcoach.com';
-  const logoWhite = data.logoWhiteUrl || 'https://nelhealthcoach.com/images/logo-white.png';
-  const logoBlue = data.logoBlueUrl || 'https://nelhealthcoach.com/images/logo-blue.png';
-
+  const logoWhite = data.logoWhiteUrl || 'https://app.nelhealthcoach.com/logo.png';
   // Función para escapar HTML
   const escapeHtml = (text: string): string => {
     if (!text) return '';
@@ -212,7 +209,6 @@ export function generateMonthlyPlanEmailHTML(data: EmailTemplateData): string {
             text-align: center;
             font-size: 14px;
         ">
-            <img src="${logoBlue}" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
             <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
                 <strong>NELHEALTHCOACH</strong><br>
                 Ayudándote a descubrir el verdadero potencial de tu cuerpo.
@@ -310,7 +306,7 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
   };
   if (data.timeZone) dateOpts.timeZone = data.timeZone;
   const formattedDate = data.scheduledDate.toLocaleDateString('es-MX', dateOpts);
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>
@@ -424,7 +420,7 @@ export function generateSessionInviteHTML(data: SessionEmailData): string {
             text-align: center;
             font-size: 14px;
         ">
-            <img src="https://nelhealthcoach.com/images/logo-blue.png" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+            
             <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
                 Ayudándote a descubrir el verdadero potencial de tu cuerpo.
             </div>
@@ -460,7 +456,7 @@ function renderFooter(currentYear: number, coachEmail: string): string {
             text-align: center;
             font-size: 14px;
         ">
-            <img src="https://nelhealthcoach.com/images/logo-blue.png" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+            
             <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
                 Ayudándote a descubrir el verdadero potencial de tu cuerpo.
             </div>
@@ -496,7 +492,7 @@ export function generateSessionReminderTodayHTML(data: SessionEmailData): string
   };
   if (data.timeZone) dateOpts.timeZone = data.timeZone;
   const formattedDate = data.scheduledDate.toLocaleDateString('es-MX', dateOpts);
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>
@@ -606,7 +602,7 @@ export function generateSessionReminderSoonHTML(data: SessionEmailData): string 
   const currentYear = new Date().getFullYear();
   const coachName = data.coachName || 'Tu coach';
   const coachEmail = data.coachEmail || 'contact@nelhealthcoach.com';
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>
@@ -718,7 +714,7 @@ export interface PaymentRequestEmailData {
  */
 export function generatePaymentRequestEmailHTML(data: PaymentRequestEmailData): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   const dateOpts: Intl.DateTimeFormatOptions = {
     weekday: 'long',
@@ -819,7 +815,7 @@ export function generatePaymentRequestEmailHTML(data: PaymentRequestEmailData): 
 
     <!-- Footer -->
     <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
-      <img src="https://nelhealthcoach.com/images/logo-blue.png" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+      
       <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
         Ayudándote a descubrir el verdadero potencial de tu cuerpo.
       </div>
@@ -862,11 +858,14 @@ export function generateTrialWelcomeEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
-            <h1 style="margin: 0; font-size: 22px;">¡Bienvenido a NELHEALTHCOACH!</h1>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">¡Bienvenido a NELHEALTHCOACH!</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -890,8 +889,24 @@ export function generateTrialWelcomeEmailHTML(data: {
                 ¿Preguntas? Escríbenos a <a href="mailto:contact@nelhealthcoach.com" style="color: #2196F3;">contact@nelhealthcoach.com</a>
             </p>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${currentYear}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -918,11 +933,14 @@ export function generateTrialEndingSoonEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
-            <h1 style="margin: 0; font-size: 22px;">Tu prueba está por terminar</h1>
+        <div style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
+                <h1 style="margin: 0; font-size: 22px; color: #F57C00;">Tu prueba está por terminar</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -950,8 +968,24 @@ export function generateTrialEndingSoonEmailHTML(data: {
                 Si cancelas, todos tus datos y los de tus clientes serán eliminados irreversiblemente.
             </p>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${currentYear}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -977,11 +1011,14 @@ export function generateTrialExpiredEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #e53935 0%, #c62828 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">⛔</div>
-            <h1 style="margin: 0; font-size: 22px;">Tu prueba gratuita ha terminado</h1>
+        <div style="background: linear-gradient(135deg, #e53935 0%, #c62828 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">⛔</div>
+                <h1 style="margin: 0; font-size: 22px; color: #c62828;">Tu prueba gratuita ha terminado</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -1003,8 +1040,24 @@ export function generateTrialExpiredEmailHTML(data: {
                 </a>
             </div>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${currentYear}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1022,6 +1075,7 @@ export function generateVerificationEmailHTML(data: {
   coachName: string;
   verifyUrl: string;
 }): string {
+  const y = new Date().getFullYear();
   return `
 <!DOCTYPE html>
 <html>
@@ -1032,11 +1086,14 @@ export function generateVerificationEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
-            <h1 style="margin: 0; font-size: 22px;">Verifica tu cuenta</h1>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">✅</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">Verifica tu cuenta</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -1052,8 +1109,24 @@ export function generateVerificationEmailHTML(data: {
                 Si no creaste esta cuenta, puedes ignorar este mensaje.
             </p>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${new Date().getFullYear()}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1067,6 +1140,7 @@ export function generateWelcomeCoachEmailHTML(data: {
   coachName: string;
   loginUrl: string;
 }): string {
+  const y = new Date().getFullYear();
   return `
 <!DOCTYPE html>
 <html>
@@ -1077,11 +1151,14 @@ export function generateWelcomeCoachEmailHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
-            <h1 style="margin: 0; font-size: 22px;">¡Bienvenido a NELHEALTHCOACH!</h1>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">¡Bienvenido a NELHEALTHCOACH!</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -1099,8 +1176,24 @@ export function generateWelcomeCoachEmailHTML(data: {
                 </a>
             </div>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${new Date().getFullYear()}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1114,6 +1207,7 @@ export function generatePasswordResetHTML(data: {
   coachName: string;
   resetUrl: string;
 }): string {
+  const y = new Date().getFullYear();
   return `
 <!DOCTYPE html>
 <html>
@@ -1124,11 +1218,14 @@ export function generatePasswordResetHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">🔑</div>
-            <h1 style="margin: 0; font-size: 22px;">Recupera tu contraseña</h1>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🔑</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">Recupera tu contraseña</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -1144,8 +1241,24 @@ export function generatePasswordResetHTML(data: {
                 Este enlace expirará en 1 hora. Si no solicitaste este cambio, puedes ignorar este mensaje.
             </p>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${new Date().getFullYear()}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1166,6 +1279,7 @@ export function generateNewClientClientNotificationHTML(data: {
     ? `<img src="${data.coachPhoto}" alt="${data.coachName}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #2196F3; margin: 0 auto 15px; display: block;">`
     : `<div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #2196F3, #1976D2); color: white; line-height: 100px; text-align: center; font-size: 36px; font-weight: bold; margin: 0 auto 15px;">${data.coachName.charAt(0)}</div>`;
 
+  const y = new Date().getFullYear();
   return `
 <!DOCTYPE html>
 <html>
@@ -1176,12 +1290,15 @@ export function generateNewClientClientNotificationHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">🌟</div>
-            <h1 style="margin: 0; font-size: 22px;">¡Bienvenido a NELHEALTHCOACH!</h1>
-            <p style="opacity: 0.9; margin-top: 10px;">Tu viaje hacia una mejor salud comienza ahora</p>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🌟</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">¡Bienvenido a NELHEALTHCOACH!</h1>
+                <p style="color: #888; margin: 5px 0 0; font-size: 15px;">Tu viaje hacia una mejor salud comienza ahora</p>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.clientName}</strong>,
             </p>
@@ -1207,8 +1324,24 @@ export function generateNewClientClientNotificationHTML(data: {
                 Tu coach se pondrá en contacto contigo pronto para comenzar con tu plan de salud personalizado.
             </p>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${new Date().getFullYear()}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1226,6 +1359,7 @@ export function generateNewClientCoachNotificationHTML(data: {
   clientId: string;
   dashboardUrl: string;
 }): string {
+  const y = new Date().getFullYear();
   return `
 <!DOCTYPE html>
 <html>
@@ -1236,11 +1370,14 @@ export function generateNewClientCoachNotificationHTML(data: {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
     <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
-            <h1 style="margin: 0; font-size: 22px;">Nuevo Cliente Registrado</h1>
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="https://app.nelhealthcoach.com/logo.png" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
         </div>
         <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">Nuevo Cliente Registrado</h1>
+            </div>
             <p style="font-size: 16px; color: #333;">
                 Hola <strong>${data.coachName}</strong>,
             </p>
@@ -1266,8 +1403,24 @@ export function generateNewClientCoachNotificationHTML(data: {
                 </a>
             </div>
         </div>
-        <div style="background: #263238; color: white; padding: 20px; text-align: center; font-size: 12px; opacity: 0.7;">
-            NELHEALTHCOACH &copy; ${new Date().getFullYear()}
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
         </div>
     </div>
 </body>
@@ -1288,7 +1441,7 @@ export function generateOnboardingPaymentCoachNotificationHTML(data: {
   dashboardUrl: string;
 }): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>
@@ -1347,7 +1500,7 @@ export function generateSessionPaymentClientConfirmationHTML(data: {
   amount: number;
 }): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>
@@ -1400,7 +1553,7 @@ export function generateCoachSessionNotificationHTML(data: {
   timeZone?: string;
 }): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
   const dateOpts: Intl.DateTimeFormatOptions = {
     weekday: 'long',
     year: 'numeric',
@@ -1536,7 +1689,7 @@ export function generateCoachSessionNotificationHTML(data: {
             text-align: center;
             font-size: 14px;
         ">
-            <img src="https://nelhealthcoach.com/images/logo-blue.png" alt="NELHEALTHCOACH" style="max-width: 150px; height: auto; margin-bottom: 20px;">
+            
             <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
                 Ayudándote a descubrir el verdadero potencial de tu cuerpo.
             </div>

@@ -5,6 +5,7 @@ import { S3Service } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { encrypt, encryptFileObject } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /** Verifica que el usuario sea admin o coach autenticado */
 function authorizeExerciseUpload(request: NextRequest) {
@@ -21,7 +22,7 @@ function authorizeExerciseUpload(request: NextRequest) {
 }
 
 // POST: Obtener URL prefirmada para upload de imagen/video de ejercicio
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -135,8 +136,10 @@ export async function POST(
   });
 }
 
+export const POST = apiHandler(postHandler);
+
 // PUT: Confirmar upload y guardar referencia en el ejercicio
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -266,8 +269,10 @@ export async function PUT(
   });
 }
 
+export const PUT = apiHandler(putHandler);
+
 // DELETE: Eliminar demo de ejercicio
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -378,3 +383,5 @@ export async function DELETE(
     exerciseId: (await params).id,
   });
 }
+
+export const DELETE = apiHandler(deleteHandler);

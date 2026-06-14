@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHealthFormsCollection, getRecipesCollection } from '../../lib/database';
+import { getHealthFormsCollection, getRecipesCollection, getExerciseCollection } from '../../lib/database';
 import { requireCoachAuth } from '../../lib/auth';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { connectMongoose } from '@/app/lib/database';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
-    // Verificar autenticación y obtener datos del coach
     const auth = requireCoachAuth(request);
+    const isAdmin = auth.role === 'admin';
 
     const healthForms = await getHealthFormsCollection();
     const recipes = await getRecipesCollection();
+    const exercises = await getExerciseCollection();
 
-    // Filtrar clientes por coachId si no es admin
+    // Filtro por coach si no es admin
     const clientFilter: Record<string, unknown> = {};
-    if (auth.role === 'coach') {
+    if (!isAdmin) {
       clientFilter.coachId = auth.coachId;
     }
 
+    // ── Clientes ──
     const clientCount = await healthForms.countDocuments(clientFilter);
-    const recipeCount = await recipes.countDocuments();
-    const nearGoalPercentage = Math.min(Math.floor((clientCount / 300) * 100), 100);
 
     const last30Days = new Date();
     last30Days.setDate(last30Days.getDate() - 30);
@@ -29,14 +31,34 @@ export async function GET(request: NextRequest) {
       submissionDate: { $gte: last30Days },
     });
 
+    // ── Recetas ──
+    const recipeCount = await recipes.countDocuments();
+
+    // ── Ejercicios ──
+    const exerciseCount = await exercises.countDocuments();
+
+    // ── Propuestas pendientes (solo admin, o todas si es coach) ──
+    let pendingProposals = 0;
+    try {
+      await connectMongoose();
+      const { default: EditProposal } = await import('@/app/models/EditProposal');
+      const proposalFilter: Record<string, unknown> = { status: 'pending' };
+      if (!isAdmin) {
+        proposalFilter.coachId = auth.coachId;
+      }
+      pendingProposals = await EditProposal.countDocuments(proposalFilter);
+    } catch {
+      // Si falla la conexión a Mongoose, devolvemos 0
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         clientCount,
         recipeCount,
-        nearGoalPercentage,
+        exerciseCount,
         recentClients,
-        goal: 300,
+        pendingProposals,
       },
     });
   } catch (error: any) {
@@ -56,3 +78,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

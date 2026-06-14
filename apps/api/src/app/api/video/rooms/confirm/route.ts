@@ -11,6 +11,7 @@ import { connectMongoose } from '@/app/lib/database';
 import PendingSession from '@/app/models/PendingSession';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCoachSessionNotificationHTML } from '@/app/lib/email-templates';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/video/rooms/confirm
@@ -21,7 +22,7 @@ import { generateCoachSessionNotificationHTML } from '@/app/lib/email-templates'
  * Crea la sala en LiveKit, envía el link "Unirse" al cliente
  * y notifica al coach.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const coachPayload = requireCoachAuth(request);
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Obtener la URL de unión para el cliente
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
     const { joinLink: joinTokenUrl } = await (await import('@/app/lib/video-service')).generateClientSessionLink(
       pending.clientId,
       result.session.sessionId,
@@ -195,3 +196,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

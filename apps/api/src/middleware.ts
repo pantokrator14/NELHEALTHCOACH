@@ -10,6 +10,9 @@ import { runShield } from './app/lib/security/shield';
 import { runBotDetection } from './app/lib/security/botDetector';
 import type { RequestContext } from './app/lib/security/types';
 
+// logSecurityBlock se importa dinámicamente solo cuando se necesita
+// (evita que mongoose rompa el Edge Runtime en la carga del módulo)
+
 // ─── Configuración ───
 
 const ALLOWED_ORIGINS = [
@@ -38,7 +41,7 @@ const CRITICAL_PATHS = [
   '/api/extract-text',
 ];
 
-// Rutas excluidas de verificación (health checks, debug interno, test, verificación de email)
+// Rutas excluidas de verificación
 const EXCLUDED_PATHS = [
   '/api/health/ping',
   '/api/hello',
@@ -64,6 +67,14 @@ function isCriticalPath(path: string): boolean {
 
 function isExcludedPath(path: string): boolean {
   return EXCLUDED_PATHS.some((prefix) => path.startsWith(prefix));
+}
+
+function extractRequestId(request: NextRequest): string {
+  return (
+    request.headers.get('x-request-id') ||
+    request.headers.get('x-correlation-id') ||
+    `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
 }
 
 function applyCorsHeaders(
@@ -93,12 +104,9 @@ function createBlockedResponse(
     'Content-Type': 'application/json',
   };
 
-  // Incluir CORS headers para que el navegador pueda leer el error
   const isAllowedOrigin = origin !== null && ALLOWED_ORIGINS.includes(origin ?? '');
   if (isAllowedOrigin) {
     headers['Access-Control-Allow-Origin'] = origin!;
-  } else {
-    headers['Access-Control-Allow-Origin'] = '*';
   }
   headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
   headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID';
@@ -132,25 +140,31 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // ── 1. OPTIONS preflight ──
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 200 });
-
-    // X-Request-ID (matching existing pattern)
-    const requestId =
-      request.headers.get('x-request-id') ||
-      request.headers.get('x-correlation-id') ||
-      `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = extractRequestId(request);
     response.headers.set('X-Request-ID', requestId);
-
     return applyCorsHeaders(response, origin);
   }
 
   // ── 2. Shield + Bot Detection (solo rutas críticas) ──
   if (isCriticalPath(path)) {
     const ctx = buildRequestContext(request);
+    const requestId = extractRequestId(request);
 
     // Shield: escanea URL y query params
     const shieldResult = runShield(ctx, request.nextUrl.searchParams);
     if (shieldResult && !shieldResult.passed) {
-      console.warn('🔒 Shield bloqueó:', shieldResult.reason, path);
+      // Audit log del bloqueo (fire-and-forget, Edge-compatible)
+      import('./app/lib/auditLogger').then(({ logSecurityBlock }) =>
+        logSecurityBlock('SHIELD_BLOCK', shieldResult.reason ?? 'SHIELD', {
+          ip: ctx.ip,
+          path,
+          userAgent: ctx.userAgent,
+          requestId,
+          visitorId: ctx.visitorId,
+          metadata: { shieldReason: shieldResult.reason, shieldMessage: shieldResult.message },
+        })
+      ).catch(() => {});
+
       return createBlockedResponse(
         shieldResult.statusCode ?? 403,
         shieldResult.reason ?? 'SHIELD',
@@ -163,7 +177,18 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // Bot Detection
     const botResult = runBotDetection(ctx, request.headers);
     if (botResult && !botResult.passed) {
-      console.warn('🤖 Bot detection bloqueó:', botResult.reason, path);
+      // Audit log del bloqueo (fire-and-forget)
+      import('./app/lib/auditLogger').then(({ logSecurityBlock }) =>
+        logSecurityBlock('BOT_DETECTED', botResult.reason ?? 'BOT', {
+          ip: ctx.ip,
+          path,
+          userAgent: ctx.userAgent,
+          requestId,
+          visitorId: ctx.visitorId,
+          metadata: { botReason: botResult.reason, botMessage: botResult.message },
+        })
+      ).catch(() => {});
+
       return createBlockedResponse(
         botResult.statusCode ?? 403,
         botResult.reason ?? 'BOT',

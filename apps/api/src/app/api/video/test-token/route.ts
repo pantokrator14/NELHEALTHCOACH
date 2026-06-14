@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateParticipantToken } from '@/app/lib/video-service';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 import jwt from 'jsonwebtoken';
 
 interface TestTokenRequest {
@@ -17,7 +18,7 @@ interface TestTokenRequest {
   displayName?: string;
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     // ── Seguridad: solo en desarrollo ──
     if (process.env.NODE_ENV === 'production') {
@@ -61,6 +62,13 @@ export async function POST(request: NextRequest) {
     let sessionToken: string | undefined;
 
     if (body.role === 'client') {
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+        return NextResponse.json(
+          { success: false, message: 'JWT_SECRET no está configurado' },
+          { status: 500 },
+        );
+      }
       sessionToken = jwt.sign(
         {
           sub: testClientId,
@@ -68,7 +76,7 @@ export async function POST(request: NextRequest) {
           email: 'test@nelhealthcoach.dev',
           type: 'client-session',
         },
-        process.env.JWT_SECRET || 'default-secret',
+        secret,
         { expiresIn: '2h' }
       );
     }
@@ -96,3 +104,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

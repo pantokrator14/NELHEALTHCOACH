@@ -6,6 +6,7 @@
 
 import { stripeClient } from './stripe';
 import { logger } from './logger';
+import { createNotification } from './create-notification';
 
 const webhookSecret: string = process.env.STRIPE_WEBHOOK_SECRET || '';
 
@@ -207,7 +208,7 @@ async function handleClientSessionCheckout(
       if (coachEmail) {
         const clientName = pending.clientName || 'Cliente';
         const dashboardUrl =
-          (process.env.APP_URL || 'http://localhost:3002') + '/dashboard/clients/' + pending.clientId;
+          (process.env.DASHBOARD_URL || 'http://localhost:3000') + '/dashboard/clients/' + pending.clientId;
 
         const paymentNotificationHTML = generatePaymentReceivedCoachHTML({
           coachName: coachFirstName,
@@ -225,6 +226,22 @@ async function handleClientSessionCheckout(
     }
   } catch (emailError) {
     logger.error('PAYMENTS', 'Error enviando notificación de pago al coach', emailError as Error);
+  }
+
+  // Notificación in-app para el coach
+  const notificationCoachId = coach?._id?.toString() || metadata.coachId;
+  if (notificationCoachId) {
+    try {
+      await createNotification({
+        coachId: notificationCoachId,
+        type: 'session_paid',
+        title: '💰 Pago de sesión recibido',
+        message: `${pending.clientName || 'Un cliente'} ha pagado su sesión de coaching.`,
+        link: `/dashboard/clients/${pending.clientId}`,
+      });
+    } catch (notifError) {
+      logger.error('NOTIFICATIONS', 'Error creando notificación de pago', notifError as Error);
+    }
   }
 }
 
@@ -284,13 +301,26 @@ async function handleClientOnboardingCheckout(
               coachName,
               clientName: clientEmail,
               clientEmail,
-              dashboardUrl: (process.env.APP_URL || 'http://localhost:3002') + '/dashboard/clients',
+              dashboardUrl: (process.env.DASHBOARD_URL || 'http://localhost:3000') + '/dashboard/clients',
             }),
           });
         }
       }
     } catch (emailError) {
       logger.error('PAYMENTS', 'Error enviando notificación de onboarding al coach', emailError as Error);
+    }
+
+    // Notificación in-app para el coach
+    try {
+      await createNotification({
+        coachId,
+        type: 'new_client',
+        title: '🎉 Nuevo cliente registrado',
+        message: `${clientEmail} ha completado el pago de onboarding y está listo para registrarse.`,
+        link: '/dashboard/clients',
+      });
+    } catch (notifError) {
+      logger.error('NOTIFICATIONS', 'Error creando notificación de nuevo cliente', notifError as Error);
     }
   }
 }
@@ -430,6 +460,129 @@ async function handleTrialVerificationCheckout(
 }
 
 // ─────────────────────────────────────────────
+// Handlers de payout (retiros bancarios)
+// ─────────────────────────────────────────────
+
+/**
+ * Maneja payout.created — un retiro bancario ha sido iniciado.
+ * Para Connect accounts, busca al coach por el ID de cuenta conectada.
+ * Para la cuenta de la plataforma, notifica al admin.
+ */
+export async function handlePayoutCreated(
+  payout: Record<string, unknown>
+): Promise<void> {
+  const payoutId = payout.id as string;
+  const amountCents = (payout.amount as number) || 0;
+  const amount = (amountCents / 100).toFixed(2);
+  const currency = ((payout.currency as string) || 'usd').toUpperCase();
+  const arrivalDate = payout.arrival_date
+    ? new Date((payout.arrival_date as number) * 1000)
+    : null;
+  const status = payout.status as string;
+  const description = (payout.description as string) || 'Retiro bancario';
+
+  logger.info('PAYMENTS', `Payout creado: ${payoutId} — $${amount} ${currency}`, {
+    payoutId,
+    amount,
+    currency,
+    status,
+  });
+
+  // Determinar a qué coach pertenece este payout (si es de una Connect account)
+  const connectAccountId = (payout as Record<string, unknown>).destination as string | undefined;
+  if (connectAccountId) {
+    const { default: Coach } = await import('@/app/models/Coach');
+    const coach = await Coach.findOne({ stripeConnectAccountId: connectAccountId });
+
+    if (coach) {
+      const arrivalStr = arrivalDate
+        ? ` — llegará el ${arrivalDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}`
+        : '';
+
+      await createNotification({
+        coachId: coach._id.toString(),
+        type: 'payout_initiated',
+        title: `🏦 Retiro iniciado — $${amount} ${currency}`,
+        message: `Se ha iniciado un retiro bancario de $${amount}${arrivalStr}.`,
+        link: '/dashboard/finances',
+      });
+    }
+  }
+}
+
+/**
+ * Maneja payout.paid — el dinero ya llegó a la cuenta bancaria.
+ */
+export async function handlePayoutPaid(
+  payout: Record<string, unknown>
+): Promise<void> {
+  const payoutId = payout.id as string;
+  const amountCents = (payout.amount as number) || 0;
+  const amount = (amountCents / 100).toFixed(2);
+  const currency = ((payout.currency as string) || 'usd').toUpperCase();
+  const arrivalDate = payout.arrival_date
+    ? new Date((payout.arrival_date as number) * 1000)
+    : null;
+
+  logger.info('PAYMENTS', `Payout pagado: ${payoutId} — $${amount} ${currency}`);
+
+  const connectAccountId = (payout as Record<string, unknown>).destination as string | undefined;
+  if (connectAccountId) {
+    const { default: Coach } = await import('@/app/models/Coach');
+    const coach = await Coach.findOne({ stripeConnectAccountId: connectAccountId });
+
+    if (coach) {
+      const arrivalStr = arrivalDate
+        ? ` el ${arrivalDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}`
+        : '';
+
+      await createNotification({
+        coachId: coach._id.toString(),
+        type: 'payout_paid',
+        title: `✅ Retiro completado — $${amount}`,
+        message: `$${amount} ${currency} depositado en tu cuenta bancaria${arrivalStr}.`,
+        link: '/dashboard/finances',
+      });
+    }
+  }
+}
+
+/**
+ * Maneja payout.failed — el retiro bancário falló.
+ */
+export async function handlePayoutFailed(
+  payout: Record<string, unknown>
+): Promise<void> {
+  const payoutId = payout.id as string;
+  const amountCents = (payout.amount as number) || 0;
+  const amount = (amountCents / 100).toFixed(2);
+  const currency = ((payout.currency as string) || 'usd').toUpperCase();
+  const failureMessage = (payout.failure_message as string) || 'Error desconocido';
+  const failureCode = (payout.failure_code as string) || '';
+
+  logger.warn('PAYMENTS', `Payout fallido: ${payoutId} — $${amount} ${currency}`, {
+    failureCode,
+    failureMessage,
+  });
+
+  const connectAccountId = (payout as Record<string, unknown>).destination as string | undefined;
+  if (connectAccountId) {
+    const { default: Coach } = await import('@/app/models/Coach');
+    const coach = await Coach.findOne({ stripeConnectAccountId: connectAccountId });
+
+    if (coach) {
+      await createNotification({
+        coachId: coach._id.toString(),
+        type: 'payout_failed',
+        title: `❌ Retiro fallido — $${amount}`,
+        message: `El retiro de $${amount} ${currency} falló: ${failureMessage}. Actualiza tu información bancaria en Stripe.`,
+        link: '/dashboard/profile',
+      });
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // Template email para notificar al coach del pago
 // ─────────────────────────────────────────────
 
@@ -440,7 +593,7 @@ function generatePaymentReceivedCoachHTML(data: {
   dashboardUrl: string;
 }): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
 
   return `
 <!DOCTYPE html>

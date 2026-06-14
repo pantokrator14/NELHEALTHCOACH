@@ -4,6 +4,7 @@ import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 function decryptPhoto(photo: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!photo || !photo.url) return null;
@@ -21,7 +22,7 @@ function decryptPhoto(photo: Record<string, unknown> | null): Record<string, unk
   };
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -65,3 +66,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
   }
 }
+
+export const GET = apiHandler(getHandler);

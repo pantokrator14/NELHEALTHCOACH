@@ -6,8 +6,10 @@ import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } f
 import { S3Service } from '@/app/lib/s3';
 import { requireCoachAuth } from '@/app/lib/auth';
 import EditProposal from '@/app/models/EditProposal';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -76,7 +78,9 @@ export async function GET(
   }, { endpoint: '/api/recipes/[id]' });
 }
 
-export async function PUT(
+export const GET = apiHandler(getHandler);
+
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -87,7 +91,14 @@ export async function PUT(
       const data = await request.json();
       
       logger.info('RECIPES', 'Solicitud PUT /api/recipes/[id] recibida', { id });
-      
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
+
       // ✅ 1. OBTENER RECETA ACTUAL
       const currentRecipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
       
@@ -320,6 +331,17 @@ export async function PUT(
       } else {
         decryptedRecipe.image = null;
       }
+
+      logAuditEvent({
+        eventType: 'RECIPE_UPDATED',
+        severity: 'info',
+        message: `Receta actualizada: ${id}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/recipes/${id}`,
+        method: 'PUT',
+        statusCode: 200,
+      });
       
       return NextResponse.json({
         success: true,
@@ -337,7 +359,9 @@ export async function PUT(
   }, { endpoint: '/api/recipes/[id]', method: 'PUT' });
 }
 
-export async function DELETE(
+export const PUT = apiHandler(putHandler);
+
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -363,7 +387,14 @@ export async function DELETE(
 
       const { id } = await params;
       const recipesCollection = await getRecipesCollection();
-      
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
+
       logger.info('RECIPES', 'Solicitud DELETE /api/recipes/[id] recibida', { id });
       
       // ✅ OBTENER RECETA PARA ELIMINAR IMAGEN DE S3
@@ -408,6 +439,17 @@ export async function DELETE(
         );
       }
       
+      logAuditEvent({
+        eventType: 'RECIPE_DELETED',
+        severity: 'warning',
+        message: `Receta eliminada: ${id}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/recipes/${id}`,
+        method: 'DELETE',
+        statusCode: 200,
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Receta eliminada exitosamente',
@@ -422,3 +464,5 @@ export async function DELETE(
     }
   }, { endpoint: '/api/recipes/[id]', method: 'DELETE' });
 }
+
+export const DELETE = apiHandler(deleteHandler);

@@ -4,9 +4,11 @@ import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { ObjectId } from 'mongodb';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 // GET: Listar propuestas de edición
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -55,13 +57,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export const GET = apiHandler(getHandler);
+
 // POST: Crear nueva propuesta de edición
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
     const body = await request.json();
     const { targetType, targetId, proposedChanges } = body;
+
+    // Request context para audit logs
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
 
     if (!targetType || !targetId || !proposedChanges) {
       return NextResponse.json(
@@ -99,6 +110,18 @@ export async function POST(request: NextRequest) {
       coachId: auth.coachId,
     });
 
+    logAuditEvent({
+      eventType: 'ADMIN_ACTION',
+      severity: 'info',
+      message: `Propuesta de edición creada: ${targetType} ${targetId}`,
+      coachId: auth.coachId,
+      ...reqCtx,
+      path: '/api/edit-proposals',
+      method: 'POST',
+      statusCode: 201,
+      metadata: { targetType, targetId, proposalId: proposal._id.toString() },
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -126,3 +149,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

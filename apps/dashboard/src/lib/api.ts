@@ -201,6 +201,45 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
+export interface FinancesData {
+  isAdmin: boolean;
+  summary: {
+    totalBruto: number;
+    totalSuscripcion: number;
+    totalObtenido: number;
+    totalPayouts: number;
+    sesionesCompletadas: number;
+  };
+  sesionPrice: number;
+  sesionPriceFijo: boolean;
+  transaccionesRecientes: Array<{
+    id: string;
+    clientName: string;
+    amount: number;
+    date: string;
+    status: string;
+  }>;
+  breakdownMensual: Array<{
+    month: string;
+    ingresos: number;
+    suscripcion: number;
+  }>;
+  suscripcion: {
+    status: string;
+    monto: number;
+    proximoCobro: string | null;
+    mesesSuscrito: number;
+    currentPeriodEnd: string | null;
+  } | null;
+  payouts: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    arrivalDate: string;
+    description: string;
+  }>;
+}
+
 export const apiClient = {
   async login(credentials: { email: string; password: string }) {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -1334,6 +1373,17 @@ export const apiClient = {
     return response.json();
   },
 
+  async getFinances(period: '6m' | '12m' | 'all' = '12m') {
+    const response = await fetch(`${API_BASE_URL}/api/payments/finances?period=${period}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener datos financieros');
+    }
+    return response.json();
+  },
+
   async updateSessionPrice(price: number) {
     const response = await fetch(`${API_BASE_URL}/api/payments/session-price`, {
       method: 'PUT',
@@ -1450,5 +1500,44 @@ export const apiClient = {
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || 'Error al eliminar cuenta');
     return result;
+  },
+
+  // ─── Notificaciones ─────────────────────────────────────
+
+  async getNotifications(page = 1, limit = 20) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/notifications?page=${page}&limit=${limit}`,
+      { headers: getAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Error al cargar notificaciones');
+    return response.json();
+  },
+
+  async getUnreadNotificationCount() {
+    const response = await fetch(
+      `${API_BASE_URL}/api/notifications/unread-count`,
+      { headers: getAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Error al obtener conteo de notificaciones');
+    return response.json();
+  },
+
+  async markNotificationAsRead(id: string) {
+    const response = await fetch(`${API_BASE_URL}/api/notifications/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Error al marcar notificación como leída');
+    return response.json();
+  },
+
+  async markAllNotificationsAsRead() {
+    const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'markAllRead' }),
+    });
+    if (!response.ok) throw new Error('Error al marcar notificaciones como leídas');
+    return response.json();
   },
 };

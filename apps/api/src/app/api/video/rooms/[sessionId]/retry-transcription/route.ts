@@ -22,13 +22,14 @@ import {
   buildCallbackUrl,
   explainTranscriptionError,
 } from '@/app/lib/deepgram';
+import { apiHandler } from '@/app/lib/apiHandler';
 import type { VideoSession } from '../../../../../../../../../packages/types';
 
 // ─────────────────────────────────────────────
 // POST
 // ─────────────────────────────────────────────
 
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ): Promise<NextResponse> {
@@ -181,3 +182,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

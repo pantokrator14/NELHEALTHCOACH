@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripeClient, getCoachSubscriptionAmount } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 import crypto from 'crypto';
 
 /**
@@ -16,7 +17,7 @@ import crypto from 'crypto';
  * 2. Crea un Checkout Session de Stripe (subscription)
  * 3. Devuelve la URL de Stripe para redirigir al coach
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Obtener URLs base (dashboard, no confundir con FORM_URL)
-    const appUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
     // Crear Checkout Session
     const session = await stripeClient.checkout.sessions.create({
@@ -108,3 +109,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

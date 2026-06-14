@@ -17,6 +17,7 @@ import { decrypt } from '@/app/lib/encryption';
 import type { VideoSession } from '../../../../../../packages/types';
 import { logger } from '@/app/lib/logger';
 import { ObjectId } from 'mongodb';
+import { createNotification } from '@/app/lib/create-notification';
 
 // ─────────────────────────────────────────────
 // Constantes
@@ -130,6 +131,30 @@ export const sendSessionRemindersFn = inngest.createFunction(
                 { arrayFilters: [{ 's.sessionId': session.sessionId }] }
               );
               morningSent++;
+
+              // Notificación in-app para el coach
+              try {
+                if (doc.coachId) {
+                  const coachId = typeof doc.coachId === 'object' && doc.coachId !== null
+                    ? doc.coachId.toString()
+                    : String(doc.coachId);
+                  const timezone = session.timezone || 'UTC';
+                  const timeString = scheduledAt.toLocaleTimeString('es-MX', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: timezone,
+                  });
+                  await createNotification({
+                    coachId,
+                    type: 'session_reminder',
+                    title: '📹 Videollamada hoy',
+                    message: `Tienes una videollamada con ${clientName} hoy a las ${timeString}.`,
+                    link: `/dashboard/clients/${clientId}`,
+                  });
+                }
+              } catch {
+                // Silencioso
+              }
             }
           }
 
@@ -177,6 +202,26 @@ export const sendSessionRemindersFn = inngest.createFunction(
                 { arrayFilters: [{ 's.sessionId': session.sessionId }] }
               );
               fiveMinSent++;
+            }
+
+            // Notificación in-app 5min antes para el coach
+            if (diffMinutes >= FIVE_MIN_WINDOW_START && diffMinutes <= FIVE_MIN_WINDOW_END && !session.fiveMinReminderSentAt) {
+              try {
+                if (doc.coachId) {
+                  const coachId = typeof doc.coachId === 'object' && doc.coachId !== null
+                    ? doc.coachId.toString()
+                    : String(doc.coachId);
+                  await createNotification({
+                    coachId,
+                    type: 'session_reminder',
+                    title: '🔔 Videollamada en breves minutos',
+                    message: `Tu videollamada con ${clientName} está por comenzar.`,
+                    link: `/dashboard/clients/${clientId}`,
+                  });
+                }
+              } catch {
+                // Silencioso
+              }
             }
           }
         } catch (sessionError: unknown) {

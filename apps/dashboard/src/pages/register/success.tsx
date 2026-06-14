@@ -139,7 +139,7 @@ export default function RegisterSuccess() {
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
           <div className="p-8 flex justify-center">
             <div className="relative w-48 h-16">
-              <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+              <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
             </div>
           </div>
           <div className="px-8 pb-8">
@@ -276,6 +276,7 @@ export default function RegisterSuccess() {
                     placeholder="Mínimo 6 caracteres"
                     required
                     disabled={loading}
+                    autoComplete="new-password"
                   />
                 </div>
 
@@ -289,6 +290,7 @@ export default function RegisterSuccess() {
                     onChange={handleChange}
                     required
                     disabled={loading}
+                    autoComplete="new-password"
                   />
                 </div>
 

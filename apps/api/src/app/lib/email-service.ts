@@ -187,8 +187,7 @@ export class EmailService {
         replyToEmail: this.fromEmail,
         websiteUrl: 'https://nelhealthcoach.com',
         pdfDownloadUrl,
-        logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://nelhealthcoach.com/images/logo-white.png',
-        logoBlueUrl: process.env.LOGO_BLUE_URL || 'https://nelhealthcoach.com/images/logo-blue.png',
+        logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://app.nelhealthcoach.com/logo.png',
         };
 
         // Generar contenido
@@ -389,7 +388,7 @@ export class EmailService {
   ): Promise<boolean> {
     try {
       const trialDays = 30;
-      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
       const endDateStr = trialEndDate.toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'long',
@@ -423,7 +422,7 @@ export class EmailService {
     daysRemaining: number
   ): Promise<boolean> {
     try {
-      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
       const htmlContent = generateTrialEndingSoonEmailHTML({
         coachName,
@@ -455,7 +454,7 @@ export class EmailService {
     coachName: string
   ): Promise<boolean> {
     try {
-      const dashboardUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
       const htmlContent = generateTrialExpiredEmailHTML({
         coachName,

@@ -25,3 +25,5 @@ apps/*/testsprite_tests/node_modules/
 # Skills / tooling local config
 .agents/
 skills-lock.json
+
+emails-preview/

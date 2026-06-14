@@ -11,6 +11,7 @@ import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
 import { analyzeS3FileWithGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
 async function authorizeCoachForClient(request: NextRequest, clientId: string) {
@@ -105,7 +106,7 @@ function decryptAISessionCompletely(session: any): any {
 }
 
 // GET: Obtener recomendaciones de IA existentes
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -236,10 +237,12 @@ export async function GET(
   });
 }
 
+export const GET = apiHandler(getHandler);
+
 /**
 
 // POST: Generar nuevas recomendaciones de IA
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -627,6 +630,8 @@ export async function POST(
   });
 }
 
+export const POST = apiHandler(postHandler);
+
 /**
  * Helper function to save and return recommendations (used as fallback).
  */
@@ -697,7 +702,7 @@ async function saveAndReturnRecommendations(
 }
 
 // PUT: Actualizar checklist o aprobar recomendaciones
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -912,6 +917,8 @@ export async function PUT(
     }
   });
 }
+
+export const PUT = apiHandler(putHandler);
 
 // ─── Helper: Extraer JSON limpio de respuestas de Gemini ───────────
 /**
@@ -1626,7 +1633,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       // En Vercel producción usa VERCEL_URL automático; en dev usa API_URL o APP_URL
       const apiBaseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : (process.env.NEXT_PUBLIC_API_URL || process.env.APP_URL || 'http://localhost:3001');
+        : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
       const pdfDownloadUrl = `${apiBaseUrl}/api/clients/${clientId}/ai/${sessionId}/pdf`;
 
       emailSent = await emailService.sendMonthlyPlanEmail(

@@ -6,9 +6,12 @@ import { getRecipesCollection, getExerciseCollection, connectMongoose } from '@/
 import { ObjectId } from 'mongodb';
 import { S3Service } from '@/app/lib/s3';
 import { decrypt } from '@/app/lib/encryption';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
+import { createNotification } from '@/app/lib/create-notification';
 
 // PUT: Aprobar o rechazar propuesta (solo admin)
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -24,6 +27,13 @@ export async function PUT(
     }
 
     const { id } = await params;
+
+    // Request context para audit logs
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
     const body = await request.json();
     const { action, reviewNotes } = body; // action: 'approve' | 'reject'
 
@@ -98,6 +108,34 @@ export async function PUT(
         proposalType: proposal.proposalType,
       });
 
+      // Notificar al creador de la propuesta
+      try {
+        const notifType = proposal.targetType === 'recipe' ? 'recipe_approved' : 'exercise_approved';
+        const label = proposal.targetType === 'recipe' ? 'receta' : 'ejercicio';
+        const authorLabel = proposal.proposalType === 'creation' ? 'publicado' : 'cambios aplicados';
+        await createNotification({
+          coachId: proposal.coachId?.toString() || proposal.createdBy?.toString() || auth.coachId,
+          type: notifType,
+          title: `✅ ${label.charAt(0).toUpperCase() + label.slice(1)} aprobado`,
+          message: `Tu ${label} ha sido ${authorLabel} por el administrador.`,
+          link: `/dashboard/${proposal.targetType === 'recipe' ? 'recipes' : 'exercises'}`,
+        });
+      } catch (notifError) {
+        logger.warn('PROPOSAL', 'Error creando notificación de aprobación', notifError as Error);
+      }
+
+      logAuditEvent({
+        eventType: 'ADMIN_ACTION',
+        severity: 'info',
+        message: `Propuesta ${proposal.proposalType === 'creation' ? 'de creación' : 'de edición'} aprobada: ${proposal.targetType} ${proposal.targetId.toString()}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/edit-proposals/${id}`,
+        method: 'PUT',
+        statusCode: 200,
+        metadata: { proposalId: id, targetType: proposal.targetType, targetId: proposal.targetId.toString(), action: 'approve' },
+      });
+
       return NextResponse.json({
         success: true,
         message:
@@ -169,6 +207,34 @@ export async function PUT(
         targetId: proposal.targetId.toString(),
       });
 
+      // Notificar al creador de la propuesta
+      try {
+        const notifType = proposal.targetType === 'recipe' ? 'recipe_rejected' : 'exercise_rejected';
+        const label = proposal.targetType === 'recipe' ? 'receta' : 'ejercicio';
+        const notes = reviewNotes ? ` Motivo: ${reviewNotes}` : '';
+        await createNotification({
+          coachId: proposal.coachId?.toString() || proposal.createdBy?.toString() || auth.coachId,
+          type: notifType,
+          title: `❌ ${label.charAt(0).toUpperCase() + label.slice(1)} rechazado`,
+          message: `Tu ${label} ha sido rechazado por el administrador.${notes}`,
+          link: `/dashboard/${proposal.targetType === 'recipe' ? 'recipes' : 'exercises'}`,
+        });
+      } catch (notifError) {
+        logger.warn('PROPOSAL', 'Error creando notificación de rechazo', notifError as Error);
+      }
+
+      logAuditEvent({
+        eventType: 'ADMIN_ACTION',
+        severity: 'warning',
+        message: `Propuesta ${proposal.proposalType === 'creation' ? 'de creación' : 'de edición'} rechazada: ${proposal.targetType} ${proposal.targetId.toString()}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/edit-proposals/${id}`,
+        method: 'PUT',
+        statusCode: 200,
+        metadata: { proposalId: id, targetType: proposal.targetType, targetId: proposal.targetId.toString(), action: 'reject' },
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Propuesta rechazada y eliminada',
@@ -194,3 +260,5 @@ export async function PUT(
     );
   }
 }
+
+export const PUT = apiHandler(putHandler);

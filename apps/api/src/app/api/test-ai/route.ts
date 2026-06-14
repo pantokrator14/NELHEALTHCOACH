@@ -1,8 +1,9 @@
 // apps/api/src/app/api/test-ai/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { testGeminiConnection, callGeminiAPI } from '@/app/lib/agents/utils/llm';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(_req: NextRequest) {
+async function getHandler(_req: NextRequest) {
   try {
     // Probar conexión con Gemini
     const isConnected = await testGeminiConnection();
@@ -41,3 +42,5 @@ export async function GET(_req: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const GET = apiHandler(getHandler);

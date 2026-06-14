@@ -21,6 +21,7 @@ import { logger } from '@/app/lib/logger';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { callGeminiAPI } from '@/app/lib/agents/utils/llm';
+import { apiHandler } from '@/app/lib/apiHandler';
 import {
   submitTranscriptionRequest,
   buildCallbackUrl,
@@ -32,7 +33,7 @@ import type { VideoSession } from '../../../../../../../packages/types';
 // POST
 // ─────────────────────────────────────────────
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function postHandler(request: NextRequest): Promise<NextResponse> {
   // Declaradas fuera del try para accesibilidad en catch
   let clientId: string | undefined | null;
   let sessionId: string | undefined | null;
@@ -313,6 +314,8 @@ Responde solo con el JSON, sin explicaciones adicionales.`;
     );
   }
 }
+
+export const POST = apiHandler(postHandler);
 
 // ─────────────────────────────────────────────
 // Reintento automático

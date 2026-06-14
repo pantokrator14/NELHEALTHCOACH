@@ -182,6 +182,10 @@ export function generateClientSessionLink(
   clientEmail: string
 ): { joinLink: string; token: string } {
   // Usar jwt.sign directamente con expiresIn (sin exp en payload) para evitar conflicto
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET no está configurado — requerido para firmar tokens de video');
+  }
   const sessionToken = jwt.sign(
     {
       sub: clientId,
@@ -189,12 +193,12 @@ export function generateClientSessionLink(
       email: clientEmail,
       type: 'client-session',
     },
-    process.env.JWT_SECRET || 'default-secret',
+    secret,
     { expiresIn: '7d' }
   );
 
   // La página /video/join está en la app dashboard; DASHBOARD_URL es la correcta
-  const baseUrl = process.env.DASHBOARD_URL || process.env.WEBSITE_URL || 'http://localhost:3002';
+  const baseUrl = process.env.DASHBOARD_URL || process.env.WEBSITE_URL || 'http://localhost:3000';
   const joinLink = `${baseUrl}/video/join?token=${encodeURIComponent(sessionToken)}`;
 
   return { joinLink, token: sessionToken };

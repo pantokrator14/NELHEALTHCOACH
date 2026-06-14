@@ -12,6 +12,7 @@ import {
 } from '@/app/lib/video-service';
 import { logger } from '@/app/lib/logger';
 import { getHealthFormsCollection } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 import { ObjectId } from 'mongodb';
 
 interface TokenRequest {
@@ -23,7 +24,7 @@ interface TokenRequest {
   displayName?: string;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function postHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as TokenRequest;
 
@@ -152,3 +153,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

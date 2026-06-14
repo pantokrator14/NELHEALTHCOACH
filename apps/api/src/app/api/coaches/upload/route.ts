@@ -5,9 +5,10 @@ import { encrypt, decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
 import Coach from '@/app/models/Coach';
 import { S3Service } from '@/app/lib/s3';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 // POST: Generar URL firmada para subir foto de perfil
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -43,8 +44,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export const POST = apiHandler(postHandler);
+
 // PUT: Confirmar upload y guardar en perfil del coach
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -109,3 +112,5 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, message: 'Error interno' }, { status: 500 });
   }
 }
+
+export const PUT = apiHandler(putHandler);

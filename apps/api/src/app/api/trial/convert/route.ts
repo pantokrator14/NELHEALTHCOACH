@@ -8,6 +8,7 @@ import { stripeClient, getCoachSubscriptionAmount } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { decrypt, encrypt } from '@/app/lib/encryption';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 const SUBSCRIPTION_PRICE_ID = process.env.STRIPE_COACH_PRICE_ID;
 
@@ -17,7 +18,7 @@ const SUBSCRIPTION_PRICE_ID = process.env.STRIPE_COACH_PRICE_ID;
  * Autenticación requerida.
  * Cobra la suscripción usando el PaymentMethod guardado del trial.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -137,3 +138,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

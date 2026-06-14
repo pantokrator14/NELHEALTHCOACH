@@ -3,12 +3,20 @@ import bcrypt from 'bcryptjs';
 import Coach from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const body = await request.json();
     const { token, password } = body;
+
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
 
     if (!token || !password) {
       return NextResponse.json(
@@ -31,6 +39,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!coach) {
+      logAuditEvent({
+        eventType: 'PASSWORD_RESET_FAILURE',
+        severity: 'warning',
+        message: `Intento de reset con token inválido/expirado`,
+        ...reqCtx,
+        path: '/api/auth/reset-password',
+        method: 'POST',
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -46,6 +63,17 @@ export async function POST(request: NextRequest) {
     coach.resetToken = null;
     coach.resetTokenExpiry = null;
     await coach.save();
+
+    logAuditEvent({
+      eventType: 'PASSWORD_RESET_SUCCESS',
+      severity: 'info',
+      message: `Contraseña restablecida exitosamente`,
+      coachId: coach._id.toString(),
+      ...reqCtx,
+      path: '/api/auth/reset-password',
+      method: 'POST',
+      statusCode: 200,
+    });
 
     logger.info('AUTH', 'Contraseña restablecida exitosamente', {
       coachId: coach._id.toString(),
@@ -63,3 +91,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

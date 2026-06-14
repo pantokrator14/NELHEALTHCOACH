@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { NutritionService } from '@/app/lib/nutrition-service';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   return logger.time('NUTRITION_ANALYSIS', 'Analizando nutrición de ingredientes', async () => {
     try {
       // Autenticación requerida (solo coaches)
@@ -78,3 +79,5 @@ export async function POST(request: NextRequest) {
     }
   });
 }
+
+export const POST = apiHandler(postHandler);

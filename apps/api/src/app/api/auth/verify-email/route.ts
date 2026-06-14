@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import Coach from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const searchParams = request.nextUrl.searchParams;
@@ -80,3 +81,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

@@ -5,6 +5,7 @@ import { secureRoute } from '@/app/lib/security';
 import { leadSchema } from '@/app/lib/schemas';
 import { Resend } from 'resend';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,7 +13,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Validar variables de entorno necesarias
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-const WEBSITE_URL = process.env.WEBSITE_URL || 'https://nelhealthcoach.com';
+const WEBSITE_URL = process.env.WEBSITE_URL || 'http://localhost:3000';
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL;
 const CONTACT_PHONE_ES = process.env.CONTACT_PHONE_ES;
 const CONTACT_PHONE_EN = process.env.CONTACT_PHONE_EN;
@@ -36,7 +37,7 @@ if (!CONTACT_EMAIL) {
   logger.error('LEAD', 'CONTACT_EMAIL no está definido en las variables de entorno');
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   logger.info('LEAD', 'Recibida solicitud POST');
   try {
     const body = await request.json();
@@ -304,3 +305,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

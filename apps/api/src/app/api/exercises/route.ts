@@ -7,9 +7,11 @@ import { requireCoachAuth } from '@/app/lib/auth';
 import { S3Service } from '@/app/lib/s3';
 import { exerciseSchema } from '@/app/lib/schemas';
 import EditProposal from '@/app/models/EditProposal';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 // GET: Obtener ejercicios
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Obtener ejercicios', async () => {
     try {
       const searchParams = request.nextUrl.searchParams;
@@ -119,11 +121,20 @@ export async function GET(request: NextRequest) {
   });
 }
 
+export const GET = apiHandler(getHandler);
+
 // POST: Crear ejercicio
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Crear ejercicio', async () => {
     try {
       const body = await request.json();
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
 
       // Zod validation
       const parsed = exerciseSchema.safeParse(body);
@@ -204,6 +215,17 @@ export async function POST(request: NextRequest) {
           coachId: auth.coachId,
         });
 
+        logAuditEvent({
+          eventType: 'EXERCISE_CREATED',
+          severity: 'info',
+          message: `Ejercicio creado: ${body.name}`,
+          coachId: auth.coachId,
+          ...reqCtx,
+          path: '/api/exercises',
+          method: 'POST',
+          statusCode: 201,
+        });
+
         return NextResponse.json({
           success: true,
           message: 'Tu ejercicio ha sido enviado para revisión del administrador',
@@ -213,6 +235,17 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+
+      logAuditEvent({
+        eventType: 'EXERCISE_CREATED',
+        severity: 'info',
+        message: `Ejercicio creado: ${body.name}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: '/api/exercises',
+        method: 'POST',
+        statusCode: 201,
+      });
 
       return NextResponse.json({
         success: true,
@@ -237,8 +270,10 @@ export async function POST(request: NextRequest) {
   });
 }
 
+export const POST = apiHandler(postHandler);
+
 // PUT: Actualizar ejercicio
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Actualizar ejercicio', async () => {
     try {
       const body = await request.json();
@@ -350,8 +385,10 @@ export async function PUT(request: NextRequest) {
   });
 }
 
+export const PUT = apiHandler(putHandler);
+
 // DELETE: Eliminar ejercicios (solo admin)
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Eliminar ejercicios', async () => {
     try {
       // Solo administradores pueden eliminar ejercicios
@@ -436,3 +473,5 @@ export async function DELETE(request: NextRequest) {
     }
   });
 }
+
+export const DELETE = apiHandler(deleteHandler);

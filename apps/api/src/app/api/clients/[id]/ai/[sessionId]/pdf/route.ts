@@ -15,8 +15,9 @@ import type { PDFRecommendationData, PDFRecipeData, PDFExerciseData } from '@/ap
 import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; sessionId: string }> }
 ) {
@@ -292,7 +293,7 @@ export async function GET(
     const sessionIndex = sessions.findIndex((s: any) => s.sessionId === sessionId);
 
     // ── 8. Generar PDF ──
-    const websiteUrl = process.env.APP_URL || 'https://nelhealthcoach.com';
+    const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
 
     const structuredMedicalAnalysis = session.structuredMedicalAnalysis || undefined;
 
@@ -358,3 +359,5 @@ export async function GET(
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

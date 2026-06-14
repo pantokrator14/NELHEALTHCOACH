@@ -13,13 +13,14 @@ import { decrypt } from '@/app/lib/encryption';
 import { ObjectId } from 'mongodb';
 import crypto from 'crypto';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 interface SendInviteRequest {
   clientId: string;
   sessionId: string;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function postHandler(request: NextRequest): Promise<NextResponse> {
   try {
     // Auth — coach autenticado
     const auth = requireCoachAuth(request);
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           scheduledTime: timeString,
           durationMinutes: session.durationMinutes,
           joinLink: coachJoinLink,
-          dashboardUrl: `${process.env.DASHBOARD_URL || 'http://localhost:3002'}/dashboard/clients/${body.clientId}`,
+          dashboardUrl: `${process.env.DASHBOARD_URL || 'http://localhost:3000'}/dashboard/clients/${body.clientId}`,
           timeZone: timezone,
         });
 
@@ -186,3 +187,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

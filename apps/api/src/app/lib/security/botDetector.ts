@@ -253,14 +253,13 @@ export function runBotDetection(
   }
 
   // 3. Verificar consistencia de browser (si parece browser)
+  // ⚠️ Solo LOG — NO bloqueante. Muchos navegadores legítimos no envían Sec-CH-UA:
+  // Chrome en iOS, navegadores in-app (FB/IG/TikTok), Brave, Samsung Internet, etc.
+  // El bloqueo por User-Agent + headers sospechosos + rate limiting es suficiente.
   const category = categorizeAgent(ctx.userAgent);
   if (category === 'browser' && !checkBrowserConsistency(headers)) {
-    return {
-      passed: false,
-      reason: 'BOT: browser inconsistente (sin Sec-CH-UA)',
-      statusCode: 403,
-      message: 'Acceso bloqueado: inconsistencia de navegador detectada',
-    };
+    const msg = `BOT (log only): browser inconsistente (sin Sec-CH-UA) — ${ctx.userAgent.substring(0, 80)}`;
+    console.warn(`[BOT-DETECTOR] ${msg}`);
   }
 
   return null;

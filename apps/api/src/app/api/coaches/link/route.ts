@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const auth = requireCoachAuth(request);
-    const formUrl = process.env.FORM_URL || 'https://form.nelhealthcoach.com';
+    const formUrl = process.env.FORM_URL || 'http://localhost:3002';
 
     // Leer el tipo de link: 'paid' (default) o 'free'
     const type = request.nextUrl.searchParams.get('type') || 'paid';
@@ -52,3 +53,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

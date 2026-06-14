@@ -8,6 +8,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose, getHealthFormsCollection } from '@/app/lib/database';
 import { stripeClient } from '@/app/lib/stripe';
 import { decrypt } from '@/app/lib/encryption';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/trial/cancel
@@ -16,7 +17,7 @@ import { decrypt } from '@/app/lib/encryption';
  * Elimina el coach autenticado y todos sus clientes.
  * También cancela cualquier PaymentMethod/Cliente en Stripe si existe.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -92,3 +93,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

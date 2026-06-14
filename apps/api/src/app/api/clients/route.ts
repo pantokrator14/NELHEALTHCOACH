@@ -11,6 +11,8 @@ import {
   generateNewClientClientNotificationHTML,
   generateNewClientCoachNotificationHTML,
 } from '@/app/lib/email-templates';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 interface MedicalData {
   mainComplaint: string;
@@ -80,7 +82,7 @@ interface ClientFormData {
 }
 
 // GET: Listar clientes (dashboard, filtrado por coach)
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   return logger.time('CLIENTS', 'Obtener lista de clientes', async () => {
     try {
       logger.info('CLIENTS', 'Solicitud GET /api/clients recibida', undefined, {
@@ -227,13 +229,22 @@ export async function GET(request: NextRequest) {
   }, { endpoint: '/api/clients' });
 }
 
+export const GET = apiHandler(getHandler);
+
 // POST: Crear nuevo cliente (desde formulario)
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const data = await request.json();
     const clientIP = request.headers.get('x-forwarded-for') || 
                     request.headers.get('x-real-ip') || 
                     'Unknown';
+
+    // Request context para audit logs
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
 
     // Verificación de seguridad: rate limit + shield body scan
     const securityCheck = await secureRoute(request, data);
@@ -483,7 +494,7 @@ export async function POST(request: NextRequest) {
           const coach = await Coach.findById(coachId);
           if (coach) {
             const emailService = EmailService.getInstance();
-            const appUrl = process.env.APP_URL || 'https://dashboard.nelhealthcoach.com';
+            const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
             const clientName = decrypt(data.personalData.name || '');
             const clientEmail = data.personalData.email;
@@ -540,6 +551,18 @@ export async function POST(request: NextRequest) {
 
     console.log('📤 Enviando respuesta al frontend:', responseData);
     logger.info('CLIENTS', 'Enviando respuesta al frontend', responseData);
+
+    const decryptedName = decrypt(data.personalData.name || '');
+    logAuditEvent({
+      eventType: 'CLIENT_CREATED',
+      severity: 'info',
+      message: `Cliente creado: ${decryptedName}`,
+      coachId: coachId,
+      ...reqCtx,
+      path: '/api/clients',
+      method: 'POST',
+      statusCode: 201,
+    });
     
     return NextResponse.json(responseData, { status: 201 });
 
@@ -555,3 +578,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);
