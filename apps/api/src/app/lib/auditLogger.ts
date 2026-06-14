@@ -1,9 +1,14 @@
 // apps/api/src/app/lib/auditLogger.ts
 // Servicio de registro de auditoría — persiste eventos de seguridad en MongoDB
 // y los loguea en consola con colores para facilitar la revisión.
+//
+// ⚠️ NO importar mongoose ni modelos de MongoDB al nivel del módulo.
+//    Este archivo se importa dinámicamente desde middleware.ts (Edge Runtime),
+//    y cualquier import de mongoose rompe la compilación porque evalúa
+//    mongoose/dist/browser.umd.js que contiene eval/new Function.
+//    Las importaciones de DB se hacen dentro de las funciones (lazy).
 
-import mongoose from 'mongoose';
-import AuditLog, { type IAuditLog, type AuditEventType } from '@/app/models/AuditLog';
+import type { AuditEventType } from '@/app/models/AuditLog';
 import { logger } from './logger';
 import { sanitizeMessage } from './sanitize';
 
@@ -130,13 +135,16 @@ export async function logAuditEvent(data: AuditEventData): Promise<void> {
     },
   );
 
-  // ── 3. Persistir a MongoDB ──
+  // ── 3. Persistir a MongoDB (lazy — imports dinámicos para Edge compat) ──
   try {
+    const { default: mongoose } = await import('mongoose');
     // Verificar conexión activa antes de insertar
     if (mongoose.connection.readyState !== 1) {
       // No hay conexión — solo log en consola
       return;
     }
+
+    const { default: AuditLog } = await import('@/app/models/AuditLog');
 
     const doc = new AuditLog({
       eventType: data.eventType,
