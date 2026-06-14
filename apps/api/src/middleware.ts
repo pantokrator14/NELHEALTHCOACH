@@ -9,9 +9,7 @@ import { requestLogger } from './app/middleware/requestLogger';
 import { runShield } from './app/lib/security/shield';
 import { runBotDetection } from './app/lib/security/botDetector';
 import type { RequestContext } from './app/lib/security/types';
-
-// logSecurityBlock se importa dinámicamente solo cuando se necesita
-// (evita que mongoose rompa el Edge Runtime en la carga del módulo)
+import { logSecurityBlock } from './app/lib/auditLogger.edge';
 
 // ─── Configuración ───
 
@@ -153,17 +151,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // Shield: escanea URL y query params
     const shieldResult = runShield(ctx, request.nextUrl.searchParams);
     if (shieldResult && !shieldResult.passed) {
-      // Audit log del bloqueo (fire-and-forget, Edge-compatible)
-      import('./app/lib/auditLogger').then(({ logSecurityBlock }) =>
-        logSecurityBlock('SHIELD_BLOCK', shieldResult.reason ?? 'SHIELD', {
-          ip: ctx.ip,
-          path,
-          userAgent: ctx.userAgent,
-          requestId,
-          visitorId: ctx.visitorId,
-          metadata: { shieldReason: shieldResult.reason, shieldMessage: shieldResult.message },
-        })
-      ).catch(() => {});
+      // Audit log del bloqueo (Edge-safe, sin mongoose)
+      logSecurityBlock('SHIELD_BLOCK', shieldResult.reason ?? 'SHIELD', {
+        ip: ctx.ip,
+        path,
+        userAgent: ctx.userAgent,
+        requestId,
+        visitorId: ctx.visitorId,
+        metadata: { shieldReason: shieldResult.reason, shieldMessage: shieldResult.message },
+      });
 
       return createBlockedResponse(
         shieldResult.statusCode ?? 403,
@@ -177,17 +173,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // Bot Detection
     const botResult = runBotDetection(ctx, request.headers);
     if (botResult && !botResult.passed) {
-      // Audit log del bloqueo (fire-and-forget)
-      import('./app/lib/auditLogger').then(({ logSecurityBlock }) =>
-        logSecurityBlock('BOT_DETECTED', botResult.reason ?? 'BOT', {
-          ip: ctx.ip,
-          path,
-          userAgent: ctx.userAgent,
-          requestId,
-          visitorId: ctx.visitorId,
-          metadata: { botReason: botResult.reason, botMessage: botResult.message },
-        })
-      ).catch(() => {});
+      // Audit log del bloqueo (Edge-safe, sin mongoose)
+      logSecurityBlock('BOT_DETECTED', botResult.reason ?? 'BOT', {
+        ip: ctx.ip,
+        path,
+        userAgent: ctx.userAgent,
+        requestId,
+        visitorId: ctx.visitorId,
+        metadata: { botReason: botResult.reason, botMessage: botResult.message },
+      });
 
       return createBlockedResponse(
         botResult.statusCode ?? 403,
