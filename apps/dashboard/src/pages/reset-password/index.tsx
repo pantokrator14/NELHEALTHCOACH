@@ -51,7 +51,7 @@ export default function ResetPassword() {
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
           <div className="p-8 flex justify-center">
             <div className="relative w-48 h-16">
-              <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+              <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
             </div>
           </div>
           <div className="px-8 pb-8">
@@ -71,11 +71,11 @@ export default function ResetPassword() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña</label>
-                  <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required disabled={loading} />
+                  <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required disabled={loading} autoComplete="new-password" />
                 </div>
                 <div>
                   <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña</label>
-                  <PasswordInput id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} required disabled={loading} />
+                  <PasswordInput id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} required disabled={loading} autoComplete="new-password" />
                 </div>
                 <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
                   {loading ? 'Restableciendo...' : 'Restablecer contraseña'}

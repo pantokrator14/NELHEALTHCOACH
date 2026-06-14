@@ -14,6 +14,8 @@ import PendingSession from '@/app/models/PendingSession';
 import { encrypt } from '@/app/lib/encryption';
 import { EmailService } from '@/app/lib/email-service';
 import { generatePaymentRequestEmailHTML } from '@/app/lib/email-templates';
+import { createNotification } from '@/app/lib/create-notification';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 interface CreateRoomRequestBody {
   clientId: string;
@@ -25,7 +27,7 @@ interface CreateRoomRequestBody {
   timezone?: string;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function postHandler(request: NextRequest): Promise<NextResponse> {
   try {
     // Verificar autenticación del coach
     const coachPayload = requireCoachAuth(request);
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Enviar email al cliente con botón "Proceder al pago"
     try {
       const emailService = EmailService.getInstance();
-      const formUrl = process.env.FORM_URL || process.env.APP_URL || 'http://localhost:3000';
+      const formUrl = process.env.FORM_URL || 'http://localhost:3002';
 
       const paymentLink = `${formUrl}/request-session?pendingSessionId=${pending._id}`;
 
@@ -144,6 +146,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     } catch (emailError) {
       logger.error('VIDEO', 'Error enviando email de solicitud de pago', emailError as Error);
+    }
+
+    // Notificación in-app para el coach
+    try {
+      await createNotification({
+        coachId: coachPayload.coachId,
+        type: 'session_scheduled',
+        title: '📹 Sesión de videollamada agendada',
+        message: `Has agendado una sesión con ${body.clientName} para el ${scheduledDate.toLocaleDateString('es-MX')}. Pendiente de pago.`,
+        link: `/dashboard/clients/${body.clientId}`,
+      });
+    } catch (notifError) {
+      logger.error('NOTIFICATIONS', 'Error creando notificación de sesión', notifError as Error);
     }
 
     logger.info('VIDEO', 'Pending session created (awaiting payment)', {
@@ -185,13 +200,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+export const POST = apiHandler(postHandler);
+
 /**
  * GET /api/video/rooms?clientId=xxx
  *
  * Lista las sesiones pendientes de pago para un cliente.
  * Útil para que el coach vea el estado.
  */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function getHandler(request: NextRequest): Promise<NextResponse> {
   try {
     requireCoachAuth(request);
 
@@ -221,3 +238,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

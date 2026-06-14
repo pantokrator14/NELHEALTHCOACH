@@ -10,6 +10,9 @@ import { logger } from '@/app/lib/logger';
 import {
   constructStripeEvent,
   handleCheckoutCompleted,
+  handlePayoutCreated,
+  handlePayoutPaid,
+  handlePayoutFailed,
 } from '@/app/lib/stripe-webhook';
 
 /**
@@ -61,6 +64,24 @@ export async function POST(request: NextRequest) {
       case 'account.updated': {
         const account = event.data.object as unknown as Record<string, unknown>;
         await handleAccountUpdated(account);
+        break;
+      }
+
+      case 'payout.created': {
+        const payoutCreated = event.data.object as unknown as Record<string, unknown>;
+        await handlePayoutCreated(payoutCreated);
+        break;
+      }
+
+      case 'payout.paid': {
+        const payoutPaid = event.data.object as unknown as Record<string, unknown>;
+        await handlePayoutPaid(payoutPaid);
+        break;
+      }
+
+      case 'payout.failed': {
+        const payoutFailed = event.data.object as unknown as Record<string, unknown>;
+        await handlePayoutFailed(payoutFailed);
         break;
       }
 
@@ -250,6 +271,32 @@ async function handleInvoicePaid(invoice: Record<string, unknown>): Promise<void
       },
     }
   );
+
+  // Guardar historial de pago de suscripción
+  try {
+    const { default: SubscriptionPayment } = await import('@/app/models/SubscriptionPayment');
+    const amount = (invoice.amount_paid as number) || 0;
+    const statusTransitions = invoice.status_transitions as Record<string, unknown> | undefined;
+    const paidAt = statusTransitions?.paid_at
+      ? new Date(statusTransitions.paid_at as string)
+      : new Date();
+
+    await SubscriptionPayment.create({
+      coachId: String((coachDoc as Record<string, unknown>)._id),
+      amount,
+      invoiceId: invoice.id as string,
+      subscriptionId,
+      customerId,
+      paidAt,
+    });
+
+    logger.info('PAYMENTS', 'SubscriptionPayment guardado por invoice.paid', {
+      coachId: String((coachDoc as Record<string, unknown>)._id),
+      amount,
+    });
+  } catch (spError) {
+    logger.error('PAYMENTS', 'Error guardando SubscriptionPayment', spError as Error);
+  }
 
   logger.info('PAYMENTS', 'Suscripción de coach actualizada por invoice.paid', {
     coachId: String((coachDoc as Record<string, unknown>)._id),

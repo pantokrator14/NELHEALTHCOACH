@@ -6,6 +6,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { retrieveAccountStatus } from '@/app/lib/stripe-connect';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * GET /api/payments/connect-account-status
@@ -13,7 +14,7 @@ import { retrieveAccountStatus } from '@/app/lib/stripe-connect';
  * Devuelve el estado actual de la cuenta Connect del coach.
  * Incluye si completó onboarding, si tiene pagos habilitados y su precio.
  */
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const auth = requireCoachAuth(request);
     await connectMongoose();
@@ -83,3 +84,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = apiHandler(getHandler);

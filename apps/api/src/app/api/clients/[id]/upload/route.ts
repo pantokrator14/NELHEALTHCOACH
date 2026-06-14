@@ -7,6 +7,7 @@ import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * Verifica que el coach autenticado sea admin o el coach asignado al cliente.
@@ -36,7 +37,7 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string): 
 }
 
 // GET: Obtener URL firmada de descarga para un documento (requiere auth)
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -70,8 +71,10 @@ export async function GET(
   }
 }
 
+export const GET = apiHandler(getHandler);
+
 // POST: Obtener URLs para upload (requiere auth)
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -177,8 +180,10 @@ export async function POST(
   }, { endpoint: `/api/clients/${(await params).id}/upload`, method: 'POST', clientId: (await params).id });
 }
 
+export const POST = apiHandler(postHandler);
+
 // PUT: Confirmar upload y guardar referencia (requiere auth)
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -372,8 +377,10 @@ export async function PUT(
   }, { endpoint: `/api/clients/${(await params).id}/upload`, method: 'PUT', clientId: (await params).id });
 }
 
+export const PUT = apiHandler(putHandler);
+
 // DELETE: Eliminar documento (requiere auth)
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -641,7 +648,9 @@ export async function DELETE(
   }, { endpoint: `/api/clients/${(await params).id}/upload`, method: 'DELETE', clientId: (await params).id });
 }
 
-export async function PATCH(
+export const DELETE = apiHandler(deleteHandler);
+
+async function patchHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -679,6 +688,8 @@ export async function PATCH(
     );
   }
 }
+
+export const PATCH = apiHandler(patchHandler);
 
 
 async function repairCorruptedDocuments(clientId: string) {

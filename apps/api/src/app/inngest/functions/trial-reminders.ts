@@ -10,6 +10,7 @@ import { connectMongoose } from '@/app/lib/database';
 import { EmailService } from '@/app/lib/email-service';
 import { decrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
+import { createNotification } from '@/app/lib/create-notification';
 
 interface LeanCoach {
   _id: { toString(): string };
@@ -76,6 +77,15 @@ export const trialRemindersFn = inngest.createFunction(
         if (daysRemaining === 9) {
           await emailService.sendTrialEndingSoonEmail(coachEmail, coachName, daysRemaining);
           remindersSent++;
+
+          await createNotification({
+            coachId: coach._id.toString(),
+            type: 'trial_ending',
+            title: '⚠️ Tu prueba gratis está por terminar',
+            message: `Quedan ${daysRemaining} días de prueba. Suscríbete para seguir usando NELHEALTHCOACH sin interrupción.`,
+            link: '/dashboard/finances',
+          });
+
           logger.info('TRIAL_REMINDER', 'Recordatorio día 21 enviado', {
             coachId: coach._id.toString(),
             daysRemaining,
@@ -86,6 +96,15 @@ export const trialRemindersFn = inngest.createFunction(
         if (daysRemaining === 3) {
           await emailService.sendTrialEndingSoonEmail(coachEmail, coachName, daysRemaining);
           remindersSent++;
+
+          await createNotification({
+            coachId: coach._id.toString(),
+            type: 'trial_ending',
+            title: '⚠️ Tu prueba gratis termina en 3 días',
+            message: 'Tu período de prueba finaliza pronto. Suscríbete para no perder el acceso a tus clientes y herramientas.',
+            link: '/dashboard/finances',
+          });
+
           logger.info('TRIAL_REMINDER', 'Recordatorio día 27 enviado', {
             coachId: coach._id.toString(),
             daysRemaining,
@@ -110,8 +129,17 @@ export const trialRemindersFn = inngest.createFunction(
           await emailService.sendTrialExpiredEmail(coachEmail, coachName);
           remindersSent++;
 
+          await createNotification({
+            coachId: coach._id.toString(),
+            type: 'trial_expired',
+            title: '❌ Tu prueba gratis ha expirado',
+            message: 'Tu período de prueba ha terminado. Suscríbete para reactivar tu cuenta y seguir trabajando con tus clientes.',
+            link: '/dashboard/finances',
+          });
+
           logger.info('TRIAL_REMINDER', 'Trial marcado como expirado', {
             coachId: coach._id.toString(),
+            daysRemaining,
           });
         }
       } catch (coachError: unknown) {

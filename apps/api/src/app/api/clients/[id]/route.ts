@@ -6,9 +6,11 @@ import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } f
 import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 // GET: Obtener un cliente específico
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -320,8 +322,10 @@ export async function GET(
   }, { endpoint: `/api/clients/${(await params).id}`, clientId: (await params).id });
 }
 
+export const GET = apiHandler(getHandler);
+
 // PUT: Actualizar cliente
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -334,6 +338,13 @@ export async function PUT(
         method: 'PUT',
         clientId: id
       });
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
 
       // === DEFINICIONES CRÍTICAS ===
       const arrayFields = [
@@ -574,6 +585,17 @@ export async function PUT(
 
       logger.info('CLIENTS', 'Cliente actualizado exitosamente', { clientId: id });
 
+      logAuditEvent({
+        eventType: 'CLIENT_UPDATED',
+        severity: 'info',
+        message: `Cliente actualizado: ${id}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/clients/${id}`,
+        method: 'PUT',
+        statusCode: 200,
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Cliente actualizado exitosamente'
@@ -607,8 +629,10 @@ export async function PUT(
   }, { endpoint: `/api/clients/${(await params).id}`, clientId: (await params).id });
 }
 
+export const PUT = apiHandler(putHandler);
+
 // DELETE: Eliminar cliente
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -632,6 +656,13 @@ export async function DELETE(
           { status: 401 }
         );
       }
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
 
       const healthForms = await getHealthFormsCollection();
       
@@ -820,6 +851,17 @@ export async function DELETE(
 
       logger.info('CLIENTS', 'Cliente y archivos eliminados exitosamente', { clientId: id });
 
+      logAuditEvent({
+        eventType: 'CLIENT_DELETED',
+        severity: 'warning',
+        message: `Cliente eliminado: ${id}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: `/api/clients/${id}`,
+        method: 'DELETE',
+        statusCode: 200,
+      });
+
       return NextResponse.json({
         success: true,
         message: 'Cliente y archivos asociados eliminados exitosamente'
@@ -852,3 +894,5 @@ export async function DELETE(
     }
   }, { endpoint: `/api/clients/${(await params).id}`, clientId: (await params).id });
 }
+
+export const DELETE = apiHandler(deleteHandler);

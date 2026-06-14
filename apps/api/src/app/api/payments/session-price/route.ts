@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * PUT /api/payments/session-price
@@ -14,7 +15,7 @@ import { requireCoachAuth } from '@/app/lib/auth';
  *
  * Guarda el precio por sesión que el coach desea cobrar.
  */
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   try {
     const auth = requireCoachAuth(request);
     await connectMongoose();
@@ -75,3 +76,5 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export const PUT = apiHandler(putHandler);

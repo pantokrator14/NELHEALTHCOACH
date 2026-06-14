@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { EmailService } from '@/app/lib/email-service';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET() {
+async function getHandler() {
   // Solo accesible en desarrollo
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json(
@@ -20,3 +21,5 @@ export async function GET() {
   
   return NextResponse.json({ success: testResult });
 }
+
+export const GET = apiHandler(getHandler);

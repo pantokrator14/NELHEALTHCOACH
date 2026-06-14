@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api'
 import TrialBanner from './TrialBanner'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 interface LayoutProps {
   children: ReactNode
@@ -20,6 +21,7 @@ export default function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [coachData, setCoachData] = useState<CoachData | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
 
   // Cargar datos completos del coach
@@ -37,6 +39,13 @@ export default function Layout({ children }: LayoutProps) {
     apiClient.getProfile().then(res => {
       if (res?.data) {
         setCoachData(res.data)
+      }
+    }).catch(() => { /* ignore */ })
+
+    // Fetch de notificaciones no leídas para el badge del toggle móvil
+    apiClient.getUnreadNotificationCount().then(res => {
+      if (res?.success) {
+        setUnreadCount(res.count)
       }
     }).catch(() => { /* ignore */ })
   }, [])
@@ -77,9 +86,16 @@ export default function Layout({ children }: LayoutProps) {
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <div className="relative">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 leading-none shadow-sm">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </div>
       </button>
 
       {/* Overlay para móviles */}
@@ -156,6 +172,19 @@ export default function Layout({ children }: LayoutProps) {
               <span className="font-medium">Ejercicios</span>
             </button>
 
+            {/* Finanzas */}
+            <button
+              onClick={() => navigateTo('/dashboard/finances')}
+              className="w-full text-left px-4 py-3 rounded-lg hover:bg-purple-600 transition-all duration-200 flex items-center group"
+            >
+              <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-purple-600 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <span className="font-medium">Finanzas</span>
+            </button>
+
             {/* Coaches (solo admin) */}
             {isAdmin && (
               <button
@@ -173,6 +202,11 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </nav>
 
+        {/* Notificaciones */}
+        <div className="px-4 pb-2">
+          <NotificationBell />
+        </div>
+
         {/* Perfil — justo encima de la línea divisoria */}
         <div className="p-4">
           <button
@@ -181,7 +215,7 @@ export default function Layout({ children }: LayoutProps) {
           >
             <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 overflow-hidden bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all relative">
               {photoUrl ? (
-                <Image src={photoUrl} alt="" fill className="object-cover" unoptimized />
+                <Image src={photoUrl} alt="" fill sizes="32px" className="object-cover" unoptimized />
               ) : (
                 <span className="text-sm font-bold">{fullName.charAt(0).toUpperCase()}</span>
               )}

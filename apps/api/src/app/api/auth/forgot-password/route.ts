@@ -6,12 +6,20 @@ import { EmailService } from '@/app/lib/email-service';
 import { generatePasswordResetHTML } from '@/app/lib/email-templates';
 import { connectMongoose } from '@/app/lib/database';
 import { decrypt } from '@/app/lib/encryption';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const body = await request.json();
     const { email } = body;
+
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
 
     if (!email) {
       return NextResponse.json(
@@ -26,6 +34,16 @@ export async function POST(request: NextRequest) {
     const coach = await Coach.findOne({ emailHash });
 
     if (!coach || !coach.isActive) {
+      // No revelar si el email existe o no (seguridad por oscuridad)
+      logAuditEvent({
+        eventType: 'PASSWORD_RESET_REQUEST',
+        severity: 'info',
+        message: `Solicitud de reset para email no encontrado/inactivo: ${emailLower}`,
+        actorEmail: emailLower,
+        ...reqCtx,
+        path: '/api/auth/forgot-password',
+        method: 'POST',
+      });
       return NextResponse.json({
         success: true,
         message: 'Si el email está registrado, recibirás un enlace de recuperación.',
@@ -38,10 +56,22 @@ export async function POST(request: NextRequest) {
     coach.resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hora
     await coach.save();
 
+    logAuditEvent({
+      eventType: 'PASSWORD_RESET_REQUEST',
+      severity: 'info',
+      message: `Token de reset generado para coach`,
+      coachId: coach._id.toString(),
+      actorEmail: emailLower,
+      ...reqCtx,
+      path: '/api/auth/forgot-password',
+      method: 'POST',
+      metadata: { tokenExpiry: '1h' },
+    });
+
     // Enviar email
     try {
       const emailService = EmailService.getInstance();
-      const appUrl = process.env.APP_URL || 'https://dashboard.nelhealthcoach.com';
+      const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
       const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
 
       await emailService.sendEmail({
@@ -73,3 +103,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

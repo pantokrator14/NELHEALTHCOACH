@@ -18,6 +18,8 @@ import {
   generateVerificationEmailHTML,
 } from '@/app/lib/email-templates';
 import { uploadBufferToS3 } from '@/app/lib/s3';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 const TRIAL_DAYS = 30;
 
@@ -31,11 +33,18 @@ const TRIAL_DAYS = 30;
  * 3. Devuelve la URL de Stripe para redirigir al coach
  * 4. El webhook confirma el pago, reembolsa y activa la cuenta
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
     const body = await request.json();
+
+    // Request context para audit logs
+    const reqCtx = {
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+    };
 
     // Zod validation
     const parsed = registerSchema.safeParse(body);
@@ -69,6 +78,17 @@ export async function POST(request: NextRequest) {
     // Verificar si ya existe como coach
     const existingCoach = await Coach.findOne({ emailHash });
     if (existingCoach) {
+      logAuditEvent({
+        eventType: 'REGISTER_FAILURE',
+        severity: 'warning',
+        message: `Trial register duplicado: ${emailLower}`,
+        actorEmail: emailLower,
+        ...reqCtx,
+        path: '/api/auth/trial-register',
+        method: 'POST',
+        statusCode: 409,
+        metadata: { reason: 'email_exists' },
+      });
       return NextResponse.json(
         { success: false, message: 'Ya existe una cuenta con este email' },
         { status: 409 }
@@ -78,6 +98,17 @@ export async function POST(request: NextRequest) {
     // Verificar si ya usó trial anteriormente (persiste aunque la cuenta se haya borrado)
     const existingTrial = await TrialRecord.findOne({ emailHash });
     if (existingTrial) {
+      logAuditEvent({
+        eventType: 'REGISTER_FAILURE',
+        severity: 'warning',
+        message: `Trial register: email ya usó prueba gratuita: ${emailLower}`,
+        actorEmail: emailLower,
+        ...reqCtx,
+        path: '/api/auth/trial-register',
+        method: 'POST',
+        statusCode: 409,
+        metadata: { reason: 'trial_already_used' },
+      });
       return NextResponse.json(
         {
           success: false,
@@ -94,6 +125,17 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (adminEmailHash && emailHash === adminEmailHash) {
+      logAuditEvent({
+        eventType: 'REGISTER_FAILURE',
+        severity: 'error',
+        message: `Intento de suplantación del admin (trial): ${emailLower}`,
+        actorEmail: emailLower,
+        ...reqCtx,
+        path: '/api/auth/trial-register',
+        method: 'POST',
+        statusCode: 403,
+        metadata: { reason: 'admin_impersonation' },
+      });
       return NextResponse.json(
         { success: false, message: 'No puedes registrarte con el email del administrador' },
         { status: 403 }
@@ -166,7 +208,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Crear Checkout Session de $1
-    const appUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
     let checkoutUrl: string;
     try {
@@ -189,13 +231,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Registrar el trial en TrialRecord (persiste aunque el coach se elimine)
+    // Registrar el trial en TrialRecord
     try {
       await TrialRecord.create({ emailHash });
     } catch (trialRecordError) {
-      // Si falla, no bloqueamos — el coach ya fue creado
       logger.error('AUTH', 'Error creando TrialRecord', trialRecordError as Error);
     }
+
+    // Audit log
+    logAuditEvent({
+      eventType: 'REGISTER_SUCCESS',
+      severity: 'info',
+      message: `Nuevo coach registrado en trial: ${emailLower}`,
+      actorEmail: emailLower,
+      coachId: coach._id.toString(),
+      actorRole: 'coach',
+      ...reqCtx,
+      path: '/api/auth/trial-register',
+      method: 'POST',
+      statusCode: 201,
+      metadata: { trialEndDate: trialEndDate.toISOString(), trialDays: TRIAL_DAYS },
+    });
 
     // Enviar email de verificación
     try {
@@ -233,3 +289,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

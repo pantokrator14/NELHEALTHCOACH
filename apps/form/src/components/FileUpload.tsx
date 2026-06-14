@@ -122,9 +122,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   <Image 
                     src={previewUrl} 
                     alt="Preview" 
-                    className="w-full h-full object-cover"
-                    layout="fill"
-                    objectFit="cover"
+                    fill
+                    sizes="128px"
+                    className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100">

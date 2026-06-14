@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripeClient, getClientSessionAmount } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/payments/create-client-checkout
@@ -18,7 +19,7 @@ import { connectMongoose } from '@/app/lib/database';
  *
  * Crea un Checkout Session de Stripe (one-time payment).
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener URLs base
-    const formUrl = process.env.FORM_URL || process.env.APP_URL || 'http://localhost:3000';
+    const formUrl = process.env.FORM_URL || 'http://localhost:3002';
     // Incluir {CHECKOUT_SESSION_ID} para que Stripe lo reemplace con el ID real
     const successUrl = returnUrl
       ? `${returnUrl}?payment=success&session_id={CHECKOUT_SESSION_ID}`
@@ -129,3 +130,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

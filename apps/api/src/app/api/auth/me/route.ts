@@ -5,6 +5,7 @@ import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 function encryptPhoto(photo: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!photo) return null;
@@ -34,7 +35,7 @@ function decryptPhoto(photo: Record<string, unknown> | null): Record<string, unk
   };
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -113,7 +114,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const GET = apiHandler(getHandler);
+
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -171,7 +174,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export const POST = apiHandler(postHandler);
+
+async function putHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const auth = requireCoachAuth(request);
@@ -245,6 +250,8 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
   }
 }
+
+export const PUT = apiHandler(putHandler);
 
 function getSubscriptionLabel(
   coach: { isSuspended?: boolean; trialStatus?: string; subscriptionStatus?: string },

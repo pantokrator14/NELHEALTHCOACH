@@ -101,7 +101,7 @@ export default function CoachesPage() {
                   <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 flex justify-center">
                     <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-orange-300 flex items-center justify-center relative">
                       {coach.profilePhoto?.url ? (
-                        <Image src={coach.profilePhoto.url} alt={coach.firstName} fill className="object-cover" unoptimized />
+                        <Image src={coach.profilePhoto.url} alt={coach.firstName} fill sizes="80px" className="object-cover" unoptimized />
                       ) : (
                         <span className="text-white text-3xl font-bold">{coach.firstName.charAt(0).toUpperCase()}</span>
                       )}
@@ -129,7 +129,7 @@ export default function CoachesPage() {
               <div className="bg-gradient-to-br from-orange-500 to-orange-700 p-8 text-center">
                 <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg mx-auto mb-4 overflow-hidden bg-orange-300 flex items-center justify-center relative">
                   {selectedCoach.profilePhoto?.url ? (
-                    <Image src={selectedCoach.profilePhoto.url} alt="" fill className="object-cover" unoptimized />
+                    <Image src={selectedCoach.profilePhoto.url} alt="" fill sizes="96px" className="object-cover" unoptimized />
                   ) : (
                     <span className="text-white text-4xl font-bold">{selectedCoach.firstName.charAt(0).toUpperCase()}</span>
                   )}

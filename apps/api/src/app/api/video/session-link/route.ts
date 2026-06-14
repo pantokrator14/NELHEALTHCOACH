@@ -10,13 +10,14 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt } from '@/app/lib/encryption';
 import { ObjectId } from 'mongodb';
 import { logger } from '@/app/lib/logger';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 interface SessionLinkRequest {
   clientId: string;
   sessionId: string;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function postHandler(request: NextRequest): Promise<NextResponse> {
   try {
     const auth = requireCoachAuth(request);
 
@@ -88,3 +89,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

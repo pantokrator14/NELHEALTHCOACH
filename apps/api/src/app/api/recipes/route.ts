@@ -6,9 +6,11 @@ import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } f
 import { requireCoachAuth } from '@/app/lib/auth';
 import { recipeSchema } from '@/app/lib/schemas';
 import EditProposal from '@/app/models/EditProposal';
+import { apiHandler } from '@/app/lib/apiHandler';
+import { logAuditEvent } from '@/app/lib/auditLogger';
 
 // GET: Obtener recetas
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   return logger.time('RECIPES', 'Obtener recetas', async () => {
     try {
       const searchParams = request.nextUrl.searchParams;
@@ -97,10 +99,19 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+export const GET = apiHandler(getHandler);
+
+async function postHandler(request: NextRequest) {
   return logger.time('RECIPES', 'Crear nueva receta', async () => {
     try {
       const data = await request.json();
+
+      // Request context para audit logs
+      const reqCtx = {
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+        requestId: request.headers.get('x-request-id') || undefined,
+      };
 
       // Zod validation
       const parsed = recipeSchema.safeParse(data);
@@ -227,6 +238,17 @@ export async function POST(request: NextRequest) {
           decryptedRecipe.image = null;
         }
 
+        logAuditEvent({
+          eventType: 'RECIPE_CREATED',
+          severity: 'info',
+          message: `Receta creada: ${data.title}`,
+          coachId: auth.coachId,
+          ...reqCtx,
+          path: '/api/recipes',
+          method: 'POST',
+          statusCode: 201,
+        });
+
         return NextResponse.json({
           success: true,
           message: 'Tu receta ha sido enviada para revisión del administrador',
@@ -277,6 +299,17 @@ export async function POST(request: NextRequest) {
       } else {
         decryptedRecipe.image = null;
       }
+
+      logAuditEvent({
+        eventType: 'RECIPE_CREATED',
+        severity: 'info',
+        message: `Receta creada: ${data.title}`,
+        coachId: auth.coachId,
+        ...reqCtx,
+        path: '/api/recipes',
+        method: 'POST',
+        statusCode: 201,
+      });
       
       return NextResponse.json({
         success: true,
@@ -301,6 +334,8 @@ export async function POST(request: NextRequest) {
     }
   }, { endpoint: '/api/recipes', method: 'POST' });
 }
+
+export const POST = apiHandler(postHandler);
 
 // OPTIONS: Para CORS
 export async function OPTIONS(request: Request) {

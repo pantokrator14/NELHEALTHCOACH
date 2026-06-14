@@ -7,6 +7,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { decrypt } from '@/app/lib/encryption';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/payments/portal
@@ -16,7 +17,7 @@ import { decrypt } from '@/app/lib/encryption';
  *
  * Requiere autenticación de coach.
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     // Verificar autenticación
     const authResult = requireCoachAuth(request);
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener la URL base
-    const appUrl = process.env.DASHBOARD_URL || process.env.APP_URL || 'http://localhost:3002';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
     // Crear sesión del portal
     const portalSession = await stripeClient.billingPortal.sessions.create({
@@ -87,3 +88,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

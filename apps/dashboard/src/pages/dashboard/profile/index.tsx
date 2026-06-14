@@ -357,7 +357,7 @@ export default function ProfilePage() {
             <div className="relative flex-shrink-0">
               <div className="w-28 h-28 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white text-4xl font-bold relative">
                 {profile?.profilePhoto?.url ? (
-                  <Image src={profile.profilePhoto.url} alt="Foto de perfil" fill className="object-cover" unoptimized />
+                  <Image src={profile.profilePhoto.url} alt="Foto de perfil" fill sizes="112px" className="object-cover" unoptimized />
                 ) : (
                   profile?.firstName?.charAt(0)?.toUpperCase()
                 )}
@@ -422,7 +422,8 @@ export default function ProfilePage() {
           </form>
         </div>
 
-        {/* Configuración de pagos — Stripe Connect */}
+        {/* Configuración de pagos — Stripe Connect (solo coaches) */}
+        {profile?.role !== 'admin' && (
         <div className="bg-white rounded-xl shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-emerald-600 mb-4 flex items-center">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -585,6 +586,7 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Cambiar contraseña */}
         <div className="bg-white rounded-xl shadow p-6 mb-6">
@@ -602,15 +604,15 @@ export default function ProfilePage() {
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Contraseña actual</label>
-              <PasswordInput value={passForm.current} onChange={(e) => setPassForm({ ...passForm, current: e.target.value })} required />
+              <PasswordInput value={passForm.current} onChange={(e) => setPassForm({ ...passForm, current: e.target.value })} required autoComplete="current-password" />
             </div>
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Nueva contraseña</label>
-              <PasswordInput value={passForm.newPass} onChange={(e) => setPassForm({ ...passForm, newPass: e.target.value })} placeholder="Mínimo 6 caracteres" required />
+              <PasswordInput value={passForm.newPass} onChange={(e) => setPassForm({ ...passForm, newPass: e.target.value })} placeholder="Mínimo 6 caracteres" required autoComplete="new-password" />
             </div>
             <div>
               <label className="block text-sm font-medium text-orange-500 mb-1">Confirmar nueva contraseña</label>
-              <PasswordInput value={passForm.confirm} onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })} required />
+              <PasswordInput value={passForm.confirm} onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })} required autoComplete="new-password" />
             </div>
             <button type="submit" disabled={changingPass} className="bg-orange-500 text-white px-6 py-2.5 rounded-lg hover:bg-orange-600 transition font-medium disabled:opacity-50 shadow-sm">
               {changingPass ? 'Cambiando...' : 'Cambiar contraseña'}
@@ -618,7 +620,8 @@ export default function ProfilePage() {
           </form>
         </div>
 
-        {/* ─── GESTIÓN DE CUENTA ─── */}
+        {/* ─── GESTIÓN DE CUENTA (solo coaches) ─── */}
+        {profile?.role !== 'admin' && (
         <div className="bg-white rounded-xl shadow p-6">
           <h2 className="text-lg font-semibold text-red-600 mb-4 flex items-center">
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -655,6 +658,7 @@ export default function ProfilePage() {
                     value={acctPassword}
                     onChange={(e) => { setAcctPassword(e.target.value); setAcctPasswordError(''); }}
                     required
+                    autoComplete="current-password"
                   />
                   {acctPasswordError && (
                     <p className="text-red-500 text-sm mt-1">{acctPasswordError}</p>
@@ -818,6 +822,7 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+        )}
       </div>
     </Layout>
   );

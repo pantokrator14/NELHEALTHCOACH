@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     // Solo admin en producción, o cualquier coach en desarrollo
     if (process.env.NODE_ENV === 'production') {
@@ -56,3 +57,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message });
   }
 }
+
+export const GET = apiHandler(getHandler);

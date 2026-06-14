@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     requireCoachAuth(request);
   } catch {
@@ -112,3 +113,5 @@ export async function GET(request: NextRequest) {
     if (client) await client.close();
   }
 }
+
+export const GET = apiHandler(getHandler);

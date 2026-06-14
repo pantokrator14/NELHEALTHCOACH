@@ -5,6 +5,7 @@ import { S3Service } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /** Verifica que el usuario sea admin o coach autenticado para operaciones en recetas */
 function authorizeRecipeUpload(request: NextRequest) {
@@ -21,7 +22,7 @@ function authorizeRecipeUpload(request: NextRequest) {
 }
 
 // POST: Obtener URLs para upload de imagen de receta
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -188,8 +189,10 @@ export async function POST(
   });
 }
 
+export const POST = apiHandler(postHandler);
+
 // PUT: Confirmar upload y guardar referencia de imagen en la receta
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -411,8 +414,10 @@ export async function PUT(
   });
 }
 
+export const PUT = apiHandler(putHandler);
+
 // DELETE: Eliminar imagen de receta
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -577,8 +582,10 @@ export async function DELETE(
   });
 }
 
+export const DELETE = apiHandler(deleteHandler);
+
 // PATCH: Para futuras funcionalidades (reparación, etc.)
-export async function PATCH(
+async function patchHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -678,6 +685,8 @@ export async function PATCH(
     );
   }
 }
+
+export const PATCH = apiHandler(patchHandler);
 
 // Función auxiliar para obtener la URL completa de una imagen
 async function getFullImageUrl(fileKey: string): Promise<string> {

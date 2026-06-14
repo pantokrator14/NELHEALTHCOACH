@@ -904,6 +904,7 @@ async function saveErrorToDB(
 
 /**
  * Notifica al dashboard que hubo un error en la generación.
+ * También crea una notificación in-app para el coach.
  */
 async function notifyDashboardError(
   clientId: string,
@@ -916,6 +917,7 @@ async function notifyDashboardError(
       ? "https://app.nelhealthcoach.com/api/webhooks/inngest"
       : "http://localhost:3002/api/webhooks/inngest");
 
+  // Webhook al dashboard (legacy)
   try {
     await fetch(dashboardUrl, {
       method: "POST",
@@ -931,10 +933,32 @@ async function notifyDashboardError(
   } catch {
     // No failing on webhook errors
   }
+
+  // Notificación in-app para el coach
+  try {
+    const collection = await getHealthFormsCollection();
+    const doc = await collection.findOne(
+      { _id: new ObjectId(clientId) },
+      { projection: { coachId: 1 } }
+    );
+    if (doc?.coachId) {
+      const { createNotification } = await import('@/app/lib/create-notification');
+      await createNotification({
+        coachId: doc.coachId.toString(),
+        type: 'ai_recommendations_ready',
+        title: '⚠️ Error generando recomendaciones',
+        message: `Hubo un error al generar las recomendaciones del mes ${monthNumber}: ${errorMessage.substring(0, 100)}. Intenta generarlas de nuevo.`,
+        link: `/dashboard/clients/${clientId}`,
+      });
+    }
+  } catch {
+    // Silencioso
+  }
 }
 
 /**
  * Notifica al dashboard que las recomendaciones están listas.
+ * También crea una notificación in-app para el coach.
  */
 async function notifyDashboardSuccess(
   clientId: string,
@@ -956,6 +980,7 @@ async function notifyDashboardSuccess(
     ? (graphResult.errors as string[])
     : [];
 
+  // Webhook al dashboard (legacy)
   try {
     await fetch(dashboardUrl, {
       method: "POST",
@@ -972,5 +997,31 @@ async function notifyDashboardSuccess(
     });
   } catch {
     // No failing on webhook errors
+  }
+
+  // Notificación in-app para el coach
+  try {
+    const collection = await getHealthFormsCollection();
+    const doc = await collection.findOne(
+      { _id: new ObjectId(clientId) },
+      { projection: { coachId: 1, personalData: 1 } }
+    );
+    if (doc?.coachId) {
+      const rawPersonal = doc.personalData as Record<string, unknown> | undefined;
+      const clientName = rawPersonal?.name
+        ? decrypt(rawPersonal.name as string)
+        : 'Cliente';
+      const { createNotification } = await import('@/app/lib/create-notification');
+
+      await createNotification({
+        coachId: doc.coachId.toString(),
+        type: 'ai_recommendations_ready',
+        title: '🤖 Recomendaciones listas',
+        message: `Las recomendaciones del mes ${monthNumber} para ${clientName} (${weekCount} semanas) ya están disponibles.`,
+        link: `/dashboard/clients/${clientId}`,
+      });
+    }
+  } catch {
+    // Silencioso
   }
 }

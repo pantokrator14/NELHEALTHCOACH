@@ -38,7 +38,7 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
         <div className="p-8">
           <div className="flex justify-center mb-8">
             <div className="relative w-48 h-16">
-              <Image src="/logo.png" alt="NELHEALTHCOACH" fill className="object-contain" priority />
+              <Image src="/logo.png" alt="NELHEALTHCOACH" fill sizes="192px" className="object-contain" priority />
             </div>
           </div>
           

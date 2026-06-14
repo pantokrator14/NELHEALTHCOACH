@@ -36,8 +36,12 @@ export const registerSchema = z.object({
     .default(''),
   password: z
     .string()
-    .min(6, 'La contraseña debe tener al menos 6 caracteres')
-    .max(128),
+    .min(12, 'La contraseña debe tener al menos 12 caracteres')
+    .max(128)
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{}|;':",.<>/?`~])/,
+      'La contraseña debe contener mayúscula, minúscula, número y carácter especial',
+    ),
   professionalTitle: z
     .string()
     .max(200)
@@ -75,8 +79,12 @@ export const changePasswordSchema = z.object({
     .max(128),
   newPassword: z
     .string()
-    .min(6, 'La nueva contraseña debe tener al menos 6 caracteres')
-    .max(128),
+    .min(12, 'La nueva contraseña debe tener al menos 12 caracteres')
+    .max(128)
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{}|;':",.<>/?`~])/,
+      'La nueva contraseña debe contener mayúscula, minúscula, número y carácter especial',
+    ),
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

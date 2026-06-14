@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   // Solo accesible en desarrollo o por administradores
   if (process.env.NODE_ENV === 'production') {
     try {
@@ -115,3 +116,5 @@ export async function GET(request: NextRequest) {
     }
   }
 }
+
+export const GET = apiHandler(getHandler);

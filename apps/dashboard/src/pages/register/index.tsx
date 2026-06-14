@@ -222,7 +222,7 @@ export default function Register() {
           <div className="min-h-screen bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 text-center">
               <div className="relative w-48 h-16 mx-auto mb-6">
-                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
               </div>
               <h1 className="text-3xl font-bold text-emerald-700 mb-3">
                 Prueba NELHEALTHCOACH gratis
@@ -302,7 +302,7 @@ export default function Register() {
           <div className="min-h-screen bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 flex items-start justify-center p-4 py-8">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-8">
               <div className="relative w-48 h-16 mx-auto mb-6">
-                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
               </div>
 
               <h1 className="text-2xl font-bold text-emerald-700 mb-2 text-center">
@@ -412,7 +412,7 @@ export default function Register() {
                     {t('register.form.password')}{requiredStar}
                   </label>
                   <input
-                    id="password" name="password" type="password" required minLength={6}
+                    id="password" name="password" type="password" autoComplete="new-password" required minLength={6}
                     value={formData.password}
                     onChange={handleFormChange}
                     className={inputClasses()}

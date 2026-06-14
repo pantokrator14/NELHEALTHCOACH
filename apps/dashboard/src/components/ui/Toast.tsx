@@ -88,7 +88,7 @@ const Toast: React.FC<ToastProps> = React.memo(({
   };
 
   return (
-    <div className="fixed top-4 right-4 z-[100]">
+    <div className="fixed top-4 left-4 right-4 md:left-auto md:right-4 z-[100]">
       <div
         className={`
           ${colors[type].bg}
@@ -96,10 +96,9 @@ const Toast: React.FC<ToastProps> = React.memo(({
           border
           rounded-lg
           shadow-lg
-          p-4
+          p-3 sm:p-4
           mb-3
-          min-w-[300px]
-          max-w-[400px]
+          w-full md:w-auto md:min-w-[300px] md:max-w-[400px]
           transition-all
           duration-300
           transform

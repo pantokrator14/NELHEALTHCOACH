@@ -61,7 +61,7 @@ function generateMotivationalEmailHTML(data: {
   totalEmails: number;
 }): string {
   const currentYear = new Date().getFullYear();
-  const logoWhiteUrl = 'https://nelhealthcoach.com/images/logo-white.png';
+  const logoWhiteUrl = 'https://app.nelhealthcoach.com/logo.png';
   const progressPercent = Math.round((data.emailNumber / data.totalEmails) * 100);
 
   return `
@@ -91,7 +91,7 @@ function generateMotivationalEmailHTML(data: {
   <div class="container" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
     <!-- Header -->
     <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
-      <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 160px; height: auto;">
+      <img src="${logoWhiteUrl}" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
     </div>
 
     <!-- Contenido -->
@@ -161,9 +161,21 @@ function generateMotivationalEmailHTML(data: {
     </div>
 
     <!-- Footer -->
-    <div style="background: #263238; color: white; padding: 25px; text-align: center; font-size: 12px;">
-      <div style="opacity: 0.7; margin-bottom: 10px;">NELHEALTHCOACH</div>
-      <div style="opacity: 0.5;">
+    <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+        Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+      </div>
+      <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+        <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+      </div>
+      <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+        33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+      </div>
+      <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+        📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+        &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+      </div>
+      <div style="opacity: 0.6;">
         &copy; ${currentYear} NELHEALTHCOACH, LLC. Todos los derechos reservados.
       </div>
     </div>
@@ -236,7 +248,7 @@ export const monthlyRemindersFn = inngest.createFunction(
         // Generar link de sesión si es el email de solicitud
         let sessionLink: string | undefined;
         if (theme.isSessionRequest) {
-          const formUrl = process.env.FORM_URL || process.env.APP_URL || 'http://localhost:3000';
+          const formUrl = process.env.FORM_URL || 'http://localhost:3002';
           sessionLink = `${formUrl}/request-session?clientId=${clientId}`;
         }
 

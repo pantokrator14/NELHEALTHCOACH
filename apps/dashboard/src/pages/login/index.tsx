@@ -52,6 +52,7 @@ export default function Login() {
                 src="/logo2.png"
                 alt="NELHEALTHCOACH Logo"
                 fill
+                sizes="192px"
                 style={{ objectFit: 'contain' }}
                 priority
               />
@@ -105,6 +106,7 @@ export default function Login() {
                   placeholder="Ingresa tu contraseña"
                   required
                   disabled={loading}
+                  autoComplete="current-password"
                 />
               </div>
 

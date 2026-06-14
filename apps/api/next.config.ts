@@ -7,9 +7,8 @@ const nextConfig = {
       {
         source: '/api/:path*',
         headers: [
-          // CORS (consolidado con middleware)
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
+          // CORS manejado por middleware.ts — no fijar aquí para no anular la lógica de orígenes permitidos
+          // { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
           { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Visitor-Id, X-Request-ID' },
 

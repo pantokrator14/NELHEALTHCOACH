@@ -71,7 +71,7 @@ export default function VerifyEmail() {
       <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden text-center p-8">
           <div className="relative w-48 h-16 mx-auto mb-6">
-            <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill style={{ objectFit: 'contain' }} priority />
+            <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
           </div>
           <div className="text-4xl mb-4">{icon()}</div>
           <h1 className="text-2xl font-bold text-blue-700 mb-4">Verificación de Email</h1>

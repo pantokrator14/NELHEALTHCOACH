@@ -4,6 +4,7 @@ import Coach, { hashEmail } from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { apiHandler } from '@/app/lib/apiHandler';
 
 /**
  * POST /api/auth/resend-verification
@@ -11,7 +12,7 @@ import { connectMongoose } from '@/app/lib/database';
  * Reenvía el enlace de verificación al email del coach.
  * Si ya existe un token pendiente, lo REUTILIZA (no invalida el anterior).
  */
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
     const body = await request.json();
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Construir URL de verificación
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
     const verifyUrl = `${appUrl}/verify-email?token=${verificationToken}`;
 
     // Enviar email
@@ -91,3 +92,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);

@@ -1,6 +1,7 @@
 // apps/api/src/app/api/extract-text/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { apiHandler } from '@/app/lib/apiHandler';
 import mammoth from 'mammoth';
 
 import pdfParse from 'pdf-parse';
@@ -17,7 +18,7 @@ const ALLOWED_MIME_TYPES = [
 // Tamaño máximo de archivo (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     // Autenticación requerida (solo coaches)
     requireCoachAuth(request);
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = apiHandler(postHandler);
 
 // Método OPTIONS para CORS (si es necesario)
 export async function OPTIONS() {
