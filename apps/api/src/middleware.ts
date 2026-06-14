@@ -9,10 +9,7 @@ import { requestLogger } from './app/middleware/requestLogger';
 import { runShield } from './app/lib/security/shield';
 import { runBotDetection } from './app/lib/security/botDetector';
 import type { RequestContext } from './app/lib/security/types';
-
-// logSecurityBlock se importa desde auditLogger.edge.ts (sin mongoose — Edge-safe)
-// Para persistencia a MongoDB con todos los detalles, usar auditLogger.ts
-// desde los route handlers (Node.js runtime).
+import { logSecurityBlock } from './app/lib/auditLogger.edge';
 
 // ─── Configuración ───
 
@@ -155,7 +152,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const shieldResult = runShield(ctx, request.nextUrl.searchParams);
     if (shieldResult && !shieldResult.passed) {
       // Audit log del bloqueo (Edge-safe, sin mongoose)
-      const { logSecurityBlock } = await import('./app/lib/auditLogger.edge');
       logSecurityBlock('SHIELD_BLOCK', shieldResult.reason ?? 'SHIELD', {
         ip: ctx.ip,
         path,
@@ -178,7 +174,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const botResult = runBotDetection(ctx, request.headers);
     if (botResult && !botResult.passed) {
       // Audit log del bloqueo (Edge-safe, sin mongoose)
-      const { logSecurityBlock } = await import('./app/lib/auditLogger.edge');
       logSecurityBlock('BOT_DETECTED', botResult.reason ?? 'BOT', {
         ip: ctx.ip,
         path,
