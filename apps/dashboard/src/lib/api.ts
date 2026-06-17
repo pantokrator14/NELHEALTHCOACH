@@ -1249,7 +1249,7 @@ export const apiClient = {
     return response.json();
   },
 
-  async updateProfile(data: { firstName?: string; lastName?: string; phone?: string; profilePhoto?: unknown }) {
+  async updateProfile(data: { firstName?: string; lastName?: string; phone?: string; professionalTitle?: string; specialties?: string[]; yearsOfExperience?: number; bio?: string; timezone?: string; profilePhoto?: unknown }) {
     const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -1332,6 +1332,18 @@ export const apiClient = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al obtener coaches');
+    }
+    return response.json();
+  },
+
+  async deleteCoach(id: string) {
+    const response = await fetch(`${API_BASE_URL}/api/coaches/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al eliminar coach');
     }
     return response.json();
   },
