@@ -168,8 +168,8 @@ export default function CoachesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200 shadow-sm">
+            <div className="flex justify-end">
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200 shadow-sm min-w-[200px]">
                 <div className="text-lg text-gray-700">
                   Total: <span className="font-bold text-orange-600 text-xl">{coaches.length}</span>
                 </div>
