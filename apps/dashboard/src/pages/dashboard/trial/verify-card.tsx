@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import Head from 'next/head';
 import Link from 'next/link';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 export default function TrialVerifyCard() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -21,23 +23,43 @@ export default function TrialVerifyCard() {
       return;
     }
 
-    // El webhook de Stripe ya procesó el pago y activó la cuenta.
-    // Solo esperamos un momento y redirigimos al dashboard.
-    const timer = setTimeout(() => {
-      setStatus('success');
-      setMessage(t('trial.verifyCard.successMessage'));
-    }, 2000);
+    // Confirmar la verificación de tarjeta contra la API
+    // (esto activa la cuenta del coach sin depender solo del webhook de Stripe)
+    const confirmVerification = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/trial/confirm-verification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            coachId: coachId || '',
+            sessionId: session_id,
+          }),
+        });
 
-    // Redirigir al dashboard después de la verificación
-    const redirectTimer = setTimeout(() => {
-      router.push('/dashboard');
-    }, 4000);
+        const data = await response.json();
 
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(redirectTimer);
+        if (data.success) {
+          setStatus('success');
+          setMessage(t('trial.verifyCard.successMessage'));
+        } else {
+          // Si falló pero el webhook ya activó al coach, igual mostrar éxito
+          if (data.alreadyActive) {
+            setStatus('success');
+            setMessage(t('trial.verifyCard.successMessage'));
+          } else {
+            setStatus('error');
+            setMessage(data.message || t('trial.verifyCard.errorMessage'));
+          }
+        }
+      } catch {
+        setStatus('error');
+        setMessage(t('trial.verifyCard.errorMessage'));
+      }
     };
-  }, [router.isReady, router.query, router]);
+
+    confirmVerification();
+    // ⚠️ NO redirigir al dashboard — el usuario debe verificar su email primero
+  }, [router.isReady, router.query, t]);
 
   return (
     <>
@@ -78,14 +100,25 @@ export default function TrialVerifyCard() {
               <p className="text-gray-600 text-sm mb-4">
                 {message}
               </p>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-left">
+                <p className="text-xs text-amber-700 font-medium mb-1">
+                  📧 Revisa tu correo electrónico
+                </p>
+                <p className="text-xs text-amber-600">
+                  Te hemos enviado un enlace de verificación. Haz clic en él para activar tu cuenta y luego inicia sesión.
+                </p>
+              </div>
+
               <p className="text-xs text-gray-400 mb-6">
-                {t('trial.verifyCard.redirecting')}
+                ¿No recibiste el correo? Revisa tu carpeta de spam.
               </p>
+
               <Link
-                href="/dashboard"
-                className="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition font-medium"
+                href="/login"
+                className="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition font-medium text-sm w-full"
               >
-                {t('trial.verifyCard.goToDashboard')}
+                Ir a iniciar sesión
               </Link>
             </>
           )}

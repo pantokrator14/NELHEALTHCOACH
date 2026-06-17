@@ -42,6 +42,7 @@ const nextConfig = {
   // Incluir fuentes .afm en el bundle serverless para Vercel/producción
   outputFileTracingIncludes: {
     'app/api/clients/[id]/ai/[sessionId]/pdf/route': ['./node_modules/pdfkit/js/data/**'],
+    'app/api/admin/finances/reports/pdf/route': ['./node_modules/pdfkit/js/data/**'],
   },
 };
 

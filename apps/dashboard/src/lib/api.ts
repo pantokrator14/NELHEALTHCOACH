@@ -1540,4 +1540,240 @@ export const apiClient = {
     if (!response.ok) throw new Error('Error al marcar notificaciones como leídas');
     return response.json();
   },
+
+  // ═══════════════════════════════════════════════
+  // ADMIN — Receipt Upload
+  // ═══════════════════════════════════════════════
+
+  async generateReceiptUploadURL(expenseId: string, data: { fileName: string; fileType: string; fileSize: number }) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses/${expenseId}/receipt`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al generar URL de upload');
+    }
+    return response.json();
+  },
+
+  async confirmReceiptUpload(expenseId: string, data: { s3Key: string; originalName: string; mimeType: string; size: number }) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses/${expenseId}/receipt`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al confirmar upload de recibo');
+    }
+    return response.json();
+  },
+
+  async deleteReceipt(expenseId: string) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses/${expenseId}/receipt`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al eliminar recibo');
+    }
+    return response.json();
+  },
+
+  // ═══════════════════════════════════════════════
+  // ADMIN — Finanzas Corporativas
+  // ═══════════════════════════════════════════════
+
+  async getAdminFinanceSummary(period: 'ytd' | 'this_quarter' | 'last_quarter' = 'ytd') {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/summary?period=${period}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener resumen financiero');
+    }
+    return response.json();
+  },
+
+  async getAdminFinanceTransactions(params: {
+    type?: 'income' | 'expense';
+    taxYear?: number;
+    page?: number;
+    limit?: number;
+    category?: string;
+    from?: string;
+    to?: string;
+  } = {}) {
+    const query = new URLSearchParams();
+    if (params.type) query.set('type', params.type);
+    if (params.taxYear) query.set('taxYear', String(params.taxYear));
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.category) query.set('category', params.category);
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/transactions?${query.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener transacciones');
+    }
+    return response.json();
+  },
+
+  async getAdminFinanceExpenses(params: {
+    category?: string;
+    taxYear?: number;
+    page?: number;
+    limit?: number;
+    from?: string;
+    to?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  } = {}) {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.taxYear) query.set('taxYear', String(params.taxYear));
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    if (params.sortBy) query.set('sortBy', params.sortBy);
+    if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses?${query.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener gastos');
+    }
+    return response.json();
+  },
+
+  async createAdminFinanceExpense(data: {
+    amount: number;
+    date: string;
+    description: string;
+    category: string;
+    subcategory?: string;
+    vendor?: string;
+    paymentMethod?: string;
+    notes?: string;
+    isRecurring?: boolean;
+    recurringPeriod?: string;
+    isDeductible?: boolean;
+    deductionPercentage?: number;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al crear gasto');
+    }
+    return response.json();
+  },
+
+  async updateAdminFinanceExpense(id: string, data: Record<string, unknown>) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses/${id}`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al actualizar gasto');
+    }
+    return response.json();
+  },
+
+  async deleteAdminFinanceExpense(id: string) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/expenses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al eliminar gasto');
+    }
+    return response.json();
+  },
+
+  async getAdminFinanceSettings() {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/settings`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener configuración fiscal');
+    }
+    return response.json();
+  },
+
+  async updateAdminFinanceSettings(data: Record<string, unknown>) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/settings`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al actualizar configuración fiscal');
+    }
+    return response.json();
+  },
+
+  async downloadFinanceReportPDF(type: 'schedule_c' | 'form_568' | 'quarterly', year: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/reports/pdf`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, year }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al descargar PDF');
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_${year}_NELHEALTHCOACH_LLC.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
+
+  async generateAdminFinanceReport(type: 'schedule_c' | 'form_568' | 'quarterly', year: number) {
+    const response = await fetch(`${API_BASE_URL}/api/admin/finances/reports`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, year }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al generar reporte');
+    }
+    return response.json();
+  },
+
+  getAdminFinanceExportURL(params: {
+    type?: 'income' | 'expense';
+    taxYear?: number;
+    format?: 'quickbooks' | 'schedule_c';
+  } = {}): string {
+    const query = new URLSearchParams();
+    if (params.type) query.set('type', params.type);
+    if (params.taxYear) query.set('taxYear', String(params.taxYear));
+    if (params.format) query.set('format', params.format);
+    return `${API_BASE_URL}/api/admin/finances/export?${query.toString()}`;
+  },
 };

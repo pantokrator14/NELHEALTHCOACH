@@ -8,29 +8,90 @@ import CoachContractStep from '@/components/CoachContractStep';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type RegisterStep = 'landing' | 'contract' | 'form';
+type RegisterStep = 'landing' | 'contract' | 'form' | 'verify-email';
 
 const TIMEZONE_OPTIONS = [
   { value: '', label: 'Seleccionar zona horaria' },
+  // Norteamérica
   { value: 'America/New_York', label: 'Nueva York (EST)' },
   { value: 'America/Chicago', label: 'Chicago (CST)' },
   { value: 'America/Denver', label: 'Denver (MST)' },
   { value: 'America/Los_Angeles', label: 'Los Ángeles (PST)' },
+  { value: 'America/Phoenix', label: 'Phoenix (MST — sin DST)' },
   { value: 'America/Anchorage', label: 'Anchorage (AKST)' },
   { value: 'Pacific/Honolulu', label: 'Honolulu (HST)' },
+  { value: 'America/Toronto', label: 'Toronto (EST)' },
+  { value: 'America/Vancouver', label: 'Vancouver (PST)' },
+  // Latinoamérica
   { value: 'America/Mexico_City', label: 'Ciudad de México' },
   { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires' },
-  { value: 'America/Bogota', label: 'Bogotá' },
-  { value: 'America/Lima', label: 'Lima' },
   { value: 'America/Santiago', label: 'Santiago' },
   { value: 'America/Sao_Paulo', label: 'São Paulo' },
+  { value: 'America/Bogota', label: 'Bogotá' },
+  { value: 'America/Lima', label: 'Lima' },
+  { value: 'America/Caracas', label: 'Caracas' },
+  { value: 'America/Panama', label: 'Panamá' },
+  { value: 'America/Guatemala', label: 'Guatemala' },
+  { value: 'America/Santo_Domingo', label: 'República Dominicana' },
   { value: 'America/Puerto_Rico', label: 'Puerto Rico (AST)' },
+  { value: 'America/Montevideo', label: 'Montevideo' },
+  { value: 'America/Asuncion', label: 'Asunción' },
+  { value: 'America/La_Paz', label: 'La Paz' },
+  { value: 'America/Managua', label: 'Managua' },
+  { value: 'America/El_Salvador', label: 'El Salvador' },
+  { value: 'America/Tegucigalpa', label: 'Honduras' },
+  // Europa
   { value: 'Europe/Madrid', label: 'Madrid' },
   { value: 'Europe/London', label: 'Londres (GMT)' },
   { value: 'Europe/Paris', label: 'París' },
   { value: 'Europe/Berlin', label: 'Berlín' },
   { value: 'Europe/Rome', label: 'Roma' },
   { value: 'Europe/Lisbon', label: 'Lisboa' },
+  { value: 'Europe/Amsterdam', label: 'Ámsterdam' },
+  { value: 'Europe/Brussels', label: 'Bruselas' },
+  { value: 'Europe/Vienna', label: 'Viena' },
+  { value: 'Europe/Zurich', label: 'Zúrich' },
+  { value: 'Europe/Stockholm', label: 'Estocolmo' },
+  { value: 'Europe/Oslo', label: 'Oslo' },
+  { value: 'Europe/Copenhagen', label: 'Copenhague' },
+  { value: 'Europe/Helsinki', label: 'Helsinki' },
+  { value: 'Europe/Dublin', label: 'Dublín' },
+  { value: 'Europe/Warsaw', label: 'Varsovia' },
+  { value: 'Europe/Prague', label: 'Praga' },
+  { value: 'Europe/Athens', label: 'Atenas' },
+  { value: 'Europe/Istanbul', label: 'Estambul' },
+  { value: 'Europe/Moscow', label: 'Moscú' },
+  { value: 'Europe/Kyiv', label: 'Kiev' },
+  { value: 'Europe/Bucharest', label: 'Bucarest' },
+  { value: 'Europe/Budapest', label: 'Budapest' },
+  // Asia-Pacífico
+  { value: 'Asia/Tokyo', label: 'Tokio (JST)' },
+  { value: 'Asia/Seoul', label: 'Seúl (KST)' },
+  { value: 'Asia/Shanghai', label: 'Shanghái (CST)' },
+  { value: 'Asia/Hong_Kong', label: 'Hong Kong (HKT)' },
+  { value: 'Asia/Singapore', label: 'Singapur (SGT)' },
+  { value: 'Asia/Dubai', label: 'Dubái (GST)' },
+  { value: 'Asia/Kolkata', label: 'India (IST)' },
+  { value: 'Asia/Bangkok', label: 'Bangkok (ICT)' },
+  { value: 'Asia/Taipei', label: 'Taipéi' },
+  { value: 'Asia/Manila', label: 'Manila' },
+  { value: 'Asia/Jakarta', label: 'Yakarta' },
+  { value: 'Asia/Ho_Chi_Minh', label: 'Ho Chi Minh' },
+  { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
+  { value: 'Australia/Melbourne', label: 'Melbourne (AEST)' },
+  { value: 'Australia/Perth', label: 'Perth (AWST)' },
+  { value: 'Pacific/Auckland', label: 'Auckland (NZST)' },
+  { value: 'Pacific/Fiji', label: 'Fiyi' },
+  // Medio Oriente y África
+  { value: 'Asia/Jerusalem', label: 'Jerusalén (IST)' },
+  { value: 'Asia/Riyadh', label: 'Riad (AST)' },
+  { value: 'Asia/Qatar', label: 'Qatar' },
+  { value: 'Asia/Tehran', label: 'Teherán' },
+  { value: 'Africa/Cairo', label: 'El Cairo' },
+  { value: 'Africa/Casablanca', label: 'Casablanca' },
+  { value: 'Africa/Johannesburg', label: 'Johannesburgo (SAST)' },
+  { value: 'Africa/Lagos', label: 'Lagos' },
+  { value: 'Africa/Nairobi', label: 'Nairobi' },
 ];
 
 interface FormDataState {
@@ -69,6 +130,7 @@ export default function Register() {
   const [canceled, setCanceled] = useState(false);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
   const [profilePhotoBase64, setProfilePhotoBase64] = useState<string | null>(null);
+  const [passwordDirty, setPasswordDirty] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Detectar cancelación desde Stripe ──
@@ -118,6 +180,9 @@ export default function Register() {
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === 'password' && !passwordDirty && value.length > 0) {
+      setPasswordDirty(true);
+    }
   };
 
   // ── Manejo de foto de perfil ──
@@ -190,12 +255,15 @@ export default function Register() {
         throw new Error(result.message || t('register.errors.generic'));
       }
 
+      // Limpiar datos guardados
+      sessionStorage.removeItem('registerFormData');
+
       if (result.data?.checkoutUrl) {
-        // Limpiar datos guardados antes de salir
-        sessionStorage.removeItem('registerFormData');
+        // Redirigir a Stripe para verificar tarjeta
         window.location.href = result.data.checkoutUrl;
       } else {
-        throw new Error(t('register.errors.generic'));
+        // Sin Stripe: mostrar pantalla "Revisa tu email"
+        setStep('verify-email');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('register.errors.generic'));
@@ -412,12 +480,57 @@ export default function Register() {
                     {t('register.form.password')}{requiredStar}
                   </label>
                   <input
-                    id="password" name="password" type="password" autoComplete="new-password" required minLength={6}
+                    id="password" name="password" type="password" autoComplete="new-password" required minLength={12}
                     value={formData.password}
                     onChange={handleFormChange}
-                    className={inputClasses()}
+                    className={inputClasses(formData.password && passwordDirty && formData.password.length < 12 ? 'border-red-300 focus:ring-red-500' : '')}
                     placeholder={t('register.form.passwordPlaceholder')}
                   />
+                  {passwordDirty && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-gray-500 font-medium">La contraseña debe tener:</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${formData.password.length >= 12 ? 'text-green-600' : 'text-gray-400'}`}>
+                          {formData.password.length >= 12 ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs ${formData.password.length >= 12 ? 'text-green-600' : 'text-gray-500'}`}>
+                          Mínimo 12 caracteres
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${/[A-Z]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}`}>
+                          {/[A-Z]/.test(formData.password) ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs ${/[A-Z]/.test(formData.password) ? 'text-green-600' : 'text-gray-500'}`}>
+                          1 mayúscula
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${/[a-z]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}`}>
+                          {/[a-z]/.test(formData.password) ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs ${/[a-z]/.test(formData.password) ? 'text-green-600' : 'text-gray-500'}`}>
+                          1 minúscula
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${/\d/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}`}>
+                          {/\d/.test(formData.password) ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs ${/\d/.test(formData.password) ? 'text-green-600' : 'text-gray-500'}`}>
+                          1 número
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs ${/[!@#$%^&*()_\-+=[\]{}|;':",.<>\/?\x60~]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}`}>
+                          {/[!@#$%^&*()_\-+=[\]{}|;':",.<>\/?\x60~]/.test(formData.password) ? '✓' : '○'}
+                        </span>
+                        <span className={`text-xs ${/[!@#$%^&*()_\-+=[\]{}|;':",.<>\/?\x60~]/.test(formData.password) ? 'text-green-600' : 'text-gray-500'}`}>
+                          1 carácter especial (!@#$%, etc.)
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-gray-200 pt-4 mt-2">
@@ -526,6 +639,57 @@ export default function Register() {
                   ← {t('register.form.backLink')}
                 </button>
               </div>
+            </div>
+          </div>
+        );
+
+      // ────── VERIFICAR EMAIL ──────
+      case 'verify-email':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+              <div className="relative w-48 h-16 mx-auto mb-6">
+                <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" style={{ objectFit: 'contain' }} priority />
+              </div>
+
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+
+              <h1 className="text-xl font-bold text-emerald-700 mb-2">
+                Revisa tu correo electrónico
+              </h1>
+              <p className="text-gray-600 text-sm mb-4">
+                Te hemos enviado un enlace de verificación a <strong className="text-emerald-700">{formData.email}</strong>.
+              </p>
+              <p className="text-gray-500 text-xs mb-6">
+                Haz clic en el enlace del correo para verificar tu cuenta y luego inicia sesión. Si no lo ves, revisa la carpeta de spam.
+              </p>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+                <p className="text-xs text-amber-700">
+                  <strong>💡 Importante:</strong> La prueba gratuita comienza cuando verifiques tu correo y actives tu cuenta. Revisa tu bandeja de entrada.
+                </p>
+              </div>
+
+              <Link
+                href="/login"
+                className="inline-block bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition font-medium text-sm w-full"
+              >
+                Ir a iniciar sesión
+              </Link>
+
+              <p className="text-xs text-gray-400 mt-4">
+                ¿No recibiste el correo? Revisa tu carpeta de spam o{' '}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="text-emerald-600 hover:text-emerald-800 underline"
+                >
+                  intenta de nuevo
+                </button>
+              </p>
             </div>
           </div>
         );

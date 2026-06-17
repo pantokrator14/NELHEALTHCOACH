@@ -13,15 +13,58 @@ import { logSecurityBlock } from './app/lib/auditLogger.edge';
 
 // ─── Configuración ───
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:2000',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'https://www.nelhealthcoach.com',
-  'https://app.nelhealthcoach.com',
-  'https://form.nelhealthcoach.com',
-];
+/**
+ * Construye la lista de orígenes CORS permitidos combinando:
+ * - Valores fijos para desarrollo local (localhost)
+ * - Valores fijos para producción (fallback)
+ * - URLs desde variables de entorno (WEBSITE_URL, APP_URL, DASHBOARD_URL, FORM_URL)
+ * - Variable ALLOWED_ORIGINS para orígenes extra (comma-separated)
+ *
+ * Así funciona en ambos entornos sin tocar código.
+ */
+function buildAllowedOrigins(): string[] {
+  const origins = [
+    // Desarrollo local (siempre presentes)
+    'http://localhost:2000',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    // Producción (fallback por si faltan env vars)
+    'https://nelhealthcoach.com',
+    'https://www.nelhealthcoach.com',
+    'https://app.nelhealthcoach.com',
+    'https://form.nelhealthcoach.com',
+  ];
+
+  // Agregar URLs configuradas en variables de entorno
+  const urlsFromEnv = [
+    process.env.WEBSITE_URL,
+    process.env.APP_URL,
+    process.env.DASHBOARD_URL,
+    process.env.FORM_URL,
+  ];
+
+  for (const url of urlsFromEnv) {
+    if (url && url.startsWith('http') && !origins.includes(url)) {
+      origins.push(url);
+    }
+  }
+
+  // ALLOWED_ORIGINS env var para orígenes adicionales (comma-separated)
+  const extraOrigins = process.env.ALLOWED_ORIGINS;
+  if (extraOrigins) {
+    for (const origin of extraOrigins.split(',')) {
+      const trimmed = origin.trim();
+      if (trimmed && !origins.includes(trimmed)) {
+        origins.push(trimmed);
+      }
+    }
+  }
+
+  return origins;
+}
+
+const ALLOWED_ORIGINS = buildAllowedOrigins();
 
 // Rutas que pasan por shield + bot detection
 const CRITICAL_PATHS = [
@@ -130,9 +173,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.pathname;
   const origin = request.headers.get('origin');
 
-  // Excluir paths internos
+  // Excluir paths internos (pero aplicar CORS igual)
   if (isExcludedPath(path)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    return applyCorsHeaders(response, origin);
   }
 
   // ── 1. OPTIONS preflight ──
