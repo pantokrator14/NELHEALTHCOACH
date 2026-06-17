@@ -1101,7 +1101,7 @@ export function generateVerificationEmailHTML(data: {
                 Gracias por registrarte como coach en NELHEALTHCOACH. Para activar tu cuenta, haz clic en el botón de abajo:
             </p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${data.verifyUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
+                <a href="${data.verifyUrl}" target="_blank" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; white-space: nowrap;">
                     Verificar mi cuenta
                 </a>
             </div>

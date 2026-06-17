@@ -13,6 +13,18 @@ export default function VerifyEmail() {
   const [status, setStatus] = useState<VerifyStatus>('idle');
   const [message, setMessage] = useState('');
 
+  // Si la página se carga dentro de un iframe (vista previa del email),
+  // forzar navegación al top-level. Con try-catch por si es cross-origin.
+  useEffect(() => {
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = window.self.location.href;
+      }
+    } catch {
+      // Cross-origin: no se puede acceder a window.top, se queda como está
+    }
+  }, []);
+
   useEffect(() => {
     if (!router.isReady || !token) return;
 

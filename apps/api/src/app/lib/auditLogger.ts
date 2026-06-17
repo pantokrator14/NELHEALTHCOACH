@@ -86,6 +86,9 @@ const AUDIT_ICONS: Record<AuditEventType, string> = {
   SUBSCRIPTION_CHANGED: '🔄',
   // Admin
   ADMIN_ACTION: '⚙️',
+  // Verificaciones
+  VERIFICATION_FAILURE: '❌',
+  TRIAL_CARD_VERIFIED: '💳✅',
 };
 
 /**

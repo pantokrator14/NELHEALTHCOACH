@@ -17,6 +17,8 @@ export type AuditEventType =
   | 'PASSWORD_RESET_FAILURE'
   | 'LOGOUT'
   | 'TOKEN_REFRESH'
+  | 'VERIFICATION_FAILURE'
+  | 'TRIAL_CARD_VERIFIED'
   // Seguridad perimetral
   | 'RATE_LIMIT_HIT'
   | 'SHIELD_BLOCK'

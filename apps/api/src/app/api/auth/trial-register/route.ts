@@ -210,7 +210,7 @@ async function postHandler(request: NextRequest) {
     // Crear Checkout Session de $1
     const appUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
 
-    let checkoutUrl: string;
+    let checkoutUrl = '';
     try {
       const session = await createTrialCheckoutSession(
         emailLower,
@@ -219,16 +219,11 @@ async function postHandler(request: NextRequest) {
       );
       checkoutUrl = String((session as Record<string, unknown>).url || '');
       if (!checkoutUrl) {
-        throw new Error('Stripe no devolvió URL de checkout');
+        logger.warn('AUTH', 'Stripe no devolvió URL de checkout — trial procede sin verificación de tarjeta');
       }
     } catch (stripeError) {
-      // Si falla Stripe, eliminar el coach creado
-      await Coach.findByIdAndDelete(coach._id);
-      logger.error('AUTH', 'Error creando Checkout Session de trial', stripeError as Error);
-      return NextResponse.json(
-        { success: false, message: 'Error al procesar la verificación de pago' },
-        { status: 500 }
-      );
+      // No fatal: el coach ya fue creado, el trial procede sin verificación de tarjeta
+      logger.warn('AUTH', 'No se pudo crear Checkout Session de trial — el registro continúa sin verificación', stripeError as Error);
     }
 
     // Registrar el trial en TrialRecord
@@ -273,10 +268,15 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Cuenta creada exitosamente. Verifica tu tarjeta para activar tu prueba gratuita.',
+        message: checkoutUrl
+          ? 'Cuenta creada exitosamente. Verifica tu tarjeta para activar tu prueba gratuita.'
+          : 'Cuenta creada exitosamente. Tu prueba gratuita está activa.',
         data: {
           checkoutUrl,
           coachId: coach._id.toString(),
+          trialEndDate: trialEndDate.toISOString(),
+          isTrial: true,
+          cardVerificationSkipped: !checkoutUrl,
         },
       },
       { status: 201 }
