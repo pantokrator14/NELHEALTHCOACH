@@ -20,25 +20,10 @@ async function getHandler(request: NextRequest) {
     const coach = await Coach.findOne({ verificationToken: token });
 
     if (!coach) {
-      // Si no encuentra el token, puede ser porque:
-      // 1. Ya fue usado (token = null, emailVerified = true)
-      // 2. Fue reemplazado por un reenvío (token nuevo, el viejo ya no existe)
-      // 3. Token inválido
-
-      // Buscar si el coach ya tiene el email verificado (token null pero emailVerified true)
-      const alreadyVerified = await Coach.findOne({
-        verificationToken: null,
-        emailVerified: true,
-      });
-
-      if (alreadyVerified) {
-        return NextResponse.json({
-          success: true,
-          message: 'Tu email ya está verificado. Puedes iniciar sesión.',
-          alreadyVerified: true,
-        });
-      }
-
+      // Token no encontrado: ya fue usado, fue reemplazado por reenvío, o es inválido.
+      // No se hace una búsqueda genérica de "cualquier coach verificado" porque
+      // eso podría confirmar falsamente la verificación de OTRO coach (bug de seguridad).
+      // El flujo correcto es pedir un reenvío del enlace.
       return NextResponse.json(
         {
           success: false,

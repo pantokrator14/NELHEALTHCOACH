@@ -47,21 +47,27 @@ async function getRateLimitCollection(): Promise<Collection<RateLimitDocument>> 
   const { db } = await connectToDatabase();
   const collection = db.collection<RateLimitDocument>(COLLECTION_NAME);
 
-  // Crear TTL index si no existe
-  const indexes = await collection.indexes();
-  const hasTTLIndex = indexes.some((idx) => 'expireAfterSeconds' in idx);
+  // Asegurar que la colección existe insertando un documento dummy y eliminándolo
+  // Esto evita el error "ns does not exist" en MongoDB Atlas al crear índices.
+  try {
+    await collection.insertOne({ _id: '__init__', count: 0, expiresAt: new Date() });
+    await collection.deleteOne({ _id: '__init__' });
+  } catch {
+    // Si ya existe, no hay problema
+  }
 
-  if (!hasTTLIndex) {
-    logger.info('RATE_LIMITER', 'Creando TTL index en expiresAt');
+  // Crear TTL index si no existe (createIndex es idempotente)
+  try {
     await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  } catch {
+    // Índice ya existe — ignorar
   }
 
   // Crear índice único en _id (la key) si no existe
-  const hasKeyIndex = indexes.some(
-    (idx) => 'key' in idx && typeof idx.key === 'object' && idx.key !== null && '_id' in idx.key,
-  );
-  if (!hasKeyIndex) {
+  try {
     await collection.createIndex({ _id: 1 }, { unique: true });
+  } catch {
+    // Índice ya existe — ignorar
   }
 
   rateLimitCollection = collection;

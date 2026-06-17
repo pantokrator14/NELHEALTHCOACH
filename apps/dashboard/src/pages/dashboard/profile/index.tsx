@@ -12,6 +12,11 @@ interface CoachProfile {
   firstName: string;
   lastName: string;
   phone: string;
+  professionalTitle: string;
+  specialties: string[];
+  yearsOfExperience: number;
+  bio: string;
+  timezone: string;
   profilePhoto?: { url: string } | null;
   role: string;
   emailVerified: boolean;
@@ -43,7 +48,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', professionalTitle: '', specialties: [] as string[], yearsOfExperience: 0, bio: '', timezone: '' });
   const [passForm, setPassForm] = useState({ current: '', newPass: '', confirm: '' });
   const [passMsg, setPassMsg] = useState('');
   const [changingPass, setChangingPass] = useState(false);
@@ -91,7 +96,16 @@ export default function ProfilePage() {
       const res = await apiClient.getProfile();
       if (res?.data) {
         setProfile(res.data);
-        setForm({ firstName: res.data.firstName, lastName: res.data.lastName, phone: res.data.phone || '' });
+        setForm({
+          firstName: res.data.firstName,
+          lastName: res.data.lastName,
+          phone: res.data.phone || '',
+          professionalTitle: res.data.professionalTitle || '',
+          specialties: res.data.specialties || [],
+          yearsOfExperience: res.data.yearsOfExperience || 0,
+          bio: res.data.bio || '',
+          timezone: res.data.timezone || '',
+        });
         if (res.data.stripeConnect?.sessionPrice) {
           setSessionPriceInput(String(res.data.stripeConnect.sessionPrice / 100));
         }
@@ -119,7 +133,16 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage('');
     try {
-      await apiClient.updateProfile(form);
+      await apiClient.updateProfile({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: form.phone,
+        professionalTitle: form.professionalTitle,
+        specialties: form.specialties,
+        yearsOfExperience: form.yearsOfExperience,
+        bio: form.bio,
+        timezone: form.timezone,
+      });
       setMessage('Perfil actualizado exitosamente');
       loadProfile();
     } catch (err: unknown) {
@@ -415,6 +438,275 @@ export default function ProfilePage() {
             <div>
               <label className="block text-sm font-medium text-blue-500 mb-1">Teléfono</label>
               <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-blue-500 mb-1">Título profesional</label>
+                <input type="text" value={form.professionalTitle} onChange={(e) => setForm({ ...form, professionalTitle: e.target.value })} placeholder="Ej: Coach certificado en nutrición" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-blue-500 mb-1">Años de experiencia</label>
+                <input type="number" min="0" max="100" value={form.yearsOfExperience} onChange={(e) => setForm({ ...form, yearsOfExperience: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-blue-500 mb-1">Especialidades</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {form.specialties.map((spec, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                    {spec}
+                    <button type="button" onClick={() => setForm({ ...form, specialties: form.specialties.filter((_, j) => j !== i) })} className="hover:text-blue-900">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ej: Pérdida de peso"
+                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  id="specialty-input"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const input = e.currentTarget;
+                      const val = input.value.trim();
+                      if (val && !form.specialties.includes(val)) {
+                        setForm({ ...form, specialties: [...form.specialties, val] });
+                      }
+                      input.value = '';
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const input = document.getElementById('specialty-input') as HTMLInputElement;
+                    const val = input?.value?.trim();
+                    if (val && !form.specialties.includes(val)) {
+                      setForm({ ...form, specialties: [...form.specialties, val] });
+                    }
+                    if (input) input.value = '';
+                  }}
+                  className="px-4 py-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition font-medium text-sm"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-blue-500 mb-1">Zona horaria</label>
+              <select value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-white">
+                <option value="">Selecciona tu zona horaria</option>
+                <optgroup label="Norteamérica">
+                  <option value="America/St_Johns">San Juan de Terranova (NST)</option>
+                  <option value="America/Halifax">Halifax (AST)</option>
+                  <option value="America/New_York">Nueva York (EST)</option>
+                  <option value="America/Chicago">Chicago (CST)</option>
+                  <option value="America/Denver">Denver (MST)</option>
+                  <option value="America/Phoenix">Phoenix (MST — sin horario de verano)</option>
+                  <option value="America/Los_Angeles">Los Ángeles (PST)</option>
+                  <option value="America/Anchorage">Anchorage (AKST)</option>
+                  <option value="Pacific/Honolulu">Honolulu (HST)</option>
+                  <option value="America/Tijuana">Tijuana (PST)</option>
+                  <option value="America/Hermosillo">Hermosillo (MST)</option>
+                  <option value="America/Mazatlan">Mazatlán (MST)</option>
+                  <option value="America/Mexico_City">Ciudad de México (CST)</option>
+                  <option value="America/Cancun">Cancún (EST)</option>
+                  <option value="America/Guatemala">Guatemala (CST)</option>
+                  <option value="America/Managua">Managua (CST)</option>
+                  <option value="America/Tegucigalpa">Tegucigalpa (CST)</option>
+                  <option value="America/El_Salvador">San Salvador (CST)</option>
+                  <option value="America/Costa_Rica">San José (CST)</option>
+                  <option value="America/Panama">Panamá (EST)</option>
+                </optgroup>
+                <optgroup label=" Caribe">
+                  <option value="America/Puerto_Rico">Puerto Rico (AST)</option>
+                  <option value="America/Havana">La Habana (CST)</option>
+                  <option value="America/Santo_Domingo">Santo Domingo (AST)</option>
+                  <option value="America/PortauPrince">Puerto Príncipe (EST)</option>
+                  <option value="America/Nassau">Nassau (EST)</option>
+                  <option value="America/Barbados">Barbados (AST)</option>
+                  <option value="America/Jamaica">Jamaica (EST)</option>
+                  <option value="America/Curacao">Curazao (AST)</option>
+                  <option value="America/Aruba">Aruba (AST)</option>
+                  <option value="America/Trinidad">Trinidad y Tobago (AST)</option>
+                  <option value="America/Grand_Turk">Islas Turcas y Caicos (EST)</option>
+                </optgroup>
+                <optgroup label="Sudamérica">
+                  <option value="America/Caracas">Caracas (VET)</option>
+                  <option value="America/Bogota">Bogotá (COT)</option>
+                  <option value="America/Guayaquil">Guayaquil (ECT)</option>
+                  <option value="America/Lima">Lima (PET)</option>
+                  <option value="America/La_Paz">La Paz (BOT)</option>
+                  <option value="America/Santiago">Santiago (CLT)</option>
+                  <option value="America/Argentina/Buenos_Aires">Buenos Aires (ART)</option>
+                  <option value="America/Argentina/Cordoba">Córdoba (ART)</option>
+                  <option value="America/Argentina/Mendoza">Mendoza (ART)</option>
+                  <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+                  <option value="America/Manaus">Manaus (AMT)</option>
+                  <option value="America/Rio_Branco">Río Branco (ACT)</option>
+                  <option value="America/Asuncion">Asunción (PYT)</option>
+                  <option value="America/Montevideo">Montevideo (UYT)</option>
+                  <option value="America/Paramaribo">Paramaribo (SRT)</option>
+                  <option value="America/Cayenne">Cayena (GFT)</option>
+                  <option value="America/Fortaleza">Fortaleza (BRT)</option>
+                  <option value="America/Noronha">Fernando de Noronha (FNT)</option>
+                </optgroup>
+                <optgroup label="Europa Occidental">
+                  <option value="Europe/London">Londres (GMT/BST)</option>
+                  <option value="Europe/Dublin">Dublín (GMT/IST)</option>
+                  <option value="Europe/Lisbon">Lisboa (WET/WEST)</option>
+                  <option value="Europe/Madrid">Madrid (CET/CEST)</option>
+                  <option value="Europe/Barcelona">Barcelona (CET/CEST)</option>
+                  <option value="Europe/Paris">París (CET/CEST)</option>
+                  <option value="Europe/Brussels">Bruselas (CET/CEST)</option>
+                  <option value="Europe/Amsterdam">Ámsterdam (CET/CEST)</option>
+                  <option value="Europe/Berlin">Berlín (CET/CEST)</option>
+                  <option value="Europe/Frankfurt">Fráncfort (CET/CEST)</option>
+                  <option value="Europe/Munich">Múnich (CET/CEST)</option>
+                  <option value="Europe/Zurich">Zúrich (CET/CEST)</option>
+                  <option value="Europe/Vienna">Viena (CET/CEST)</option>
+                  <option value="Europe/Copenhagen">Copenhague (CET/CEST)</option>
+                  <option value="Europe/Stockholm">Estocolmo (CET/CEST)</option>
+                  <option value="Europe/Oslo">Oslo (CET/CEST)</option>
+                  <option value="Europe/Rome">Roma (CET/CEST)</option>
+                  <option value="Europe/Monaco">Mónaco (CET/CEST)</option>
+                  <option value="Europe/Andorra">Andorra (CET/CEST)</option>
+                  <option value="Europe/Malta">Malta (CET/CEST)</option>
+                  <option value="Europe/Gibraltar">Gibraltar (CET/CEST)</option>
+                </optgroup>
+                <optgroup label="Europa Oriental">
+                  <option value="Europe/Warsaw">Varsovia (CET/CEST)</option>
+                  <option value="Europe/Prague">Praga (CET/CEST)</option>
+                  <option value="Europe/Budapest">Budapest (CET/CEST)</option>
+                  <option value="Europe/Bratislava">Bratislava (CET/CEST)</option>
+                  <option value="Europe/Ljubljana">Liubliana (CET/CEST)</option>
+                  <option value="Europe/Zagreb">Zagreb (CET/CEST)</option>
+                  <option value="Europe/Sarajevo">Sarajevo (CET/CEST)</option>
+                  <option value="Europe/Skopje">Skopie (CET/CEST)</option>
+                  <option value="Europe/Tirane">Tirana (CET/CEST)</option>
+                  <option value="Europe/Athens">Atenas (EET/EEST)</option>
+                  <option value="Europe/Helsinki">Helsinki (EET/EEST)</option>
+                  <option value="Europe/Tallinn">Tallin (EET/EEST)</option>
+                  <option value="Europe/Riga">Riga (EET/EEST)</option>
+                  <option value="Europe/Vilnius">Vilna (EET/EEST)</option>
+                  <option value="Europe/Kyiv">Kiev (EET/EEST)</option>
+                  <option value="Europe/Chisinau">Chisinau (EET/EEST)</option>
+                  <option value="Europe/Bucharest">Bucarest (EET/EEST)</option>
+                  <option value="Europe/Sofia">Sofía (EET/EEST)</option>
+                  <option value="Europe/Istanbul">Estambul (TRT)</option>
+                  <option value="Europe/Moscow">Moscú (MSK)</option>
+                  <option value="Europe/Kaliningrad">Kaliningrado (EET)</option>
+                  <option value="Europe/Minsk">Minsk (MSK)</option>
+                </optgroup>
+                <optgroup label="Oriente Medio">
+                  <option value="Asia/Jerusalem">Jerusalén (IST/IDT)</option>
+                  <option value="Asia/Beirut">Beirut (EET/EEST)</option>
+                  <option value="Asia/Damascus">Damasco (EET/EEST)</option>
+                  <option value="Asia/Amman">Amán (EET/EEST)</option>
+                  <option value="Asia/Nicosia">Nicosia (EET/EEST)</option>
+                  <option value="Asia/Riyadh">Riad (AST)</option>
+                  <option value="Asia/Qatar">Doha (AST)</option>
+                  <option value="Asia/Dubai">Dubái (GST)</option>
+                  <option value="Asia/Muscat">Mascate (GST)</option>
+                  <option value="Asia/Kuwait">Kuwait (AST)</option>
+                  <option value="Asia/Bahrain">Manama (AST)</option>
+                  <option value="Asia/Baghdad">Bagdad (AST)</option>
+                  <option value="Asia/Tehran">Teherán (IRST)</option>
+                  <option value="Asia/Yerevan">Ereván (AMT)</option>
+                  <option value="Asia/Tbilisi">Tiflis (GET)</option>
+                  <option value="Asia/Baku">Bakú (AZT)</option>
+                </optgroup>
+                <optgroup label="África">
+                  <option value="Africa/Casablanca">Casablanca (WET/WEST)</option>
+                  <option value="Africa/Algiers">Argel (CET)</option>
+                  <option value="Africa/Tunis">Túnez (CET)</option>
+                  <option value="Africa/Tripoli">Trípoli (EET)</option>
+                  <option value="Africa/Cairo">El Cairo (EET)</option>
+                  <option value="Africa/Khartoum">Jartum (CAT)</option>
+                  <option value="Africa/Johannesburg">Johannesburgo (SAST)</option>
+                  <option value="Africa/Cape_Town">Ciudad del Cabo (SAST)</option>
+                  <option value="Africa/Lagos">Lagos (WAT)</option>
+                  <option value="Africa/Accra">Acra (GMT)</option>
+                  <option value="Africa/Abidjan">Abiyán (GMT)</option>
+                  <option value="Africa/Dakar">Dakar (GMT)</option>
+                  <option value="Africa/Nairobi">Nairobi (EAT)</option>
+                  <option value="Africa/Addis_Ababa">Adís Abeba (EAT)</option>
+                  <option value="Africa/Dar_es_Salaam">Dar es Salaam (EAT)</option>
+                  <option value="Africa/Kampala">Kampala (EAT)</option>
+                  <option value="Africa/Lusaka">Lusaka (CAT)</option>
+                  <option value="Africa/Harare">Harare (CAT)</option>
+                  <option value="Africa/Maputo">Maputo (CAT)</option>
+                  <option value="Africa/Windhoek">Windhoek (CAT)</option>
+                </optgroup>
+                <optgroup label="Asia (Sur / Sureste)">
+                  <option value="Asia/Karachi">Karachi (PKT)</option>
+                  <option value="Asia/Kolkata">India (IST)</option>
+                  <option value="Asia/Colombo">Colombo (IST)</option>
+                  <option value="Asia/Kathmandu">Katmandú (NPT)</option>
+                  <option value="Asia/Dhaka">Daca (BST)</option>
+                  <option value="Asia/Thimphu">Timbu (BTT)</option>
+                  <option value="Asia/Almaty">Almaty (ALMT)</option>
+                  <option value="Asia/Tashkent">Taskent (UZT)</option>
+                  <option value="Asia/Ashgabat">Asjabad (TMT)</option>
+                  <option value="Asia/Dushanbe">Dusambé (TJT)</option>
+                  <option value="Asia/Bishkek">Biskek (KGT)</option>
+                  <option value="Asia/Yangon">Yangón (MMT)</option>
+                  <option value="Asia/Bangkok">Bangkok (ICT)</option>
+                  <option value="Asia/Jakarta">Yakarta (WIB)</option>
+                  <option value="Asia/Phnom_Penh">Phnom Penh (ICT)</option>
+                  <option value="Asia/Vientiane">Vientián (ICT)</option>
+                  <option value="Asia/Ho_Chi_Minh">Ho Chi Minh (ICT)</option>
+                  <option value="Asia/Singapore">Singapur (SGT)</option>
+                  <option value="Asia/Kuala_Lumpur">Kuala Lumpur (MYT)</option>
+                  <option value="Asia/Manila">Manila (PHT)</option>
+                </optgroup>
+                <optgroup label="Asia (Este)">
+                  <option value="Asia/Shanghai">Shanghái (CST)</option>
+                  <option value="Asia/Beijing">Pekín (CST)</option>
+                  <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                  <option value="Asia/Macau">Macao (CST)</option>
+                  <option value="Asia/Taipei">Taipéi (CST)</option>
+                  <option value="Asia/Seoul">Seúl (KST)</option>
+                  <option value="Asia/Pyongyang">Pionyang (KST)</option>
+                  <option value="Asia/Tokyo">Tokio (JST)</option>
+                  <option value="Asia/Ulaanbaatar">Ulán Bator (ULAT)</option>
+                </optgroup>
+                <optgroup label="Pacífico / Oceanía">
+                  <option value="Australia/Perth">Perth (AWST)</option>
+                  <option value="Australia/Eucla">Eucla (ACWST)</option>
+                  <option value="Australia/Darwin">Darwin (ACST)</option>
+                  <option value="Australia/Adelaide">Adelaida (ACST)</option>
+                  <option value="Australia/Brisbane">Brisbane (AEST)</option>
+                  <option value="Australia/Sydney">Sídney (AEST)</option>
+                  <option value="Australia/Melbourne">Melbourne (AEST)</option>
+                  <option value="Australia/Hobart">Hobart (AEST)</option>
+                  <option value="Australia/Canberra">Canberra (AEST)</option>
+                  <option value="Pacific/Guam">Guam (ChST)</option>
+                  <option value="Pacific/Port_Moresby">Puerto Moresby (PGT)</option>
+                  <option value="Pacific/Fiji">Fiyi (FJT)</option>
+                  <option value="Pacific/Auckland">Auckland (NZST)</option>
+                  <option value="Pacific/Chatham">Islas Chatham (CHAST)</option>
+                  <option value="Pacific/Pago_Pago">Pago Pago (SST)</option>
+                  <option value="Pacific/Tahiti">Tahití (TAHT)</option>
+                  <option value="Pacific/Noumea">Numea (NCT)</option>
+                  <option value="Pacific/Majuro">Majuro (MHT)</option>
+                  <option value="Pacific/Tarawa">Tarawa (GILT)</option>
+                  <option value="Pacific/Apia">Apia (WST)</option>
+                  <option value="Pacific/Tongatapu">Tongatapu (TOT)</option>
+                  <option value="Pacific/Easter">Isla de Pascua (EAST)</option>
+                  <option value="Pacific/Galapagos">Galápagos (GALT)</option>
+                </optgroup>
+                <optgroup label="Otras">
+                  <option value="UTC">UTC (Tiempo Universal Coordinado)</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-blue-500 mb-1">Biografía</label>
+              <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={4} placeholder="Cuéntanos sobre ti, tu formación y enfoque profesional..." className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-y" />
             </div>
             <button type="submit" disabled={saving} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 shadow-sm">
               {saving ? 'Guardando...' : 'Guardar cambios'}

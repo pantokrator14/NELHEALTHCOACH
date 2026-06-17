@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Layout from '../../../components/dashboard/Layout';
 import Head from 'next/head';
 import { apiClient } from '@/lib/api';
 import Image from 'next/image';
+import { useToast } from '@/components/ui/Toast';
 
 interface Coach {
   id: string;
@@ -10,11 +11,16 @@ interface Coach {
   firstName: string;
   lastName: string;
   phone: string;
+  professionalTitle: string;
   profilePhoto?: { url: string } | null;
   role: string;
   emailVerified: boolean;
   isActive: boolean;
+  isSuspended: boolean;
+  trialStatus: string;
+  subscriptionStatus: string;
   createdAt: string;
+  clientCount: number;
   stripeConnect?: {
     hasAccount: boolean;
     onboardingComplete: boolean;
@@ -22,10 +28,72 @@ interface Coach {
   };
 }
 
+type SortField = 'createdAt' | 'firstName' | 'clientCount';
+type StatusFilter = 'all' | 'active' | 'inactive' | 'suspended';
+type StripeFilter = 'all' | 'connected' | 'not_connected';
+
 export default function CoachesPage() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  const [deletingCoach, setDeletingCoach] = useState<string | null>(null);
+  const { showToast, ToastComponent } = useToast();
+
+  // Buscador y filtros
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [stripeFilter, setStripeFilter] = useState<StripeFilter>('all');
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Debounce del buscador (300ms como en recetas)
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  }, []);
+
+  // Datos filtrados y ordenados
+  const filteredCoaches = useMemo(() => {
+    let result = [...coaches];
+
+    // Búsqueda por nombre, email, título
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter((c) =>
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        (c.professionalTitle || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Filtro por estado
+    if (statusFilter === 'active') result = result.filter((c) => c.isActive && !c.isSuspended);
+    else if (statusFilter === 'inactive') result = result.filter((c) => !c.isActive || c.isSuspended);
+    else if (statusFilter === 'suspended') result = result.filter((c) => c.isSuspended);
+
+    // Filtro por Stripe
+    if (stripeFilter === 'connected') result = result.filter((c) => c.stripeConnect?.hasAccount);
+    else if (stripeFilter === 'not_connected') result = result.filter((c) => !c.stripeConnect?.hasAccount);
+
+    // Ordenar
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'createdAt') cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      else if (sortField === 'firstName') cmp = a.firstName.localeCompare(b.firstName);
+      else if (sortField === 'clientCount') cmp = a.clientCount - b.clientCount;
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
+
+    return result;
+  }, [coaches, debouncedSearch, statusFilter, stripeFilter, sortField, sortOrder]);
+
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) + (stripeFilter !== 'all' ? 1 : 0);
 
   useEffect(() => {
     loadCoaches();
@@ -42,6 +110,30 @@ export default function CoachesPage() {
       console.error('Error loading coaches:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteCoach = async (coach: Coach, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (deletingCoach) return;
+
+    if (!window.confirm(`¿Estás seguro de eliminar a ${coach.firstName} ${coach.lastName} (${coach.email})? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      setDeletingCoach(coach.id);
+      await apiClient.deleteCoach(coach.id);
+      setCoaches(prev => prev.filter(c => c.id !== coach.id));
+      if (selectedCoach?.id === coach.id) {
+        setSelectedCoach(null);
+      }
+      showToast(`Coach ${coach.firstName} ${coach.lastName} eliminado.`, 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar coach';
+      showToast(msg, 'error');
+    } finally {
+      setDeletingCoach(null);
     }
   };
 
@@ -63,7 +155,7 @@ export default function CoachesPage() {
       <Layout>
         <div className="p-8">
           {/* Encabezado */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
             <div className="flex items-center mb-4 lg:mb-0">
               <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mr-4 shadow-md">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,30 +168,160 @@ export default function CoachesPage() {
               </div>
             </div>
 
-            <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
-              <div className="text-lg text-gray-700">
-                Total: <span className="font-semibold text-orange-600">{coaches.length} asesores</span>
+            <div className="flex justify-end">
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200 shadow-sm min-w-[200px]">
+                <div className="text-lg text-gray-700">
+                  Total: <span className="font-bold text-orange-600 text-xl">{coaches.length}</span>
+                </div>
+                {activeFilterCount > 0 && (
+                  <div className="text-sm text-gray-400 mt-1">
+                    {filteredCoaches.length} mostrados
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
+          {/* Buscador + Filtros */}
+          <div className="bg-white rounded-xl shadow-md border border-orange-100 p-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Barra de búsqueda */}
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Buscar asesores por nombre, email o título..."
+                  className="w-full pl-10 pr-10 py-2.5 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
+                />
+                {search && (
+                  <button onClick={() => handleSearchChange('')} className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600" aria-label="Limpiar búsqueda">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro estado */}
+              <div className="flex gap-2 flex-wrap">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
+                  <option value="all">Todos los estados</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Inactivos</option>
+                  <option value="suspended">Suspendidos</option>
+                </select>
+
+                {/* Filtro Stripe */}
+                <select value={stripeFilter} onChange={(e) => setStripeFilter(e.target.value as StripeFilter)}
+                  className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
+                  <option value="all">Stripe: Todos</option>
+                  <option value="connected">Stripe: Conectado</option>
+                  <option value="not_connected">Stripe: Sin conectar</option>
+                </select>
+
+                {/* Ordenar */}
+                <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)}
+                  className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
+                  <option value="createdAt">Registro</option>
+                  <option value="firstName">Nombre</option>
+                  <option value="clientCount">Clientes</option>
+                </select>
+
+                <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 bg-white flex items-center gap-1 text-gray-800">
+                  <svg className={`w-4 h-4 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  <span className="font-medium">{sortField === 'createdAt' ? 'Más reciente' : sortField === 'firstName' ? 'A-Z' : 'Más'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Chips de filtros activos */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                {statusFilter !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
+                    {statusFilter === 'active' ? 'Activos' : statusFilter === 'inactive' ? 'Inactivos' : 'Suspendidos'}
+                    <button onClick={() => setStatusFilter('all')} className="hover:text-orange-900">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                )}
+                {stripeFilter !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
+                    Stripe: {stripeFilter === 'connected' ? 'Conectado' : 'Sin conectar'}
+                    <button onClick={() => setStripeFilter('all')} className="hover:text-orange-900">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                )}
+                <button onClick={() => { setStatusFilter('all'); setStripeFilter('all'); }}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline">
+                  Limpiar filtros
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Grid de coaches */}
-          {coaches.length === 0 ? (
+          {filteredCoaches.length === 0 ? (
             <div className="text-center py-16 bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl border border-orange-200">
-              <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay asesores registrados</h3>
-              <p className="text-gray-500">Los asesores aparecerán aquí cuando se registren.</p>
+              <div className="text-6xl mb-4">
+                {coaches.length === 0 ? '👥' : '🔍'}
+              </div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                {coaches.length === 0 ? 'No hay asesores registrados' : 'Sin resultados'}
+              </h3>
+              <p className="text-gray-500">
+                {coaches.length === 0
+                  ? 'Los asesores aparecerán aquí cuando se registren.'
+                  : 'Intenta ajustar los filtros o el término de búsqueda.'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {coaches.map((coach) => (
+              {filteredCoaches.map((coach) => (
                 <div
                   key={coach.id}
                   onClick={() => setSelectedCoach(coach)}
-                  className="bg-white rounded-xl shadow-md border border-orange-100 hover:shadow-lg hover:border-orange-300 transition-all cursor-pointer overflow-hidden"
+                  className={`bg-white rounded-xl shadow-md border hover:shadow-lg transition-all cursor-pointer overflow-hidden relative group ${
+                    coach.role === 'admin' ? 'border-orange-100 hover:border-orange-300' : 'border-blue-100 hover:border-blue-300'
+                  }`}
                 >
-                  <div className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 flex justify-center">
-                    <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-orange-300 flex items-center justify-center relative">
+                  {/* Botón de eliminar — aparece al hover en la esquina superior derecha (solo para asesores, no admin) */}
+                  {coach.role !== 'admin' && (
+                    <button
+                      onClick={(e) => handleDeleteCoach(coach, e)}
+                      disabled={deletingCoach === coach.id}
+                      className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={`Eliminar a ${coach.firstName} ${coach.lastName}`}
+                    >
+                    {deletingCoach === coach.id ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                  </button>
+                  )}
+                  <div className={`p-6 flex justify-center ${
+                    coach.role === 'admin' ? 'bg-gradient-to-br from-orange-400 to-orange-600' : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                  }`}>
+                    <div className={`w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center relative ${
+                      coach.role === 'admin' ? 'bg-orange-300' : 'bg-blue-300'
+                    }`}>
                       {coach.profilePhoto?.url ? (
                         <Image src={coach.profilePhoto.url} alt={coach.firstName} fill sizes="80px" className="object-cover" unoptimized />
                       ) : (
@@ -109,12 +331,45 @@ export default function CoachesPage() {
                   </div>
                   <div className="p-4 text-center">
                     <h3 className="font-semibold text-gray-800">{coach.firstName} {coach.lastName}</h3>
-                    <p className="text-sm text-gray-500 truncate">{coach.email}</p>
-                    <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      coach.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
-                    }`}>
-                      {coach.role === 'admin' ? 'Admin' : 'Asesor'}
-                    </span>
+                    {coach.professionalTitle && (
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{coach.professionalTitle}</p>
+                    )}
+                    <p className="text-sm text-gray-500 truncate mt-1">{coach.email}</p>
+                    <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        coach.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {coach.role === 'admin' ? 'Admin' : 'Asesor'}
+                      </span>
+                      {coach.role !== 'admin' && (
+                        <>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            coach.stripeConnect?.onboardingComplete
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${coach.stripeConnect?.onboardingComplete ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            {coach.stripeConnect?.onboardingComplete ? 'Stripe ✓' : 'Stripe'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {coach.clientCount}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {/* Indicador de estado inactivo/suspendido */}
+                    {(!coach.isActive || coach.isSuspended) && coach.role !== 'admin' && (
+                      <div className="mt-2">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          coach.isSuspended ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {coach.isSuspended ? 'Suspendida' : 'Inactiva'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -126,8 +381,12 @@ export default function CoachesPage() {
         {selectedCoach && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCoach(null)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="bg-gradient-to-br from-orange-500 to-orange-700 p-8 text-center">
-                <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg mx-auto mb-4 overflow-hidden bg-orange-300 flex items-center justify-center relative">
+              <div className={`p-8 text-center ${
+                selectedCoach.role === 'admin' ? 'bg-gradient-to-br from-orange-500 to-orange-700' : 'bg-gradient-to-br from-blue-500 to-blue-700'
+              }`}>
+                <div className={`w-24 h-24 rounded-full border-4 border-white shadow-lg mx-auto mb-4 overflow-hidden flex items-center justify-center relative ${
+                  selectedCoach.role === 'admin' ? 'bg-orange-300' : 'bg-blue-300'
+                }`}>
                   {selectedCoach.profilePhoto?.url ? (
                     <Image src={selectedCoach.profilePhoto.url} alt="" fill sizes="96px" className="object-cover" unoptimized />
                   ) : (
@@ -135,8 +394,13 @@ export default function CoachesPage() {
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-white">{selectedCoach.firstName} {selectedCoach.lastName}</h2>
+                {selectedCoach.professionalTitle && (
+                  <p className={`text-sm mt-1 ${
+                    selectedCoach.role === 'admin' ? 'text-orange-100' : 'text-blue-100'
+                  }`}>{selectedCoach.professionalTitle}</p>
+                )}
                 <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedCoach.role === 'admin' ? 'bg-purple-200 text-purple-800' : 'bg-white text-orange-700'
+                  selectedCoach.role === 'admin' ? 'bg-purple-200 text-purple-800' : 'bg-white text-blue-700'
                 }`}>
                   {selectedCoach.role === 'admin' ? 'Administrador' : 'Asesor'}
                 </span>
@@ -162,44 +426,83 @@ export default function CoachesPage() {
                   <span className="text-lg mr-3">{selectedCoach.emailVerified ? '✅' : '⚠️'}</span>
                   <div>
                     <p className="text-xs text-gray-400">Verificación</p>
-                    <p className="text-gray-800">{selectedCoach.emailVerified ? 'Email verificado' : 'Pendiente de verificación'}</p>
+                    <p className="text-gray-800">{selectedCoach.emailVerified ? 'Email verificado' : 'Pendiente'}</p>
                   </div>
                 </div>
                 <div className="flex items-center">
-                  <span className="text-lg mr-3">{selectedCoach.isActive ? '🟢' : '🔴'}</span>
+                  <span className="text-lg mr-3">
+                    {selectedCoach.isSuspended ? '⏸️' : selectedCoach.isActive ? '🟢' : '🔴'}
+                  </span>
                   <div>
                     <p className="text-xs text-gray-400">Estado</p>
-                    <p className="text-gray-800">{selectedCoach.isActive ? 'Activo' : 'Inactivo'}</p>
+                    <p className="text-gray-800">
+                      {selectedCoach.isSuspended ? 'Suspendida' : selectedCoach.isActive ? 'Activa' : 'Inactiva'}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center">
-                  <span className="text-lg mr-3">📅</span>
-                  <div>
-                    <p className="text-xs text-gray-400">Registrado</p>
-                    <p className="text-gray-800">{new Date(selectedCoach.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  </div>
-                </div>
-                {/* Stripe Connect status */}
                 {selectedCoach.role !== 'admin' && (
-                  <div className="flex items-center">
-                    {selectedCoach.stripeConnect?.onboardingComplete ? (
-                      <>
-                        <span className="text-lg mr-3">💳</span>
-                        <div>
-                          <p className="text-xs text-gray-400">Datos de pago</p>
-                          <p className="text-gray-800">Verificados ✅</p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-lg mr-3">💳</span>
-                        <div>
-                          <p className="text-xs text-gray-400">Datos de pago</p>
-                          <p className="text-amber-600 font-medium">Pendiente de configurar</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  <>
+                    <div className="flex items-center">
+                      <span className="text-lg mr-3">📅</span>
+                      <div>
+                        <p className="text-xs text-gray-400">Registrado</p>
+                        <p className="text-gray-800">{new Date(selectedCoach.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-lg mr-3">👥</span>
+                      <div>
+                        <p className="text-xs text-gray-400">Clientes</p>
+                        <p className="text-gray-800 font-semibold">{selectedCoach.clientCount} cliente{selectedCoach.clientCount !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    {/* Stripe Connect status */}
+                    <div className="flex items-center">
+                      {selectedCoach.stripeConnect?.onboardingComplete ? (
+                        <>
+                          <span className="text-lg mr-3">💳</span>
+                          <div>
+                            <p className="text-xs text-gray-400">Datos de pago</p>
+                            <p className="text-gray-800">Stripe verificado ✅</p>
+                            {selectedCoach.stripeConnect.payoutsEnabled && (
+                              <p className="text-xs text-emerald-600 font-medium">Pagos habilitados</p>
+                            )}
+                          </div>
+                        </>
+                      ) : selectedCoach.stripeConnect?.hasAccount ? (
+                        <>
+                          <span className="text-lg mr-3">💳</span>
+                          <div>
+                            <p className="text-xs text-gray-400">Datos de pago</p>
+                            <p className="text-amber-600 font-medium">Configuración incompleta</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg mr-3">💳</span>
+                          <div>
+                            <p className="text-xs text-gray-400">Datos de pago</p>
+                            <p className="text-amber-600 font-medium">No conectado</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {/* Suscripción / Trial */}
+                    <div className="flex items-center">
+                      <span className="text-lg mr-3">
+                        {selectedCoach.subscriptionStatus === 'active' ? '✅' : selectedCoach.trialStatus === 'active' ? '🆓' : selectedCoach.trialStatus === 'expired' ? '⏰' : '—'}
+                      </span>
+                      <div>
+                        <p className="text-xs text-gray-400">Suscripción</p>
+                        <p className="text-gray-800">
+                          {selectedCoach.subscriptionStatus === 'active' ? 'Activa' :
+                           selectedCoach.trialStatus === 'active' ? 'Prueba gratuita' :
+                           selectedCoach.trialStatus === 'expired' ? 'Prueba vencida' :
+                           selectedCoach.trialStatus === 'converted' ? 'Convertida' : 'Sin suscripción'}
+                        </p>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
               <div className="px-6 pb-6">
@@ -213,6 +516,7 @@ export default function CoachesPage() {
             </div>
           </div>
         )}
+        <ToastComponent />
       </Layout>
     </>
   );
