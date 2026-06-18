@@ -114,21 +114,21 @@ const RecipesPage = () => {
   const handleApproveProposal = async (proposalId: string) => {
     try {
       await apiClient.approveProposal(proposalId);
-      showToast('Propuesta aprobada y cambios aplicados', 'success');
+      showToast(t('recipes.proposalApproved'), 'success');
       loadProposals();
       loadRecipes();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Error al aprobar', 'error');
+      showToast(err instanceof Error ? err.message : t('recipes.errorApproving'), 'error');
     }
   };
 
   const handleRejectProposal = async (proposalId: string) => {
     try {
       await apiClient.rejectProposal(proposalId, 'Rechazada por el administrador');
-      showToast('Propuesta rechazada', 'success');
+      showToast(t('recipes.proposalRejected'), 'success');
       loadProposals();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Error al rechazar', 'error');
+      showToast(err instanceof Error ? err.message : t('recipes.errorRejecting'), 'error');
     }
   };
 
@@ -373,8 +373,8 @@ const RecipesPage = () => {
                 <div className="w-8 h-8 bg-blue-100 rounded-full"></div>
               </div>
             </div>
-            <p className="mt-6 text-lg text-gray-700 font-medium">Cargando recetas...</p>
-            <p className="text-gray-500">Por favor espera un momento</p>
+            <p className="mt-6 text-lg text-gray-700 font-medium">{t('recipes.loadingText')}</p>
+            <p className="text-gray-500">{t('recipes.loadingWait')}</p>
           </div>
         </div>
       </Layout>
@@ -384,8 +384,8 @@ const RecipesPage = () => {
   return (
     <>
       <Head>
-        <title>Recetas - NELHEALTHCOACH</title>
-        <meta name="description" content="Gestión de recetas saludables para clientes" />
+        <title>{t('recipes.title')} - NELHEALTHCOACH</title>
+        <meta name="description" content={t('recipes.pageDescription')} />
       </Head>
       <Layout>
         <div className="p-8">
@@ -399,9 +399,9 @@ const RecipesPage = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-green-700">
-                  Recetas Saludables
+                  {t('recipes.title')}
                 </h1>
-                <p className="text-green-600 mt-1">Gestiona tu biblioteca de recetas para clientes</p>
+                <p className="text-green-600 mt-1">{t('recipes.headerSubtitle')}</p>
               </div>
             </div>
             
@@ -409,22 +409,22 @@ const RecipesPage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Total: <span className="font-bold text-blue-700 text-xl">{stats.total}</span>
+                  {t('recipes.statTotal')}: <span className="font-bold text-blue-700 text-xl">{stats.total}</span>
                 </div>
               </div>
               <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Fáciles: <span className="font-bold text-green-700 text-xl">{stats.easy}</span>
+                  {t('recipes.statEasy')}: <span className="font-bold text-green-700 text-xl">{stats.easy}</span>
                 </div>
               </div>
               <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Medias: <span className="font-bold text-yellow-700 text-xl">{stats.medium}</span>
+                  {t('recipes.statMedium')}: <span className="font-bold text-yellow-700 text-xl">{stats.medium}</span>
                 </div>
               </div>
               <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200 shadow-sm">
                 <div className="text-lg text-gray-700">
-                  Complejas: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
+                  {t('recipes.statComplex')}: <span className="font-bold text-red-700 text-xl">{stats.hard}</span>
                 </div>
               </div>
             </div>
@@ -441,7 +441,7 @@ const RecipesPage = () => {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Todas las recetas
+                {t('recipes.tabAll')}
               </button>
               <button
                 onClick={() => setActiveTab('pending')}
@@ -451,7 +451,7 @@ const RecipesPage = () => {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Pendientes por aprobar
+                {t('recipes.tabPending')}
                 {proposalCount > 0 && (
                   <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
                     {proposalCount}
@@ -472,8 +472,8 @@ const RecipesPage = () => {
               ) : proposals.length === 0 ? (
                 <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200">
                   <div className="text-4xl mb-4">✅</div>
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay propuestas pendientes</h3>
-                  <p className="text-gray-500">Las ediciones propuestas por los coaches aparecerán aquí.</p>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">{t('recipes.noPendingProposals')}</h3>
+                  <p className="text-gray-500">{t('recipes.noPendingProposalsDesc')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -482,10 +482,10 @@ const RecipesPage = () => {
                       <div className="bg-orange-50 px-4 py-3 border-b border-orange-200 flex justify-between items-center">
                         <div>
                           <span className="inline-block bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-medium mr-2">
-                            Pendiente
+                            {t('recipes.proposalStatus')}
                           </span>
                           <span className="text-sm text-gray-600">
-                            Propuesto por: {proposal.proposedByName || 'Coach'}
+                            {t('recipes.proposedBy', { name: proposal.proposedByName || 'Coach' })}
                           </span>
                         </div>
                         <span className="text-xs text-gray-400">
@@ -493,19 +493,19 @@ const RecipesPage = () => {
                         </span>
                       </div>
                       <div className="p-4">
-                        <p className="text-sm text-gray-500 mb-3">Cambios propuestos en receta ID: {proposal.targetId?.toString().substring(0, 8)}...</p>
+                        <p className="text-sm text-gray-500 mb-3">{t('recipes.changesInRecipeId', { id: proposal.targetId?.toString().substring(0, 8) })}</p>
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleApproveProposal(proposal.id)}
                             className="flex-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 transition font-medium"
                           >
-                            ✓ Aprobar
+                            {t('recipes.approve')}
                           </button>
                           <button
                             onClick={() => handleRejectProposal(proposal.id)}
                             className="flex-1 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-600 transition font-medium"
                           >
-                            ✗ Rechazar
+                            {t('recipes.reject')}
                           </button>
                         </div>
                       </div>
@@ -532,23 +532,23 @@ const RecipesPage = () => {
                 <button
                   onClick={toggleDeleteMode}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all transform hover:scale-105 shadow-md font-medium"
-                  aria-label="Cancelar modo eliminación"
+                  aria-label={t('recipes.cancelDeleteMode')}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  Cancelar
+                  {t('recipes.cancelDeleteMode')}
                 </button>
               ) : (
                 <button
                   onClick={toggleDeleteMode}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-md font-medium"
-                  aria-label="Activar modo eliminación múltiple"
+                  aria-label={t('recipes.deleteModeActivateAriaLabel')}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Eliminar Varias
+                  {t('recipes.deleteMultiple')}
                 </button>
               )}
             </div>
@@ -559,7 +559,7 @@ const RecipesPage = () => {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Crear Nueva Receta
+              {t('recipes.createNewRecipe')}
             </button>
           </div>
 
@@ -571,8 +571,8 @@ const RecipesPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.768 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <p className="text-red-700 font-medium">
-                  Modo eliminación - Selecciona las recetas que deseas eliminar. 
-                  <span className="font-normal text-red-600 ml-1">Haz clic en la X de cada tarjeta para seleccionar.</span>
+                  {t('recipes.deleteModeBanner')}
+                  <span className="font-normal text-red-600 ml-1">{t('recipes.deleteModeHint')}</span>
                 </p>
               </div>
             </div>
@@ -582,21 +582,21 @@ const RecipesPage = () => {
           <div className="mb-4 flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-900">
               {filteredAndSortedRecipes.length === recipes.length
-                ? `Todas las recetas (${filteredAndSortedRecipes.length})`
-                : `Recetas encontradas: ${filteredAndSortedRecipes.length} de ${recipes.length}`
+                ? t('recipes.showingAll', { count: filteredAndSortedRecipes.length })
+                : t('recipes.showingFiltered', { count: filteredAndSortedRecipes.length, total: recipes.length })
               }
             </h3>
             
             {filteredAndSortedRecipes.length > 0 && (
               <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                Ordenado por: {
-                  filters.sortBy === 'title' ? 'Nombre' :
-                  filters.sortBy === 'cookTime' ? 'Tiempo' :
-                  filters.sortBy === 'calories' ? 'Calorías' :
-                  filters.sortBy === 'difficulty' ? 'Dificultad' :
-                  filters.sortBy === 'ingredientCount' ? 'Ingredientes' :
-                  'Fecha'
-                } ({filters.sortOrder === 'asc' ? 'Ascendente' : 'Descendente'})
+                {t('recipes.sortLabel')} {
+                  filters.sortBy === 'title' ? t('recipes.sortByTitle') :
+                  filters.sortBy === 'cookTime' ? t('recipes.sortByCookTime') :
+                  filters.sortBy === 'calories' ? t('recipes.sortByCalories') :
+                  filters.sortBy === 'difficulty' ? t('recipes.sortByDifficulty') :
+                  filters.sortBy === 'ingredientCount' ? t('recipes.sortByIngredientCount') :
+                  t('recipes.sortByDate')
+                } ({filters.sortOrder === 'asc' ? t('recipes.sortAsc') : t('recipes.sortDesc')})
               </div>
             )}
           </div>
@@ -618,23 +618,22 @@ const RecipesPage = () => {
           ) : recipes.length > 0 ? (
             <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
               <div className="text-gray-400 text-6xl mb-6">🔍</div>
-              <h3 className="text-2xl font-semibold text-gray-800 mb-3">No se encontraron recetas</h3>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-3">{t('recipes.emptyFilteredTitle')}</h3>
               <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                No hay recetas que coincidan con los filtros seleccionados. 
-                Intenta ajustar tus criterios de búsqueda.
+                {t('recipes.emptyFilteredDesc')}
               </p>
               <button
                 onClick={handleResetFilters}
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
               >
-                Limpiar filtros
+                {t('recipes.emptyFilteredAction')}
               </button>
             </div>
           ) : (
             <div className="text-center py-16 bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl border border-green-200">
               <div className="text-green-400 text-7xl mb-6">🍽️</div>
-              <h3 className="text-2xl font-semibold text-gray-800 mb-3">No hay recetas registradas</h3>
-              <p className="text-gray-600 mb-8 max-w-md mx-auto">Comienza creando tu primera receta saludable para tus clientes.</p>
+              <h3 className="text-2xl font-semibold text-gray-800 mb-3">{t('recipes.emptyAllTitle')}</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">{t('recipes.emptyAllDesc')}</p>
               <button
                 onClick={handleCreateRecipe}
                 className="px-8 py-3.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition font-medium shadow-lg"
@@ -643,7 +642,7 @@ const RecipesPage = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Crear Primera Receta
+                  {t('recipes.emptyAllAction')}
                 </span>
               </button>
             </div>
@@ -658,12 +657,12 @@ const RecipesPage = () => {
             <button
               onClick={handleDeleteMultipleRecipes}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all transform hover:scale-105 shadow-lg font-medium animate-bounce"
-              aria-label={`Eliminar ${selectedRecipes.length} recetas seleccionadas`}
+              aria-label={t('recipes.deleteSelectedAriaLabel', { count: selectedRecipes.length })}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Eliminar seleccionados ({selectedRecipes.length})
+              {t('recipes.deleteSelectedCount', { count: selectedRecipes.length })}
             </button>
           </div>
         )}

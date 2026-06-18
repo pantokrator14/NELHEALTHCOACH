@@ -295,11 +295,11 @@ export default function ExerciseModal({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!name.trim()) newErrors.name = 'El nombre es obligatorio';
-if (!description.trim()) newErrors.description = t('common.required');
-    if (category.length === 0) newErrors.category = t('common.required');
-    if (instructions.filter(i => i.trim()).length === 0) newErrors.instructions = t('common.required');
-    if (!progression.trim()) newErrors.progression = t('common.required');
+    if (!name.trim()) newErrors.name = t('exercises.nameRequired');
+if (!description.trim()) newErrors.description = t('exercises.required');
+    if (category.length === 0) newErrors.category = t('exercises.required');
+    if (instructions.filter(i => i.trim()).length === 0) newErrors.instructions = t('exercises.required');
+    if (!progression.trim()) newErrors.progression = t('exercises.required');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -433,13 +433,13 @@ if (!description.trim()) newErrors.description = t('common.required');
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-200 bg-teal-600">
             <h2 className="text-lg sm:text-xl font-bold text-white">
-              {isEditing ? 'Editar Ejercicio' : 'Nuevo Ejercicio'}
+              {t(isEditing ? 'exercises.modalEditTitle' : 'exercises.modalNewTitle')}
             </h2>
             <button
               type="button"
               onClick={onClose}
               className="p-1.5 sm:p-2 hover:bg-teal-800 rounded-full transition"
-              aria-label="Cerrar"
+              aria-label={t('exercises.closeAriaLabel')}
               disabled={isSubmitting}
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -467,7 +467,7 @@ if (!description.trim()) newErrors.description = t('common.required');
               <div className="space-y-4 sm:space-y-6">
                 {/* Demo/GIF Upload */}
                 <div className="bg-white rounded-lg border border-teal-200 p-4 sm:p-6 shadow-sm">
-                  <h3 className="text-base sm:text-lg font-semibold text-teal-700 mb-3 sm:mb-4">Demostración del Ejercicio</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-teal-700 mb-3 sm:mb-4">{t('exercises.modalDemoSection')}</h3>
                   <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
@@ -510,9 +510,9 @@ if (!description.trim()) newErrors.description = t('common.required');
                           </svg>
                         </div>
                         <p className="text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                          Arrastra una imagen aquí o haz clic para subir
+                          {t('exercises.modalUploadLabel')}
                         </p>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-4">PNG, JPG, GIF, WebP hasta 10MB</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mb-4">{t('exercises.modalUploadHint')}</p>
                       </div>
                     )}
 
@@ -529,7 +529,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       htmlFor="exercise-demo-upload"
                       className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
                     >
-                      {demoPreview ? 'Cambiar Imagen' : 'Seleccionar Imagen/GIF'}
+                      {demoPreview ? t('exercises.modalChangeImage') : t('exercises.modalSelectImage')}
                     </label>
 
                     {/* URL input as alternative */}
@@ -539,7 +539,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                         value={demoUrl}
                         onChange={(e) => { setDemoUrl(e.target.value); if (e.target.value) { setDemoPreview(e.target.value); setDemoType('image'); } }}
                         className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg text-sm"
-                        placeholder="O pega una URL de imagen/GIF..."
+                        placeholder={t('exercises.modalUrlPlaceholder')}
                       />
                     </div>
                   </div>
@@ -547,7 +547,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                   {isUploading && (
                     <div className="mt-4">
                       <div className="flex justify-between text-sm text-gray-700 mb-1">
-                        <span className="font-medium">Subiendo imagen...</span>
+                        <span className="font-medium">{t('exercises.modalUploading')}</span>
                         <span className="font-bold">{uploadProgress}%</span>
                       </div>
                       <div className="w-full bg-teal-200 rounded-full h-2">
@@ -568,33 +568,33 @@ if (!description.trim()) newErrors.description = t('common.required');
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </div>
-                    Nombre y Descripción <span className="text-red-500">*</span>
+                    {t('exercises.modalNameSection')} <span className="text-red-500">*</span>
                   </h3>
                   <div className="space-y-3 sm:space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-blue-600 mb-2">
-                        Nombre del ejercicio  <span className="text-red-500">*</span>
+                        {t('exercises.nameField')} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
-                        placeholder="Ej: Sentadilla copa con mancuerna"
+                        placeholder={t('exercises.modalNamePlaceholder')}
                         disabled={isSubmitting}
                       />
                       {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-blue-600 mb-2">
-                        Descripción <span className="text-red-500">*</span>
+                        {t('exercises.description')} <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         rows={3}
                         className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.description ? 'border-red-300' : 'border-gray-300'}`}
-                        placeholder="Describe brevemente el ejercicio..."
+                        placeholder={t('exercises.modalDescriptionPlaceholder')}
                         disabled={isSubmitting}
                       />
                       {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
@@ -610,38 +610,38 @@ if (!description.trim()) newErrors.description = t('common.required');
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    Información Básica
+                    {t('exercises.modalBasicInfo')}
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">Dificultad</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2">{t('exercises.modalDifficultyLabel')}</label>
                       <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as ExerciseFormData['difficulty'])} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
-                        <option value="easy">Fácil</option>
-                        <option value="medium">Medio</option>
-                        <option value="hard">Complejo</option>
+                        <option value="easy">{t('exercises.modalDifficultyEasy')}</option>
+                        <option value="medium">{t('exercises.modalDifficultyMedium')}</option>
+                        <option value="hard">{t('exercises.modalDifficultyHard')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">Nivel de cliente</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2">{t('exercises.modalClientLevelLabel')}</label>
                       <select value={clientLevel} onChange={(e) => setClientLevel(e.target.value as ExerciseFormData['clientLevel'])} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
-                        <option value="principiante">Principiante</option>
-                        <option value="intermedio">Intermedio</option>
-                        <option value="avanzado">Avanzado</option>
+                        <option value="principiante">{t('exercises.modalLevelBeginner')}</option>
+                        <option value="intermedio">{t('exercises.modalLevelIntermediate')}</option>
+                        <option value="avanzado">{t('exercises.modalLevelAdvanced')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">Series</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2">{t('exercises.setsField')}</label>
                       <input type="number" value={sets} onChange={(e) => setSets(parseInt(e.target.value) || 1)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" min={1} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">Repeticiones</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2">{t('exercises.repsField')}</label>
                       <input value={repetitions} onChange={(e) => setRepetitions(e.target.value)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" placeholder="12" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-yellow-600 mb-2 flex items-center">
-                        TUT
-                        <Tooltip content="Time Under Tension (Tiempo Bajo Tensión). Formato: fase concéntrica - pausa - fase excéntrica. Ej: 3-1-1 significa 3s subiendo, 1s de pausa, 1s bajando." position="right" delay={150}>
-                          <button type="button" className="ml-1 text-gray-400 hover:text-gray-600 inline-flex items-center" aria-label="Información sobre TUT">
+                        {t('exercises.modalTUTLabel')}
+                        <Tooltip content={t('exercises.modalTUTTooltip')} position="right" delay={150}>
+                          <button type="button" className="ml-1 text-gray-400 hover:text-gray-600 inline-flex items-center" aria-label={t('exercises.modalTUTInfoAria')}>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -651,7 +651,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       <input value={timeUnderTension} onChange={(e) => setTimeUnderTension(e.target.value)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" placeholder="3-1-1" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-yellow-600 mb-2">Descanso</label>
+                      <label className="block text-sm font-medium text-yellow-600 mb-2">{t('exercises.modalRestLabel')}</label>
                       <input value={restBetweenSets} onChange={(e) => setRestBetweenSets(e.target.value)} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500" />
                     </div>
                   </div>
@@ -669,9 +669,9 @@ if (!description.trim()) newErrors.description = t('common.required');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      Categorías <span className="text-red-500">*</span>
+                      {t('exercises.modalCategoriesLabel')} <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{category.length} categorías</span>
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{t('exercises.modalCategoriesCount', { count: category.length })}</span>
                   </div>
                   {errors.category && <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.category}</p>}
                   <div className="mb-4">
@@ -683,7 +683,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onItemCreate={handleCreateCategory}
                       allowCreate={true}
                       separator="both"
-                      placeholder="Escribe para buscar o agregar una categoría..."
+                      placeholder={t('exercises.modalCategoryPlaceholder')}
                       disabled={isSubmitting}
                       maxSuggestions={5}
                       className="border-teal-300"
@@ -710,7 +710,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       </div>
-                      Grupos musculares <span className="text-red-500">*</span>
+                      {t('exercises.modalMuscleGroupsLabel')} <span className="text-red-500">*</span>
                     </label>
                     <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{muscleGroups.length}</span>
                   </div>
@@ -722,10 +722,10 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onChange={(e) => setNewMuscleGroup(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddMuscleGroup)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-green-200 rounded-lg text-sm"
-                      placeholder="Ej: cuadriceps"
+                      placeholder={t('exercises.modalMusclePlaceholder')}
                       disabled={isSubmitting}
                     />
-                    <button type="button" onClick={handleAddMuscleGroup} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm" disabled={isSubmitting}>Agregar</button>
+                    <button type="button" onClick={handleAddMuscleGroup} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm" disabled={isSubmitting}>{t('exercises.modalAddButton')}</button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {muscleGroups.map((mg, i) => (
@@ -748,7 +748,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                       </div>
-                      Equipamiento <span className="text-red-500">*</span>
+                      {t('exercises.modalEquipmentLabel')} <span className="text-red-500">*</span>
                     </label>
                     <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{equipment.length}</span>
                   </div>
@@ -760,10 +760,10 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onChange={(e) => setNewEquipment(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddEquipment)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-slate-300 rounded-lg text-sm"
-                      placeholder="Ej: mancuerna"
+                      placeholder={t('exercises.modalEquipmentPlaceholder')}
                       disabled={isSubmitting}
                     />
-                    <button type="button" onClick={handleAddEquipment} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition text-sm" disabled={isSubmitting}>Agregar</button>
+                    <button type="button" onClick={handleAddEquipment} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition text-sm" disabled={isSubmitting}>{t('exercises.modalAddButton')}</button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {equipment.map((eq, i) => (
@@ -786,9 +786,9 @@ if (!description.trim()) newErrors.description = t('common.required');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                       </div>
-                      Instrucciones <span className="text-red-500">*</span>
+                      {t('exercises.modalInstructionsLabel')} <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{instructions.filter(i => i.trim()).length} pasos</span>
+                    <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">{t('exercises.modalInstructionsCount', { count: instructions.filter(i => i.trim()).length })}</span>
                   </div>
                   {errors.instructions && <p className="mb-3 text-sm text-red-600 bg-red-50 p-2 sm:p-3 rounded-lg">{errors.instructions}</p>}
                   <div className="flex flex-col sm:flex-row gap-2 mb-4">
@@ -797,16 +797,16 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onChange={(e) => setNewInstruction(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddInstruction)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-purple-200 rounded-lg text-sm"
-                      placeholder="Describe un paso..."
+                      placeholder={t('exercises.modalInstructionPlaceholder')}
                       rows={2}
                       disabled={isSubmitting}
                     />
-                    <button type="button" onClick={handleAddInstruction} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm" disabled={isSubmitting}>Agregar</button>
+                    <button type="button" onClick={handleAddInstruction} className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm" disabled={isSubmitting}>{t('exercises.modalAddButton')}</button>
                   </div>
                   {instructions.filter(i => i.trim()).length > 0 && (
                     <div className="mb-2 text-xs text-gray-500 flex items-center">
                       <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" /> </svg>
-                      Arrastra para reordenar los pasos
+                      {t('exercises.modalDragHint')}
                     </div>
                   )}
                   <DragDropList
@@ -834,10 +834,10 @@ if (!description.trim()) newErrors.description = t('common.required');
                                 />
                               </div>
                               <div className="flex gap-1 flex-shrink-0">
-                                <button type="button" onClick={saveEditInstruction} className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label="Guardar">
+                                <button type="button" onClick={saveEditInstruction} className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label={t('exercises.saveAriaLabel')}>
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /> </svg>
                                 </button>
-                                <button type="button" onClick={cancelEditInstruction} className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label="Cancelar">
+                                <button type="button" onClick={cancelEditInstruction} className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label={t('exercises.cancelEditAriaLabel')}>
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /> </svg>
                                 </button>
                               </div>
@@ -848,10 +848,10 @@ if (!description.trim()) newErrors.description = t('common.required');
                                 <p className="text-gray-700 text-sm">{instruction}</p>
                               </div>
                               <div className="flex gap-1">
-                                <button type="button" onClick={() => startEditInstruction(index, instruction)} className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label="Editar">
+                                <button type="button" onClick={() => startEditInstruction(index, instruction)} className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label={t('exercises.editAriaLabel')}>
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /> </svg>
                                 </button>
-                                <button type="button" onClick={() => handleRemoveInstruction(index)} className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label="Eliminar">
+                                <button type="button" onClick={() => handleRemoveInstruction(index)} className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1" disabled={isSubmitting} aria-label={t('exercises.deleteAriaLabel')}>
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /> </svg>
                                 </button>
                               </div>
@@ -874,7 +874,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.768 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                       </svg>
                     </div>
-                    Contraindicaciones
+                    {t('exercises.modalContraindicationsLabel')}
                   </label>
                   <div className="flex flex-col sm:flex-row gap-2 mb-4">
                     <input
@@ -883,7 +883,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onChange={(e) => setNewContraindication(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddContraindication)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-red-200 rounded-lg text-sm"
-                      placeholder="Ej: dolor de rodilla"
+                      placeholder={t('exercises.modalContraindicationPlaceholder')}
                       disabled={isSubmitting}
                     />
                     <button
@@ -892,7 +892,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
                       disabled={isSubmitting}
                     >
-                      Agregar
+                      {t('exercises.modalAddButton')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -915,7 +915,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
                     </div>
-                    Etiquetas
+                    {t('exercises.modalTagsLabel')}
                   </label>
                   <div className="mb-4">
                     <AutocompleteInput
@@ -926,7 +926,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       onItemCreate={handleCreateTag}
                       allowCreate={true}
                       separator="both"
-                      placeholder="Escribe para buscar o agregar una etiqueta..."
+                      placeholder={t('exercises.modalTagPlaceholder')}
                       disabled={isSubmitting}
                       maxSuggestions={5}
                       className="border-pink-300"
@@ -954,19 +954,19 @@ if (!description.trim()) newErrors.description = t('common.required');
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                   </svg>
                 </div>
-                Progresión <span className="text-red-500">*</span>
+                {t('exercises.modalProgression')} <span className="text-red-500">*</span>
               </h3>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-indigo-600 mb-2">
-                    Cómo progresar <span className="text-red-500">*</span>
+                    {t('exercises.modalHowToProgress')} <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={progression}
                     onChange={(e) => setProgression(e.target.value)}
                     rows={2}
                     className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${errors.progression ? 'border-red-300' : 'border-gray-300'}`}
-                    placeholder="Ej: Aumentar peso gradualmente cada 1-2 semanas"
+                    placeholder={t('exercises.modalProgressionPlaceholder')}
                     disabled={isSubmitting}
                   />
                   {errors.progression && <p className="mt-1 text-sm text-red-600">{errors.progression}</p>}
@@ -974,16 +974,16 @@ if (!description.trim()) newErrors.description = t('common.required');
 
                 <div className="pt-3 border-t border-gray-200 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-indigo-600 mb-2">Progresión de (ejercicio anterior)</label>
+                    <label className="block text-sm font-medium text-indigo-600 mb-2">{t('exercises.modalProgressionOf')}</label>
                     <select value={progressionOf} onChange={(e) => setProgressionOf(e.target.value)} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
-                      <option value="">Ninguno (ejercicio base)</option>
+                      <option value="">{t('exercises.modalNoneBase')}</option>
                       {easierExercises.map(e => (
                         <option key={e.id} value={e.id}>{e.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-indigo-600 mb-2">Progresa hacia (ejercicios avanzados)</label>
+                    <label className="block text-sm font-medium text-indigo-600 mb-2">{t('exercises.modalProgressesTo')}</label>
                     <select
                       onChange={(e) => {
                         if (e.target.value && !progressesTo.includes(e.target.value)) {
@@ -993,7 +993,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                       }}
                       className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                     >
-                      <option value="">Seleccionar ejercicio avanzado...</option>
+                      <option value="">{t('exercises.modalSelectAdvanced')}</option>
                       {harderExercises.filter(h => !progressesTo.includes(h.id)).map(h => (
                         <option key={h.id} value={h.id}>{h.name}</option>
                       ))}
@@ -1024,7 +1024,7 @@ if (!description.trim()) newErrors.description = t('common.required');
                 className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 font-medium shadow-sm text-sm sm:text-base"
                 disabled={isSubmitting}
               >
-                Cancelar
+                {t('exercises.modalCancelButton')}
               </button>
               <button
                 type="submit"
@@ -1034,12 +1034,12 @@ if (!description.trim()) newErrors.description = t('common.required');
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
-                    Guardando...
+                    {t('exercises.modalSaving')}
                   </span>
                 ) : isEditing ? (
-                  'Actualizar Ejercicio'
+                  t('exercises.modalUpdateExercise')
                 ) : (
-                  'Crear Ejercicio'
+                  t('exercises.modalCreateExercise')
                 )}
               </button>
             </div>

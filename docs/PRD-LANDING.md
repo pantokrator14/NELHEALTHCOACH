@@ -42,11 +42,12 @@ La landing page de NELHEALTHCOACH es la cara pública del negocio, diseñada par
 
 ### 3.1 Stack Tecnológico
 - **Framework**: Next.js 15.5 (Pages Router)
-- **Lenguaje**: TypeScript
+- **Lenguaje**: TypeScript 5.8.3
 - **Estilos**: Tailwind CSS
 - **Animaciones**: Framer Motion
 - **Formularios**: React Hook Form + Zod
-- **i18n**: React i18next (ES/EN)
+- **i18n**: React i18next con **6 idiomas** (es, en, fr, it, pt, de) + detección automática del navegador
+- **Seguridad**: FingerprintJS
 - **Analytics**: Google Analytics + Vercel Analytics
 - **Hosting**: Vercel
 
@@ -69,7 +70,7 @@ apps/landing/
 ### 4.1 Header/Navbar
 - **Logo** NELHEALTHCOACH
 - **Menú de navegación** (Inicio, Servicios, Método, Testimonios, Contacto)
-- **Selector de idioma** (ES/EN)
+- **Selector de idioma** (ES, EN, FR, IT, PT, DE)
 - **CTA principal** "Comienza tu evaluación"
 - **Responsive** con menú hamburguesa móvil
 
@@ -227,8 +228,11 @@ Visitante → Hero (30s) → Servicios (45s) → Método (30s)
 ### Fase 1 (Completado)
 - [x] Landing básica con secciones principales
 - [x] Formulario de contacto funcional
-- [x] Diseño responsive
+- [x] Diseño responsive con hero adaptativo (imágenes intercambiables por resolución)
 - [x] Integración con API de leads
+- [x] i18n multi-idioma completo (6 idiomas: ES, EN, FR, IT, PT, DE)
+- [x] Hero carousel de 4 imágenes
+- [x] Seguridad: FingerprintJS
 
 ### Fase 2 (En progreso)
 - [ ] Blog/recursos educativos
@@ -292,6 +296,6 @@ Visitante → Hero (30s) → Servicios (45s) → Método (30s)
 
 ---
 
-*Documento actualizado: Abril 2026*
-*Versión: 2.0*
+*Documento actualizado: Junio 2026*
+*Versión: 2.1*
 *Propietario: Equipo Marketing NELHEALTHCOACH*

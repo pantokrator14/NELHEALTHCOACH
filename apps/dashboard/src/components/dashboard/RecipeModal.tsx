@@ -200,7 +200,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         setNutritionSource(response.source || 'ai');
         
         showToast(
-          `Nutrición calculada automáticamente (${response.source === 'ai' ? 'IA' : 'local'})`, 
+          t('recipes.nutritionCalculated', { source: response.source === 'ai' ? t('recipes.ai') : t('recipes.local') }), 
           'success'
         );
       }
@@ -412,11 +412,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-if (!formData.title.trim()) newErrors.title = t('common.required');
-    if (!formData.description.trim()) newErrors.description = t('common.required');
-    if (formData.category.length === 0) newErrors.category = t('common.required');
-    if (formData.instructions.length === 0) newErrors.instructions = t('common.required');
-    if (formData.nutrition.calories < 0) newErrors.calories = t('common.error');
+if (!formData.title.trim()) newErrors.title = t('recipes.required');
+    if (!formData.description.trim()) newErrors.description = t('recipes.required');
+    if (formData.category.length === 0) newErrors.category = t('recipes.required');
+    if (formData.instructions.length === 0) newErrors.instructions = t('recipes.required');
+    if (formData.nutrition.calories < 0) newErrors.calories = t('recipes.error');
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -455,7 +455,7 @@ if (!formData.title.trim()) newErrors.title = t('common.required');
         if (response.success && response.data) {
           updatedRecipeData = response.data;
         } else {
-          throw new Error(t('common.error'));
+          throw new Error(t('recipes.error'));
         }
         
       } else {
@@ -503,7 +503,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
       }
       
       showToast(
-        recipe ? '¡Receta actualizada exitosamente!' : '¡Receta creada exitosamente!',
+        t(recipe ? 'recipes.modalSavedSuccess' : 'recipes.modalCreatedSuccess'),
         'success'
       );
       
@@ -511,7 +511,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
       
     } catch (error) {
       console.error('Error guardando receta:', error);
-      const errorMessage = error instanceof Error ? error.message : t('common.error');
+      const errorMessage = error instanceof Error ? error.message : t('recipes.error');
       showToast(errorMessage, 'error');
       setErrors(prev => ({ ...prev, form: errorMessage }));
     } finally {
@@ -661,13 +661,13 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
           {/* Header */}
           <div className="flex justify-between items-center p-4 sm:p-6 border-b bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl">
             <h2 className="text-xl sm:text-2xl font-bold">
-              {recipe ? 'Editar Receta' : 'Nueva Receta'}
+              {t(recipe ? 'recipes.modalEditTitle' : 'recipes.modalNewTitle')}
             </h2>
             <button
               type="button"
               onClick={onClose}
               className="p-1.5 sm:p-2 hover:bg-green-800 rounded-full transition"
-              aria-label="Cerrar"
+              aria-label={t('recipes.closeAriaLabel')}
               disabled={isSubmitting || isUploading}
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -695,12 +695,12 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
               <div className="space-y-4 sm:space-y-6">
                 {/* Información básica */}
                 <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
-                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">Información Básica</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">{t('recipes.modalBasicInfo')}</h3>
                   
                   <div className="space-y-3 sm:space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Título <span className="text-red-500">*</span>
+                        {t('recipes.titleField')} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -711,7 +711,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                         className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border text-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
                           errors.title ? 'border-red-300' : 'border-gray-300'
                         }`}
-                        placeholder="Nombre de la receta"
+                        placeholder={t('recipes.modalTitlePlaceholder')}
                         disabled={isSubmitting || isUploading}
                       />
                       {errors.title && (
@@ -721,7 +721,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Descripción <span className="text-red-500">*</span>
+                        {t('recipes.descriptionField')} <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         name="description"
@@ -732,7 +732,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                         className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 ${
                           errors.description ? 'border-red-300' : 'border-gray-300'
                         }`}
-                        placeholder="Describe brevemente la receta..."
+                        placeholder={t('recipes.modalDescriptionPlaceholder')}
                         disabled={isSubmitting || isUploading}
                       />
                       {errors.description && (
@@ -743,7 +743,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tiempo (min) <span className="text-red-500">*</span>
+                          {t('recipes.modalCookTimeLabel')} <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
@@ -765,7 +765,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Dificultad <span className="text-red-500">*</span>
+                          {t('recipes.difficultyField')} <span className="text-red-500">*</span>
                         </label>
                         <select
                           name="difficulty"
@@ -775,9 +775,9 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           disabled={isSubmitting || isUploading}
                           required
                         >
-                          <option value="easy">Fácil</option>
-                          <option value="medium">Media</option>
-                          <option value="hard">Complejo</option>
+                          <option value="easy">{t('recipes.easy')}</option>
+                          <option value="medium">{t('recipes.medium')}</option>
+                          <option value="hard">{t('recipes.hard')}</option>
                         </select>
                       </div>
                     </div>
@@ -793,7 +793,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                       </div>
-                      Información Nutricional
+                      {t('recipes.modalNutritionInfo')}
                     </h3>
                     
                     <button
@@ -805,7 +805,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       {isCalculatingNutrition ? (
                         <>
                           <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                          Calculando...
+                          {t('recipes.modalCalculating')}
                         </>
                       ) : (
                         <>
@@ -813,8 +813,8 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                             {/* Ícono de calculadora mejorado */}
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                           </svg>
-                          <span className="hidden xs:inline">Calcular</span>
-                          <span className="xs:hidden">Calcular con IA</span>
+                          <span className="hidden xs:inline">{t('recipes.modalCalculateNutrition')}</span>
+                          <span className="xs:hidden">{t('recipes.modalCalculateShort')}</span>
                         </>
                       )}
                     </button>
@@ -823,7 +823,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                        Proteína (g) <NutritionTooltip term="protein" />
+                        {t('recipes.modalProteinLabel')} <NutritionTooltip term="protein" />
                       </label>
                        <input
                          type="number"
@@ -840,7 +840,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                        Carbohidratos (g) <NutritionTooltip term="carbs" />
+                        {t('recipes.modalCarbsLabel')} <NutritionTooltip term="carbs" />
                       </label>
                        <input
                          type="number"
@@ -857,7 +857,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                        Grasas (g) <NutritionTooltip term="fat" />
+                        {t('recipes.modalFatLabel')} <NutritionTooltip term="fat" />
                       </label>
                        <input
                          type="number"
@@ -874,7 +874,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                        Calorías <NutritionTooltip term="calories" />
+                        {t('recipes.modalCaloriesLabel')} <NutritionTooltip term="calories" />
                       </label>
                         <input
                          type="number"
@@ -903,7 +903,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <span className="text-sm font-medium text-blue-800">
-                            Calculado automáticamente (puedes editar manualmente)
+                            {t('recipes.modalCalculatedAuto')}
                           </span>
                         </div>
                       </div>
@@ -911,10 +911,10 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       {nutritionDetails.ketoRatio && (
                         <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
                           <span className="text-xs text-gray-600">
-                            Porcentajes:
-                            Grasas: {nutritionDetails.ketoRatio.fatPercentage}% • 
-                            Proteínas: {nutritionDetails.ketoRatio.proteinPercentage}% • 
-                            Carbos: {nutritionDetails.ketoRatio.carbPercentage}%
+                            {t('recipes.modalKetoPercentages')}
+                            {t('recipes.modalKetoFat')} {nutritionDetails.ketoRatio.fatPercentage}% • 
+                            {t('recipes.modalKetoProtein')} {nutritionDetails.ketoRatio.proteinPercentage}% • 
+                            {t('recipes.modalKetoCarbs')} {nutritionDetails.ketoRatio.carbPercentage}%
                           </span>
                         </div>
                       )}
@@ -924,7 +924,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
 
                 {/* Imagen */}
                 <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
-                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">Imagen de la Receta</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-blue-700 mb-3 sm:mb-4">{t('recipes.modalImageLabel')}</h3>
                   
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-blue-500 transition bg-gray-50">
                     {imagePreview ? (
@@ -958,10 +958,10 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           </svg>
                         </div>
                         <p className="text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                          Haz clic para subir una imagen
+                          {t('recipes.modalUploadLabel')}
                         </p>
                         <p className="text-xs sm:text-sm text-gray-500 mb-4">
-                          PNG, JPG, GIF, WebP hasta 10MB
+                          {t('recipes.modalUploadHint')}
                         </p>
                       </div>
                     )}
@@ -979,14 +979,14 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       htmlFor="image-upload"
                       className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
                     >
-                      {imagePreview ? 'Cambiar Imagen' : 'Seleccionar Imagen'}
+                      {imagePreview ? t('recipes.modalChangeImage') : t('recipes.modalSelectImage')}
                     </label>
                   </div>
                   
                   {isUploading && (
                     <div className="mt-4">
                       <div className="flex justify-between text-sm text-gray-700 mb-1">
-                        <span className="font-medium">Subiendo imagen...</span>
+                        <span className="font-medium">{t('recipes.modalUploadingImage')}</span>
                         <span className="font-bold">{uploadProgress}%</span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2">
@@ -1011,10 +1011,10 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      Categorías <span className="text-red-500">*</span>
+                      {t('recipes.modalCategoriesLabel')} <span className="text-red-500">*</span>
                     </label>
                     <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
-                      {formData.category.length} categorías
+                      {t('recipes.modalCategoriesCount', { count: formData.category.length })}
                     </span>
                   </div>
                   
@@ -1032,7 +1032,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       onItemCreate={handleCreateCategory}
                       allowCreate={true}
                       separator="both"
-                      placeholder="Escribe para buscar o agregar una categoría..."
+                      placeholder={t('recipes.modalCategoryPlaceholder')}
                       disabled={isSubmitting || isUploading}
                       maxSuggestions={5}
                       className="border-indigo-300"
@@ -1070,10 +1070,10 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
                       </div>
-                      Ingredientes <span className="text-red-500">*</span>
+                      {t('recipes.modalIngredientsLabel')} <span className="text-red-500">*</span>
                     </label>
                     <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
-                      {formData.ingredients.length} ingredientes
+                      {t('recipes.modalIngredientsCount', { count: formData.ingredients.length })}
                     </span>
                   </div>
                   {errors.ingredients && (
@@ -1087,7 +1087,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       onChange={(e) => setNewIngredient(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddIngredient)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-orange-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
-                      placeholder="Ej: 200g de pechuga de pollo"
+                      placeholder={t('recipes.modalIngredientPlaceholder')}
                       disabled={isSubmitting || isUploading}
                     />
                     <button
@@ -1096,7 +1096,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
-                      Agregar
+                      {t('recipes.modalAddButton')}
                     </button>
                   </div>
                   
@@ -1105,7 +1105,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
-                      Arrastra para reordenar los ingredientes
+                      {t('recipes.modalDragReorderIngredients')}
                     </div>
                   )}
                   
@@ -1137,7 +1137,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={saveEditIngredient}
                                   className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Guardar"
+                                  aria-label={t('recipes.saveAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1148,7 +1148,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={cancelEditIngredient}
                                   className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Cancelar"
+                                  aria-label={t('recipes.cancelEditAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1165,7 +1165,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={() => startEditIngredient(index, ingredient)}
                                   className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Editar"
+                                  aria-label={t('recipes.editAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -1176,7 +1176,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={() => handleRemoveIngredient(index)}
                                   className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Eliminar"
+                                  aria-label={t('recipes.deleteAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1203,10 +1203,10 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                       </div>
-                      Instrucciones <span className="text-red-500">*</span>
+                      {t('recipes.modalInstructionsLabel')} <span className="text-red-500">*</span>
                     </label>
                     <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 sm:px-3 py-1 rounded-full">
-                      {formData.instructions.length} pasos
+                      {t('recipes.modalInstructionsCount', { count: formData.instructions.length })}
                     </span>
                   </div>
                   
@@ -1220,7 +1220,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       onChange={(e) => setNewInstruction(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddInstruction)}
                       className="w-full sm:flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700 border border-purple-200 rounded-lg disabled:opacity-50 bg-white text-sm sm:text-base"
-                      placeholder="Describe un paso de la preparación..."
+                      placeholder={t('recipes.modalInstructionPlaceholder')}
                       rows={2}
                       disabled={isSubmitting || isUploading}
                     />
@@ -1230,7 +1230,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       className="w-full sm:w-auto px-4 py-2.5 sm:px-5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 shadow-sm text-sm sm:text-base"
                       disabled={isSubmitting || isUploading}
                     >
-                      Agregar
+                      {t('recipes.modalAddButton')}
                     </button>
                   </div>
                   
@@ -1239,7 +1239,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
-                      Arrastra para reordenar los pasos
+                      {t('recipes.modalDragReorderInstructions')}
                     </div>
                   )}
                   
@@ -1278,7 +1278,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={saveEditInstruction}
                                   className="text-green-500 hover:text-green-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Guardar"
+                                  aria-label={t('recipes.saveAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1289,7 +1289,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={cancelEditInstruction}
                                   className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Cancelar"
+                                  aria-label={t('recipes.cancelEditAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1308,7 +1308,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={() => startEditInstruction(index, instruction)}
                                   className="text-yellow-500 hover:text-yellow-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Editar"
+                                  aria-label={t('recipes.editAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -1319,7 +1319,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                                   onClick={() => handleRemoveInstruction(index)}
                                   className="text-red-500 hover:text-red-700 disabled:opacity-50 p-1"
                                   disabled={isSubmitting || isUploading}
-                                  aria-label="Eliminar"
+                                  aria-label={t('recipes.deleteAriaLabel')}
                                 >
                                   <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1345,7 +1345,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
                     </div>
-                    Etiquetas
+                    {t('recipes.modalTagsLabel')}
                   </label>
                   
                   <div className="mb-4">
@@ -1358,7 +1358,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       onItemCreate={handleCreateTag}
                       allowCreate={true}
                       separator="both"
-                      placeholder="Escribe para buscar o agregar una etiqueta..."
+                      placeholder={t('recipes.modalTagPlaceholder')}
                       disabled={isSubmitting || isUploading}
                       maxSuggestions={5}
                       className="border-pink-300"
@@ -1397,7 +1397,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                 className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm text-sm sm:text-base"
                 disabled={isSubmitting || isUploading}
               >
-                Cancelar
+                {t('recipes.modalCancelButton')}
               </button>
               <button
                 type="submit"
@@ -1407,12 +1407,12 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                 {isSubmitting || isUploading ? (
                   <span className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
-                    {isUploading ? 'Subiendo imagen...' : 'Guardando...'}
+                    {isUploading ? t('recipes.modalUploadingImage') : t('recipes.modalSaving')}
                   </span>
                 ) : recipe ? (
-                  'Actualizar Receta'
+                  t('recipes.modalUpdateRecipe')
                 ) : (
-                  'Crear Receta'
+                  t('recipes.modalCreateRecipe')
                 )}
               </button>
             </div>

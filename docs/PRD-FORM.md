@@ -42,12 +42,13 @@ El formulario de evaluación de NELHEALTHCOACH es la puerta de entrada para nuev
 
 ### 3.1 Stack Tecnológico
 - **Framework**: Next.js 15.5 (Pages Router)
-- **Lenguaje**: TypeScript
-- **Gestión estado**: React Hook Form + Zustand
-- **Validación**: Zod schemas
+- **Lenguaje**: TypeScript 5.8.3
+- **Gestión estado**: React Hook Form
+- **Validación**: Yup schemas
 - **Estilos**: Tailwind CSS
-- **Upload archivos**: Custom implementation + AWS S3
-- **i18n**: React i18next (ES/EN)
+- **Upload archivos**: Custom implementation + AWS S3 (URLs prefirmadas)
+- **i18n**: React i18next con 6 idiomas (es, en, fr, it, pt, de) + detección automática del navegador
+- **Seguridad**: FingerprintJS, bot detection
 - **Progress tracking**: Custom hooks
 
 ### 3.2 Estructura de Directorios
@@ -241,22 +242,29 @@ apps/form/
 ## 9. Internacionalización
 
 ### 9.1 Idiomas Soportados
-- **Español**: Primario (ES-ES)
-- **Inglés**: Secundario (EN-US)
-- **Catalán**: Futuro (CA-ES)
-- **Portugués**: Futuro (PT-BR)
+- **Español** (ES) — ✅ Implementado
+- **English** (EN) — ✅ Implementado
+- **Français** (FR) — ✅ Implementado
+- **Italiano** (IT) — ✅ Implementado
+- **Português** (PT) — ✅ Implementado
+- **Deutsch** (DE) — ✅ Implementado
 
-### 9.2 Adaptaciones Culturales
+### 9.2 Detalles de Implementación
+- **Detección automática**: Mediante `i18next-browser-languagedetector`
+- **Estructura**: Traducciones unificadas en `lib/i18n.ts` con objetos por idioma
+- **Cobertura**: Todos los textos del formulario multi-paso están traducidos
+- **Nuevos idiomas**: Se añaden extendiendo el objeto de traducciones
+
+### 9.3 Adaptaciones Culturales
 - **Unidades**: Métrico/Imperial según ubicación
 - **Formatos fecha**: DD/MM/YYYY vs MM/DD/YYYY
 - **Términos médicos**: Localizados y apropiados
 - **Ejemplos**: Relevantes culturalmente
 
-### 9.3 Localización Técnica
+### 9.4 Localización Técnica
 - **RTL support**: Para árabe/hebreo (futuro)
 - **Character sets**: Soporte completo Unicode
 - **Font loading**: Optimizado por idioma
-- **Translation management**: Sistema para updates
 
 ---
 
@@ -264,12 +272,16 @@ apps/form/
 
 ### Fase 1 (Completado)
 - [x] Formulario básico 7 pasos
-- [x] Validación cliente-side
-- [x] Upload documentos
+- [x] Validación cliente-side (Yup)
+- [x] Upload documentos a S3
 - [x] Integración con API
+- [x] i18n multi-idioma (6 idiomas)
+- [x] Seguridad: FingerprintJS, bot detection
+- [x] Foto opcional del paciente (via `NEXT_PUBLIC_SKIP_PHOTO`)
+- [x] Documentos médicos con extracción por IA
 
 ### Fase 2 (En progreso)
-- [ ] Save & resume avanzado
+- [ ] Save & resume avanzado (cross-device)
 - [ ] Analytics integrados
 - [ ] A/B testing variantes
 - [ ] Wizard inteligente (preguntas adaptativas)
@@ -336,6 +348,6 @@ apps/form/
 
 ---
 
-*Documento actualizado: Abril 2026*
-*Versión: 2.0*
+*Documento actualizado: Junio 2026*
+*Versión: 2.1*
 *Propietario: Equipo UX/Producto NELHEALTHCOACH*

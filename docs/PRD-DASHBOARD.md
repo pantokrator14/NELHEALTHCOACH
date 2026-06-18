@@ -41,30 +41,78 @@ El Dashboard de NELHEALTHCOACH es la herramienta principal para coaches, permiti
 ## 3. Arquitectura Técnica
 
 ### 3.1 Stack Tecnológico
-- **Framework**: Next.js 15.5 (App Router)
-- **Lenguaje**: TypeScript
-- **Estilos**: Tailwind CSS + Shadcn/ui
+- **Framework**: Next.js 15.5 (Pages Router)
+- **Lenguaje**: TypeScript 5.8.3
+- **Estilos**: Tailwind CSS
 - **Estado**: React Context + Local Storage
-- **Grágicos**: Recharts
-- **Tablas**: TanStack Table
+- **Gráficos**: Chart.js / react-chartjs-2
+- **Internacionalización**: react-i18next + i18next-browser-languagedetector
 - **Formularios**: React Hook Form + Zod
-- **i18n**: React i18next
-- **Autenticación**: JWT + NextAuth (futuro)
+- **Autenticación**: JWT
+- **Audio/Videollamadas**: LiveKit
 
 ### 3.2 Estructura de Directorios
 ```
 apps/dashboard/
-├── src/
-│   ├── components/
-│   │   ├── dashboard/      # Componentes específicos
-│   │   └── ui/            # Componentes reutilizables
-│   ├── lib/               # Utilidades y hooks
-│   ├── pages/             # Páginas Next.js
-│   │   └── dashboard/     # Rutas protegidas
-│   └── types/             # Tipos TypeScript
+├── 📂 pages/              # Rutas de Next.js (Pages Router)
+│   ├── 📂 api/            # API routes internas (proxy, upload)
+│   ├── 📂 dashboard/      # Páginas protegidas del dashboard
+│   │   ├── 📄 coaches.tsx       # Gestión de coaches (i18n namespace 'coaches')
+│   │   ├── 📄 recipes.tsx       # Biblioteca de recetas (i18n namespace 'recipes')
+│   │   └── 📄 exercises.tsx     # Biblioteca de ejercicios (i18n namespace 'exercises')
+│   ├── 📄 index.tsx       # Login
+│   └── 📄 dashboard.tsx   # Panel principal
+├── 📂 components/         # Componentes React
+│   ├── 📂 dashboard/      # Componentes del panel
+│   │   ├── AIRecommendationsModal.tsx  # Modal de recomendaciones IA
+│   │   ├── RecipeModal.tsx            # CRUD de recetas (i18n namespace 'recipes')
+│   │   ├── ExerciseModal.tsx          # CRUD de ejercicios (i18n namespace 'exercises')
+│   │   └── ...
+│   └── 📂 ui/             # Componentes reutilizables
+├── 📂 lib/
+│   ├── 📄 i18n.ts         # Traducciones multi-idioma (~5150 líneas)
+│   └── 📄 ...             # Utilidades y hooks
+├── 📂 styles/             # Estilos globales
+└── 📂 public/             # Assets estáticos
 ```
 
+### 3.3 Internacionalización (i18n)
+
+El dashboard está 100% internacionalizado mediante **react-i18next** con detección automática del idioma del navegador.
+
+#### Idiomas soportados
+
+| Idioma | Código | Estado |
+|--------|--------|--------|
+| Español | `es` | ✅ Completo |
+| English | `en` | ✅ Completo |
+| Français | `fr` | ✅ Completo |
+| Italiano | `it` | ✅ Completo |
+| Português | `pt` | ✅ Completo |
+| Deutsch | `de` | ✅ Completo |
+
+#### Namespaces y estructura
+
+Las traducciones están organizadas en namespaces dentro de `lib/i18n.ts` (~5150 líneas total, ~250 keys por idioma):
+
+| Namespace | Contenido | Archivos que lo usan |
+|-----------|-----------|---------------------|
+| `common` | Textos genéricos (loading, error, save, cancel) | Toda la app |
+| `navigation` | Navegación y menús | Layout |
+| `auth` | Autenticación | Login, registro |
+| `clients` | Gestión de clientes | Páginas de clientes |
+| `recipes` | Recetas + modal CRUD (~72 keys) | `recipes/index.tsx`, `RecipeModal.tsx` |
+| `exercises` | Ejercicios + modal CRUD (~73 keys) | `exercises/index.tsx`, `ExerciseModal.tsx` |
+| `coaches` | Gestión de coaches (~63 keys) | `coaches/index.tsx` |
+| `dashboard` | Panel principal | `dashboard.tsx` |
+| `filters` | Filtros y ordenamiento | Componentes de filtros |
+| `register` | Registro de coaches | Página de registro |
+
+No se usan keys genéricas `common.*` en las secciones específicas — cada una tiene su propio namespace con keys dedicadas.
+
 ---
+
+
 
 ## 4. Módulos Principales
 
@@ -290,12 +338,18 @@ Dashboard → Click "Generar Recomendaciones" → POST /api/clients/[id]/ai → 
 - [x] Maximizar modal (persistido, solo desktop)
 - [x] Visor de documentos con flechas de navegación y teclado
 - [x] Descarga de documentos con URLs prefirmadas GET
+- [x] **i18n multi-idioma completo** — Dashboard 100% internacionalizado (6 idiomas)
+  - Namespace `coaches`: gestión de coaches con CRUD y tabla filtrable
+  - Namespace `recipes`: biblioteca de recetas con CRUD completo vía modal
+  - Namespace `exercises`: biblioteca de ejercicios con CRUD completo vía modal
+  - Sin dependencia de keys `common.*` genéricas — cada sección tiene su propio namespace
+- [x] **Gestión de coaches** — tabla con búsqueda, filtros, paginación y modal de detalle
 
 ### Fase 2 (En progreso)
-- [ ] Biblioteca ejercicios/recetas
-- [ ] Reportes avanzados
-- [ ] Sistema de comunicación integrado
+- [ ] Reportes avanzados con exportación
+- [ ] Sistema de comunicación integrado (chat coach-cliente)
 - [ ] App móvil para coaches
+- [ ] Integración con wearables (Fitbit, Apple Health)
 
 ### Fase 3 (Futuro)
 - [ ] AI assistant para coaches
@@ -353,6 +407,6 @@ Dashboard → Click "Generar Recomendaciones" → POST /api/clients/[id]/ai → 
 
 ---
 
-*Documento actualizado: Mayo 2026*
-*Versión: 3.0*
+*Documento actualizado: Junio 2026*
+*Versión: 3.1*
 *Propietario: Equipo Producto NELHEALTHCOACH*

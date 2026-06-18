@@ -1,8 +1,8 @@
 # Documento de Requisitos del Producto (PRD)
 ## NELHEALTHCOACH - Plataforma Integral de Coaching de Salud
 
-**Versión:** 1.0.0  
-**Fecha:** 4 de abril de 2026  
+**Versión:** 1.1.0  
+**Fecha:** 18 de junio de 2026  
 **Autor:** Equipo de Desarrollo NELHEALTHCOACH  
 **Estado:** En desarrollo activo
 
@@ -513,10 +513,14 @@ AssessmentForm {
 - **Categoría:** Usabilidad
 - **Descripción:** Sistema debe soportar múltiples idiomas
 - **Requisitos:**
-  - Soporte para español e inglés inicialmente
-  - Fácil adición de nuevos idiomas
+  - **6 idiomas implementados** completamente: español, inglés, francés, italiano, portugués y alemán
+  - Namespaces organizados por sección (`coaches`, `recipes`, `exercises`, `clients`, `common`, etc.)
+  - Dashboard 100% traducido con ~250 keys por idioma (total ~5150 líneas en archivo de traducciones)
+  - Landing page con i18n propio (carpeta `apps/landing/i18n/`)
+  - Detección automática del idioma del navegador mediante `i18next-browser-languagedetector`
+  - Fácil adición de nuevos idiomas extendiendo el objeto de traducciones
   - Formato de fechas y números localizado
-  - RTL support para idiomas árabes
+  - RTL support para idiomas árabes (futuro)
 
 ### 6.5 Mantenibilidad
 
@@ -738,6 +742,7 @@ graph TD
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
+| 1.1.0   | 2026-06-18  | Equipo Desarrollo   | Dashboard i18n completo (6 idiomas, namespaces coaches/recipes/exercises), gestión de coaches, documentación actualizada |
 | 1.0.0   | 2026-04-04  | Equipo Desarrollo   | Documento inicial completo    |
 | 0.9.0   | 2026-03-28  | Product Manager     | Revisión de requisitos        |
 | 0.8.0   | 2026-03-21  | Tech Lead           | Especificaciones técnicas     |
