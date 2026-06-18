@@ -243,8 +243,10 @@ NELHEALTHCOACH/
   - **Lista de compras** inteligente con deduplicación y orden por prioridad
   - **Agendamiento de videollamadas** con LiveKit y detección de zona horaria
   - **Sala de videollamada** con cámara, micrófono y pantalla compartida
-  - **Gestión de recetas** con búsqueda, filtros y análisis nutricional por IA
-  - **Gestión de ejercicios** con biblioteca, categorías y CRUD completo
+  - **Gestión de recetas** con búsqueda, filtros, análisis nutricional por IA y soporte multi-idioma
+  - **Gestión de ejercicios** con biblioteca, categorías, CRUD completo y soporte multi-idioma
+  - **Gestión de coaches** con tabla filtrable, búsqueda, paginación y soporte multi-idioma
+  - **i18n completo**: Dashboard 100% internacionalizado con 6 idiomas (es, en, fr, it, pt, de) mediante `react-i18next` con namespaces específicos por sección (`coaches`, `recipes`, `exercises`)
   - Manejo de errores de Gemini con reintentos automáticos y mensajes descriptivos
 
 ### 4. **🔌 API Backend** (`apps/api`)

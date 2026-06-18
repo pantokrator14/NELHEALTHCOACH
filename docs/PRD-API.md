@@ -41,11 +41,15 @@ La API de NELHEALTHCOACH es el núcleo del sistema, proporcionando:
 ### 3.1 Stack Tecnológico
 - **Framework**: Next.js 15.5 (App Router)
 - **Lenguaje**: TypeScript
-- **Base de datos**: MongoDB + Mongoose
-- **IA**: LangChain + DeepSeek
-- **Seguridad**: Arcjet + Guardrails personalizados
-- **Storage**: AWS S3 para documentos
-- **Email**: Resend
+- **Base de datos**: MongoDB 6.0 + Mongoose 8.0
+- **IA**: LangGraph 1.2.8 (orquestación multi-agente) + DeepSeek V4 Flash (modelo principal vía @langchain/openai) + Gemini 2.5 Flash (análisis de PDFs)
+- **Flujos asíncronos**: Inngest 4.2.1
+- **Pagos**: Stripe (connect, checkout, webhooks, portal)
+- **Videollamadas**: LiveKit Cloud (WebRTC, grabación S3)
+- **Transcripción**: Deepgram SDK 5.0
+- **Seguridad**: FingerprintJS, bot detection, rate limiting MongoDB, guardrails personalizados, cifrado AES campo a campo
+- **Storage**: AWS S3 para documentos y grabaciones
+- **Email**: Resend + AWS SES (fallback)
 - **Logging**: Sistema personalizado con contextos
 
 ### 3.2 Estructura de Directorios
@@ -53,13 +57,28 @@ La API de NELHEALTHCOACH es el núcleo del sistema, proporcionando:
 apps/api/
 ├── src/
 │   ├── app/
-│   │   ├── api/              # Endpoints REST
-│   │   ├── lib/              # Lógica de negocio
-│   │   │   ├── agents/       # Agentes de IA
-│   │   │   ├── middleware/   # Middlewares
-│   │   │   └── services/     # Servicios
-│   │   └── types/            # Tipos TypeScript
-│   └── middleware.ts         # Middleware principal
+│   │   ├── api/                  # Endpoints REST
+│   │   │   ├── auth/             # Autenticación (login, register, verify, reset)
+│   │   │   ├── clients/          # CRUD clientes + upload docs + recomendaciones IA
+│   │   │   ├── coaches/          # CRUD coaches + gestión
+│   │   │   ├── recipes/          # CRUD recetas + análisis nutricional IA
+│   │   │   ├── exercises/        # CRUD ejercicios
+│   │   │   ├── video/            # LiveKit (rooms, token, send-invite, webhook, health)
+│   │   │   ├── payments/         # Stripe (checkouts, connect, webhooks, portal, finances)
+│   │   │   ├── leads/            # Captura de leads
+│   │   │   ├── admin/            # Panel admin
+│   │   │   └── inngest/          # Webhook de Inngest
+│   │   ├── lib/                  # Lógica de negocio
+│   │   │   ├── agents/           # Agentes LangGraph (6 nodos especializados)
+│   │   │   │   ├── nodes/        # client-analyzer, medical-analyst, nutrition-planner, etc.
+│   │   │   │   ├── tools/        # Herramientas de agentes
+│   │   │   │   └── utils/        # LLM (DeepSeek, Gemini), prompt-builders
+│   │   │   ├── security/         # Bot detection, rate limiter, guardrails, shield
+│   │   │   ├── schemas/          # Schemas Zod
+│   │   │   └── services/         # email-service, video-service, etc.
+│   │   ├── models/               # Modelos Mongoose
+│   │   └── inngest/              # Funciones asíncronas
+│   └── middleware.ts             # Middleware principal
 ```
 
 ---
@@ -72,29 +91,39 @@ apps/api/
 - **Historial** de sesiones y progreso
 - **Documentos médicos** (PDF, imágenes)
 
-### 4.2 Generación de Recomendaciones (Sistema Compuesto)
+### 4.2 Generación de Recomendaciones
 
-> *Nota: El sistema actual utiliza un **prompt compuesto único** que reemplazó el pipeline multi-agente anterior (Client Analyzer, Exercise Planner, Nutrition Planner, Habit Designer, Quality Validator) por un enfoque más eficiente y fiable.*
+El sistema cuenta con **dos rutas de generación** que coexisten:
 
-#### 4.2.1 Proceso de Generación
-1. **Preparación de datos**: El backend recolecta y descifra toda la información del cliente (datos personales, médicos, evaluaciones de salud, salud mental, documentos procesados, notas del coach, sesiones previas)
-2. **Consulta a base de datos**: Obtiene recetas y ejercicios disponibles (hasta 80 de cada uno) para pasarlos como referencia a la IA
-3. **Prompt compuesto único**: Se construye un prompt que incluye:
-   - Datos personales y médicos del cliente (descifrados)
-   - Evaluaciones de salud (7 preguntas con etiquetas legibles)
-   - Salud mental (15 preguntas con etiquetas legibles)  
-   - Documentos extraídos por Textract (o nombres de documentos fallidos como referencia)
-   - Notas del coach
-   - Número de sesiones previas para determinar nivel aproximado
-   - Recetas disponibles en la BD (con IDs, títulos, tiempo de cocción)
-   - Ejercicios disponibles en la BD (con IDs, nombres, nivel, equipo, grupos musculares)
-4. **Modelo**: DeepSeek V4 Flash (vía LangChain ChatOpenAI) con `temperature: 0.3`, `maxTokens: 16000`
-5. **Respuesta**: JSON único estructurado con:
-   - `clientInsights`: summary extenso + vision igualmente extensa + riesgos + oportunidades + nivel
+#### 4.2.1 Ruta Síncrona — Pipeline Secuencial (3 fases)
+Usada por el endpoint `POST /api/clients/[id]/ai`. Implementa un pipeline de 3 fases para evitar degradación de atención en prompts masivos:
+
+1. **Preparación de datos**: Recolecta y descifra toda la información del cliente (datos personales, médicos, evaluaciones de salud, salud mental, documentos procesados, notas del coach, sesiones previas)
+2. **Consulta a base de datos**: Obtiene recetas y ejercicios disponibles (hasta 80 de cada uno)
+3. **Fase 1 — Analista Clínico**: Extrae biomarcadores de documentos médicos (`structuredMedicalAnalysis`) usando DeepSeek V4 Flash
+4. **Fase 2 — Health Coach**: Genera plan de nutrición (7 días), ejercicios y hábitos usando la Fase 1 como contexto
+5. **Fase 3 — Asistente Logístico**: Extrae y consolida la lista de compras del weeklyPlan
+6. **Modelo**: DeepSeek V4 Flash (vía `@langchain/openai`) con `temperature: 0.3`, `maxTokens: 16000`
+7. **Respuesta**: JSON estructurado con:
+   - `clientInsights`: summary + visión + riesgos + oportunidades + nivel
    - `nutritionPlan`: weeklyPlan (7 días × desayuno/almuerzo/cena) + shoppingList
-   - `exercisePlan`: weeklyRoutine (días específicos con ejercicios) + equipment + notes personalizadas
+   - `exercisePlan`: weeklyRoutine + equipment + notes personalizadas
    - `habitPlan`: toAdopt + toEliminate + trackingMethod + motivationTip
    - `alternatives` (obligatorio: ≥3 alternativas de recetas)
+
+#### 4.2.2 Ruta Asíncrona — LangGraph Multi-Agente (Inngest)
+Usada por el job `generate-recommendations` de Inngest para procesamiento en background:
+
+- **Orquestación**: LangGraph 1.2.8 con grafo de 6 agentes especializados
+- **Agentes**:
+  1. **Client Analyzer** — Analiza perfil completo del cliente
+  2. **Medical Analyst** — Interpreta laboratorios con óptica keto
+  3. **Nutrition Planner** — Diseña plan nutricional en ciclos de 4 semanas
+  4. **Exercise Planner** — Crea rutinas adaptadas al nivel y condiciones
+  5. **Habit Designer** — Diseña hábitos progresivos y sostenibles
+  6. **Quality Validator** — Valida coherencia con loop de revisión
+- **Modelo**: DeepSeek V4 Flash para los agentes; Gemini para análisis de PDFs
+- **Flujo**: Pipeline en paralelo con validación final y loop de corrección
 
 #### 4.2.2 Regeneración de Recomendaciones
 - Usa el **mismo prompt compuesto** que la generación inicial
@@ -110,16 +139,16 @@ apps/api/
 - **Notas personalizadas**: Incluye recomendaciones de horario según disponibilidad del cliente
 
 ### 4.3 Procesamiento de Documentos
-- **Extracción de texto** con AWS Textract (AnalyzeDocument con TABLES + FORMS)
-- **Fallback futuro a Gemini** para documentos que Textract no soporta (UnsupportedDocumentException)
+- **Extracción con IA dual**:
+  - **AWS Textract** (AnalyzeDocument con TABLES + FORMS) para documentos estructurados
+  - **Google Gemini** (`analyzePDFWithGemini` / `analyzeS3PDFWithGemini`) para documentos no soportados por Textract, usando la API de visión de Gemini para extracción de texto y biomarcadores
 - **Almacenamiento dual**: 
-  - `medicalData.documents`: Metadatos del archivo (url, key, nombre, tipo, tamaño) + `textractAnalysis` (estado)
+  - `medicalData.documents`: Metadatos del archivo (url, key, nombre, tipo, tamaño) + estado de análisis
   - `medicalData.processedDocuments`: Contenido extraído (encriptado) con confidence, pageCount, extractionStatus
-- **Procesamiento asíncrono**: Textract corre en segundo plano (fire-and-forget) tras la subida
-- **Actualización de estado**: Al completar/fallecer Textract, se actualiza el `textractAnalysis.extractionStatus` del documento original
+- **Procesamiento asíncrono**: Textract/Gemini corre en segundo plano (fire-and-forget) tras la subida
+- **Actualización de estado**: Al completar/fallecer el análisis, se actualiza el estado del documento original
 - **Limpieza en eliminación**: Al borrar un documento, también se eliminan sus `processedDocuments` asociados
 - **Vista previa**: URLs prefirmadas GET (1 hora de expiración) para visualizar documentos desde el frontend
-- **Pendiente (Gemini)**: Para documentos no soportados por Textract, se usará Gemini API para extracción por visión
 
 ### 4.4 Sistema de Seguridad
 - **Guardrails personalizados** para IA
@@ -132,28 +161,77 @@ apps/api/
 
 ## 5. Endpoints API
 
-### 5.1 Clientes
-- `POST /api/clients` - Crear cliente
-- `GET /api/clients` - Listar clientes
-- `GET /api/clients/[id]` - Obtener cliente
-- `PUT /api/clients/[id]` - Actualizar cliente
-- `POST /api/clients/[id]/upload` - Subir documentos
-- `POST /api/clients/[id]/ai` - Generar planes IA
+### 5.1 Autenticación (`/api/auth`)
+- `POST /register` - Registro de coach
+- `POST /login` - Inicio de sesión
+- `POST /verify` - Verificación de email
+- `POST /forgot-password` - Solicitar recuperación
+- `POST /reset-password` - Restablecer contraseña
+- `GET /me` - Perfil del usuario autenticado
 
-### 5.2 Ejercicios
-- `GET /api/exercises` - Listar ejercicios
-- `POST /api/exercises` - Crear ejercicio personalizado
+### 5.2 Clientes (`/api/clients`)
+- `GET /` - Listar clientes (con filtros y paginación)
+- `GET /[id]` - Obtener detalle de cliente
+- `POST /` - Crear cliente
+- `PUT /[id]` - Actualizar cliente
+- `DELETE /[id]` - Eliminar cliente
+- `POST /[id]/upload` - Subir documentos a S3
+- `DELETE /[id]/documents/[docId]` - Eliminar documento
+- `POST /[id]/ai` - Generar recomendaciones IA (vía pipeline secuencial síncrono)
+- `GET /[id]/ai/[sessionId]/pdf` - Descargar PDF de recomendaciones
+- `GET /[id]/sessions` - Historial de sesiones de IA
 
-### 5.3 Recetas
-- `GET /api/recipes` - Listar recetas
-- `POST /api/recipes` - Crear receta
-- `POST /api/recipes/analyze-nutrition` - Análisis nutricional
+### 5.3 Coaches (`/api/coaches`)
+- `GET /` - Listar coaches (con filtros y paginación)
+- `GET /[id]` - Obtener detalle
+- `PUT /[id]` - Actualizar coach
+- `DELETE /[id]` - Eliminar coach
+- `PUT /[id]/status` - Cambiar estado (activo/inactivo/suspendido)
 
-### 5.4 Utilidades
-- `POST /api/extract-text` - Extraer texto de documentos
+### 5.4 Recetas (`/api/recipes`)
+- `GET /` - Listar recetas (con filtros, búsqueda, paginación)
+- `GET /[id]` - Obtener detalle
+- `POST /` - Crear receta
+- `PUT /[id]` - Actualizar receta
+- `DELETE /[id]` - Eliminar receta
+- `POST /analyze-nutrition` - Análisis nutricional por IA
+
+### 5.5 Ejercicios (`/api/exercises`)
+- `GET /` - Listar ejercicios (con filtros, búsqueda, paginación)
+- `GET /[id]` - Obtener detalle
+- `POST /` - Crear ejercicio
+- `PUT /[id]` - Actualizar ejercicio
+- `DELETE /[id]` - Eliminar ejercicio
+
+### 5.6 Videollamadas LiveKit (`/api/video`)
+- `POST /rooms` - Crear sala de videollamada
+- `POST /token` - Generar token JWT temporal para cliente
+- `POST /send-invite` - Enviar invitación por email con enlace único
+- `POST /webhook` - Webhooks de eventos de sala (iniciada, grabación lista, terminada)
+- `GET /health` - Health check del servicio
+
+### 5.7 Pagos Stripe (`/api/payments`)
+- `POST /create-coach-checkout` - Checkout de suscripción para coach
+- `POST /create-client-checkout` - Checkout de pago único para cliente
+- `POST /create-connect-account` - Cuenta Connect para coaches
+- `GET /connect-account-status` - Estado de cuenta Connect
+- `POST /connect-onboarding-link` - Link de onboarding Connect
+- `POST /webhook` - Webhooks de Stripe
+- `GET /portal` - Customer portal de Stripe
+- `GET /session-price` - Precio de sesión
+- `GET /finances` - Reporte financiero del coach
+
+### 5.8 Leads (`/api/leads`)
+- `POST /` - Capturar lead desde landing page
+
+### 5.9 Administración (`/api/admin`)
+- `GET /stats` - Estadísticas del sistema
+- Endpoints de gestión global
+
+### 5.10 Utilidades
 - `GET /api/health` - Health check
-- `POST /api/leads` - Procesar leads del formulario
-- `GET /api/stats` - Estadísticas del sistema
+- `POST /api/extract-text` - Extraer texto de documentos
+- `GET /api/inngest` - Webhook de Inngest para tareas asíncronas
 
 ---
 
@@ -167,15 +245,31 @@ Formulario → API → Base de datos → Agentes IA → Dashboard
   cliente    seguridad   seguro          personal.  coach
 ```
 
-### 6.2 Pipeline de Generación de Recomendaciones (Actual)
+### 6.2 Pipeline de Generación de Recomendaciones
+
+#### Ruta Síncrona (API directa)
 ```
-prepareAIInput() → generateCompositeRecommendation()
+prepareAIInput() → generateCompositeRecommendation() (3 fases)
       ↓                       ↓
-  Descifrar datos        Prompt compuesto único
+  Descifrar datos        Fase 1: Analista Clínico (biomarcadores)
   + extraer salud         → DeepSeek V4 Flash
-  + extraer mental          (maxTokens: 16000)
-  + procesar docs        → JSON estructurado
-  + recetas/ejerc. DB      con todos los planes
+  + extraer mental       Fase 2: Health Coach (nutrición, ejercicio, hábitos)
+  + procesar docs         → DeepSeek V4 Flash
+  + recetas/ejerc. DB    Fase 3: Asistente Logístico (shopping list)
+                           → DeepSeek V4 Flash
+                         → JSON estructurado con todos los planes
+```
+
+#### Ruta Asíncrona (Inngest + LangGraph)
+```
+Inngest trigger → recommendationGraph (LangGraph 6 agentes)
+      ↓                       ↓
+  Client Analyzer        Análisis completo del perfil
+  Medical Analyst        Interpretación de laboratorios (óptica keto)
+  Nutrition Planner      Plan 4 semanas (desayuno/almuerzo/cena)
+  Exercise Planner       Rutina semanal adaptada
+  Habit Designer         Hábitos progresivos
+  Quality Validator      Loop de revisión y validación
 ```
 
 ### 6.3 Pipeline de Documentos
@@ -232,23 +326,32 @@ Subida archivo → S3 (PUT presigned) → PUT /upload → MongoDB → Textract (
 
 ### Fase 1 (Completado)
 - [x] API básica con CRUD clientes
-- [x] Agentes IA fundamentales → **reemplazados por prompt compuesto único**
-- [x] Sistema de seguridad básico
-- [x] Integración con formulario
-- [x] Generación de recomendaciones con prompt compuesto (nutrition + exercise + habits + alternatives)
+- [x] Sistema de autenticación (registro, login, verificación, recuperación)
+- [x] Agentes IA LangGraph (6 nodos especializados)
+- [x] Pipeline secuencial 3 fases (síncrono) para recomendaciones
+- [x] Sistema de seguridad: FingerprintJS, bot detection, rate limiting, guardrails
+- [x] Integración con formulario y dashboard
+- [x] Generación de recomendaciones con DeepSeek V4 Flash
 - [x] Regeneración de sesiones con historial
-- [x] Procesamiento de documentos con Textract (extracción de texto, tablas, formularios)
+- [x] Procesamiento de documentos con Textract + Gemini (dual)
 - [x] Cache de recetas y ejercicios para envío a IA
-- [x] Encriptación campo a campo de datos médicos
+- [x] Encriptación campo a campo de datos médicos (AES)
 - [x] Subida/descarga/eliminación de documentos con S3 + URLs prefirmadas
-- [x] Limpieza de processedDocuments al eliminar documentos
-- [x] Badge de estado de Textract en UI
+- [x] CRUD completo de recetas y ejercicios
+- [x] Análisis nutricional por IA
+- [x] Gestión de coaches (CRUD + estados + Stripe)
+- [x] Videollamadas con LiveKit (salas, tokens, invitaciones, grabación, webhooks)
+- [x] Transcripción de audio con Deepgram
+- [x] Flujos asíncronos con Inngest
+- [x] Sistema de pagos con Stripe (suscripciones, Connect, webhooks)
+- [x] Captura de leads desde landing
+- [x] Análisis de PDFs con Gemini (visión)
 
 ### Fase 2 (En progreso)
-- [ ] Fallback a Gemini cuando Textract no soporte el formato
 - [ ] Sistema de notificaciones push
 - [ ] API para dispositivos wearables
-- [ ] Análisis avanzado de progreso
+- [ ] Dashboard analítico avanzado
+- [ ] Chat en tiempo real coach-cliente
 
 ### Fase 3 (Futuro)
 - [ ] Machine learning predictivo
@@ -290,6 +393,6 @@ Subida archivo → S3 (PUT presigned) → PUT /upload → MongoDB → Textract (
 
 ---
 
-*Documento actualizado: Mayo 2026*
-*Versión: 3.0*
+*Documento actualizado: Junio 2026*
+*Versión: 4.0*
 *Propietario: Equipo Backend NELHEALTHCOACH*
