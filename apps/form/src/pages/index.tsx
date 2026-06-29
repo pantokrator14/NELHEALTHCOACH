@@ -40,6 +40,33 @@ interface HealthEvaluationsStepData {
   [key: string]: unknown;
 }
 
+// Mapa de campos del formulario a su paso correspondiente.
+// Cuando la validación final falle, navegaremos al paso donde está el campo faltante.
+const FIELD_TO_STEP: Record<string, number> = {
+  // Datos personales (step 3)
+  name: 3, email: 3, phone: 3, address: 3, birthDate: 3,
+  gender: 3, age: 3, weight: 3, height: 3, maritalStatus: 3,
+  education: 3, occupation: 3,
+  // Información médica básica (step 4)
+  mainComplaint: 4, medications: 4, supplements: 4,
+  currentPastConditions: 4, additionalMedicalHistory: 4,
+  employmentHistory: 4, hobbies: 4, allergies: 4, surgeries: 4,
+  housingHistory: 4,
+  // Evaluaciones de salud (step 5)
+  carbohydrateAddiction: 5, leptinResistance: 5, circadianRhythms: 5,
+  sleepHygiene: 5, electrosmogExposure: 5, generalToxicity: 5,
+  microbiotaHealth: 5,
+  // Bienestar emocional / Salud mental (step 6)
+  mentalHealthEmotionIdentification: 6, mentalHealthEmotionIntensity: 6,
+  mentalHealthUncomfortableEmotion: 6, mentalHealthInternalDialogue: 6,
+  mentalHealthStressStrategies: 6, mentalHealthSayingNo: 6,
+  mentalHealthRelationships: 6, mentalHealthExpressThoughts: 6,
+  mentalHealthEmotionalDependence: 6, mentalHealthPurpose: 6,
+  mentalHealthFailureReaction: 6, mentalHealthSelfConnection: 6,
+  mentalHealthSelfRelationship: 6, mentalHealthLimitingBeliefs: 6,
+  mentalHealthIdealBalance: 6,
+};
+
 const convertPersonalDataForApi = (data: PersonalDataFormValues): FormPayload['personalData'] => {
   const result: FormPayload['personalData'] = {};
   Object.entries(data).forEach(([key, value]) => {
@@ -264,14 +291,34 @@ const FormPage: React.FC = () => {
     nextStep();
   };
 
+  /** Helper: muestra error y navega al paso donde está el campo faltante */
+  const handleValidationError = (field: string, message: string): null => {
+    setError(message);
+    const targetStep = FIELD_TO_STEP[field];
+    if (targetStep !== undefined && targetStep !== step) {
+      // Pequeño delay para que el error se muestre antes de cambiar de paso
+      setTimeout(() => {
+        setStep(targetStep);
+        window.scrollTo(0, 0);
+      }, 100);
+    }
+    return null;
+  };
+
   const validateCompleteFormData = (): CompleteHealthFormData | null => {
     if (!formData.contractAccepted) {
       setError('Debes aceptar el contrato para continuar');
+      if (step !== 0) {
+        setTimeout(() => { setStep(0); window.scrollTo(0, 0); }, 100);
+      }
       return null;
     }
 
     if (!formData.personalData) {
       setError('Faltan datos personales');
+      if (step !== 3) {
+        setTimeout(() => { setStep(3); window.scrollTo(0, 0); }, 100);
+      }
       return null;
     }
 
@@ -284,13 +331,15 @@ const FormPage: React.FC = () => {
 
     for (const field of requiredPersonalFields) {
       if (!personalData[field]) {
-        setError(`El campo ${field} es requerido`);
-        return null;
+        return handleValidationError(field, `El campo ${field} es requerido (paso: Datos Personales)`);
       }
     }
 
     if (!formData.medicalData) {
       setError('Faltan datos médicos');
+      if (step !== 4) {
+        setTimeout(() => { setStep(4); window.scrollTo(0, 0); }, 100);
+      }
       return null;
     }
 
@@ -304,8 +353,7 @@ const FormPage: React.FC = () => {
     for (const field of requiredMedicalFields) {
       const value = medicalData[field];
       if (value === undefined || value === '') {
-        setError(`El campo médico ${field} es requerido`);
-        return null;
+        return handleValidationError(field, `El campo "${field}" es requerido (paso: Información Médica Básica)`);
       }
     }
 
@@ -316,8 +364,7 @@ const FormPage: React.FC = () => {
 
     for (const field of requiredHealthEvaluationFields) {
       if (medicalData[field] === undefined) {
-        setError(`La evaluación de salud ${field} es requerida`);
-        return null;
+        return handleValidationError(field, `La evaluación de salud "${field}" es requerida (paso: Evaluaciones de Salud)`);
       }
     }
 
@@ -334,8 +381,7 @@ const FormPage: React.FC = () => {
 
     for (const field of requiredMentalHealthFields) {
       if (!medicalData[field]) {
-        setError(`El campo de bienestar emocional ${field} es requerido`);
-        return null;
+        return handleValidationError(field, `El campo de bienestar emocional "${field}" es requerido (paso: Bienestar Emocional)`);
       }
     }
 

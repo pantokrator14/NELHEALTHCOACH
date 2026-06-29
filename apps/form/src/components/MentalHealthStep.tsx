@@ -39,14 +39,8 @@ type MentalHealthOpenEndedField =
   | 'mentalHealthIdealBalance';
 
 // Interfaz del formulario alineada con el esquema
+// Solo incluye los campos que realmente se renderizan en este paso
 interface FormData {
-  medications?: string;
-  supplements?: string;
-  currentPastConditions?: string;
-  additionalMedicalHistory?: string;
-  employmentHistory?: string;
-  mainComplaint?: string;
-
   // Opción múltiple (12 originales + 2 nuevas)
   mentalHealthEmotionIdentification?: string;
   mentalHealthEmotionIntensity?: string;
@@ -79,12 +73,6 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
     if (!data) return {};
     const defaultValues: FormData = {};
     const fields: Array<keyof FormData> = [
-      'medications',
-      'supplements',
-      'currentPastConditions',
-      'additionalMedicalHistory',
-      'employmentHistory',
-      'mainComplaint',
       'mentalHealthEmotionIdentification',
       'mentalHealthEmotionIntensity',
       'mentalHealthUncomfortableEmotion',
