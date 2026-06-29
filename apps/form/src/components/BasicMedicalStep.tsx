@@ -3,9 +3,25 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema } from '../lib/validation';
+import * as yup from 'yup';
 import { InferType } from 'yup';
 import Image from 'next/image';
 type MedicalData = InferType<typeof medicalDataSchema>;
+
+// Esquema específico para BasicMedicalStep que requiere los campos médicos
+// La validación debe ocurrir ANTES de avanzar al siguiente paso, no al final
+const basicMedicalStepSchema = medicalDataSchema.shape({
+  mainComplaint: yup.string().required('La queja principal es requerida'),
+  medications: yup.string().required('El campo medicamentos es requerido'),
+  supplements: yup.string().required('El campo suplementos es requerido'),
+  currentPastConditions: yup.string().required('El campo condiciones de salud es requerido'),
+  additionalMedicalHistory: yup.string().required('El campo historial médico adicional es requerido'),
+  employmentHistory: yup.string().required('El campo historial laboral es requerido'),
+  hobbies: yup.string().required('El campo hobbies es requerido'),
+  allergies: yup.string().required('El campo alergias es requerido'),
+  surgeries: yup.string().required('El campo cirugías es requerido'),
+  housingHistory: yup.string().required('El campo historial de vivienda es requerido'),
+});
 
 interface BasicMedicalStepProps {
   data: Partial<MedicalData>;
@@ -14,9 +30,11 @@ interface BasicMedicalStepProps {
 }
 
 const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onBack }) => {
+  // Usamos el esquema específico que requiere los campos médicos
+  // El cast 'as any' es seguro porque los tipos son compatibles (required → optional)
   const { register, handleSubmit, formState: { errors } } = useForm<MedicalData>({
     defaultValues: data as Partial<MedicalData>,
-    resolver: yupResolver(medicalDataSchema),
+    resolver: yupResolver(basicMedicalStepSchema) as any,
   });
   
   return (
