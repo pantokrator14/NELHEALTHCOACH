@@ -30,6 +30,8 @@ export type FormPayload = {
   personalData: PersonalData;
   medicalData: MedicalData;
   contractAccepted?: boolean;
+  stripeSessionId?: string;
+  free?: boolean;
   [key: string]: unknown;
 };
 
@@ -83,7 +85,10 @@ export const apiClient = {
         ...formData.medicalData,
         documents: undefined
       },
-      contractAccepted: formData.contractAccepted
+      contractAccepted: formData.contractAccepted,
+      // Reenviar campos de pago/link gratuito (JSON.stringify omite undefined)
+      stripeSessionId: formData.stripeSessionId,
+      free: formData.free,
     };
 
     // Incluir coachId si existe
