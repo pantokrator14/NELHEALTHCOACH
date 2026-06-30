@@ -92,7 +92,11 @@ async function getHandler(request: NextRequest) {
     } catch (error: unknown) {
       logger.error('RECIPES', 'Error en búsqueda', error);
       return NextResponse.json(
-        { success: false, message: error instanceof Error ? error.message : 'Error en búsqueda' },
+        { 
+          success: false, 
+          message: 'Error en búsqueda',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }

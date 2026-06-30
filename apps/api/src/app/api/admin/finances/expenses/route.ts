@@ -144,7 +144,11 @@ async function postHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error creando gasto', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al crear el gasto' },
+      { 
+        success: false, 
+        message: 'Error al crear el gasto',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -243,7 +247,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error listando gastos', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al listar gastos' },
+      { 
+        success: false, 
+        message: 'Error al listar gastos',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

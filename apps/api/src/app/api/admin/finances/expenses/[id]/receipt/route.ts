@@ -97,7 +97,11 @@ async function postHandler(
     }
     logger.error('FINANCES', 'Error generando URL de upload para recibo', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al generar URL de upload' },
+      { 
+        success: false, 
+        message: 'Error al generar URL de upload',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -196,7 +200,11 @@ async function putHandler(
     }
     logger.error('FINANCES', 'Error guardando recibo', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al guardar el recibo' },
+      { 
+        success: false, 
+        message: 'Error al guardar el recibo',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -274,7 +282,11 @@ async function deleteHandler(
     }
     logger.error('FINANCES', 'Error eliminando recibo', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al eliminar el recibo' },
+      { 
+        success: false, 
+        message: 'Error al eliminar el recibo',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

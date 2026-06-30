@@ -128,7 +128,11 @@ async function deleteHandler(
     }
     logger.error('COACHES', 'Error eliminando coach', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
-      { success: false, message: 'Error interno del servidor' },
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

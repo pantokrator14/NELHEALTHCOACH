@@ -354,7 +354,11 @@ async function getHandler(
   } catch (error: any) {
     loggerWithContext.error('PDF', '❌ Error generando PDF', error);
     return NextResponse.json(
-      { error: 'Error generando PDF', message: error.message },
+      { 
+        error: 'Error generando PDF', 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+      },
       { status: 500 }
     );
   }

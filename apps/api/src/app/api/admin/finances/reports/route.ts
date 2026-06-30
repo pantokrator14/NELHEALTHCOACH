@@ -59,7 +59,11 @@ async function postHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error generando reporte fiscal', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al generar reporte fiscal' },
+      { 
+        success: false, 
+        message: 'Error al generar reporte fiscal',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

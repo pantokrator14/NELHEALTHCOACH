@@ -300,7 +300,11 @@ async function postHandler(request: NextRequest) {
   } catch (error) {
     logger.error('LEAD', 'Error capturado:', error);
     return NextResponse.json(
-      { success: false, message: 'Error interno del servidor' },
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

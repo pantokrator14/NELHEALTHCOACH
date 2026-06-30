@@ -115,7 +115,11 @@ async function postHandler(
         }, { exerciseId: id });
 
         return NextResponse.json(
-          { success: false, message: `Error generando URL de upload: ${s3Error.message || 'Error de S3'}` },
+          { 
+            success: false, 
+            message: 'Error generando URL de upload',
+            ...(process.env.NODE_ENV === 'development' && { detail: (s3Error as Error).message })
+          },
           { status: 500 },
         );
       }
@@ -125,7 +129,11 @@ async function postHandler(
       }
       logger.error('EXERCISE_UPLOAD', 'Error en POST upload', error as Error);
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 },
       );
     }
@@ -258,7 +266,11 @@ async function putHandler(
       }
       logger.error('EXERCISE_UPLOAD', 'Error guardando demo en ejercicio', error as Error);
       return NextResponse.json(
-        { success: false, message: `Error interno del servidor: ${error.message}` },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 },
       );
     }
@@ -373,7 +385,11 @@ async function deleteHandler(
       }
       logger.error('EXERCISE_UPLOAD', 'Error eliminando demo de ejercicio', error as Error);
       return NextResponse.json(
-        { success: false, message: `Error interno del servidor: ${error.message}` },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 },
       );
     }

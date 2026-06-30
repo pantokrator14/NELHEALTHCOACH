@@ -110,7 +110,14 @@ async function getHandler(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error obteniendo perfil', error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -170,7 +177,14 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('ACCOUNT', 'Error en gestión de cuenta', error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -247,7 +261,14 @@ async function putHandler(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error actualizando perfil', error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      }, 
+      { status: 500 }
+    );
   }
 }
 

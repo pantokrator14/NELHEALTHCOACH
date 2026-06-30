@@ -211,7 +211,11 @@ async function getHandler(request: NextRequest) {
       // Si es un error estructurado (auth), devolver su status específico
       if (apiError?.status) {
         return NextResponse.json(
-          { success: false, message: apiError.message || 'Error' },
+          { 
+            success: false, 
+            message: apiError.message || 'Error',
+            ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+          },
           { status: apiError.status }
         );
       }
@@ -222,7 +226,11 @@ async function getHandler(request: NextRequest) {
       });
       
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }
@@ -580,7 +588,8 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        message: 'Error interno del servidor al registrar el cliente' 
+        message: 'Error interno del servidor al registrar el cliente',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
       },
       { status: 500 }
     );

@@ -58,7 +58,11 @@ async function postHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('STRIPE_CONNECT', 'Error generando onboarding link', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al generar enlace de configuración' },
+      { 
+        success: false, 
+        message: 'Error al generar enlace de configuración',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

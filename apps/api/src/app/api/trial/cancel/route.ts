@@ -88,7 +88,11 @@ async function postHandler(request: NextRequest) {
     }
     logger.error('TRIAL', 'Error cancelando trial', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error interno del servidor' },
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

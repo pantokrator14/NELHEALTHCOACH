@@ -53,7 +53,11 @@ async function getHandler(
     }
     logger.error('FINANCES', 'Error obteniendo gasto', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener el gasto' },
+      { 
+        success: false, 
+        message: 'Error al obtener el gasto',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -161,7 +165,11 @@ async function putHandler(
     }
     logger.error('FINANCES', 'Error actualizando gasto', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al actualizar el gasto' },
+      { 
+        success: false, 
+        message: 'Error al actualizar el gasto',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -209,7 +217,11 @@ async function deleteHandler(
     }
     logger.error('FINANCES', 'Error eliminando gasto', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al eliminar el gasto' },
+      { 
+        success: false, 
+        message: 'Error al eliminar el gasto',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

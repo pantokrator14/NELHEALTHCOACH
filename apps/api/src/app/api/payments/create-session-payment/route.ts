@@ -173,7 +173,11 @@ async function postHandler(request: NextRequest) {
     }
     logger.error('PAYMENTS', 'Error creando checkout de sesión', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al iniciar el pago' },
+      { 
+        success: false, 
+        message: 'Error al iniciar el pago',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

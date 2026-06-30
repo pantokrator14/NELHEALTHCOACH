@@ -54,7 +54,11 @@ async function postHandler(request: NextRequest) {
     if (!clientPriceId) {
       logger.error('PAYMENTS', 'STRIPE_CLIENT_PRICE_ID no definida');
       return NextResponse.json(
-        { success: false, message: 'Error de configuración de pagos' },
+        { 
+          success: false, 
+          message: 'Error de configuración de pagos',
+          ...(process.env.NODE_ENV === 'development' && { detail: 'STRIPE_CLIENT_PRICE_ID no definida en variables de entorno' })
+        },
         { status: 500 }
       );
     }
@@ -125,7 +129,11 @@ async function postHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('PAYMENTS', 'Error creando checkout de cliente', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al iniciar el pago' },
+      { 
+        success: false, 
+        message: 'Error al iniciar el pago',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

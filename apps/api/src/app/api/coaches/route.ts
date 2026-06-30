@@ -79,7 +79,14 @@ async function getHandler(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error listando coaches', error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json({ success: false, message: 'Error interno del servidor' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      }, 
+      { status: 500 }
+    );
   }
 }
 

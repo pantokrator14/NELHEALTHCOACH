@@ -40,7 +40,11 @@ async function patchHandler(
   } catch (error) {
     logger.error('NOTIFICATIONS', 'Error marking notification as read', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al marcar notificación como leída' },
+      { 
+        success: false, 
+        message: 'Error al marcar notificación como leída',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

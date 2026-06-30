@@ -114,7 +114,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error listando transacciones', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al listar transacciones' },
+      { 
+        success: false, 
+        message: 'Error al listar transacciones',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

@@ -99,7 +99,11 @@ async function postHandler(request: NextRequest) {
     const msg = error instanceof Error ? error.message : 'Error desconocido';
     logger.error('VIDEO', 'Test token generation failed', error as Error);
     return NextResponse.json(
-      { success: false, message: msg },
+      {
+        success: false,
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: msg }),
+      },
       { status: 500 }
     );
   }

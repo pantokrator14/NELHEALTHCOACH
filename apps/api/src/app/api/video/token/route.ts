@@ -148,7 +148,11 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
     logger.error('VIDEO', 'Failed to generate participant token', error as Error);
 
     return NextResponse.json(
-      { success: false, message: errorMessage },
+      {
+        success: false,
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: errorMessage }),
+      },
       { status: 500 }
     );
   }

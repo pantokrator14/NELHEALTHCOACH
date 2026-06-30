@@ -62,7 +62,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error obteniendo configuración fiscal', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener configuración fiscal' },
+      { 
+        success: false, 
+        message: 'Error al obtener configuración fiscal',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -158,7 +162,11 @@ async function putHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error actualizando configuración fiscal', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al actualizar configuración fiscal' },
+      { 
+        success: false, 
+        message: 'Error al actualizar configuración fiscal',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

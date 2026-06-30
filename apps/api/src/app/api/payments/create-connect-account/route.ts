@@ -92,7 +92,11 @@ async function postHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('STRIPE_CONNECT', 'Error creando cuenta Connect', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al conectar con Stripe. Intenta de nuevo.' },
+      { 
+        success: false, 
+        message: 'Error al conectar con Stripe. Intenta de nuevo.',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
