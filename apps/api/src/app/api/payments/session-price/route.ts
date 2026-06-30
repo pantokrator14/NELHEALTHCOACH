@@ -71,7 +71,11 @@ async function putHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('STRIPE_CONNECT', 'Error actualizando precio de sesión', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al actualizar el precio' },
+      { 
+        success: false, 
+        message: 'Error al actualizar el precio',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

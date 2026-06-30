@@ -83,7 +83,11 @@ async function postHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('PAYMENTS', 'Error creando portal de facturación', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al abrir el portal de facturación' },
+      { 
+        success: false, 
+        message: 'Error al abrir el portal de facturación',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

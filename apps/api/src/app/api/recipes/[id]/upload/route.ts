@@ -163,7 +163,8 @@ async function postHandler(
         return NextResponse.json(
           { 
             success: false, 
-            message: `Error generando URL de upload: ${s3Error.message || 'Error de S3'}` 
+            message: 'Error generando URL de upload',
+            ...(process.env.NODE_ENV === 'development' && { detail: s3Error.message || 'Error de S3' })
           },
           { status: 500 }
         );
@@ -403,7 +404,11 @@ async function putHandler(
         recipeId: (await params).id
       });
       return NextResponse.json(
-        { success: false, message: `Error interno del servidor: ${error.message}` },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }
@@ -571,7 +576,11 @@ async function deleteHandler(
         recipeId: (await params).id
       });
       return NextResponse.json(
-        { success: false, message: `Error interno del servidor: ${error.message}` },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }

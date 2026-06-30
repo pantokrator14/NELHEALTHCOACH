@@ -111,7 +111,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error exportando datos financieros', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al exportar datos financieros' },
+      { 
+        success: false, 
+        message: 'Error al exportar datos financieros',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

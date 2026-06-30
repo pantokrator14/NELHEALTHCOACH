@@ -107,7 +107,7 @@ async function getHandler(request: NextRequest) {
     return NextResponse.json({ 
       success: false, 
       error: 'Error de conexión o tiempo de espera.',
-      detail: error.message
+      ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
     }, { status: 500 });
   } finally {
     if (client) {

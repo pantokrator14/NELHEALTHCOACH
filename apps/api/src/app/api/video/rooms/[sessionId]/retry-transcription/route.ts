@@ -177,7 +177,11 @@ async function postHandler(
     });
 
     return NextResponse.json(
-      { success: false, message: explainedMessage },
+      {
+        success: false,
+        message: 'Error al procesar la solicitud',
+        ...(process.env.NODE_ENV === 'development' && { detail: errorMessage }),
+      },
       { status: 500 }
     );
   }

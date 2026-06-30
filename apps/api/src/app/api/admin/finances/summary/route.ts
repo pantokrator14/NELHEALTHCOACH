@@ -167,7 +167,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error obteniendo resumen financiero', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener resumen financiero' },
+      { 
+        success: false, 
+        message: 'Error al obtener resumen financiero',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

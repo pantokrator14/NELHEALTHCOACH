@@ -134,16 +134,20 @@ async function postHandler(request: NextRequest) {
     // Si es un error estructurado (auth), devolver su status específico
     if (error?.status) {
       return NextResponse.json(
-        { success: false, message: error.message || 'Error' },
+        { 
+          success: false, 
+          message: error.message || 'Error',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: error.status }
       );
     }
     console.error('Error en extract-text endpoint:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { 
         success: false, 
-        message: `Error extrayendo texto: ${errorMessage || 'Error interno del servidor'}` 
+        message: 'Error extrayendo texto del archivo',
+        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
       },
       { status: 500 }
     );

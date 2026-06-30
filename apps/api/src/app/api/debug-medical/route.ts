@@ -54,7 +54,10 @@ async function getHandler(request: NextRequest) {
       rawMedicalData: medicalData
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message });
+    return NextResponse.json({ 
+      error: 'Error obteniendo datos médicos',
+      ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+    });
   }
 }
 

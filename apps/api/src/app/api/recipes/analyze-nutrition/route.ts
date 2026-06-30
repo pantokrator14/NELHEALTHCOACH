@@ -44,7 +44,11 @@ async function postHandler(request: NextRequest) {
       // Si es un error estructurado (auth), devolver su status específico
       if (error?.status) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
+          { 
+            success: false, 
+            message: 'Error de autenticación',
+            ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+          },
           { status: error.status }
         );
       }
@@ -71,7 +75,8 @@ async function postHandler(request: NextRequest) {
         return NextResponse.json(
           { 
             success: false, 
-            message: `Error analizando nutrición: ${error.message}` 
+            message: 'Error analizando nutrición',
+            ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
           },
           { status: 500 }
         );

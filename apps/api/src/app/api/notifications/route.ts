@@ -47,7 +47,11 @@ async function getHandler(request: NextRequest) {
   } catch (error) {
     logger.error('NOTIFICATIONS', 'Error listing notifications', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al cargar notificaciones' },
+      { 
+        success: false, 
+        message: 'Error al cargar notificaciones',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }
@@ -86,7 +90,11 @@ async function postHandler(request: NextRequest) {
   } catch (error) {
     logger.error('NOTIFICATIONS', 'Error marking all notifications as read', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al marcar notificaciones como leídas' },
+      { 
+        success: false, 
+        message: 'Error al marcar notificaciones como leídas',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

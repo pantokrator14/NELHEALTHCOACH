@@ -191,7 +191,11 @@ async function postHandler(request: NextRequest) {
 
     logger.error('VIDEO', 'Failed to confirm session', error as Error);
     return NextResponse.json(
-      { success: false, message: errorMessage },
+      {
+        success: false,
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: errorMessage }),
+      },
       { status: 500 }
     );
   }

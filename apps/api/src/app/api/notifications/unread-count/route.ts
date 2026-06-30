@@ -31,7 +31,11 @@ async function getHandler(request: NextRequest) {
   } catch (error) {
     logger.error('NOTIFICATIONS', 'Error getting unread count', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener conteo de notificaciones' },
+      { 
+        success: false, 
+        message: 'Error al obtener conteo de notificaciones',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

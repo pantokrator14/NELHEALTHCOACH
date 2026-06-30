@@ -71,7 +71,11 @@ async function getHandler(
     } catch (error: any) {
       logger.error('RECIPES', 'Error obteniendo receta', error);
       return NextResponse.json(
-        { success: false, message: 'Error obteniendo receta' },
+        { 
+          success: false, 
+          message: 'Error obteniendo receta',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }
@@ -352,7 +356,11 @@ async function putHandler(
     } catch (error: any) {
       logger.error('RECIPES', 'Error actualizando receta', error);
       return NextResponse.json(
-        { success: false, message: 'Error actualizando receta' },
+        { 
+          success: false, 
+          message: 'Error actualizando receta',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }
@@ -458,7 +466,11 @@ async function deleteHandler(
     } catch (error: any) {
       logger.error('RECIPES', 'Error eliminando receta', error);
       return NextResponse.json(
-        { success: false, message: 'Error eliminando receta' },
+        { 
+          success: false, 
+          message: 'Error eliminando receta',
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+        },
         { status: 500 }
       );
     }

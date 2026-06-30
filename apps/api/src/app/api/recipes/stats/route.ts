@@ -106,7 +106,11 @@ async function getHandler(request: NextRequest) {
     console.error('Error getting recipe stats:', error.message);
     logger.error('RECIPES', 'Error obteniendo estadísticas de recetas', error);
     return NextResponse.json(
-      { success: false, message: 'Error obteniendo estadísticas' },
+      { 
+        success: false, 
+        message: 'Error obteniendo estadísticas',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   } finally {

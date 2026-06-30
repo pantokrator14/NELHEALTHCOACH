@@ -6,7 +6,7 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
-import { requireCoachAuth, generateToken } from '@/app/lib/auth';
+import { requireCoachAuth } from '@/app/lib/auth';
 import jwt from 'jsonwebtoken';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -95,7 +95,14 @@ async function getHandler(
       return NextResponse.json({ success: false, message: error.message }, { status: error.status });
     }
     logger.error('UPLOAD', 'Error generando URL de descarga', error as Error, { fileKey });
-    return NextResponse.json({ success: false, message: 'Error generando URL' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: 'Error generando URL',
+        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+      }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -201,7 +208,11 @@ async function postHandler(
         clientId: (await params).id
       });
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -398,7 +409,11 @@ async function putHandler(
         });
       }
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -669,7 +684,11 @@ async function deleteHandler(
         clientId: (await params).id
       });
       return NextResponse.json(
-        { success: false, message: 'Error interno del servidor' },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -711,7 +730,11 @@ async function patchHandler(
     }
     logger.error('REPAIR', 'Error en endpoint de reparación', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error reparando documentos' },
+      { 
+        success: false, 
+        message: 'Error reparando documentos',
+        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+      },
       { status: 500 }
     );
   }

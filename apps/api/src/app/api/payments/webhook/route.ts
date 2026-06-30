@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/app/lib/logger';
+import { connectMongoose } from '@/app/lib/database';
 import {
   constructStripeEvent,
   handleCheckoutCompleted,
@@ -26,6 +27,7 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
+    await connectMongoose();
     const rawBody = await request.text();
     const signature = request.headers.get('stripe-signature');
 

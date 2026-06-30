@@ -371,7 +371,11 @@ async function getHandler(request: NextRequest) {
     }
     logger.error('FINANCES', 'Error obteniendo datos financieros', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener datos financieros' },
+      { 
+        success: false, 
+        message: 'Error al obtener datos financieros',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

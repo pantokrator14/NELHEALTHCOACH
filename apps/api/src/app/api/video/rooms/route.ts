@@ -194,7 +194,11 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
     logger.error('VIDEO', 'Failed to create pending session', error as Error);
 
     return NextResponse.json(
-      { success: false, message: errorMessage },
+      {
+        success: false,
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: errorMessage }),
+      },
       { status: 500 }
     );
   }
@@ -233,7 +237,11 @@ async function getHandler(request: NextRequest): Promise<NextResponse> {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     return NextResponse.json(
-      { success: false, message: errorMessage },
+      {
+        success: false,
+        message: 'Error interno del servidor',
+        ...(process.env.NODE_ENV === 'development' && { detail: errorMessage }),
+      },
       { status: 500 }
     );
   }

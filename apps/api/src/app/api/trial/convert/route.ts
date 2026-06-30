@@ -26,7 +26,11 @@ async function postHandler(request: NextRequest) {
     if (!SUBSCRIPTION_PRICE_ID) {
       logger.error('PAYMENTS', 'STRIPE_COACH_PRICE_ID no definida');
       return NextResponse.json(
-        { success: false, message: 'Error de configuración de pagos' },
+        { 
+          success: false, 
+          message: 'Error de configuración de pagos',
+          ...(process.env.NODE_ENV === 'development' && { detail: 'STRIPE_COACH_PRICE_ID no definida en variables de entorno' })
+        },
         { status: 500 }
       );
     }
@@ -133,7 +137,11 @@ async function postHandler(request: NextRequest) {
     }
     logger.error('PAYMENTS', 'Error convirtiendo trial', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al procesar el pago de la suscripción. Verifica tu método de pago.' },
+      { 
+        success: false, 
+        message: 'Error al procesar el pago de la suscripción. Verifica tu método de pago.',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

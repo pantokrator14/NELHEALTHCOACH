@@ -79,7 +79,11 @@ async function getHandler(request: NextRequest) {
   } catch (error: unknown) {
     logger.error('STRIPE_CONNECT', 'Error obteniendo estado de cuenta Connect', error as Error);
     return NextResponse.json(
-      { success: false, message: 'Error al obtener estado de la cuenta' },
+      { 
+        success: false, 
+        message: 'Error al obtener estado de la cuenta',
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message })
+      },
       { status: 500 }
     );
   }

@@ -111,10 +111,13 @@ async function getHandler(request: NextRequest) {
 
       return NextResponse.json({ success: true, data: results });
     } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('EXERCISES', 'Error al obtener ejercicios', error as Error);
       return NextResponse.json(
-        { success: false, message: errMsg },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -256,14 +259,21 @@ async function postHandler(request: NextRequest) {
       // Si es un error estructurado (auth), devolver su status específico
       if (apiError?.status) {
         return NextResponse.json(
-          { success: false, message: apiError.message || 'Error' },
+          { 
+            success: false, 
+            message: apiError.message || 'Error',
+            ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+          },
           { status: apiError.status }
         );
       }
-      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('EXERCISES', 'Error al crear ejercicio', error as Error);
       return NextResponse.json(
-        { success: false, message: errMsg },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -375,10 +385,13 @@ async function putHandler(request: NextRequest) {
 
       return NextResponse.json({ success: true });
     } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('EXERCISES', 'Error al actualizar ejercicio', error as Error);
       return NextResponse.json(
-        { success: false, message: errMsg },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
@@ -464,10 +477,13 @@ async function deleteHandler(request: NextRequest) {
         data: { deletedCount: result.deletedCount },
       });
     } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       logger.error('EXERCISES', 'Error al eliminar ejercicios', error as Error);
       return NextResponse.json(
-        { success: false, message: errMsg },
+        { 
+          success: false, 
+          message: 'Error interno del servidor',
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        },
         { status: 500 }
       );
     }
