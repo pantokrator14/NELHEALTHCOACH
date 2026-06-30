@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@/app/lib/database';
 import { encrypt, decrypt, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, generateToken } from '@/app/lib/auth';
 import { secureRoute } from '@/app/lib/security';
 import { clientFormSchema } from '@/app/lib/schemas';
 import Coach from '@/app/models/Coach';
@@ -542,11 +542,18 @@ async function postHandler(request: NextRequest) {
       }
     }
 
+    // Generar token temporal para subir archivos (1 hora de validez)
+    const uploadToken = generateToken({
+      type: 'client-upload',
+      clientId: result.insertedId.toString(),
+    });
+
     const responseData = {
       success: true,
       message: 'Cliente registrado exitosamente',
       data: {
-        _id: result.insertedId.toString()
+        _id: result.insertedId.toString(),
+        uploadToken,
       }
     };
 
