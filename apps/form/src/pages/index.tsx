@@ -445,7 +445,9 @@ const FormPage: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('❌ Error:', error);
-      setError('Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.');
+      // Mostrar el mensaje real del error (viene del API o del fetch)
+      const errorMessage = error instanceof Error ? error.message : 'Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
