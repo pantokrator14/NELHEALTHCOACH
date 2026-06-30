@@ -6,11 +6,16 @@ import { getHealthFormsCollection } from '@/app/lib/database';
 import { S3Service, UploadedFile } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, generateToken } from '@/app/lib/auth';
+import jwt from 'jsonwebtoken';
 import { apiHandler } from '@/app/lib/apiHandler';
+
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 /**
  * Verifica que el coach autenticado sea admin o el coach asignado al cliente.
+ * Como fallback, acepta un token de upload temporal (X-Upload-Token) generado
+ * durante la creación del cliente para que el formulario pueda subir archivos.
  * Devuelve el cliente si existe, o lanza una respuesta 401/403.
  * NOTA: Los throw usan objetos con {status, message} para que los catch blocks
  * los distingan de errores inesperados (Error sin .status).
@@ -20,8 +25,10 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string): 
   try {
     auth = requireCoachAuth(request);
   } catch {
-    throw { status: 401, message: 'No autorizado' };
+    // Si no hay auth de coach, intentar con token de upload temporal
+    auth = null;
   }
+
   const healthForms = await getHealthFormsCollection();
   const client = await healthForms.findOne(
     { _id: new ObjectId(clientId) },
@@ -30,10 +37,31 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string): 
   if (!client) {
     throw { status: 404, message: 'Cliente no encontrado' };
   }
-  if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
-    throw { status: 403, message: 'No tienes permiso para modificar este cliente' };
+
+  // Si hay auth de coach, verificar permisos
+  if (auth) {
+    if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
+      throw { status: 403, message: 'No tienes permiso para modificar este cliente' };
+    }
+    return { auth, client };
   }
-  return { auth, client };
+
+  // Fallback: verificar token de upload temporal (cliente recién registrado)
+  const uploadToken = request.headers.get('x-upload-token');
+  if (!uploadToken) {
+    throw { status: 401, message: 'No autorizado' };
+  }
+
+  try {
+    const decoded = jwt.verify(uploadToken, JWT_SECRET) as { type: string; clientId: string };
+    if (decoded.type !== 'client-upload' || decoded.clientId !== clientId) {
+      throw { status: 401, message: 'Token de upload inválido' };
+    }
+    return { auth: null, client };
+  } catch (e: any) {
+    if (e?.status) throw e;
+    throw { status: 401, message: 'Token de upload inválido o expirado' };
+  }
 }
 
 // GET: Obtener URL firmada de descarga para un documento (requiere auth)

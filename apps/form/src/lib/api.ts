@@ -148,12 +148,15 @@ export const apiClient = {
 
     console.log('✅ Cliente creado, ID:', clientId);
 
+    // Token para subir archivos (devuelto por el backend al crear el cliente)
+    const uploadToken = result.data?.uploadToken as string | undefined;
+
     // Subir archivos si existen
     try {
       // Subir foto de perfil
       if (formData.personalData.profilePhoto) {
         console.log('📸 Subiendo foto de perfil...');
-        await this.uploadProfilePhoto(clientId as string, formData.personalData.profilePhoto as File);
+        await this.uploadProfilePhoto(clientId as string, formData.personalData.profilePhoto as File, uploadToken);
       } else {
         console.log('⚠️ No hay foto de perfil para subir');
       }
@@ -161,7 +164,7 @@ export const apiClient = {
       // Subir documentos médicos
       if (formData.medicalData.documents && formData.medicalData.documents.length > 0) {
         console.log('📄 Subiendo documentos médicos...', formData.medicalData.documents.length);
-        await this.uploadDocuments(clientId as string, formData.medicalData.documents as File[]);
+        await this.uploadDocuments(clientId as string, formData.medicalData.documents as File[], uploadToken);
       } else {
         console.log('⚠️ No hay documentos para subir - continuando sin documentos');
         // No hay error, simplemente continuamos
@@ -176,14 +179,17 @@ export const apiClient = {
     return result;
   },
 
-  async uploadProfilePhoto(clientId: string, file: File) {
+  async uploadProfilePhoto(clientId: string, file: File, uploadToken?: string) {
     try {
       console.log('🔑 Obteniendo URL firmada para foto de perfil...', { clientId, fileName: file.name });
       
       // 1. Obtener URL firmada
       const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'POST',
-        headers: getBaseHeaders(),
+        headers: {
+          ...getBaseHeaders(),
+          ...(uploadToken && { 'X-Upload-Token': uploadToken }),
+        },
         body: JSON.stringify({
           fileName: file.name,
           fileType: file.type,
@@ -211,7 +217,10 @@ export const apiClient = {
       console.log('✅ Confirmando upload en base de datos...');
       const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'PUT',
-        headers: getBaseHeaders(),
+        headers: {
+          ...getBaseHeaders(),
+          ...(uploadToken && { 'X-Upload-Token': uploadToken }),
+        },
         body: JSON.stringify({
           fileKey: uploadData.data.fileKey,
           fileName: file.name,
@@ -235,7 +244,7 @@ export const apiClient = {
     }
   },
 
-  async uploadDocuments(clientId: string, files: File[]) {
+  async uploadDocuments(clientId: string, files: File[], uploadToken?: string) {
     for (const file of files) {
       try {
         console.log('🔑 Obteniendo URL firmada para documento:', file.name);
@@ -243,7 +252,10 @@ export const apiClient = {
         // 1. Obtener URL firmada
         const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
           method: 'POST',
-          headers: getBaseHeaders(),
+          headers: {
+            ...getBaseHeaders(),
+            ...(uploadToken && { 'X-Upload-Token': uploadToken }),
+          },
           body: JSON.stringify({
             fileName: file.name,
             fileType: file.type,
@@ -271,7 +283,10 @@ export const apiClient = {
         console.log('✅ Confirmando upload de documento en base de datos...');
         const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
           method: 'PUT',
-          headers: getBaseHeaders(),
+          headers: {
+            ...getBaseHeaders(),
+            ...(uploadToken && { 'X-Upload-Token': uploadToken }),
+          },
           body: JSON.stringify({
             fileKey: uploadData.data.fileKey,
             fileName: file.name,
