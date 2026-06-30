@@ -369,7 +369,7 @@ export default function ClientProfile() {
         file.type,
         file.size,
         'profile',
-        uploadResponse.uploadURL
+        uploadResponse.fileURL!
       )
       await fetchClient()
       showToast(t('clients.profilePhotoUpdated'), 'success')
@@ -509,6 +509,7 @@ export default function ClientProfile() {
                       className="w-60 h-60 rounded-full object-cover border-4 border-blue-500 shadow-lg"
                       width={240}
                       height={240}
+                      unoptimized
                     />
                     <button
                       onClick={() => setIsProfilePhotoModalOpen(true)}
