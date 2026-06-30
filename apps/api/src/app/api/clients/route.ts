@@ -280,6 +280,7 @@ async function postHandler(request: NextRequest) {
       }
 
       // Verificar que el coach sea administrador
+      await connectMongoose();
       const coach = await Coach.findById(coachId).select('role').lean() as { role: string } | null;
       if (!coach || coach.role !== 'admin') {
         logger.warn('CLIENTS', 'Intento de registro gratuito con coach no autorizado', {
