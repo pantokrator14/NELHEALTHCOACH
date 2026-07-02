@@ -1,7 +1,7 @@
 // apps/api/src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeadsCollection } from '@/app/lib/database';
-import { secureRoute } from '@/app/lib/security';
+import { secureRoute } from '@/app/lib/security/index';
 import { leadSchema } from '@/app/lib/schemas';
 import { Resend } from 'resend';
 import { logger } from '@/app/lib/logger';
