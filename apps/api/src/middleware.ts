@@ -128,7 +128,7 @@ function applyCorsHeaders(
     response.headers.set('Access-Control-Allow-Origin', origin!);
   }
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID, X-Upload-Token');
   response.headers.set('Access-Control-Allow-Credentials', 'true');
 
   return response;
@@ -150,7 +150,7 @@ function createBlockedResponse(
     headers['Access-Control-Allow-Origin'] = origin!;
   }
   headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-  headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID';
+  headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Visitor-Id, X-Request-ID, X-Upload-Token';
   headers['Access-Control-Allow-Credentials'] = 'true';
 
   if (retryAfter !== undefined) {

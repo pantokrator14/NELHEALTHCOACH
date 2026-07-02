@@ -3,7 +3,7 @@ import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@
 import { encrypt, decrypt, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth, generateToken } from '@/app/lib/auth';
-import { secureRoute } from '@/app/lib/security';
+import { secureRoute } from '@/app/lib/security/index';
 import { clientFormSchema } from '@/app/lib/schemas';
 import Coach from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
