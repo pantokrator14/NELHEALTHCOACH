@@ -1,5 +1,5 @@
 // apps/form/src/components/HealthEvaluationsStep.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema, MedicalDataFormValues } from '../lib/validation';
@@ -158,6 +158,13 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
+
+  // Log errores de validación al desarrollador
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.error('❌ Errores de validación en Evaluaciones de Salud:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
 
   // Función para manejar el submit y asegurar que los datos sean arrays de strings
   const onSubmitHandler = (formData: MedicalDataFormValues) => {

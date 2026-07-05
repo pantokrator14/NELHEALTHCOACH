@@ -1,5 +1,5 @@
 // apps/form/src/components/MentalHealthStep.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema } from '../lib/validation';
@@ -11,10 +11,6 @@ interface MentalHealthStepProps {
   onSubmit: (data: Record<string, unknown>) => void;
   onBack: () => void;
 }
-
-// Tipos literales para los nuevos campos (según el esquema)
-type MentalHealthSupportNetwork = 'si-tengo' | 'algunas' | 'no' | undefined;
-type MentalHealthDailyStress = 'bajo' | 'moderado' | 'alto' | 'muy-alto' | undefined;
 
 // Definir los campos de opción múltiple (incluyendo los nuevos)
 type MentalHealthMultipleChoiceField =
@@ -54,8 +50,8 @@ interface FormData {
   mentalHealthPurpose?: string;
   mentalHealthFailureReaction?: string;
   mentalHealthSelfConnection?: string;
-  mentalHealthSupportNetwork?: MentalHealthSupportNetwork;
-  mentalHealthDailyStress?: MentalHealthDailyStress;
+  mentalHealthSupportNetwork?: string;
+  mentalHealthDailyStress?: string;
 
   // Preguntas abiertas
   mentalHealthSelfRelationship?: string;
@@ -63,9 +59,11 @@ interface FormData {
   mentalHealthIdealBalance?: string;
 }
 
-// Esquema específico para este paso (mainComplaint opcional)
+// Esquema específico para este paso (mainComplaint opcional, las dos nuevas required)
 const mentalHealthStepSchema = medicalDataSchema.shape({
   mainComplaint: yup.string().optional(),
+  mentalHealthSupportNetwork: yup.string().oneOf(['si-tengo', 'algunas', 'no']),
+  mentalHealthDailyStress: yup.string().oneOf(['bajo', 'moderado', 'alto', 'muy-alto']),
 });
 
 const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onBack }) => {
@@ -101,10 +99,17 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
     return defaultValues;
   };
 
-  const { register, handleSubmit } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: getDefaultValues(),
     resolver: yupResolver(mentalHealthStepSchema),
   });
+
+  // Log errores de validación al desarrollador
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.error('❌ Errores de validación en Bienestar Emocional:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
 
   const handleFormSubmit: SubmitHandler<FormData> = (formData) => {
     const formDataRecord: Record<string, unknown> = {};

@@ -326,7 +326,7 @@ const FormPage: React.FC = () => {
     const requiredPersonalFields = [
       'name', 'email', 'phone', 'address', 'birthDate',
       'gender', 'age', 'weight', 'height', 'maritalStatus',
-      'education', 'occupation'
+      'education', 'occupation', 'weightVariation'
     ] as const;
 
     for (const field of requiredPersonalFields) {
@@ -347,7 +347,7 @@ const FormPage: React.FC = () => {
     const requiredMedicalFields = [
       'mainComplaint', 'medications', 'supplements', 'currentPastConditions',
       'additionalMedicalHistory', 'employmentHistory', 'hobbies', 'allergies',
-      'surgeries', 'housingHistory'
+      'surgeries', 'housingHistory', 'appetiteChanges', 'mainComplaintIntensity', 'gymAccess'
     ] as const;
 
     for (const field of requiredMedicalFields) {
@@ -376,7 +376,8 @@ const FormPage: React.FC = () => {
       'mentalHealthEmotionalDependence', 'mentalHealthPurpose',
       'mentalHealthFailureReaction', 'mentalHealthSelfConnection',
       'mentalHealthSelfRelationship', 'mentalHealthLimitingBeliefs',
-      'mentalHealthIdealBalance'
+      'mentalHealthIdealBalance', 'mentalHealthSupportNetwork',
+      'mentalHealthDailyStress'
     ] as const;
 
     for (const field of requiredMentalHealthFields) {
@@ -441,7 +442,17 @@ const FormPage: React.FC = () => {
       if (result.success) {
         nextStep();
       } else {
-        setError(result.message || 'Error al enviar el formulario');
+        // Mostrar TODOS los errores de validación, no solo el primero
+        const errorMessages: string[] = [];
+        if (result.message) errorMessages.push(result.message);
+        if (result.errors && Array.isArray(result.errors)) {
+          result.errors.forEach((e: { field?: string; message?: string }) => {
+            if (e.message && e.field) {
+              errorMessages.push(`- ${e.field}: ${e.message}`);
+            }
+          });
+        }
+        setError(errorMessages.join('\n'));
       }
     } catch (error: unknown) {
       console.error('❌ Error:', error);

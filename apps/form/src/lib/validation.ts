@@ -50,7 +50,7 @@ export const personalDataSchema = yup.object({
   profilePhoto: imageFileSchema,
   // Nuevos campos
   bodyFatPercentage: yup.string().optional(),
-  weightVariation: yup.string().oneOf(['estable', 'bajo', 'subido'], 'Selecciona una opción').optional(),
+  weightVariation: yup.string().oneOf(['estable', 'bajo', 'subido'], 'Selecciona una opción').required('Selecciona una opción'),
   dislikedFoodsActivities: yup.string().optional(),
 });
 
@@ -67,7 +67,7 @@ export const medicalDataSchema = yup.object({
   allergies: yup.string(),
   surgeries: yup.string(),
   housingHistory: yup.string(),
-  appetiteChanges: yup.string().oneOf(['mucho-hambre', 'mucha-sed', 'no']).optional(), // Nueva
+  appetiteChanges: yup.string().oneOf(['mucho-hambre', 'mucha-sed', 'no']).optional(),
 
   // Evaluaciones - ahora serán arrays de strings (frecuencias)
   carbohydrateAddiction: yup.array().of(yup.string()).optional(),
@@ -114,7 +114,7 @@ export const medicalDataSchema = yup.object({
   currentActivityLevel: yup.string().optional(),
   physicalLimitations: yup.string().optional(),
   // Nuevos campos para acceso a equipos de ejercicio
-  gymAccess: yup.string().oneOf(['si-gimnasio', 'si-parque', 'no-acceso', 'equipos-casa', 'peso-corporal', '']).optional(),
+  gymAccess: yup.string().oneOf(['si-gimnasio', 'si-parque', 'no-acceso', 'equipos-casa', 'peso-corporal']).optional(),
   gymAccessDetails: yup.string().optional(),
   equipmentAvailable: yup.string().optional(),
   preferredExerciseTypes: yup.string().optional(),

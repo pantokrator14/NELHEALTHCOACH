@@ -686,7 +686,10 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                         {appetiteChangeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                       </select>
                     ) : key === 'mainComplaintIntensity' ? (
-                      <input type="number" min="1" max="10" value={value as number || ''} onChange={(e) => handleInputChange('medicalData', key, e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-yellow-200 rounded-md focus:ring-2 focus:ring-yellow-500" />
+                      <select value={value as number || ''} onChange={(e) => handleInputChange('medicalData', key, e.target.value ? parseInt(e.target.value) : undefined)} className="w-full px-3 py-2 border border-yellow-200 rounded-md focus:ring-2 focus:ring-yellow-500">
+                        <option value="">Seleccionar</option>
+                        {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
                     ) : (
                       <textarea rows={3} value={value as string} onChange={(e) => handleInputChange('medicalData', key, e.target.value)} className="w-full px-3 py-2 border border-yellow-200 rounded-md focus:ring-2 focus:ring-yellow-500" />
                     )}

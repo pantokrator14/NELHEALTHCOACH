@@ -346,6 +346,21 @@ async function postHandler(request: NextRequest) {
     const parsed = clientFormSchema.safeParse(data);
     if (!parsed.success) {
       const firstError = parsed.error.issues[0];
+      // Log detallado al servidor
+      console.error('❌ Validación Zod fallida al crear cliente:', JSON.stringify({
+        issues: parsed.error.issues.map(i => ({
+          field: i.path.join('.'),
+          message: i.message,
+          code: i.code,
+        })),
+        coachId,
+        clientIP,
+      }, null, 2));
+      logger.warn('CLIENTS', 'Validación Zod fallida al crear cliente', undefined, {
+        issues: parsed.error.issues.length,
+        firstField: firstError?.path?.join('.'),
+        coachId,
+      });
       return NextResponse.json(
         {
           success: false,

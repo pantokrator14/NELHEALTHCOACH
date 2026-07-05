@@ -1,5 +1,5 @@
 // apps/form/src/components/LifestyleContextStep.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema, MedicalDataFormValues } from '../lib/validation';
@@ -12,10 +12,43 @@ interface LifestyleContextStepProps {
 }
 
 const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit } = useForm<MedicalDataFormValues>({
+  const { register, handleSubmit, formState: { errors } } = useForm<MedicalDataFormValues>({
     defaultValues: data,
     resolver: yupResolver(medicalDataSchema),
   });
+
+  // Log errores de validación al desarrollador (consola)
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.error('❌ Errores de validación en Estilo de Vida:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
+
+  const onValidSubmit = (formData: MedicalDataFormValues) => {
+    console.log('✅ Estilo de Vida - datos válidos:', Object.keys(formData).length, 'campos');
+    onSubmit(formData);
+  };
+
+  const onInvalidSubmit = (formErrors: typeof errors) => {
+    console.error('❌ Estilo de Vida - validación fallida:', JSON.stringify(formErrors, null, 2));
+  };
+
+  // Scroll al primer campo con error cuando hay errores de validación
+  useEffect(() => {
+    const errorFields = Object.keys(errors);
+    if (errorFields.length > 0) {
+      const firstFieldName = errorFields[0];
+      // Buscar el elemento por su atributo name (react-hook-form lo asigna via register)
+      const firstErrorElement = document.getElementsByName(firstFieldName)[0];
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Intentar focus si es un input/select/textarea
+        if (typeof (firstErrorElement as HTMLElement).focus === 'function') {
+          (firstErrorElement as HTMLElement).focus();
+        }
+      }
+    }
+  }, [errors]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-400 via-teal-500 to-teal-600 py-12 px-4">
@@ -30,8 +63,30 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
           <h2 className="text-3xl font-bold text-center text-teal-700 mb-8">
             Contexto y Estilo de Vida
           </h2>
+
+          {/* BANNER DE ERRORES VISIBLE PARA EL USUARIO */}
+          {Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+              <div className="flex items-start">
+                <span className="text-red-500 text-xl mr-3">⚠️</span>
+                <div>
+                  <p className="font-semibold text-red-800 text-sm mb-1">
+                    Corrige los siguientes errores para continuar:
+                  </p>
+                  <ul className="list-disc list-inside text-red-700 text-sm space-y-1">
+                    {Object.entries(errors).map(([field, error]) => (
+                      <li key={field}>
+                        <span className="font-medium">{field}:</span>{' '}
+                        {error?.message || 'Valor no válido'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
           
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onValidSubmit, onInvalidSubmit)} className="space-y-6">
             {/* Día típico entre semana */}
             <div>
               <label className="block text-sm font-medium text-teal-600 mb-2">
@@ -113,6 +168,9 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
                 <option value="peso-corporal">Prefiero ejercicios sin equipo (peso corporal)</option>
                 <option value="no-acceso">No tengo acceso a equipos específicos</option>
               </select>
+              {errors.gymAccess?.message && (
+                <p className="text-red-500 text-sm mt-1">{String(errors.gymAccess?.message)}</p>
+              )}
             </div>
 
             {/* Detalles del acceso */}
