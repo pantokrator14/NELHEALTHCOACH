@@ -1,5 +1,5 @@
 // apps/form/src/components/PersonalDataStep.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, UseFormSetValue } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -32,6 +32,13 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
     },
     resolver: yupResolver(personalDataSchema),
   });
+
+  // Log errores de validación al desarrollador
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.error('❌ Errores de validación en Datos Personales:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
 
   const handlePhotoSelect = (file: File) => {
     setProfilePhoto(file);
@@ -313,6 +320,9 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
                   <option value="bajo">{t('form.decreased')}</option>
                   <option value="subido">{t('form.increased')}</option>
                 </select>
+                {errors.weightVariation?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.weightVariation?.message)}</p>
+                )}
               </div>
 
               <div className="md:col-span-2">

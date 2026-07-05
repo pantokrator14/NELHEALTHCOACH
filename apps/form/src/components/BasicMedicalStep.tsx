@@ -1,5 +1,5 @@
 // apps/form/src/components/BasicMedicalStep.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { medicalDataSchema } from '../lib/validation';
@@ -20,6 +20,8 @@ const basicMedicalStepSchema = medicalDataSchema.shape({
   allergies: yup.string().required('El campo alergias es requerido'),
   surgeries: yup.string().required('El campo cirugías es requerido'),
   housingHistory: yup.string().required('El campo historial de vivienda es requerido'),
+  appetiteChanges: yup.string().oneOf(['mucho-hambre', 'mucha-sed', 'no']).required('Selecciona una opción para cambios en apetito'),
+  mainComplaintIntensity: yup.number().typeError('Indica la intensidad del 1 al 10').min(1, 'El valor mínimo es 1').max(10, 'El valor máximo es 10').required('Indica la intensidad del 1 al 10'),
 });
 
 type BasicMedicalFormData = InferType<typeof basicMedicalStepSchema>;
@@ -31,10 +33,17 @@ interface BasicMedicalStepProps {
 }
 
 const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm<BasicMedicalFormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<BasicMedicalFormData>({
     defaultValues: data as Partial<BasicMedicalFormData>,
     resolver: yupResolver(basicMedicalStepSchema),
   });
+
+  // Log errores de validación al desarrollador
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.error('❌ Errores de validación en Info. Médica Básica:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 py-12 px-4">
@@ -79,14 +88,29 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
               <label className="block text-sm font-medium text-yellow-600 mb-2">
                 En una escala del 1 al 10, ¿cómo calificarías la intensidad de esa queja? (1: leve, 10: insoportable)
               </label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                {...register('mainComplaintIntensity')}
-                className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
-                placeholder="Ej: 7"
-              />
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <label
+                    key={num}
+                    className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      watch('mainComplaintIntensity') === num
+                        ? 'bg-yellow-600 text-white border-yellow-700'
+                        : 'bg-white text-gray-700 border-yellow-300 hover:bg-yellow-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      value={num}
+                      {...register('mainComplaintIntensity', { valueAsNumber: true })}
+                      className="sr-only"
+                    />
+                    <span className="text-lg font-bold">{num}</span>
+                  </label>
+                ))}
+              </div>
+              {errors.mainComplaintIntensity?.message && (
+                <p className="text-red-500 text-sm mt-1">{String(errors.mainComplaintIntensity?.message)}</p>
+              )}
             </div>
 
             {/* Impacto */}
@@ -223,6 +247,9 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 <option value="mucha-sed">Sí, mucha más sed</option>
                 <option value="no">No</option>
               </select>
+              {errors.appetiteChanges?.message && (
+                <p className="text-red-500 text-sm mt-1">{String(errors.appetiteChanges?.message)}</p>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between pt-6 gap-3">
