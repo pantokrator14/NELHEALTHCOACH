@@ -34,7 +34,7 @@ type StatusFilter = 'all' | 'active' | 'inactive' | 'suspended';
 type StripeFilter = 'all' | 'connected' | 'not_connected';
 
 export default function CoachesPage() {
-  const { t } = useTranslation('coaches');
+  const { t } = useTranslation();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
@@ -119,7 +119,7 @@ export default function CoachesPage() {
     e.stopPropagation();
     if (deletingCoach) return;
 
-    if (!window.confirm(t('deleteConfirm', { firstName: coach.firstName, lastName: coach.lastName, email: coach.email }))) {
+    if (!window.confirm(t('coaches.deleteConfirm', { firstName: coach.firstName, lastName: coach.lastName, email: coach.email }))) {
       return;
     }
 
@@ -130,9 +130,9 @@ export default function CoachesPage() {
       if (selectedCoach?.id === coach.id) {
         setSelectedCoach(null);
       }
-      showToast(t('deleteSuccess', { firstName: coach.firstName, lastName: coach.lastName }), 'success');
+      showToast(t('coaches.deleteSuccess', { firstName: coach.firstName, lastName: coach.lastName }), 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t('deleteError');
+      const msg = err instanceof Error ? err.message : t('coaches.deleteError');
       showToast(msg, 'error');
     } finally {
       setDeletingCoach(null);
@@ -142,7 +142,7 @@ export default function CoachesPage() {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-full" aria-label={t('loadingSpinnerLabel')}>
+        <div className="flex items-center justify-center h-full" aria-label={t('coaches.loadingSpinnerLabel')}>
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
         </div>
       </Layout>
@@ -152,7 +152,7 @@ export default function CoachesPage() {
   return (
     <>
       <Head>
-        <title>{t('pageTitle')}</title>
+        <title>{t('coaches.pageTitle')}</title>
       </Head>
       <Layout>
         <div className="p-8">
@@ -165,19 +165,19 @@ export default function CoachesPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-orange-700">{t('headerTitle')}</h1>
-                <p className="text-orange-600 mt-1">{t('headerSubtitle')}</p>
+                <h1 className="text-3xl font-bold text-orange-700">{t('coaches.headerTitle')}</h1>
+                <p className="text-orange-600 mt-1">{t('coaches.headerSubtitle')}</p>
               </div>
             </div>
 
             <div className="flex justify-end">
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200 shadow-sm min-w-[200px]">
                 <div className="text-lg text-gray-700">
-                  {t('totalLabel')} <span className="font-bold text-orange-600 text-xl">{coaches.length}</span>
+                  {t('coaches.totalLabel')} <span className="font-bold text-orange-600 text-xl">{coaches.length}</span>
                 </div>
                 {activeFilterCount > 0 && (
                   <div className="text-sm text-gray-400 mt-1">
-                    {t('showing', { count: filteredCoaches.length })}
+                    {t('coaches.showing', { count: filteredCoaches.length })}
                   </div>
                 )}
               </div>
@@ -198,11 +198,11 @@ export default function CoachesPage() {
                   type="text"
                   value={search}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder={t('searchPlaceholder')}
+                  placeholder={t('coaches.searchPlaceholder')}
                   className="w-full pl-10 pr-10 py-2.5 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm"
                 />
                 {search && (
-                  <button onClick={() => handleSearchChange('')} className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600" aria-label={t('clearSearch')}>
+                  <button onClick={() => handleSearchChange('')} className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600" aria-label={t('coaches.clearSearch')}>
                     <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -214,26 +214,26 @@ export default function CoachesPage() {
               <div className="flex gap-2 flex-wrap">
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
                   className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
-                  <option value="all">{t('filterAllStatuses')}</option>
-                  <option value="active">{t('filterActive')}</option>
-                  <option value="inactive">{t('filterInactive')}</option>
-                  <option value="suspended">{t('filterSuspended')}</option>
+                  <option value="all">{t('coaches.filterAllStatuses')}</option>
+                  <option value="active">{t('coaches.filterActive')}</option>
+                  <option value="inactive">{t('coaches.filterInactive')}</option>
+                  <option value="suspended">{t('coaches.filterSuspended')}</option>
                 </select>
 
                 {/* Filtro Stripe */}
                 <select value={stripeFilter} onChange={(e) => setStripeFilter(e.target.value as StripeFilter)}
                   className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
-                  <option value="all">{t('stripeAll')}</option>
-                  <option value="connected">{t('stripeConnected')}</option>
-                  <option value="not_connected">{t('stripeNotConnected')}</option>
+                  <option value="all">{t('coaches.stripeAll')}</option>
+                  <option value="connected">{t('coaches.stripeConnected')}</option>
+                  <option value="not_connected">{t('coaches.stripeNotConnected')}</option>
                 </select>
 
                 {/* Ordenar */}
                 <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)}
                   className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white">
-                  <option value="createdAt">{t('sortCreatedAt')}</option>
-                  <option value="firstName">{t('sortFirstName')}</option>
-                  <option value="clientCount">{t('sortClientCount')}</option>
+                  <option value="createdAt">{t('coaches.sortCreatedAt')}</option>
+                  <option value="firstName">{t('coaches.sortFirstName')}</option>
+                  <option value="clientCount">{t('coaches.sortClientCount')}</option>
                 </select>
 
                 <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
@@ -241,7 +241,7 @@ export default function CoachesPage() {
                   <svg className={`w-4 h-4 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
-                  <span className="font-medium">{sortField === 'createdAt' ? t('sortOrderRecent') : sortField === 'firstName' ? t('sortOrderAZ') : t('sortOrderMost')}</span>
+                  <span className="font-medium">{sortField === 'createdAt' ? t('coaches.sortOrderRecent') : sortField === 'firstName' ? t('coaches.sortOrderAZ') : t('coaches.sortOrderMost')}</span>
                 </button>
               </div>
             </div>
@@ -251,7 +251,7 @@ export default function CoachesPage() {
               <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                 {statusFilter !== 'all' && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
-                    {statusFilter === 'active' ? t('chipActive') : statusFilter === 'inactive' ? t('chipInactive') : t('chipSuspended')}
+                    {statusFilter === 'active' ? t('coaches.chipActive') : statusFilter === 'inactive' ? t('coaches.chipInactive') : t('coaches.chipSuspended')}
                     <button onClick={() => setStatusFilter('all')} className="hover:text-orange-900">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -259,7 +259,7 @@ export default function CoachesPage() {
                 )}
                 {stripeFilter !== 'all' && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
-                    {stripeFilter === 'connected' ? t('chipStripeConnected') : t('chipStripeNotConnected')}
+                    {stripeFilter === 'connected' ? t('coaches.chipStripeConnected') : t('coaches.chipStripeNotConnected')}
                     <button onClick={() => setStripeFilter('all')} className="hover:text-orange-900">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -267,7 +267,7 @@ export default function CoachesPage() {
                 )}
                 <button onClick={() => { setStatusFilter('all'); setStripeFilter('all'); }}
                   className="text-xs text-gray-500 hover:text-gray-700 underline">
-                  {t('clearFilters')}
+                  {t('coaches.clearFilters')}
                 </button>
               </div>
             )}
@@ -280,12 +280,12 @@ export default function CoachesPage() {
                 {coaches.length === 0 ? '👥' : '🔍'}
               </div>
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                {coaches.length === 0 ? t('emptyNoCoaches') : t('emptyNoResults')}
+                {coaches.length === 0 ? t('coaches.emptyNoCoaches') : t('coaches.emptyNoResults')}
               </h3>
               <p className="text-gray-500">
                 {coaches.length === 0
-                  ? t('emptyNoCoachesDesc')
-                  : t('emptyNoResultsDesc')}
+                  ? t('coaches.emptyNoCoachesDesc')
+                  : t('coaches.emptyNoResultsDesc')}
               </p>
             </div>
           ) : (
@@ -304,7 +304,7 @@ export default function CoachesPage() {
                       onClick={(e) => handleDeleteCoach(coach, e)}
                       disabled={deletingCoach === coach.id}
                       className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label={t('deleteAriaLabel', { name: coach.firstName + ' ' + coach.lastName })}
+                      aria-label={t('coaches.deleteAriaLabel', { name: coach.firstName + ' ' + coach.lastName })}
                     >
                     {deletingCoach === coach.id ? (
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -341,7 +341,7 @@ export default function CoachesPage() {
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                         coach.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {coach.role === 'admin' ? t('roleAdmin') : t('roleCoach')}
+                        {coach.role === 'admin' ? t('coaches.roleAdmin') : t('coaches.roleCoach')}
                       </span>
                       {coach.role !== 'admin' && (
                         <>
@@ -351,7 +351,7 @@ export default function CoachesPage() {
                               : 'bg-amber-100 text-amber-700'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${coach.stripeConnect?.onboardingComplete ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                            {coach.stripeConnect?.onboardingComplete ? t('stripeStatusConnected') : t('stripeStatusNotConnected')}
+                            {coach.stripeConnect?.onboardingComplete ? t('coaches.stripeStatusConnected') : t('coaches.stripeStatusNotConnected')}
                           </span>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -368,7 +368,7 @@ export default function CoachesPage() {
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           coach.isSuspended ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
                         }`}>
-                          {coach.isSuspended ? t('statusSuspended') : t('statusInactive')}
+                          {coach.isSuspended ? t('coaches.statusSuspended') : t('coaches.statusInactive')}
                         </span>
                       </div>
                     )}
@@ -404,14 +404,14 @@ export default function CoachesPage() {
                 <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${
                   selectedCoach.role === 'admin' ? 'bg-purple-200 text-purple-800' : 'bg-white text-blue-700'
                 }`}>
-                  {selectedCoach.role === 'admin' ? t('roleAdminModal') : t('roleCoachModal')}
+                  {selectedCoach.role === 'admin' ? t('coaches.roleAdminModal') : t('coaches.roleCoachModal')}
                 </span>
               </div>
               <div className="p-6 space-y-4">
                 <div className="flex items-center">
                   <span className="text-lg mr-3">📧</span>
                   <div>
-                    <p className="text-xs text-gray-400">{t('modalEmail')}</p>
+                    <p className="text-xs text-gray-400">{t('coaches.modalEmail')}</p>
                     <p className="text-gray-800">{selectedCoach.email}</p>
                   </div>
                 </div>
@@ -419,7 +419,7 @@ export default function CoachesPage() {
                   <div className="flex items-center">
                     <span className="text-lg mr-3">📞</span>
                     <div>
-                      <p className="text-xs text-gray-400">{t('modalPhone')}</p>
+                      <p className="text-xs text-gray-400">{t('coaches.modalPhone')}</p>
                       <p className="text-gray-800">{selectedCoach.phone}</p>
                     </div>
                   </div>
@@ -427,8 +427,8 @@ export default function CoachesPage() {
                 <div className="flex items-center">
                   <span className="text-lg mr-3">{selectedCoach.emailVerified ? '✅' : '⚠️'}</span>
                   <div>
-                    <p className="text-xs text-gray-400">{t('modalVerification')}</p>
-                    <p className="text-gray-800">{selectedCoach.emailVerified ? t('modalEmailVerified') : t('modalPending')}</p>
+                    <p className="text-xs text-gray-400">{t('coaches.modalVerification')}</p>
+                    <p className="text-gray-800">{selectedCoach.emailVerified ? t('coaches.modalEmailVerified') : t('coaches.modalPending')}</p>
                   </div>
                 </div>
                 <div className="flex items-center">
@@ -436,9 +436,9 @@ export default function CoachesPage() {
                     {selectedCoach.isSuspended ? '⏸️' : selectedCoach.isActive ? '🟢' : '🔴'}
                   </span>
                   <div>
-                    <p className="text-xs text-gray-400">{t('modalStatus')}</p>
+                    <p className="text-xs text-gray-400">{t('coaches.modalStatus')}</p>
                     <p className="text-gray-800">
-                      {selectedCoach.isSuspended ? t('statusSuspended') : selectedCoach.isActive ? t('statusActive') : t('statusInactive')}
+                      {selectedCoach.isSuspended ? t('coaches.statusSuspended') : selectedCoach.isActive ? t('coaches.statusActive') : t('coaches.statusInactive')}
                     </p>
                   </div>
                 </div>
@@ -447,15 +447,15 @@ export default function CoachesPage() {
                     <div className="flex items-center">
                       <span className="text-lg mr-3">📅</span>
                       <div>
-                        <p className="text-xs text-gray-400">{t('modalRegistered')}</p>
+                        <p className="text-xs text-gray-400">{t('coaches.modalRegistered')}</p>
                         <p className="text-gray-800">{new Date(selectedCoach.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                       </div>
                     </div>
                     <div className="flex items-center">
                       <span className="text-lg mr-3">👥</span>
                       <div>
-                        <p className="text-xs text-gray-400">{t('modalClients')}</p>
-                        <p className="text-gray-800 font-semibold">{t('modalClientCount', { count: selectedCoach.clientCount })}</p>
+                        <p className="text-xs text-gray-400">{t('coaches.modalClients')}</p>
+                        <p className="text-gray-800 font-semibold">{t('coaches.modalClientCount', { count: selectedCoach.clientCount })}</p>
                       </div>
                     </div>
                     {/* Stripe Connect status */}
@@ -464,10 +464,10 @@ export default function CoachesPage() {
                         <>
                           <span className="text-lg mr-3">💳</span>
                           <div>
-                            <p className="text-xs text-gray-400">{t('modalPaymentData')}</p>
-                            <p className="text-gray-800">{t('modalStripeVerified')}</p>
+                            <p className="text-xs text-gray-400">{t('coaches.modalPaymentData')}</p>
+                            <p className="text-gray-800">{t('coaches.modalStripeVerified')}</p>
                             {selectedCoach.stripeConnect.payoutsEnabled && (
-                              <p className="text-xs text-emerald-600 font-medium">{t('modalPayoutsEnabled')}</p>
+                              <p className="text-xs text-emerald-600 font-medium">{t('coaches.modalPayoutsEnabled')}</p>
                             )}
                           </div>
                         </>
@@ -475,16 +475,16 @@ export default function CoachesPage() {
                         <>
                           <span className="text-lg mr-3">💳</span>
                           <div>
-                            <p className="text-xs text-gray-400">{t('modalPaymentData')}</p>
-                            <p className="text-amber-600 font-medium">{t('modalStripeIncomplete')}</p>
+                            <p className="text-xs text-gray-400">{t('coaches.modalPaymentData')}</p>
+                            <p className="text-amber-600 font-medium">{t('coaches.modalStripeIncomplete')}</p>
                           </div>
                         </>
                       ) : (
                         <>
                           <span className="text-lg mr-3">💳</span>
                           <div>
-                            <p className="text-xs text-gray-400">{t('modalPaymentData')}</p>
-                            <p className="text-amber-600 font-medium">{t('modalStripeNotConnected')}</p>
+                            <p className="text-xs text-gray-400">{t('coaches.modalPaymentData')}</p>
+                            <p className="text-amber-600 font-medium">{t('coaches.modalStripeNotConnected')}</p>
                           </div>
                         </>
                       )}
@@ -495,12 +495,12 @@ export default function CoachesPage() {
                         {selectedCoach.subscriptionStatus === 'active' ? '✅' : selectedCoach.trialStatus === 'active' ? '🆓' : selectedCoach.trialStatus === 'expired' ? '⏰' : '—'}
                       </span>
                       <div>
-                        <p className="text-xs text-gray-400">{t('modalSubscription')}</p>
+                        <p className="text-xs text-gray-400">{t('coaches.modalSubscription')}</p>
                         <p className="text-gray-800">
-                          {selectedCoach.subscriptionStatus === 'active' ? t('subscriptionActive') :
-                           selectedCoach.trialStatus === 'active' ? t('subscriptionTrial') :
-                           selectedCoach.trialStatus === 'expired' ? t('subscriptionExpired') :
-                           selectedCoach.trialStatus === 'converted' ? t('subscriptionConverted') : t('subscriptionNone')}
+                          {selectedCoach.subscriptionStatus === 'active' ? t('coaches.subscriptionActive') :
+                           selectedCoach.trialStatus === 'active' ? t('coaches.subscriptionTrial') :
+                           selectedCoach.trialStatus === 'expired' ? t('coaches.subscriptionExpired') :
+                           selectedCoach.trialStatus === 'converted' ? t('coaches.subscriptionConverted') : t('coaches.subscriptionNone')}
                         </p>
                       </div>
                     </div>
@@ -512,7 +512,7 @@ export default function CoachesPage() {
                   onClick={() => setSelectedCoach(null)}
                   className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
                 >
-                  {t('closeButton')}
+                  {t('coaches.closeButton')}
                 </button>
               </div>
             </div>
