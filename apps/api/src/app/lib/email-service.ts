@@ -399,7 +399,7 @@ export class EmailService {
         coachName,
         trialDays,
         trialEndDate: endDateStr,
-        dashboardUrl: `${dashboardUrl}/dashboard`,
+        dashboardUrl: `${dashboardUrl}/login`,
       });
 
       return await this.sendEmail({

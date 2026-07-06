@@ -10,13 +10,10 @@ import TrialRecord from '@/app/models/TrialRecord';
 import { generateToken } from '@/app/lib/auth';
 import { createTrialCheckoutSession } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
-import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
 import { registerSchema } from '@/app/lib/schemas';
-import {
-  generateVerificationEmailHTML,
-} from '@/app/lib/email-templates';
+
 import { uploadBufferToS3 } from '@/app/lib/s3';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
@@ -247,23 +244,6 @@ async function postHandler(request: NextRequest) {
       statusCode: 201,
       metadata: { trialEndDate: trialEndDate.toISOString(), trialDays: TRIAL_DAYS },
     });
-
-    // Enviar email de verificación
-    try {
-      const emailService = EmailService.getInstance();
-      const verifyUrl = `${appUrl}/verify-email?token=${verificationToken}`;
-
-      await emailService.sendEmail({
-        to: [emailLower],
-        subject: 'Verifica tu cuenta - NELHEALTHCOACH',
-        htmlBody: generateVerificationEmailHTML({
-          coachName: validFirstName,
-          verifyUrl,
-        }),
-      });
-    } catch (emailError) {
-      logger.error('AUTH', 'Error enviando email de verificación', emailError as Error);
-    }
 
     return NextResponse.json(
       {

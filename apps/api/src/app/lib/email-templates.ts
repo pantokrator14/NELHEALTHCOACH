@@ -882,7 +882,7 @@ export function generateTrialWelcomeEmailHTML(data: {
             </p>
             <div style="text-align: center; margin: 30px 0;">
                 <a href="${data.dashboardUrl}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                    🚀 Ir al panel de control
+                    ¡Es hora de trabajar!
                 </a>
             </div>
             <p style="color: #999; font-size: 13px;">
