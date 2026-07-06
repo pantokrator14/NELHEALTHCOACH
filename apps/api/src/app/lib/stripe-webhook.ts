@@ -427,10 +427,12 @@ async function handleTrialVerificationCheckout(
     }
   }
 
-  // Activar la cuenta del coach
+  // Activar la cuenta del coach y marcar email como verificado
   const { encrypt } = await import('@/app/lib/encryption');
 
   coach.isActive = true;
+  coach.emailVerified = true;
+  coach.verificationToken = null;
   if (customerId) {
     coach.stripeCustomerId = encrypt(customerId);
   }

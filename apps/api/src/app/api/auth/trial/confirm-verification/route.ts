@@ -162,8 +162,10 @@ async function postHandler(request: NextRequest) {
       }
     }
 
-    // Activar coach
+    // Activar coach y marcar email como verificado
     coach.isActive = true;
+    coach.emailVerified = true;
+    coach.verificationToken = null;
     if (finalCustomerId) {
       coach.stripeCustomerId = encrypt(finalCustomerId);
     }
@@ -212,7 +214,7 @@ async function postHandler(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Cuenta activada exitosamente. Ya puedes iniciar sesión.',
+      message: 'Todo listo. Ya puedes iniciar sesión y empezar a trabajar.',
     });
   } catch (error: unknown) {
     logger.error('AUTH', 'Error en confirm-verification', error instanceof Error ? error : new Error(String(error)));

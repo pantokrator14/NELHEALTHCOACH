@@ -202,8 +202,10 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
     }
   }
 
-  // Activar coach
+  // Activar coach y marcar email como verificado
   coach.isActive = true;
+  coach.emailVerified = true;
+  coach.verificationToken = null;
   if (customerId) {
     coach.stripeCustomerId = encrypt(customerId);
   }
