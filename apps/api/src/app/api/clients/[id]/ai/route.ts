@@ -9,7 +9,7 @@ import { AIService } from '@/app/lib/ai-service';
 import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationError } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
-import { analyzeS3FileWithGemini } from '@/app/lib/agents/utils/llm';
+import { analyzeS3FileWithGemini, sendTextToGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -1001,52 +1001,70 @@ async function prepareAIInput(
         let docResult: any = null;
 
         // ── 1. Intentar caché antes de llamar a Gemini ──
+        let cachedRawText: string | undefined;
+        let cachedExtractionMethod: string | undefined;
+
         try {
           const cacheColl = await getMedicalDocumentCacheCollection();
-          const cachedDoc = await cacheColl.findOne<{
-            s3Key: string;
-            clientId: ObjectId;
-            fileName: string;
-            analysis: string;
-            labResults: Array<{ name: string; value: string; range: string; status: string }>;
-            medicalSummary: string;
-            medicalComparativeAnalysis: string;
-            supplementRecommendations: Array<unknown>;
-            cachedAt: Date;
-          }>({ s3Key, clientId: new ObjectId(clientId) });
+          const cachedDoc = await cacheColl.findOne<Record<string, unknown>>(
+            { s3Key, clientId: new ObjectId(clientId) },
+          );
 
           if (cachedDoc) {
-            loggerWithContext.info('AI', '📦 Usando análisis médico cacheado para el archivo: ' + fileName, {
-              cachedAt: cachedDoc.cachedAt,
-            });
+            const cachedAnalysis = cachedDoc.analysis as string | undefined;
 
-            const parsedAnalysis = JSON.parse(cachedDoc.analysis) as {
-              medicalSummary?: string;
-              medicalComparativeAnalysis?: string;
-              labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
-              supplementRecommendations?: Array<any>;
-            };
+            // Caso A: Cache TIENE análisis de Gemini completo → usar directamente
+            if (cachedAnalysis && cachedAnalysis.length > 10) {
+              try {
+                const parsedAnalysis = JSON.parse(cachedAnalysis) as {
+                  medicalSummary?: string;
+                  medicalComparativeAnalysis?: string;
+                  labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
+                  supplementRecommendations?: Array<{ name: string; dosage: string; timing: string; rationale: string; contraindications: string }>;
+                };
 
-            if (parsedAnalysis.labResults) {
-              allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+                if (parsedAnalysis.labResults) {
+                  allLabResults = allLabResults.concat(parsedAnalysis.labResults);
+                }
+
+                docResult = {
+                  title: fileName,
+                  content: cachedAnalysis,
+                  processedAt: (cachedDoc.cachedAt as string) || new Date().toISOString(),
+                  confidence: 1,
+                  type: 'document',
+                  pageCount: 1,
+                  language: 'es',
+                  medicalSummary: parsedAnalysis.medicalSummary,
+                  medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
+                  labResults: parsedAnalysis.labResults,
+                  supplementRecommendations: parsedAnalysis.supplementRecommendations,
+                };
+
+                loggerWithContext.info('AI', '📦 Usando análisis completo cacheado', {
+                  fileName,
+                  cachedAt: cachedDoc.cachedAt,
+                });
+                continue; // Saltar al siguiente documento
+              } catch {
+                // Análisis corrupto, ignorar y tratar como si no hubiera cache
+                loggerWithContext.warn('AI', 'Cache analysis corrupto, re-analizando', { fileName });
+              }
             }
 
-            docResult = {
-              title: fileName,
-              content: cachedDoc.analysis,
-              processedAt: cachedDoc.cachedAt.toISOString(),
-              confidence: 1,
-              type: 'document',
-              pageCount: 1,
-              language: 'es',
-              medicalSummary: parsedAnalysis.medicalSummary,
-              medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis,
-              labResults: parsedAnalysis.labResults,
-              supplementRecommendations: parsedAnalysis.supplementRecommendations,
-            };
+            // Caso B: Cache tiene rawText pero no analysis (extraído post-upload, sin analizar aún)
+            if (cachedDoc.rawText) {
+              cachedRawText = cachedDoc.rawText as string;
+              cachedExtractionMethod = cachedDoc.extractionMethod as string | undefined;
+              loggerWithContext.info('AI', '📄 Usando rawText cacheado (sin analysis previo)', {
+                fileName,
+                method: cachedExtractionMethod,
+                chars: cachedRawText.length,
+              });
+            }
           }
         } catch (cacheErr) {
-          loggerWithContext.warn('AI', 'Error consultando caché de documentos, procediendo con Gemini', cacheErr as Error);
+          loggerWithContext.warn('AI', 'Error consultando caché, procediendo con Gemini', cacheErr as Error);
         }
 
         // ── 2. Si no hay caché, llamar a Gemini ──
@@ -1061,23 +1079,56 @@ async function prepareAIInput(
             });
 
             // Prompt para pedir JSON con resultados de laboratorio
-            const analysis = await analyzeS3FileWithGemini(s3Key, fileName,
-              `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
+            const prompt = `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
 - "medicalSummary": Un resumen conciso de los hallazgos principales.
 - "medicalComparativeAnalysis": Si hay datos históricos, un análisis comparativo. Si no, indica que no aplica.
 - "labResults": Un array de objetos con TODOS los biomarcadores encontrados en el documento sin omitir ninguno. Cada objeto debe tener "name", "value", "range", y "status" ('normal', 'alto', 'bajo'). EXTREMADAMENTE IMPORTANTE: Extrae todos los datos numéricos y de laboratorio. No resumas esta tabla.
-- "supplementRecommendations": Un array de objetos para suplementos recomendados con "name", "dosage", "timing", "rationale", "contraindications". Si no hay, deja el array vacío.`
-            );
+- "supplementRecommendations": Un array de objetos para suplementos recomendados con "name", "dosage", "timing", "rationale", "contraindications". Si no hay, deja el array vacío.`;
 
-            if (analysis && analysis.length > 20) {
+            let geminiAnalysis: string;
+            let rawText: string;
+            let extractionMethod: string;
+
+            if (cachedRawText) {
+              // ✅ Ya tenemos el texto extraído (vía upload) — solo enviar a Gemini
+              geminiAnalysis = await sendTextToGemini(cachedRawText, fileName, prompt);
+              rawText = cachedRawText;
+              extractionMethod = cachedExtractionMethod ?? 'cache';
+              loggerWithContext.info('AI', 'Usando rawText cacheado (sin S3)', {
+                fileName,
+                extractionMethod,
+                rawTextLength: rawText.length,
+              });
+            } else {
+              // ❌ No hay rawText — descargar de S3, extraer y analizar
+              const result = await analyzeS3FileWithGemini(s3Key, fileName, prompt);
+              geminiAnalysis = result.analysis;
+              rawText = result.rawText;
+              extractionMethod = result.extractionMethod;
+            }
+
+            if (geminiAnalysis && geminiAnalysis.length > 20) {
               try {
-                const cleanJSON = extractJSONFromMarkdown(analysis);
-                const parsedAnalysis = JSON.parse(cleanJSON) as {
+                type ParsedAnalysis = {
                   medicalSummary?: string;
                   medicalComparativeAnalysis?: string;
-                  labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }>;
-                  supplementRecommendations?: Array<any>;
+                  labResults?: Array<{
+                    name: string;
+                    value: string;
+                    range: string;
+                    status: 'normal' | 'alto' | 'bajo';
+                  }>;
+                  supplementRecommendations?: Array<{
+                    name: string;
+                    dosage: string;
+                    timing: string;
+                    rationale: string;
+                    contraindications: string;
+                  }>;
                 };
+
+                const cleanJSON = extractJSONFromMarkdown(geminiAnalysis);
+                const parsedAnalysis = JSON.parse(cleanJSON) as ParsedAnalysis;
 
                 if (parsedAnalysis.labResults) {
                   allLabResults = allLabResults.concat(parsedAnalysis.labResults);
@@ -1108,17 +1159,25 @@ async function prepareAIInput(
                         clientId: new ObjectId(clientId),
                         fileName,
                         analysis: JSON.stringify(parsedAnalysis),
-                        labResults: parsedAnalysis.labResults || [],
-                        medicalSummary: parsedAnalysis.medicalSummary || '',
-                        medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis || '',
-                        supplementRecommendations: parsedAnalysis.supplementRecommendations || [],
+                        labResults: parsedAnalysis.labResults ?? [],
+                        medicalSummary: parsedAnalysis.medicalSummary ?? '',
+                        medicalComparativeAnalysis: parsedAnalysis.medicalComparativeAnalysis ?? '',
+                        supplementRecommendations: parsedAnalysis.supplementRecommendations ?? [],
+                        // 🆕 Texto extraído localmente (para re-análisis sin S3)
+                        rawText,
+                        extractionMethod,
+                        extractedAt: new Date(),
                         cachedAt: new Date(),
                         updatedAt: new Date(),
                       },
                     },
                     { upsert: true }
                   );
-                  loggerWithContext.debug('AI', '💾 Análisis médico guardado en caché', { fileName });
+                  loggerWithContext.debug('AI', '💾 Análisis médico + rawText guardados en caché', {
+                    fileName,
+                    extractionMethod,
+                    rawTextLength: rawText.length,
+                  });
                 } catch (cacheErr) {
                   loggerWithContext.warn('AI', 'Error guardando caché de documento', cacheErr as Error);
                 }
@@ -1136,13 +1195,16 @@ async function prepareAIInput(
             const statusCode = error?.status || (is503 ? 503 : (is404 ? 404 : 500));
             const errorMessage = error?.message || 'Error desconocido al analizar documento';
 
-            // FAIL-FAST: Si es 503 y es el último intento, abortar inmediatamente
+            // FAIL-FAST: Si es 503 y es el último intento, se registra el error
+            // pero NO se aborta toda la generación. El documento se agrega a
+            // failedDocumentAnalyses y la generación continúa con los datos
+            // disponibles (formularios, otros documentos ya procesados).
             if (is503 && attempt >= 1) {
-              loggerWithContext.error('AI', 'FAIL-FAST: 503 persistente tras reintento, abortando cadena', new Error(`503 persistente para ${fileName}`), {
+              loggerWithContext.error('AI', '503 persistente tras reintento, continuando con siguiente documento', new Error(`503 persistente para ${fileName}`), {
                 fileName,
                 attemptsMade: 2,
               });
-              throw new Error(`ABORTAR_CADENA: Gemini 503 persistente para "${fileName}" tras 2 intentos. Deteniendo procesamiento para evitar consumo excesivo de tokens.`);
+              // Fall through al GenerationError path en lugar de hacer throw
             }
 
             if ((is503 || is404) && attempt < 1) {

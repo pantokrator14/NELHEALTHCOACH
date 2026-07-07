@@ -25,7 +25,8 @@ export interface INotification extends Document {
     | 'exercise_rejected'
     // Cuenta
     | 'password_changed'
-    | 'email_changed';
+    | 'email_changed'
+    | 'document_processed';
   title: string;
   message: string;
   link?: string;
@@ -62,6 +63,7 @@ const NotificationSchema = new Schema<INotification>(
         'exercise_rejected',
         'password_changed',
         'email_changed',
+        'document_processed',
       ],
     },
     title: {

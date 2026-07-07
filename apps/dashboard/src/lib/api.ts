@@ -429,6 +429,22 @@ export const apiClient = {
     throw new Error(data.message || 'Error obteniendo URL de descarga');
   },
 
+  async checkExtractionStatus(clientId: string, fileKey: string): Promise<'pending' | 'completed' | 'failed'> {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/clients/${clientId}/upload?fileKey=${encodeURIComponent(fileKey)}&checkExtraction=true`,
+        { headers: getAuthHeaders() }
+      );
+      const data = await response.json();
+      if (data.success && data.data?.extractionStatus) {
+        return data.data.extractionStatus as 'pending' | 'completed' | 'failed';
+      }
+      return 'pending';
+    } catch {
+      return 'pending';
+    }
+  },
+
   async deleteDocument(clientId: string, fileKey: string): Promise<ApiResponse<unknown>> {
     console.log('🗑️ Eliminando documento:', { clientId, fileKey });
 

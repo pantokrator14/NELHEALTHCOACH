@@ -22,7 +22,8 @@ type NotificationType =
   | 'exercise_approved'
   | 'exercise_rejected'
   | 'password_changed'
-  | 'email_changed';
+  | 'email_changed'
+  | 'document_processed';
 
 interface CreateNotificationParams {
   coachId: string;

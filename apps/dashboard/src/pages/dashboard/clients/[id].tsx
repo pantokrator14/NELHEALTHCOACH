@@ -1,5 +1,5 @@
 // apps/dashboard/src/pages/dashboard/clients/[id].tsx
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
@@ -146,6 +146,11 @@ export default function ClientProfile() {
   const [aiError, setAiError] = useState<string | null>(null)
   const { showToast, ToastComponent } = useToast();
 
+  // Extracción de documentos
+  const [extractingFileKeys, setExtractingFileKeys] = useState<string[]>([])
+  const extractionPollRef = useRef<NodeJS.Timeout | null>(null)
+  const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Función auxiliar para parsear campos que pueden ser string JSON o array
   const parseArrayField = (field: unknown): string[] => {
     if (Array.isArray(field)) return field;
@@ -161,6 +166,55 @@ export default function ClientProfile() {
   };
 
   const clientId = Array.isArray(id) ? id[0] : id || ''
+
+  /**
+   * Hace polling del estado de extracción para cada fileKey.
+   * Cuando todas las extracciones completan, muestra toast de éxito.
+   * Timeout después de 30 segundos.
+   */
+  const pollExtractionStatus = useCallback(async (fileKeys: string[]) => {
+    if (fileKeys.length === 0) return
+
+    console.log(`📄 Iniciando polling de extracción para ${fileKeys.length} documento(s)`)
+
+    const checkAll = async () => {
+      const statuses = await Promise.all(
+        fileKeys.map((key) => apiClient.checkExtractionStatus(clientId, key))
+      )
+
+      console.log('📄 Estado de extracción:', Object.fromEntries(fileKeys.map((k, i) => [k.substring(0, 30), statuses[i]])))
+
+      const allDone = statuses.every((s) => s === 'completed' || s === 'failed')
+      if (allDone) {
+        if (extractionPollRef.current) clearInterval(extractionPollRef.current)
+        if (extractionTimeoutRef.current) clearTimeout(extractionTimeoutRef.current)
+        setExtractingFileKeys([])
+
+        const failedCount = statuses.filter((s) => s === 'failed').length
+        const completedCount = statuses.filter((s) => s === 'completed').length
+        console.log(`📄 Extracción completada: ${completedCount} exitoso(s), ${failedCount} fallido(s)`)
+        if (failedCount === 0) {
+          showToast(t('clients.allDocumentsExtracted'), 'success')
+        } else {
+          showToast(t('clients.extractionError'), 'warning')
+        }
+      }
+    }
+
+    // Poll cada 3 segundos
+    extractionPollRef.current = setInterval(checkAll, 3000)
+
+    // Timeout total de 30 segundos
+    extractionTimeoutRef.current = setTimeout(() => {
+      console.warn('⏱️ Timeout de extracción (30s) — los documentos podrían no estar disponibles para análisis')
+      if (extractionPollRef.current) clearInterval(extractionPollRef.current)
+      setExtractingFileKeys([])
+      showToast(t('clients.extractionError'), 'warning')
+    }, 30000)
+
+    // Primer check inmediato
+    checkAll()
+  }, [clientId, showToast, t])
 
   const fetchClient = useCallback(async () => {
     try {
@@ -202,6 +256,14 @@ export default function ClientProfile() {
       fetchClient()
     }
   }, [clientId, router, fetchClient])
+
+  // Cleanup extraction polling al desmontar
+  useEffect(() => {
+    return () => {
+      if (extractionPollRef.current) clearInterval(extractionPollRef.current)
+      if (extractionTimeoutRef.current) clearTimeout(extractionTimeoutRef.current)
+    }
+  }, [])
 
   // Polling: check if AI recommendations are ready when queued
   useEffect(() => {
@@ -397,6 +459,8 @@ export default function ClientProfile() {
   const handleUploadDocuments = async () => {
     if (!clientId || selectedFiles.length === 0) return
     setUploading(true)
+    const uploadedKeys: string[] = []
+
     const uploadPromises = selectedFiles.map(async (file) => {
       try {
         const uploadResponse = await apiClient.generateUploadURL(
@@ -420,6 +484,7 @@ export default function ClientProfile() {
           'document',
           uploadResponse.uploadURL
         )
+        uploadedKeys.push(uploadResponse.fileKey)
         return { success: true, fileName: file.name }
       } catch (error) {
         console.error(`Error subiendo ${file.name}:`, error)
@@ -439,6 +504,13 @@ export default function ClientProfile() {
       await fetchClient()
       setSelectedFiles([])
       setIsDocumentsModalOpen(false)
+
+      // Iniciar polling de extracción si se subieron documentos
+      if (uploadedKeys.length > 0) {
+        setExtractingFileKeys(uploadedKeys)
+        showToast(t('clients.extractingDocuments'), 'info')
+        pollExtractionStatus(uploadedKeys)
+      }
     } catch (error) {
       console.error('Error subiendo documentos:', error)
       showToast(t('clients.errorUploadingDocuments'), 'error')

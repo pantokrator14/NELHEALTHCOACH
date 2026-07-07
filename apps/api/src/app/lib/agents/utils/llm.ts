@@ -3,6 +3,8 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { BaseMessage, AIMessageChunk } from "@langchain/core/messages";
 import { logger } from "../../logger";
+import { extractTextFromBuffer } from "../../document-extractor";
+import type { ExtractionResult } from "../../document-extractor";
 
 // ─────────────────────────────────────────────
 // Configuración centralizada de Gemini
@@ -315,78 +317,36 @@ function classifyFileType(fileName: string): 'pdf' | 'image' | 'docx' | 'text' |
 }
 
 /**
- * Extrae texto de un buffer DOCX usando mammoth.
+ * Envía texto plano a Gemini para análisis médico.
+ * Extrae el envío a Gemini de la extracción de texto,
+ * para usarlo tanto desde analyzeFileWithGemini (con buffer)
+ * como desde route.ts cuando ya hay rawText cacheado.
  */
-async function extractTextFromDocx(buffer: Buffer): Promise<string> {
-  const mammoth = await import('mammoth');
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value || '';
-}
-
-/**
- * Envía un archivo a Gemini para análisis.
- * Soporta: PDF (inlineData), imágenes (inlineData),
- * DOCX (texto extraído), TXT/CSV/JSON (texto plano).
- */
-export async function analyzeFileWithGemini(
-  fileBuffer: Buffer,
+export async function sendTextToGemini(
+  text: string,
   fileName: string,
-  mimeType: string,
-  fileType: 'pdf' | 'image' | 'docx' | 'text',
-  analysisContext?: string
+  analysisContext?: string,
 ): Promise<string> {
-  const caller = "analyzeFile";
-  const logCtx = logger.withContext({ tool: "gemini-file-analysis", fileName });
+  const caller = 'sendTextToGemini';
+  const logCtx = logger.withContext({ tool: 'gemini-text-analysis', fileName });
 
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY is required");
+  if (!text || text.trim().length < 10) {
+    logCtx.warn('AI', `[${caller}] El archivo no contiene texto extraíble`, { fileName });
+    return (
+      `[Documento sin texto extraíble: ${fileName}]\n\n` +
+      'El sistema no pudo extraer texto de este archivo. ' +
+      'Puede estar vacío, dañado, ser un PDF escaneado sin capa de texto, ' +
+      'o tener un formato no soportado.'
+    );
+  }
 
-    const model = resolveModel();
-    const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
+  const model = resolveModel();
+  const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-    logCtx.info("AI", `[${caller}] Iniciando análisis de archivo`, {
-      model,
-      fileType,
-      mimeType,
-      sizeKB: Math.round(fileBuffer.byteLength / 1024),
-      contextProvided: !!analysisContext,
-    });
-
-    // Para DOCX y TXT: extraemos texto y lo enviamos como texto plano a Gemini
-    if (fileType === 'docx' || fileType === 'text') {
-      let fileText: string;
-
-      if (fileType === 'docx') {
-        fileText = await extractTextFromDocx(fileBuffer);
-        logCtx.info("AI", `[${caller}] Texto extraído de DOCX`, {
-          textLength: fileText.length,
-        });
-      } else {
-        // TXT, CSV, JSON, etc.
-        fileText = fileBuffer.toString('utf-8');
-        logCtx.info("AI", `[${caller}] Texto leído de archivo`, {
-          textLength: fileText.length,
-        });
-      }
-
-      if (!fileText || fileText.trim().length < 10) {
-        logCtx.warn("AI", `[${caller}] El archivo no contiene texto extraíble`, { fileName });
-        return `[Documento sin texto extraíble: ${fileName}]\n\nGemini no pudo extraer texto de este archivo. Puede estar vacío, dañado o tener un formato no soportado.`;
-      }
-
-      // Truncar si es muy largo (Gemini tiene límite de contexto)
-      const maxTextLength = 50000;
-      if (fileText.length > maxTextLength) {
-        logCtx.warn("AI", `[${caller}] Texto truncado de ${fileText.length} a ${maxTextLength} caracteres`, { fileName });
-        fileText = fileText.substring(0, maxTextLength) + `\n\n[... Texto truncado por longitud. Original: ${fileText.length} caracteres]`;
-      }
-
-      // Enviar solo texto a Gemini (sin inlineData)
-      const body = {
-        systemInstruction: {
-          parts: [{
-            text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
+  const body: Record<string, unknown> = {
+    systemInstruction: {
+      parts: [{
+        text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
 Extrae y analiza el contenido del documento proporcionado.
 
 INSTRUCCIONES:
@@ -396,81 +356,84 @@ INSTRUCCIONES:
 4. Organiza la información en formato estructurado
 5. NO diagnostiques — solo extrae e interpreta datos
 6. Indica si hay valores fuera de rango y qué podrían significar`,
-          }],
-        },
-        contents: [{
-          parts: [{
-            text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ""}A continuación está el contenido extraído del archivo "${fileName}":\n\n--- INICIO DEL DOCUMENTO ---\n${fileText}\n\n--- FIN DEL DOCUMENTO ---\n\nPor favor, analiza este contenido médico y extrae toda la información clínica relevante en formato estructurado.`,
-          }],
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 16000,
-        },
-      };
-
-      const result = await fetchGeminiREST(url, body, logCtx, caller);
-      if (result.safetyBlocked) {
-        return `[Documento bloqueado por seguridad: ${fileName}]`;
-      }
-      return result.text || `[Documento sin texto extraíble: ${fileName}]`;
-    }
-
-    // Para PDF e imágenes: usar inlineData de Gemini
-    const fileBase64 = Buffer.from(fileBuffer).toString('base64');
-
-    const body = {
-      systemInstruction: {
-        parts: [{
-          text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
-Extrae y analiza el contenido del archivo proporcionado.
-
-INSTRUCCIONES:
-1. Extrae TODO el texto relevante del documento/imagen
-2. Identifica marcadores de laboratorio con sus valores y unidades
-3. Identifica fechas de exámenes y comparativas si existen
-4. Organiza la información en formato estructurado
-5. NO diagnostiques — solo extrae e interpreta datos
-6. Indica si hay valores fuera de rango y qué podrían significar`,
-        }],
-      },
-      contents: [{
-        parts: [
-          {
-            text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ""}Analiza el siguiente archivo: ${fileName}. Por favor, extrae y estructura toda la información médica y de laboratorio contenida en este archivo.`,
-          },
-          {
-            inlineData: {
-              mimeType,
-              data: fileBase64,
-            },
-          },
-        ],
       }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 16000,
-      },
-    };
+    },
+    contents: [{
+      parts: [{
+        text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ''}A continuación está el contenido extraído del archivo "${fileName}":\n\n--- INICIO DEL DOCUMENTO ---\n${text}\n\n--- FIN DEL DOCUMENTO ---\n\nPor favor, analiza este contenido médico y extrae toda la información clínica relevante en formato estructurado.`,
+      }],
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 16000,
+    },
+  };
 
-    const result = await fetchGeminiREST(url, body, logCtx, caller);
+  const result = await fetchGeminiREST(url, body, logCtx, caller);
 
-    if (result.safetyBlocked) {
-      return `[Documento bloqueado por seguridad: ${fileName}]\n\nEl contenido de este archivo no pudo ser analizado por los filtros de seguridad de Gemini. Por favor, revisa el documento manualmente.`;
-    }
+  if (result.safetyBlocked) {
+    return `[Documento bloqueado por seguridad: ${fileName}]`;
+  }
 
-    if (!result.text) {
-      return `[Documento sin texto extraíble: ${fileName}]\n\nGemini no pudo extraer texto de este archivo. Puede estar escaneado como imagen o tener un formato no soportado.`;
-    }
+  return result.text || `[Documento sin texto extraíble: ${fileName}]`;
+}
 
-    return result.text;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logCtx.error("AI", `[${caller}] Falló el análisis de archivo`, error instanceof Error ? error : undefined, {
-      fileName,
+/**
+ * Analiza un archivo con Gemini: extrae texto LOCALMENTE y envía solo texto plano.
+ *
+ * Es un wrapper que combina extracción + envío a Gemini.
+ * Para flujos donde ya tenés el texto extraído (ej: analyzeS3FileWithGemini),
+ * se usa sendTextToGemini directamente para evitar extracción duplicada.
+ */
+export async function analyzeFileWithGemini(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  fileType: 'pdf' | 'image' | 'docx' | 'text',
+  analysisContext?: string,
+): Promise<string> {
+  const caller = 'analyzeFile';
+  const logCtx = logger.withContext({ tool: 'gemini-file-analysis', fileName });
+
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+
+    logCtx.info('AI', `[${caller}] Iniciando análisis de archivo`, {
       fileType,
-      errorMessage: errorMessage.substring(0, 300),
+      mimeType,
+      sizeKB: Math.round(fileBuffer.byteLength / 1024),
+      contextProvided: !!analysisContext,
     });
+
+    // 1. Extraer texto LOCALMENTE
+    const extracted: ExtractionResult = await extractTextFromBuffer(
+      fileBuffer,
+      fileName,
+      mimeType,
+    );
+
+    logCtx.info('AI', `[${caller}] Texto extraído localmente`, {
+      method: extracted.method,
+      chars: extracted.text.length,
+      pages: extracted.pages,
+      ocrConfidence: extracted.ocrConfidence,
+    });
+
+    // 2. Enviar a Gemini (sin re-extraer)
+    return sendTextToGemini(extracted.text, fileName, analysisContext);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logCtx.error(
+      'AI',
+      `[${caller}] Falló el análisis de archivo`,
+      error instanceof Error ? error : undefined,
+      {
+        fileName,
+        fileType,
+        errorMessage: errorMessage.substring(0, 300),
+      },
+    );
     throw error;
   }
 }
@@ -479,31 +442,41 @@ INSTRUCCIONES:
  * Versátil: descarga cualquier archivo de S3 y lo analiza con Gemini.
  * Soporta: PDF, imágenes (JPG, PNG, GIF, WebP), DOCX, TXT, CSV, JSON.
  */
+/** Resultado de analizar un archivo desde S3: análisis de Gemini + metadatos de extracción */
+export interface S3FileAnalysisResult {
+  /** Respuesta textual de Gemini con el análisis médico */
+  analysis: string;
+  /** Texto plano extraído localmente del archivo */
+  rawText: string;
+  /** Método usado para la extracción local */
+  extractionMethod: string;
+}
+
 export async function analyzeS3FileWithGemini(
   s3Key: string,
   fileName: string,
-  analysisContext?: string
-): Promise<string> {
-  const caller = "analyzeS3File";
-  const logCtx = logger.withContext({ tool: "gemini-s3-file-analysis", s3Key, fileName });
+  analysisContext?: string,
+): Promise<S3FileAnalysisResult> {
+  const caller = 'analyzeS3File';
+  const logCtx = logger.withContext({ tool: 'gemini-s3-file-analysis', s3Key, fileName });
 
   try {
     const fileType = classifyFileType(fileName);
     const mimeType = getMimeType(fileName);
 
-    logCtx.info("AI", `[${caller}] Descargando archivo de S3`, {
+    logCtx.info('AI', `[${caller}] Descargando archivo de S3`, {
       fileType,
       mimeType,
     });
 
-    const { getPresignedUrlForAnalysis } = await import("../../s3");
+    const { getPresignedUrlForAnalysis } = await import('../../s3');
     const presignedUrl = await getPresignedUrlForAnalysis(s3Key);
 
     const s3StartTime = Date.now();
     const response = await fetch(presignedUrl);
 
     if (!response.ok) {
-      logCtx.error("AI", `[${caller}] Error descargando archivo de S3`, undefined, {
+      logCtx.error('AI', `[${caller}] Error descargando archivo de S3`, undefined, {
         status: response.status,
         statusText: response.statusText,
       });
@@ -513,7 +486,7 @@ export async function analyzeS3FileWithGemini(
     const fileBuffer = await response.arrayBuffer();
     const s3Duration = Date.now() - s3StartTime;
 
-    logCtx.info("AI", `[${caller}] Archivo descargado de S3`, {
+    logCtx.info('AI', `[${caller}] Archivo descargado de S3`, {
       sizeKB: Math.round(fileBuffer.byteLength / 1024),
       s3Duration,
       fileType,
@@ -521,16 +494,26 @@ export async function analyzeS3FileWithGemini(
 
     const buffer = Buffer.from(fileBuffer);
 
-    // Si es un tipo desconocido, intentar como texto
-    if (fileType === 'unknown') {
-      logCtx.warn("AI", `[${caller}] Tipo de archivo desconocido, intentando como texto`, { fileName });
-      return analyzeFileWithGemini(buffer, fileName, mimeType, 'text', analysisContext);
-    }
+    // Extraer texto LOCALMENTE (una sola vez, evitando duplicación)
+    const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
+    logCtx.info('AI', `[${caller}] Texto extraído localmente`, {
+      method: extracted.method,
+      chars: extracted.text.length,
+      pages: extracted.pages,
+      ocrConfidence: extracted.ocrConfidence,
+    });
 
-    return analyzeFileWithGemini(buffer, fileName, mimeType, fileType, analysisContext);
+    // Enviar texto extraído directamente a Gemini (sin re-extraer)
+    const analysis = await sendTextToGemini(extracted.text, fileName, analysisContext);
+
+    return {
+      analysis,
+      rawText: extracted.text,
+      extractionMethod: extracted.method,
+    };
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    logCtx.error("AI", `[${caller}] Falló`, error instanceof Error ? error : undefined, {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logCtx.error('AI', `[${caller}] Falló`, error instanceof Error ? error : undefined, {
       s3Key,
       fileName,
       errorMessage: errorMessage.substring(0, 300),
@@ -543,17 +526,23 @@ export async function analyzeS3FileWithGemini(
 export async function analyzePDFWithGemini(
   pdfBase64: string,
   fileName: string,
-  analysisContext?: string
-): Promise<string> {
+  analysisContext?: string,
+): Promise<S3FileAnalysisResult> {
   const buffer = Buffer.from(pdfBase64, 'base64');
-  return analyzeFileWithGemini(buffer, fileName, 'application/pdf', 'pdf', analysisContext);
+  const extracted = await extractTextFromBuffer(buffer, fileName, 'application/pdf');
+  const analysis = await sendTextToGemini(extracted.text, fileName, analysisContext);
+  return {
+    analysis,
+    rawText: extracted.text,
+    extractionMethod: extracted.method,
+  };
 }
 
 export async function analyzeS3PDFWithGemini(
   s3Key: string,
   fileName: string,
-  analysisContext?: string
-): Promise<string> {
+  analysisContext?: string,
+): Promise<S3FileAnalysisResult> {
   return analyzeS3FileWithGemini(s3Key, fileName, analysisContext);
 }
 

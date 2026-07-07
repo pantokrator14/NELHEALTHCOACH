@@ -338,7 +338,7 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
             s3Key: pdfDoc.key?.substring(0, 30) + '...',
           });
 
-          const extractedContent = await analyzeS3PDFWithGemini(
+          const result = await analyzeS3PDFWithGemini(
             pdfDoc.key,
             pdfDoc.name,
             'Documento médico del cliente - extraer valores de laboratorio y datos clínicos relevantes'
@@ -346,13 +346,14 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
 
           rawProcessedDocs.push({
             title: pdfDoc.name,
-            content: extractedContent,
+            content: result.analysis,
             documentType: 'lab_results',
             confidence: 95,
           });
 
           logger.info("AI", `[fetchClientData] PDF ${i + 1}/${pdfDocs.length} analizado exitosamente: ${pdfDoc.name}`, {
-            contentLength: extractedContent.length,
+            contentLength: result.analysis.length,
+            extractionMethod: result.extractionMethod,
           });
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
