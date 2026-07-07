@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { getHealthFormsCollection } from '@/app/lib/database';
-import { S3Service, UploadedFile } from '@/app/lib/s3';
+import { getHealthFormsCollection, getMedicalDocumentCacheCollection } from '@/app/lib/database';
+import { S3Service, getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
+import { extractTextFromBuffer } from '@/app/lib/document-extractor';
+import type { ExtractionResult } from '@/app/lib/document-extractor';
+import { createNotification } from '@/app/lib/create-notification';
 import jwt from 'jsonwebtoken';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -65,6 +68,7 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string): 
 }
 
 // GET: Obtener URL firmada de descarga para un documento (requiere auth)
+//     ?checkExtraction=true&fileKey=... — consulta el estado de extracción
 async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -79,6 +83,40 @@ async function getHandler(
       return NextResponse.json({ success: false, message: 'fileKey requerido' }, { status: 400 });
     }
 
+    // ── Consulta de estado de extracción ──
+    const checkExtraction = request.nextUrl.searchParams.get('checkExtraction');
+    if (checkExtraction === 'true') {
+      const cacheColl = await getMedicalDocumentCacheCollection();
+      const cached = await cacheColl.findOne(
+        { s3Key: fileKey },
+        { projection: { rawText: 1, extractedAt: 1 } },
+      );
+
+      if (!cached) {
+        return NextResponse.json({
+          success: true,
+          data: { extractionStatus: 'pending' },
+        });
+      }
+
+      if (cached.rawText && cached.rawText.trim().length > 0) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            extractionStatus: 'completed',
+            extractedAt: cached.extractedAt?.toISOString?.() ?? null,
+          },
+        });
+      }
+
+      // Cache existe pero rawText está vacío → falló la extracción
+      return NextResponse.json({
+        success: true,
+        data: { extractionStatus: 'failed' },
+      });
+    }
+
+    // ── URL de descarga ──
     const s3 = new S3Client({
       region: process.env.AWS_REGION! || 'us-west-1',
       credentials: {
@@ -232,7 +270,7 @@ async function putHandler(
       const { id } = await params;
 
       // Verificar autenticación + ownership
-      await authorizeCoachForClient(request, id);
+      const { auth } = await authorizeCoachForClient(request, id);
 
       body = await request.json();
       const fileKey = (body?.fileKey || '') as string;
@@ -383,6 +421,19 @@ async function putHandler(
         fileCategory,
         fileName
       });
+
+      // ── Extraer texto del documento automáticamente (solo documentos) ──
+      if (fileCategory === 'document') {
+        // No await — la extracción se dispara pero no bloquea la respuesta
+        extractAndCacheDocument(fileKey, fileName, fileType, id, auth?.coachId?.toString()).catch((extractErr: unknown) => {
+          const msg = extractErr instanceof Error ? extractErr.message : 'Error desconocido';
+          logger.warn('UPLOAD', 'Extracción post-upload falló (no crítico)', {
+            fileKey: fileKey.substring(0, 50),
+            fileName,
+            error: msg.substring(0, 200),
+          });
+        });
+      }
 
       return NextResponse.json({
         success: true,
@@ -818,5 +869,97 @@ async function repairCorruptedDocuments(clientId: string) {
   } catch (error) {
     logger.error('REPAIR', 'Error general reparando documentos', error as Error, { clientId });
     throw error;
+  }
+}
+
+// ─────────────────────────────────────────────
+// Extracción post-upload
+// ─────────────────────────────────────────────
+
+/**
+ * Descarga el archivo de S3, extrae texto localmente y lo guarda en cache.
+ * Se ejecuta después de cada upload de documento (fire-and-forget).
+ * Si falla, el upload ya fue exitoso — no afecta al usuario.
+ */
+async function extractAndCacheDocument(
+  fileKey: string,
+  fileName: string,
+  fileType: string,
+  clientId: string,
+  coachId?: string,
+): Promise<void> {
+  const logCtx = logger.withContext({
+    tool: 'post-upload-extraction',
+    fileKey: fileKey.substring(0, 50),
+    fileName,
+    clientId,
+  });
+
+  logCtx.info('AI', 'Iniciando extracción post-upload');
+
+  // 1. Descargar de S3
+  const presignedUrl = await getPresignedUrlForAnalysis(fileKey);
+  const response = await fetch(presignedUrl);
+
+  if (!response.ok) {
+    throw new Error(`S3 download failed: ${response.status} ${response.statusText}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  // 2. Extraer texto localmente
+  const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, fileType);
+
+  if (!extracted.text.trim()) {
+    logCtx.warn('AI', 'No se pudo extraer texto del documento', {
+      method: extracted.method,
+    });
+    return; // No guardar si no hay texto
+  }
+
+  // 3. Guardar en cache
+  const cacheColl = await getMedicalDocumentCacheCollection();
+  await cacheColl.updateOne(
+    { s3Key: fileKey },
+    {
+      $set: {
+        s3Key: fileKey,
+        clientId: new ObjectId(clientId),
+        fileName,
+        // Sin analysis todavía — se llena cuando Gemini lo procese
+        analysis: '',
+        labResults: [],
+        medicalSummary: '',
+        medicalComparativeAnalysis: '',
+        supplementRecommendations: [],
+        // Texto extraído localmente
+        rawText: extracted.text,
+        extractionMethod: extracted.method,
+        extractedAt: new Date(),
+        cachedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+
+  logCtx.info('AI', 'Texto extraído y cacheado exitosamente', {
+    method: extracted.method,
+    chars: extracted.text.length,
+    pages: extracted.pages,
+  });
+
+  // 4. Notificar al coach
+  if (coachId) {
+    createNotification({
+      coachId,
+      type: 'document_processed',
+      title: 'Documento procesado',
+      message: `El documento "${fileName}" ha sido procesado y está listo para análisis.`,
+      link: `/dashboard/clients/${clientId}`,
+    }).catch((notifErr: unknown) => {
+      const msg = notifErr instanceof Error ? notifErr.message : 'Error desconocido';
+      logCtx.warn('AI', 'No se pudo crear notificación de extracción', { error: msg.substring(0, 200) });
+    });
   }
 }

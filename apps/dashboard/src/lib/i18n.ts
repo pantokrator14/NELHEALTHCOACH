@@ -112,7 +112,10 @@ const en = {
     errorDeletingDocument: 'Error deleting document',
     documentsUploaded: '{{successful}} documents uploaded successfully, {{failed}} failed.',
     allDocumentsUploaded: 'All documents uploaded successfully',
-    errorUploadingDocuments: 'Error uploading documents'
+    errorUploadingDocuments: 'Error uploading documents',
+    extractingDocuments: 'Processing documents. Extracting content...',
+    allDocumentsExtracted: 'All documents processed successfully',
+    extractionError: 'Error processing document content'
   },
   ai: {
     recommendations: 'AI Recommendations',
@@ -974,7 +977,10 @@ const es = {
     errorDeletingDocument: 'Error al eliminar el documento',
     documentsUploaded: '{{successful}} documentos subidos exitosamente, {{failed}} fallaron.',
     allDocumentsUploaded: 'Todos los documentos se subieron exitosamente',
-    errorUploadingDocuments: 'Error al subir los documentos'
+    errorUploadingDocuments: 'Error al subir los documentos',
+    extractingDocuments: 'Procesando documentos. Extrayendo contenido...',
+    allDocumentsExtracted: 'Todos los documentos procesados exitosamente',
+    extractionError: 'Error al procesar el contenido del documento'
   },
   ai: {
     recommendations: 'Recomendaciones de IA',
@@ -1824,7 +1830,10 @@ const fr = {
     selectClients: 'Sélectionner les clients à supprimer',
     selectedCount: '{{count}} sélectionné(s)',
     deleteSelected: 'Supprimer la sélection',
-    cancelDelete: 'Annuler'
+    cancelDelete: 'Annuler',
+    extractingDocuments: 'Traitement des documents. Extraction du contenu...',
+    allDocumentsExtracted: 'Tous les documents traités avec succès',
+    extractionError: 'Erreur lors du traitement du contenu du document'
   },
   ai: {
     recommendations: 'Recommandations IA',
@@ -2671,7 +2680,10 @@ const it = {
     selectClients: 'Seleziona clienti da eliminare',
     selectedCount: '{{count}} selezionati',
     deleteSelected: 'Elimina selezionati',
-    cancelDelete: 'Annulla'
+    cancelDelete: 'Annulla',
+    extractingDocuments: 'Elaborazione documenti. Estrazione del contenuto...',
+    allDocumentsExtracted: 'Tutti i documenti elaborati con successo',
+    extractionError: 'Errore durante l\'elaborazione del contenuto del documento'
   },
   ai: {
     recommendations: 'Raccomandazioni IA',
@@ -3518,7 +3530,10 @@ const pt = {
     selectClients: 'Selecionar clientes para excluir',
     selectedCount: '{{count}} selecionado(s)',
     deleteSelected: 'Excluir selecionados',
-    cancelDelete: 'Cancelar'
+    cancelDelete: 'Cancelar',
+    extractingDocuments: 'Processando documentos. Extraindo conteúdo...',
+    allDocumentsExtracted: 'Todos os documentos processados com sucesso',
+    extractionError: 'Erro ao processar o conteúdo do documento'
   },
   ai: {
     recommendations: 'Recomendações de IA',
@@ -4365,7 +4380,10 @@ const de = {
     selectClients: 'Kunden zum Löschen auswählen',
     selectedCount: '{{count}} ausgewählt',
     deleteSelected: 'Ausgewählte löschen',
-    cancelDelete: 'Abbrechen'
+    cancelDelete: 'Abbrechen',
+    extractingDocuments: 'Dokumente werden verarbeitet. Inhalt wird extrahiert...',
+    allDocumentsExtracted: 'Alle Dokumente erfolgreich verarbeitet',
+    extractionError: 'Fehler bei der Verarbeitung des Dokumentinhalts'
   },
   ai: {
     recommendations: 'KI-Empfehlungen',
