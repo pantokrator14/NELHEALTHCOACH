@@ -240,8 +240,8 @@ async function getHandler(
 export const GET = apiHandler(getHandler);
 
 /**
-
-// POST: Generar nuevas recomendaciones de IA
+ * POST: Generar nuevas recomendaciones de IA
+ */
 async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
