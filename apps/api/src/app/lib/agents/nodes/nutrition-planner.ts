@@ -35,7 +35,7 @@ export async function analyzeClient(
   try {
     logCtx.info("AI", "Starting client analysis");
 
-    const llm = createDeepSeekJSONLLM();
+    const llm = await createDeepSeekJSONLLM();
 
     const prompt = buildClientAnalysisPrompt({
       personalData: state.personalData,

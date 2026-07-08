@@ -43,7 +43,7 @@ export async function validateQuality(
 
     logCtx.info("AI", "Starting quality validation");
 
-    const llm = createDeepSeekJSONLLM();
+    const llm = await createDeepSeekJSONLLM();
 
     const validationPrompt = buildValidationPrompt({
       clientInsights: state.clientInsights,

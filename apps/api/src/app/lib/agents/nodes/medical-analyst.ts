@@ -48,7 +48,7 @@ export async function analyzeMedicalData(
       weekCount: weekNumbers.length,
     });
 
-    const llm = createDeepSeekJSONLLM();
+    const llm = await createDeepSeekJSONLLM();
 
     const systemPrompt = buildMedicalSystemPrompt(state, weekNumbers, isFirstSession);
     const userPrompt = buildMedicalUserPrompt(state, weekNumbers, isFirstSession);

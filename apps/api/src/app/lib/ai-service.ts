@@ -1229,13 +1229,136 @@ ${responseSchema}
     }
   }
 
-  // Mantener alias para compatibilidad con código existente
+  /**
+   * Llama a la API REST de DeepSeek real para generar recomendaciones.
+   * Se usa como fallback cuando Gemini no está disponible.
+   */
+  private static async callDeepSeekRESTAPI(
+    prompt: string,
+    metadata?: { requestId?: string; clientId?: string },
+  ): Promise<string> {
+    const logCtx = metadata ? logger.withContext(metadata) : logger;
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro-max';
+
+    if (!apiKey) {
+      throw new Error('DEEPSEEK_API_KEY is required for fallback');
+    }
+
+    logCtx.info("AI", "[callDeepSeekRESTAPI] Iniciando llamada a DeepSeek real", {
+      model,
+      promptLength: prompt.length,
+      endpoint: apiUrl,
+    });
+
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min
+
+    try {
+      const response = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 30000,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const duration = Date.now() - startTime;
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logCtx.error("AI", "[callDeepSeekRESTAPI] Error HTTP", undefined, {
+          status: response.status,
+          duration,
+          errorBody: errorText.substring(0, 300),
+        });
+        throw new Error(`DeepSeek API HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+
+      if (!content) {
+        logCtx.error("AI", "[callDeepSeekRESTAPI] Respuesta sin contenido", undefined, { data: JSON.stringify(data).substring(0, 200) });
+        throw new Error('DeepSeek devolvió respuesta vacía');
+      }
+
+      logCtx.info("AI", "[callDeepSeekRESTAPI] Respuesta exitosa", { duration, contentLength: content.length });
+      return content;
+
+    } catch (fetchError: unknown) {
+      clearTimeout(timeoutId);
+      const err = fetchError as Error & { name?: string };
+      const errMsg = err.message || String(err);
+      logCtx.error("AI", "[callDeepSeekRESTAPI] Error en llamada", err, {
+        errorType: err.name,
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * Llama a la API con fallback automático:
+   *   1. Intenta Gemini primero
+   *   2. Si falla → intenta DeepSeek real
+   *   3. Si ambos fallan → mock en development o lanza error
+   */
   private static async callDeepSeekAPI(
     prompt: string,
     metadata?: { requestId?: string; clientId?: string },
     retryCount = 0
   ): Promise<string> {
-    return this.callGeminiForRecommendations(prompt, metadata, retryCount);
+    const logCtx = metadata ? logger.withContext(metadata) : logger;
+    let geminiMsg = "";
+
+    // 1. Intentar Gemini
+    try {
+      logCtx.info("AI", "[callDeepSeekAPI] Intentando Gemini (primario)");
+      return await this.callGeminiForRecommendations(prompt, metadata, retryCount);
+    } catch (geminiError) {
+      geminiMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+      logCtx.warn("AI", "[callDeepSeekAPI] Gemini falló, probando fallback DeepSeek", {
+        error: geminiMsg.substring(0, 200),
+      });
+    }
+
+    // 2. Fallback a DeepSeek real
+    try {
+      logCtx.info("AI", "[callDeepSeekAPI] Intentando DeepSeek (fallback)");
+      return await this.callDeepSeekRESTAPI(prompt, metadata);
+    } catch (deepseekError) {
+      const dsMsg = deepseekError instanceof Error ? deepseekError.message : String(deepseekError);
+      logCtx.error("AI", "[callDeepSeekAPI] Ambos proveedores fallaron (Gemini → DeepSeek)", undefined, {
+        deepseekError: dsMsg.substring(0, 200),
+      });
+
+      // 3. En desarrollo, devolver mock
+      if (process.env.NODE_ENV === 'development') {
+        logCtx.warn("AI", "[callDeepSeekAPI] Usando mock response para desarrollo");
+        return this.getMockAIResponse();
+      }
+
+      throw new Error(
+        `Todos los proveedores LLM fallaron. Gemini: ${geminiMsg.substring(0, 100) || "unknown"} → DeepSeek: ${dsMsg.substring(0, 100)}`
+      );
+    }
   }
 
   /**

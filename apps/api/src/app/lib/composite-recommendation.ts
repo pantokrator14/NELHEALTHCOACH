@@ -461,7 +461,7 @@ async function invokeLLM(
   humanMsg: string,
   phaseLabel: string
 ): Promise<string> {
-  const llm = createDeepSeekJSONLLM();
+  const llm = await createDeepSeekJSONLLM();
   const response = await llm.invoke([
     new SystemMessage(systemMsg),
     new HumanMessage(humanMsg),
