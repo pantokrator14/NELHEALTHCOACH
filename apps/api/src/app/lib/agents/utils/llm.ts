@@ -7,24 +7,50 @@ import { extractTextFromBuffer } from "../../document-extractor";
 import type { ExtractionResult } from "../../document-extractor";
 
 // ─────────────────────────────────────────────
-// Configuración centralizada de Gemini
+// Configuración centralizada de proveedores LLM
 // ─────────────────────────────────────────────
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 const GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
+
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-pro-max";
+const DEEPSEEK_API_URL = "https://api.deepseek.com/v1"; // OpenAI-compatible endpoint
+
+type LLMProvider = "gemini" | "deepseek";
 
 interface LLMOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
   streaming?: boolean;
+  /** Proveedor LLM. Default: gemini */
+  provider?: LLMProvider;
 }
 
-/** Devuelve el modelo Gemini configurado (con log) */
-function resolveModel(): string {
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  return model;
+/** Devuelve el modelo configurado para el proveedor indicado (con log) */
+function resolveModel(provider: LLMProvider = "gemini"): string {
+  if (provider === "deepseek") {
+    return process.env.DEEPSEEK_MODEL || DEEPSEEK_DEFAULT_MODEL;
+  }
+  return process.env.GEMINI_MODEL || GEMINI_DEFAULT_MODEL;
+}
+
+/** Devuelve la API key para el proveedor indicado */
+function resolveApiKey(provider: LLMProvider): string {
+  if (provider === "deepseek") {
+    return process.env.DEEPSEEK_API_KEY || "";
+  }
+  return process.env.GEMINI_API_KEY || "";
+}
+
+/** Devuelve la base URL para el proveedor indicado */
+function resolveBaseURL(provider: LLMProvider): string {
+  if (provider === "deepseek") {
+    return process.env.DEEPSEEK_API_URL || DEEPSEEK_API_URL;
+  }
+  return GEMINI_BASE_URL;
 }
 
 // ─────────────────────────────────────────────
@@ -32,18 +58,23 @@ function resolveModel(): string {
 // ─────────────────────────────────────────────
 
 function createLLM(options: LLMOptions = {}): ChatOpenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const provider: LLMProvider = options.provider ?? "gemini";
+  const apiKey = resolveApiKey(provider);
+
   if (!apiKey) {
-    logger.error("AI", "GEMINI_API_KEY no configurada. Todas las llamadas a Gemini fallarán.");
-    throw new Error("GEMINI_API_KEY is required");
+    const envVar = provider === "deepseek" ? "DEEPSEEK_API_KEY" : "GEMINI_API_KEY";
+    logger.error("AI", `${envVar} no configurada. Todas las llamadas a ${provider} fallarán.`);
+    throw new Error(`${envVar} is required`);
   }
 
-  const model = options.model ?? resolveModel();
-  logger.info("AI", "Creando instancia LLM Gemini", {
+  const model = options.model ?? resolveModel(provider);
+  const baseURL = resolveBaseURL(provider);
+
+  logger.info("AI", `Creando instancia LLM ${provider}`, {
     model,
     temperature: options.temperature ?? 0.7,
     maxTokens: options.maxTokens ?? 8000,
-    endpoint: "openai-compat",
+    endpoint: baseURL,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,31 +84,102 @@ function createLLM(options: LLMOptions = {}): ChatOpenAI {
     maxTokens: options.maxTokens ?? 8000,
     streaming: options.streaming ?? false,
     apiKey,
-    configuration: { baseURL: GEMINI_BASE_URL },
+    configuration: { baseURL },
   }) as any;
+}
+
+/**
+ * Crea un LLM con fallback automático entre proveedores.
+ *
+ * Estrategia:
+ *   1. Intenta con el provider primario (default: gemini)
+ *   2. Si falla y hay fallback disponible → intenta con el secundario (deepseek)
+ *   3. Logging claro de qué proveedor respondió
+ */
+export async function createLLMWithFallback(
+  options: LLMOptions = {}
+): Promise<ChatOpenAI> {
+  const primaryProvider: LLMProvider = options.provider ?? "gemini";
+  const fallbackProvider: LLMProvider = primaryProvider === "gemini" ? "deepseek" : "gemini";
+  const logCtx = logger.withContext({ feature: "llm-fallback" });
+
+  // Variables para capturar errores de ambos providers
+  let primaryMsg = "";
+
+  // 1. Intentar con el provider primario
+  try {
+    const llm = createLLM({ ...options, provider: primaryProvider });
+    logCtx.info("AI", `LLM creado con provider primario: ${primaryProvider}`, {
+      model: resolveModel(primaryProvider),
+    });
+    return llm;
+  } catch (primaryError) {
+    primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+    logCtx.warn("AI", `Provider primario ${primaryProvider} no disponible, intentando fallback a ${fallbackProvider}`, {
+      error: primaryMsg.substring(0, 200),
+    });
+  }
+
+  // 2. Fallback al provider secundario
+  try {
+    const llm = createLLM({ ...options, provider: fallbackProvider });
+    logCtx.info("AI", `LLM creado con provider fallback: ${fallbackProvider}`, {
+      model: resolveModel(fallbackProvider),
+    });
+    return llm;
+  } catch (fallbackError) {
+    const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+    logCtx.error("AI", `Ambos providers fallaron (${primaryProvider} → ${fallbackProvider})`, undefined, {
+      primaryError: primaryMsg.substring(0, 200),
+      fallbackError: fallbackMsg.substring(0, 200),
+    });
+    throw new Error(
+      `Todos los proveedores LLM fallaron. Primario: ${primaryProvider}, Fallback: ${fallbackProvider}. ` +
+      `Error fallback: ${fallbackMsg}`
+    );
+  }
 }
 
 // ─────────────────────────────────────────────
 // Variantes preconfiguradas
 // ─────────────────────────────────────────────
 
+/**
+ * Crea un LLM que intenta Gemini primero, y si falla, DeepSeek real.
+ * Sincrónico — se usa para instancias que no requieren async.
+ */
 export function createDeepSeekLLM(options: LLMOptions = {}): BaseChatModel {
-  return createLLM(options) as unknown as BaseChatModel;
+  try {
+    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
+  } catch {
+    logger.warn("AI", "createDeepSeekLLM: Gemini no disponible, usando DeepSeek real");
+    return createLLM({ ...options, provider: "deepseek" }) as unknown as BaseChatModel;
+  }
 }
 
-export function createDeepSeekJSONLLM(): BaseChatModel {
-  return createLLM({ temperature: 0.3, maxTokens: 16000 }) as unknown as BaseChatModel;
+/**
+ * Crea un LLM con fallback (Gemini → DeepSeek real).
+ * Es async porque internamente usa createLLMWithFallback.
+ */
+export async function createDeepSeekJSONLLM(): Promise<BaseChatModel> {
+  const llm = await createLLMWithFallback({ temperature: 0.3, maxTokens: 16000 });
+  return llm as unknown as BaseChatModel;
 }
 
-export function createDeepSeekAnalyticalLLM(): BaseChatModel {
-  return createLLM({ temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
+export function createDeepSeekAnalyticalLLM(options: LLMOptions = {}): BaseChatModel {
+  try {
+    return createLLM({ ...options, provider: "gemini", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
+  } catch {
+    logger.warn("AI", "createDeepSeekAnalyticalLLM: Gemini no disponible, usando DeepSeek real");
+    return createLLM({ ...options, provider: "deepseek", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
+  }
 }
 
 export function createDeepSeekWithTools(
   tools: StructuredToolInterface[],
   options: LLMOptions = {}
 ): BaseChatModel {
-  const llm = createLLM({
+  const llm = createDeepSeekLLM({
     temperature: options.temperature ?? 0.5,
     maxTokens: options.maxTokens ?? 6000,
   });
@@ -101,10 +203,15 @@ export function createDeepSeekWithTools(
 // ─────────────────────────────────────────────
 
 export function createGeminiLLM(options: LLMOptions = {}): BaseChatModel {
-  return createLLM(options) as unknown as BaseChatModel;
+  try {
+    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
+  } catch {
+    logger.warn("AI", "createGeminiLLM: Gemini no disponible, usando DeepSeek real");
+    return createLLM({ ...options, provider: "deepseek" }) as unknown as BaseChatModel;
+  }
 }
 
-export function createGeminiJSONLLM(): BaseChatModel {
+export async function createGeminiJSONLLM(): Promise<BaseChatModel> {
   return createDeepSeekJSONLLM();
 }
 

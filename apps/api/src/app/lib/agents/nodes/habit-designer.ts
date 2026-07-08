@@ -33,7 +33,7 @@ export async function planHabits(
 
     logCtx.info("AI", "Starting habit planning");
 
-    const llm = createDeepSeekJSONLLM();
+    const llm = await createDeepSeekJSONLLM();
     const totalWeeks = state.monthNumber * 4;
     const weekNumbers = Array.from({ length: totalWeeks }, (_, i) => i + 1);
 

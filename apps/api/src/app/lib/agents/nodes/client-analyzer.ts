@@ -33,7 +33,7 @@ export async function analyzeClient(
   });
 
   try {
-    const llm = createDeepSeekJSONLLM();
+    const llm = await createDeepSeekJSONLLM();
 
     const prompt = buildClientAnalysisPrompt({
       personalData: state.personalData,
