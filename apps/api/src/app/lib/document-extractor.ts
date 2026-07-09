@@ -5,15 +5,14 @@
  * Extraemos texto localmente y solo enviamos texto plano a Gemini para análisis.
  *
  * Pipeline por tipo de archivo:
- *   PDF  → 1. pdf-parse (50ms, PDF textual)
- *          2. pdfjs-dist  (200ms, fallback: PDFs complejos o con capa oculta)
+ *   PDF  → 1. pdf-parse v2 (getText + getTable para tablas estructuradas)
+ *          2. pdfjs-dist (fallback: PDFs complejos o con capa oculta)
  *          3. Se marca como "no extraíble" si ambos fallan
  *   DOCX → mammoth.js
  *   Imagen → tesseract.js OCR
  *   TXT   → raw utf-8
  */
 
-import pdfParse from 'pdf-parse';
 import Mammoth from 'mammoth';
 import { createWorker } from 'tesseract.js';
 import { logger } from './logger';
@@ -30,7 +29,7 @@ export type ExtractionMethod =
   | 'raw';
 
 export interface ExtractionResult {
-  /** Texto plano extraído del documento */
+  /** Texto plano extraído del documento (incluye tablas formateadas como markdown si se detectaron) */
   text: string;
   /** Método que se usó para extraer el texto */
   method: ExtractionMethod;
@@ -38,6 +37,8 @@ export interface ExtractionResult {
   pages?: number;
   /** Confianza del OCR (0-100, solo tesseract) */
   ocrConfidence?: number;
+  /** Número de tablas detectadas en el PDF (solo pdf-parse v2) */
+  tableCount?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -53,6 +54,13 @@ const MIN_TEXT_LENGTH = 20;
 
 /** Máximo de caracteres que retornamos (Gemini tiene límite de contexto) */
 const MAX_TEXT_LENGTH = 50_000;
+
+/**
+ * Prefijo delimitador para las tablas en el output de texto,
+ * para que Gemini pueda identificar fácilmente dónde empiezan/terminan.
+ */
+const TABLES_HEADER = '=== TABLAS DETECTADAS EN EL DOCUMENTO ===';
+const TABLES_FOOTER = '=== FIN DE TABLAS ===';
 
 // ─────────────────────────────────────────────
 // Punto de entrada único
@@ -111,33 +119,21 @@ export async function extractTextFromBuffer(
 /**
  * PDF: dos intentos en capas.
  *
- * 1. pdf-parse: rápido, funciona con PDFs textuales (la mayoría de laboratorios).
- * 2. pdfjs-dist: fallback más robusto, extrae incluso de PDFs con capa de texto
- *    oculta (escaneados profesionalmente con OCR embebido).
+ * 1. pdf-parse v2: extrae texto + tablas estructuradas (getTable).
+ *    Las tablas se convierten a formato markdown para que Gemini
+ *    pueda interpretar correctamente la estructura fila/columna.
+ * 2. pdfjs-dist: fallback más robusto, solo texto (sin detección de tablas).
  */
 async function extractFromPDF(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
-  // ── Intento 1: pdf-parse ──
+  // ── Intento 1: pdf-parse v2 ──
   try {
-    const data = await pdfParse(buffer);
-    const text = (data.text ?? '').trim();
-
-    if (text.length >= MIN_TEXT_LENGTH) {
-      logCtx.info('AI', 'PDF extraído con pdf-parse', {
-        pages: data.numpages,
-        chars: text.length,
-      });
-      return { text: truncate(text), method: 'pdf-parse', pages: data.numpages };
-    }
-
-    logCtx.warn('AI', 'pdf-parse devolvió muy poco texto, probando pdfjs-dist', {
-      chars: text.length,
-    });
+    return await extractWithPdfParseV2(buffer, logCtx);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    logCtx.warn('AI', 'pdf-parse falló, probando pdfjs-dist', { error: message.substring(0, 200) });
+    logCtx.warn('AI', 'pdf-parse v2 falló, probando pdfjs-dist', { error: message.substring(0, 200) });
   }
 
   // ── Intento 2: pdfjs-dist (Mozilla PDF.js - más robusto) ──
@@ -167,6 +163,146 @@ async function extractFromPDF(
   };
 }
 
+// ─────────────────────────────────────────────
+// pdf-parse v2: texto + tablas estructuradas
+// ─────────────────────────────────────────────
+
+/**
+ * Extrae texto y tablas usando pdf-parse v2.
+ * Las tablas se convierten a formato markdown para preservar
+ * la estructura fila/columna que Gemini pueda entender.
+ */
+async function extractWithPdfParseV2(
+  buffer: Buffer,
+  logCtx: ReturnType<typeof logger.withContext>,
+): Promise<ExtractionResult> {
+  // Import dinámico porque pdf-parse v2 es ESM y causa problemas con RSC
+  const { PDFParse } = await import('pdf-parse');
+  const parser = new PDFParse({ data: buffer });
+
+  try {
+    // 1. Extraer texto (pages es un array de PageTextResult[], usamos su length)
+    const textResult = await parser.getText();
+    const text = (textResult?.text ?? '').trim();
+    const pages = Array.isArray(textResult?.pages) ? textResult.pages.length : 0;
+
+    // 2. Extraer tablas estructuradas
+    let markdownTables = '';
+    let tableCount = 0;
+
+    try {
+      const tableResult = await parser.getTable();
+
+      if (tableResult?.pages && tableResult.pages.length > 0) {
+        const tableParts: string[] = [];
+
+        for (const page of tableResult.pages) {
+          if (!page.tables || page.tables.length === 0) continue;
+
+          for (const table of page.tables) {
+            if (!table || table.length === 0) continue;
+
+            tableCount++;
+
+            // Convertir tabla 2D a markdown
+            const mdTable = tableToMarkdown(table);
+            tableParts.push(mdTable);
+          }
+        }
+
+        if (tableParts.length > 0) {
+          markdownTables = `\n${TABLES_HEADER}\n${tableParts.join('\n\n')}\n${TABLES_FOOTER}\n`;
+          logCtx.info('AI', `Tablas detectadas y formateadas`, {
+            tableCount,
+            tablesCharLength: markdownTables.length,
+          });
+        }
+      }
+    } catch (tableErr: unknown) {
+      // getTable() puede fallar en PDFs sin tablas — no es crítico
+      const tblMsg = tableErr instanceof Error ? tableErr.message : '';
+      logCtx.debug('AI', 'getTable() no produjo resultados (puede ser normal)', {
+        error: tblMsg.substring(0, 100),
+      });
+    }
+
+    // 3. Combinar: tablas markdown + texto plano
+    const combined = markdownTables
+      ? `${markdownTables}\n--- TEXTO COMPLETO DEL DOCUMENTO ---\n\n${text}`
+      : text;
+
+    if (combined.length >= MIN_TEXT_LENGTH || tableCount > 0) {
+      logCtx.info('AI', 'PDF extraído con pdf-parse v2', {
+        pages,
+        chars: text.length,
+        tableCount,
+        combinedChars: combined.length,
+      });
+      return {
+        text: truncate(combined),
+        method: 'pdf-parse',
+        pages,
+        tableCount,
+      };
+    }
+
+    logCtx.warn('AI', 'pdf-parse v2 devolvió muy poco texto', {
+      chars: text.length,
+      tableCount,
+    });
+
+    // Si no hay suficiente texto ni tablas, lanzamos para que el fallback intente
+    throw new Error(`pdf-parse v2 returned insufficient content: ${text.length} chars, ${tableCount} tables`);
+  } finally {
+    await parser.destroy();
+  }
+}
+
+/**
+ * Convierte una tabla 2D (string[][]) a formato markdown.
+ * La primera fila se trata como encabezado si tiene contenido.
+ *
+ * Ejemplo:
+ *   | Biomarcador | Valor | Rango | Estado |
+ *   |-------------|-------|-------|--------|
+ *   | Glucosa     | 95    | 70-100| Normal |
+ */
+function tableToMarkdown(table: string[][]): string {
+  if (!table || table.length === 0) return '';
+
+  const result: string[] = [];
+  const columnCount = Math.max(...table.map(row => row.length), 0);
+
+  if (columnCount === 0) return '';
+
+  // Sanitizar celdas: eliminar saltos de línea internos y recortar
+  const sanitized = table.map(row =>
+    row.map(cell => (cell ?? '').replace(/\s+/g, ' ').trim()),
+  );
+
+  // Encabezado (primera fila)
+  const header = sanitized[0];
+  result.push(`| ${header.join(' | ')} |`);
+
+  // Separador
+  const separator = header.map(() => '---');
+  result.push(`| ${separator.join(' | ')} |`);
+
+  // Filas de datos (resto)
+  for (let i = 1; i < sanitized.length; i++) {
+    const row = sanitized[i];
+    // Rellenar con celdas vacías si faltan columnas
+    while (row.length < columnCount) row.push('');
+    result.push(`| ${row.join(' | ')} |`);
+  }
+
+  return result.join('\n');
+}
+
+// ─────────────────────────────────────────────
+// DOCX
+// ─────────────────────────────────────────────
+
 /**
  * DOCX: extracción con mammoth.js
  */
@@ -192,6 +328,10 @@ async function extractFromDocx(
     throw err;
   }
 }
+
+// ─────────────────────────────────────────────
+// Imágenes / OCR
+// ─────────────────────────────────────────────
 
 /**
  * Imagen (o PDF como imagen): OCR con tesseract.js
@@ -235,6 +375,7 @@ async function extractFromImage(
 /**
  * Extrae texto de un PDF usando pdfjs-dist (Mozilla PDF.js en modo legacy).
  * Se importa dinámicamente porque es un módulo ESM.
+ * Esta función solo extrae texto — no detecta tablas.
  */
 async function extractTextWithPdfjs(buffer: Buffer): Promise<ExtractionResult> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
