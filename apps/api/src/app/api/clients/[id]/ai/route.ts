@@ -487,7 +487,9 @@ async function postHandler(
       }
 
       // Construir weeks[] con los datos desencriptados
-      const shopList = compositeResult.nutritionPlan?.shoppingList || [];
+      const shopList = Array.isArray(compositeResult.nutritionPlan?.shoppingList)
+        ? compositeResult.nutritionPlan!.shoppingList
+        : [];
       const exerciseRoutine = compositeResult.exercisePlan?.weeklyRoutine || [];
 
       const weeks = [{
@@ -1045,6 +1047,7 @@ async function prepareAIInput(
                   fileName,
                   cachedAt: cachedDoc.cachedAt,
                 });
+                processedDocs.push(docResult);
                 continue; // Saltar al siguiente documento
               } catch {
                 // Análisis corrupto, ignorar y tratar como si no hubiera cache
@@ -2016,7 +2019,9 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     }
 
     // Construir weeks[] con datos encriptados
-    const shopList = compositeResult.nutritionPlan?.shoppingList || [];
+    const shopList = Array.isArray(compositeResult.nutritionPlan?.shoppingList)
+      ? compositeResult.nutritionPlan!.shoppingList
+      : [];
     const newWeeks = [{
       weekNumber: 1 as const,
       nutrition: {

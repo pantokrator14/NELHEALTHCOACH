@@ -441,9 +441,9 @@ export async function generateShoppingListFromWeeklyPlan(
     throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (error?.message || ""));
   }
 
-  // Guardia Fail-Fast: lista de compras debe tener al menos 1 elemento
-  if (!result.shoppingList || result.shoppingList.length === 0) {
-    logger.error("AI", "❌ Fase 3 (standalone) fallida: Lista de compras vacía.", new Error("Empty shopping list"));
+  // Guardia Fail-Fast: lista de compras debe ser un array con al menos 1 elemento
+  if (!result.shoppingList || !Array.isArray(result.shoppingList) || result.shoppingList.length === 0) {
+    logger.error("AI", "❌ Fase 3 (standalone) fallida: Lista de compras inválida o vacía.", new Error("Invalid or empty shopping list"));
     throw new Error("Fase 3 fallida: El LLM no pudo consolidar la lista de compras. Abortando pipeline.");
   }
 
@@ -592,7 +592,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     },
     nutritionPlan: {
       ...lifestyleResult.nutritionPlan,
-      shoppingList: shoppingListResult.shoppingList,
+      shoppingList: Array.isArray(shoppingListResult?.shoppingList) ? shoppingListResult.shoppingList : [],
     },
     exercisePlan: lifestyleResult.exercisePlan,
     habitPlan: lifestyleResult.habitPlan,

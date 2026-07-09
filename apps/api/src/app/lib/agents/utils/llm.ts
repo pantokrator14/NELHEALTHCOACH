@@ -15,7 +15,7 @@ const GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-pro-max";
+const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash";
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1"; // OpenAI-compatible endpoint
 
 type LLMProvider = "gemini" | "deepseek";
@@ -92,15 +92,15 @@ function createLLM(options: LLMOptions = {}): ChatOpenAI {
  * Crea un LLM con fallback automático entre proveedores.
  *
  * Estrategia:
- *   1. Intenta con el provider primario (default: gemini)
- *   2. Si falla y hay fallback disponible → intenta con el secundario (deepseek)
+ *   1. Intenta con el provider primario (default: deepseek)
+ *   2. Si falla y hay fallback disponible → intenta con el secundario (gemini)
  *   3. Logging claro de qué proveedor respondió
  */
 export async function createLLMWithFallback(
   options: LLMOptions = {}
 ): Promise<ChatOpenAI> {
-  const primaryProvider: LLMProvider = options.provider ?? "gemini";
-  const fallbackProvider: LLMProvider = primaryProvider === "gemini" ? "deepseek" : "gemini";
+  const primaryProvider: LLMProvider = options.provider ?? "deepseek";
+  const fallbackProvider: LLMProvider = primaryProvider === "deepseek" ? "gemini" : "deepseek";
   const logCtx = logger.withContext({ feature: "llm-fallback" });
 
   // Variables para capturar errores de ambos providers
@@ -145,15 +145,15 @@ export async function createLLMWithFallback(
 // ─────────────────────────────────────────────
 
 /**
- * Crea un LLM que intenta Gemini primero, y si falla, DeepSeek real.
+ * Crea un LLM que intenta DeepSeek primero, y si falla, Gemini.
  * Sincrónico — se usa para instancias que no requieren async.
  */
 export function createDeepSeekLLM(options: LLMOptions = {}): BaseChatModel {
   try {
-    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
-  } catch {
-    logger.warn("AI", "createDeepSeekLLM: Gemini no disponible, usando DeepSeek real");
     return createLLM({ ...options, provider: "deepseek" }) as unknown as BaseChatModel;
+  } catch {
+    logger.warn("AI", "createDeepSeekLLM: DeepSeek no disponible, usando Gemini");
+    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
   }
 }
 
@@ -168,10 +168,10 @@ export async function createDeepSeekJSONLLM(): Promise<BaseChatModel> {
 
 export function createDeepSeekAnalyticalLLM(options: LLMOptions = {}): BaseChatModel {
   try {
-    return createLLM({ ...options, provider: "gemini", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
-  } catch {
-    logger.warn("AI", "createDeepSeekAnalyticalLLM: Gemini no disponible, usando DeepSeek real");
     return createLLM({ ...options, provider: "deepseek", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
+  } catch {
+    logger.warn("AI", "createDeepSeekAnalyticalLLM: DeepSeek no disponible, usando Gemini");
+    return createLLM({ ...options, provider: "gemini", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
   }
 }
 
@@ -423,56 +423,185 @@ function classifyFileType(fileName: string): 'pdf' | 'image' | 'docx' | 'text' |
   return 'unknown';
 }
 
+// ─────────────────────────────────────────────
+// System prompt compartido entre proveedores
+// ─────────────────────────────────────────────
+
+const MEDICAL_ANALYSIS_SYSTEM_PROMPT = `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio, especializado en metabolismo keto y bajo en carbohidratos. Trabajas en el contexto de un coach de salud integral (NEL Health Coach).
+
+PRINCIPIOS KETO:
+- Interpreta los marcadores con óptica keto: LDL puede estar más alto fisiológicamente sin ser problemático si triglicéridos son bajos y HDL alto
+- NO patologices valores esperables en keto (LDL elevado no es necesariamente malo si el resto del perfil lipídico es favorable)
+- NO diagnostiques enfermedades — solo extrae datos y provee contexto informativo
+- Identifica valores fuera de rango y sugiere qué podrían significar bajo el contexto del paciente
+
+EXTRACCIÓN:
+1. Extrae TODOS los marcadores de laboratorio con sus valores exactos, unidades y rangos de referencia
+2. Identifica fechas de exámenes y comparativas si existen
+3. NO diagnostiques — solo extrae e interpreta datos
+4. Para valores fuera de rango, indica su dirección (alto/bajo)
+
+FORMATO DE RESPUESTA:
+Debes responder ÚNICAMENTE con un objeto JSON válido, sin markdown, sin explicaciones, sin texto adicional.
+El JSON debe tener esta estructura exacta:
+{
+  "medicalSummary": "Resumen conciso de los hallazgos principales del documento, interpretados bajo contexto keto",
+  "medicalComparativeAnalysis": "Análisis comparativo si hay datos históricos, o 'No aplica' si es primera evaluación",
+  "labResults": [
+    {
+      "name": "Nombre del biomarcador",
+      "value": "Valor con unidades (ej: 95 mg/dL)",
+      "range": "Rango de referencia (ej: 70-100 mg/dL)",
+      "status": "normal" | "alto" | "bajo"
+    }
+  ],
+  "supplementRecommendations": [
+    {
+      "name": "Nombre del suplemento",
+      "dosage": "Dosis recomendada",
+      "timing": "Momento del día",
+      "rationale": "Justificación basada en biomarcadores alterados",
+      "contraindications": "Contraindicaciones o 'Ninguna conocida'"
+    }
+  ]
+}
+
+REGLAS:
+- NO incluyas \`\`\`json ni ningún marcador markdown
+- NO añadas texto antes ni después del JSON
+- Si no hay suplementos que recomendar, devuelve "supplementRecommendations": []
+- Extrae TODOS los biomarcadores sin omitir ninguno
+- Interpreta bajo óptica keto cuando aplique, pero siempre basado en los datos del documento`;
+
 /**
- * Envía texto plano a Gemini para análisis médico.
- * Extrae el envío a Gemini de la extracción de texto,
- * para usarlo tanto desde analyzeFileWithGemini (con buffer)
- * como desde route.ts cuando ya hay rawText cacheado.
+ * Construye el mensaje de usuario con el texto extraído y contexto adicional.
  */
-export async function sendTextToGemini(
+function buildAnalysisUserMessage(text: string, fileName: string, analysisContext?: string): string {
+  return `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ''}A continuación está el contenido extraído del archivo "${fileName}":\n\n--- INICIO DEL DOCUMENTO ---\n${text}\n\n--- FIN DEL DOCUMENTO ---\n\nAnaliza este contenido médico y devuelve SOLAMENTE el objeto JSON con la estructura especificada.`;
+}
+
+/**
+ * Valida que el texto a analizar tenga contenido mínimo.
+ */
+function validateAnalysisText(text: string, fileName: string, logCtx: ReturnType<typeof logger.withContext>): string | null {
+  if (!text || text.trim().length < 10) {
+    logCtx.warn('AI', 'El archivo no contiene texto extraíble', { fileName });
+    return `[Documento sin texto extraíble: ${fileName}]\n\nEl sistema no pudo extraer texto de este archivo. Puede estar vacío, dañado, ser un PDF escaneado sin capa de texto, o tener un formato no soportado.`;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// DeepSeek REST API (OpenAI-compatible)
+// ─────────────────────────────────────────────
+
+/**
+ * Envía texto a DeepSeek vía API REST OpenAI-compatible.
+ */
+async function sendTextToDeepSeekREST(
   text: string,
   fileName: string,
   analysisContext?: string,
 ): Promise<string> {
-  const caller = 'sendTextToGemini';
+  const caller = 'sendTextToDeepSeek';
+  const logCtx = logger.withContext({ tool: 'deepseek-text-analysis', fileName });
+
+  const invalid = validateAnalysisText(text, fileName, logCtx);
+  if (invalid) return invalid;
+
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error('DEEPSEEK_API_KEY is required');
+
+  const model = process.env.DEEPSEEK_MODEL || DEEPSEEK_DEFAULT_MODEL;
+  const baseUrl = process.env.DEEPSEEK_API_URL || DEEPSEEK_API_URL;
+  const url = `${baseUrl}/chat/completions`;
+
+  const body = {
+    model,
+    messages: [
+      { role: "system", content: MEDICAL_ANALYSIS_SYSTEM_PROMPT },
+      { role: "user", content: buildAnalysisUserMessage(text, fileName, analysisContext) },
+    ],
+    response_format: { type: "json_object" } as const,
+    temperature: 0.2,
+    max_tokens: 16000,
+  };
+
+  const startTime = Date.now();
+  logCtx.info('AI', `[${caller}] Enviando a DeepSeek`, {
+    model,
+    chars: text.length,
+    contextProvided: !!analysisContext,
+  });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const duration = Date.now() - startTime;
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    logCtx.error('AI', `[${caller}] DeepSeek API error`, undefined, {
+      status: response.status,
+      statusText: response.statusText,
+      duration,
+      errorBody: errorText.substring(0, 500),
+    });
+    throw new Error(`DeepSeek API HTTP ${response.status}: ${errorText.substring(0, 300)}`);
+  }
+
+  const data = (await response.json()) as Record<string, unknown>;
+  const choices = data.choices as Array<Record<string, unknown>> | undefined;
+  const content = choices?.[0]?.message as Record<string, unknown> | undefined;
+  const resultText = (content?.content as string) ?? '';
+
+  logCtx.info('AI', `[${caller}] DeepSeek respondió exitosamente`, {
+    duration,
+    textLength: resultText.length,
+  });
+
+  return resultText || `[Documento sin análisis: ${fileName}]`;
+}
+
+// ─────────────────────────────────────────────
+// Gemini REST API nativa — análisis de texto
+// ─────────────────────────────────────────────
+
+/**
+ * Envía texto plano a Gemini vía REST API nativa para análisis médico.
+ * Es la implementación interna — la pública sendTextToGemini usa fallback.
+ */
+async function sendTextToGeminiREST(
+  text: string,
+  fileName: string,
+  analysisContext?: string,
+): Promise<string> {
+  const caller = 'sendTextToGeminiREST';
   const logCtx = logger.withContext({ tool: 'gemini-text-analysis', fileName });
 
-  if (!text || text.trim().length < 10) {
-    logCtx.warn('AI', `[${caller}] El archivo no contiene texto extraíble`, { fileName });
-    return (
-      `[Documento sin texto extraíble: ${fileName}]\n\n` +
-      'El sistema no pudo extraer texto de este archivo. ' +
-      'Puede estar vacío, dañado, ser un PDF escaneado sin capa de texto, ' +
-      'o tener un formato no soportado.'
-    );
-  }
+  const invalid = validateAnalysisText(text, fileName, logCtx);
+  if (invalid) return invalid;
 
   const model = resolveModel();
   const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   const body: Record<string, unknown> = {
     systemInstruction: {
-      parts: [{
-        text: `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio.
-Extrae y analiza el contenido del documento proporcionado.
-
-INSTRUCCIONES:
-1. Extrae TODA la información relevante del documento
-2. Identifica marcadores de laboratorio con sus valores y unidades
-3. Identifica fechas de exámenes y comparativas si existen
-4. Organiza la información en formato estructurado
-5. NO diagnostiques — solo extrae e interpreta datos
-6. Indica si hay valores fuera de rango y qué podrían significar`,
-      }],
+      parts: [{ text: MEDICAL_ANALYSIS_SYSTEM_PROMPT }],
     },
     contents: [{
-      parts: [{
-        text: `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ''}A continuación está el contenido extraído del archivo "${fileName}":\n\n--- INICIO DEL DOCUMENTO ---\n${text}\n\n--- FIN DEL DOCUMENTO ---\n\nPor favor, analiza este contenido médico y extrae toda la información clínica relevante en formato estructurado.`,
-      }],
+      parts: [{ text: buildAnalysisUserMessage(text, fileName, analysisContext) }],
     }],
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 16000,
+      responseMimeType: "application/json",
     },
   };
 
@@ -483,6 +612,48 @@ INSTRUCCIONES:
   }
 
   return result.text || `[Documento sin texto extraíble: ${fileName}]`;
+}
+
+/**
+ * Envía texto plano para análisis médico con fallback automático.
+ *
+ * Estrategia:
+ *   1. Intenta DeepSeek primero (más rápido, más disponible)
+ *   2. Si DeepSeek falla → intenta Gemini
+ *   3. Si ambos fallan → lanza error
+ */
+export async function sendTextToGemini(
+  text: string,
+  fileName: string,
+  analysisContext?: string,
+): Promise<string> {
+  const caller = 'sendTextToGemini';
+  const logCtx = logger.withContext({ tool: 'text-analysis-fallback', fileName });
+
+  const invalid = validateAnalysisText(text, fileName, logCtx);
+  if (invalid) return invalid;
+
+  // 1. DeepSeek (primario)
+  try {
+    logCtx.info('AI', `[${caller}] Intentando con DeepSeek (primario)`);
+    return await sendTextToDeepSeekREST(text, fileName, analysisContext);
+  } catch (deepseekError: unknown) {
+    const dsMsg = deepseekError instanceof Error ? deepseekError.message : String(deepseekError);
+    logCtx.warn('AI', `[${caller}] DeepSeek falló, probando Gemini (fallback)`, {
+      error: dsMsg.substring(0, 200),
+    });
+  }
+
+  // 2. Gemini (fallback)
+  try {
+    return await sendTextToGeminiREST(text, fileName, analysisContext);
+  } catch (geminiError: unknown) {
+    const gmMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+    logCtx.error('AI', `[${caller}] Ambos proveedores fallaron (DeepSeek → Gemini)`, undefined, {
+      geminiError: gmMsg.substring(0, 200),
+    });
+    throw new Error(`Ambos proveedores LLM fallaron. DeepSeek → Gemini. Último error: ${gmMsg}`);
+  }
 }
 
 /**

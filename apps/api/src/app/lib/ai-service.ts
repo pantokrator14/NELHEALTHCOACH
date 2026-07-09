@@ -1240,7 +1240,7 @@ ${responseSchema}
     const logCtx = metadata ? logger.withContext(metadata) : logger;
     const apiKey = process.env.DEEPSEEK_API_KEY;
     const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
-    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro-max';
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
     if (!apiKey) {
       throw new Error('DEEPSEEK_API_KEY is required for fallback');
