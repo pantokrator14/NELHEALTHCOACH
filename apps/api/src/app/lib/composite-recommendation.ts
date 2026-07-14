@@ -338,9 +338,9 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 ## GENERA ESTE JSON USANDO LOS IDs DE LAS LISTAS DE ARRIBA
 
 ### 1. clientInsights — Análisis del cliente (BREVE: summary y vision deben ser cortos, sin tanto detalle)
-- TONO AMIGABLE Y CONSTRUCTIVO: Usa un tono conversacional y alentador, como un coach que habla con un amigo. summary debe comenzar destacando aspectos positivos, fortalezas y logros del cliente. Para los desafíos, enmárcalos de forma constructiva: "en cuanto a X, aunque hay trabajo por hacer, es algo que podemos ir mejorando".
-- summary: Resumen breve con tono alentador que equilibre fortalezas y logros con desafíos actuales (2-3 líneas máximo)
-- vision: Visión corta de cómo estará el cliente en 4 semanas (1 mes) (2-3 líneas máximo)
+- TONO PROFESIONAL CON CALIDEZ: Usa un tono profesional pero cálido — como un coach que es claro y directo pero también alentador. summary debe comenzar destacando aspectos positivos, fortalezas y logros del cliente, y luego mencionar los desafíos de forma constructiva sin sonar demasiado informal ni demasiado clínico.
+- summary: Resumen breve y equilibrado que reconozca fortalezas y logros, y señale áreas de mejora con un tono constructivo (2-3 líneas máximo)
+- vision: Visión corta de cómo estará el cliente en 4 semanas (1 mes) — con un tono realista pero motivador (2-3 líneas máximo)
 
 ### 2. nutritionPlan — PLAN DE COMIDAS (7 días)
 - weeklyPlan: array de 7 objetos (Monday a Sunday)
