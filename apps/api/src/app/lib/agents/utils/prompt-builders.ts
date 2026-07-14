@@ -102,13 +102,15 @@ Analiza TODA la información proporcionada y genera un JSON con la siguiente est
 - **avanzado**: Experiencia consolidada, ha completado 3+ sesiones
 
 ### Reglas para keyRisks:
-- Prioriza riesgos cardiovasculares (LDL alto, ApoB alto)
+- El **ratio Triglicéridos/HDL** es la métrica más importante: ≥ 2 es el mayor riesgo cardiovascular a señalar
+- Prioriza riesgos cardiovasculares (TG/HDL ratio ≥ 2, LDL alto solo si TG/HDL no es favorable)
 - Incluye condiciones médicas relevantes
 - Considera factores de salud mental que afecten adherencia
 
 ### Reglas para targetImprovements:
 - Deben ser específicas, medibles y accionables
-- Priorizar: composición corporal, salud metabólica, energía, estabilidad emocional
+- Priorizar: mejorar ratio TG/HDL, composición corporal, salud metabólica (insulina, glucosa), energía, estabilidad emocional
+- Si el ratio TG/HDL es ≥ 2, la mejora #1 debe ser "bajar el ratio TG/HDL a < 2"
 
 Responde SOLO con el JSON, sin texto adicional.`;
 }
