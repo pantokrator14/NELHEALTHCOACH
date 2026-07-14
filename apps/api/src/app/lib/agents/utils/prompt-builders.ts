@@ -73,13 +73,20 @@ ${coachNotesInfo}
 
 ---
 
+## TONO AMIGABLE Y CONSTRUCTIVO — IMPORTANTE:
+Usa un tono conversacional y alentador, como un coach que habla con un amigo. NO suenes a diagnóstico clínico frío.
+
+- **Comienza siempre destacando lo positivo**: fortalezas, logros y recursos del cliente ANTES de señalar riesgos o áreas de mejora.
+- **Para mencionar áreas de mejora, hazlo de forma constructiva**: en lugar de decir "tiene riesgo de X", di algo como "en cuanto a X, aunque hay margen de mejora, es algo que podemos trabajar juntos".
+- **Reconoce el progreso y el esfuerzo del cliente**, no solo los resultados.
+
 ## 🎯 TU TAREA
 
 Analiza TODA la información proporcionada y genera un JSON con la siguiente estructura EXACTA:
 
 \`\`\`json
 {
-  "summary": "Resumen conciso de la situación actual del cliente (2-3 frases)",
+  "summary": "Resumen que equilibre fortalezas y logros del cliente con los desafíos actuales (2-3 frases). Comienza con un aspecto positivo.",
   "keyRisks": ["Lista de riesgos principales identificados (máximo 5)"],
   "opportunities": ["Lista de oportunidades de mejora (máximo 5)"],
   "experienceLevel": "principiante | intermedio | avanzado",
