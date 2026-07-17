@@ -38,7 +38,11 @@ const nextConfig = {
     ];
   },
   // No bundle pdfkit — se carga desde node_modules con sus fuentes .afm
-  serverExternalPackages: ['pdfkit', 'pdf-parse', 'pdfjs-dist'],
+  serverExternalPackages: [
+    'pdfkit', 'pdf-parse', 'pdfjs-dist',
+    // Native addons para OCR local con ppu-paddle-ocr
+    'onnxruntime-node', '@napi-rs/canvas', 'ppu-paddle-ocr', 'ppu-ocv',
+  ],
   // Incluir fuentes .afm en el bundle serverless para Vercel/producción
   outputFileTracingIncludes: {
     'app/api/clients/[id]/ai/[sessionId]/pdf/route': ['./node_modules/pdfkit/js/data/**'],

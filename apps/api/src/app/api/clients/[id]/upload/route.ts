@@ -10,6 +10,7 @@ import { requireCoachAuth } from '@/app/lib/auth';
 import { extractTextFromBuffer } from '@/app/lib/document-extractor';
 import type { ExtractionResult } from '@/app/lib/document-extractor';
 import { extractTextFromImageViaGemini } from '@/app/lib/agents/utils/llm';
+import { extractTextFromImageViaPaddleOCR } from '@/app/lib/document-extractor';
 import { createNotification } from '@/app/lib/create-notification';
 import jwt from 'jsonwebtoken';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -917,27 +918,50 @@ async function extractAndCacheDocument(
   let extracted: ExtractionResult;
 
   if (isImage) {
-    // 🖼️ Las imágenes van DIRECTAMENTE a Gemini multimodal.
-    // tesseract.js NO funciona en Vercel serverless: el worker_thread
-    // crashea de forma fatal (exit 129) y no puede ser capturado con
-    // try-catch porque el error ocurre dentro del worker antes de que
-    // createWorker devuelva la Promise.
-    logCtx.info('AI', 'Imagen detectada — usando Gemini multimodal directamente');
+    // 🖼️ Intentar OCR local con PaddleOCR (PP-OCRv6 sobre ONNX Runtime).
+    // No requiere worker_threads — corre directo en el proceso.
+    logCtx.info('AI', 'Imagen detectada — usando PaddleOCR local');
 
-    const geminiText = await extractTextFromImageViaGemini(buffer, fileName, fileType);
+    try {
+      const paddleResult = await extractTextFromImageViaPaddleOCR(buffer, fileName, fileType);
 
-    if (geminiText.trim()) {
-      extracted = {
-        text: geminiText,
-        method: 'gemini-multimodal',
-        ocrConfidence: 100,
-      };
-      logCtx.info('AI', 'Texto extraído vía Gemini multimodal', {
-        chars: geminiText.length,
-      });
-    } else {
-      logCtx.warn('AI', 'Gemini multimodal no extrajo texto de la imagen', { fileName });
-      return;
+      if (paddleResult.text.trim() && paddleResult.confidence >= 50) {
+        extracted = {
+          text: paddleResult.text,
+          method: 'paddle-ocr',
+          ocrConfidence: paddleResult.confidence,
+        };
+        logCtx.info('AI', 'Texto extraído vía PaddleOCR', {
+          chars: extracted.text.length,
+          confidence: paddleResult.confidence,
+        });
+      } else {
+        // Confianza baja o texto vacío — fallback a Gemini
+        logCtx.warn('AI', 'PaddleOCR devolvió resultado insuficiente, fallback a Gemini', {
+          chars: paddleResult.text.length,
+          confidence: paddleResult.confidence,
+        });
+        throw new Error('PaddleOCR confidence too low');
+      }
+    } catch (paddleErr) {
+      // ⚠️ Fallback: Gemini multimodal si PaddleOCR falla
+      logCtx.warn('AI', 'PaddleOCR falló, usando Gemini multimodal como fallback');
+
+      const geminiText = await extractTextFromImageViaGemini(buffer, fileName, fileType);
+
+      if (geminiText.trim()) {
+        extracted = {
+          text: geminiText,
+          method: 'gemini-multimodal',
+          ocrConfidence: 100,
+        };
+        logCtx.info('AI', 'Texto extraído vía Gemini multimodal (fallback)', {
+          chars: geminiText.length,
+        });
+      } else {
+        logCtx.warn('AI', 'Gemini multimodal tampoco extrajo texto de la imagen', { fileName });
+        return;
+      }
     }
   } else {
     // PDF, DOCX, texto → extracción local
