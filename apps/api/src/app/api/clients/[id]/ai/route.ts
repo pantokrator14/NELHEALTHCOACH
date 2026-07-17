@@ -9,7 +9,7 @@ import { AIService } from '@/app/lib/ai-service';
 import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationError } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
-import { analyzeS3FileWithGemini, sendTextToGemini } from '@/app/lib/agents/utils/llm';
+import { sendTextToGemini } from '@/app/lib/agents/utils/llm';
 import Coach from '@/app/models/Coach';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -1106,11 +1106,17 @@ async function prepareAIInput(
                 rawTextLength: rawText.length,
               });
             } else {
-              // ❌ No hay rawText — descargar de S3, extraer y analizar
-              const result = await analyzeS3FileWithGemini(s3Key, fileName, prompt);
-              geminiAnalysis = result.analysis;
-              rawText = result.rawText;
-              extractionMethod = result.extractionMethod;
+              // ❌ No hay rawText cacheado — el documento no se procesó en upload
+              // No hacemos extracción aquí porque:
+              //   1. Duplica trabajo (ya se intentó en upload)
+              //   2. Requiere descargar de S3 (lento)
+              //   3. tesseract.js no funciona en serverless (imágenes)
+              // Simplemente salteamos el documento — docResult se queda null
+              loggerWithContext.warn('AI', 'Documento sin rawText — se saltea del análisis (no se procesó en upload)', {
+                fileName,
+                s3Key: s3Key.substring(0, 50),
+              });
+              break; // Sale del loop de reintentos, docResult=null → se omite
             }
 
             if (geminiAnalysis && geminiAnalysis.length > 20) {
