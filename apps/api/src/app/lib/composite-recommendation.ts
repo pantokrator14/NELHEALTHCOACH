@@ -410,11 +410,32 @@ IMPORTANTE:
 
 /** Prompt Fase 3: Asistente Logístico (SOLO lista de compras a partir del weeklyPlan) */
 function buildShoppingListPrompt(
-  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>
+  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>,
+  recipeIngredients?: Record<string, string[]>
 ): { system: string; human: string } {
+  let humanContent = `Aquí está el plan de comidas semanal:\n\n${JSON.stringify(weeklyPlan, null, 2)}`;
+
+  if (recipeIngredients) {
+    // Adjuntar los ingredientes de cada receta mencionada para que el LLM pueda
+    // hacer una lista de compras precisa en lugar de tener que inferirlos del título.
+    const recipesWithIngredients: Record<string, string[]> = {};
+    for (const day of weeklyPlan) {
+      const titles = [day.breakfast, day.lunch, day.dinner];
+      for (let i = 0; i < titles.length; i++) {
+        const title = titles[i];
+        if (title && recipeIngredients[title] && !recipesWithIngredients[title]) {
+          recipesWithIngredients[title] = recipeIngredients[title];
+        }
+      }
+    }
+    if (Object.keys(recipesWithIngredients).length > 0) {
+      humanContent += `\n\nA continuación los ingredientes de cada receta del plan (usa estos ingredientes para armar la lista de compras consolidada):\n\n${JSON.stringify(recipesWithIngredients, null, 2)}`;
+    }
+  }
+
   return {
-    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. PROHIBIDO devolver un array vacío.",
-    human: `Aquí está el plan de comidas semanal:\n\n${JSON.stringify(weeklyPlan, null, 2)}`,
+    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y los ingredientes de cada receta. Extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes similares y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. Si un ingrediente aparece en varias recetas, consolídalo en una sola línea con la cantidad total. PROHIBIDO devolver un array vacío.",
+    human: humanContent,
   };
 }
 
@@ -424,14 +445,15 @@ function buildShoppingListPrompt(
  * Útil para re-procesar la lista de compras cuando se edita el plan manualmente.
  */
 export async function generateShoppingListFromWeeklyPlan(
-  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>
+  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>,
+  recipeIngredients?: Record<string, string[]>
 ): Promise<ShoppingListOutput> {
   logger.info("AI", "🛒 FASE 3 (standalone): Extrayendo lista de compras del plan semanal...");
 
   // Safety delay para evitar rate limiting de Gemini
   await new Promise(resolve => setTimeout(resolve, 8000));
 
-  const prompt = buildShoppingListPrompt(weeklyPlan);
+  const prompt = buildShoppingListPrompt(weeklyPlan, recipeIngredients);
   const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)");
 
   let result: ShoppingListOutput;
@@ -500,6 +522,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     cookTime: d.cookTime as number,
     difficulty: dbDecrypt((d.difficulty as string) || 'easy'),
     category: ((d.category as string[]) || []).map((c: string) => dbDecrypt(c)),
+    ingredients: ((d.ingredients as string[]) || []).map((i: string) => dbDecrypt(i)),
   }));
   logger.info("AI", `${dbRecipes.length} recetas obtenidas de la DB`);
 
@@ -577,7 +600,16 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   // FASE 3: Asistente Logístico — Lista de compras del weeklyPlan
   // ══════════════════════════════════════════════════════════
 
-  const shoppingListResult = await generateShoppingListFromWeeklyPlan(lifestyleResult.nutritionPlan.weeklyPlan);
+  // ── Mapa título → ingredientes (para Fase 3) ──
+  const recipeIngredients: Record<string, string[]> = {};
+  for (const rec of dbRecipes) {
+    recipeIngredients[rec.title] = rec.ingredients;
+  }
+
+  const shoppingListResult = await generateShoppingListFromWeeklyPlan(
+    lifestyleResult.nutritionPlan.weeklyPlan,
+    recipeIngredients
+  );
 
   // ══════════════════════════════════════════════════════════
   // FUSIÓN FINAL: Combinar Fase 1 + Fase 2 + Fase 3 en CompositeOutput
