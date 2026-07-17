@@ -643,13 +643,12 @@ export default function AIRecommendationsModal({
         if (progress) {
           setAiProgress(progress);
           if (progress.sessions && progress.sessions.length > 0) {
-            if (!activeSessionId && progress.currentSessionId) {
+            // ✅ Siempre usar currentSessionId del servidor si existe (es la sesión activa canónica).
+            // Esto asegura que después de regenerate_session, el frontend use la nueva sesión.
+            if (progress.currentSessionId) {
               setActiveSessionId(progress.currentSessionId);
-
-
-            } else if (!activeSessionId) {
+            } else {
               setActiveSessionId(progress.sessions[0].sessionId);
-
             }
           }
         } else {
