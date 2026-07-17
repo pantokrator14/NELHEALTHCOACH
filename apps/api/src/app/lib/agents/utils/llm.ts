@@ -754,6 +754,123 @@ export interface S3FileAnalysisResult {
   extractionMethod: string;
 }
 
+// ─────────────────────────────────────────────
+// Gemini — Análisis multimodal nativo de imágenes
+// ─────────────────────────────────────────────
+
+/**
+ * Envía una imagen directamente a Gemini vía REST API multimodal.
+ * Gemini extrae texto, interpreta gráficos/tablas y devuelve JSON médico.
+ * Reemplaza el flujo de OCR local (tesseract.js) que no es confiable en serverless.
+ */
+async function sendImageToGeminiREST(
+  imageBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  analysisContext?: string,
+): Promise<string> {
+  const caller = 'sendImageToGeminiREST';
+  const logCtx = logger.withContext({ tool: 'gemini-multimodal-image', fileName });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+
+  const model = resolveModel();
+  const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
+
+  const base64Image = imageBuffer.toString('base64');
+
+  // Prompt específico para análisis de imágenes de documentos médicos
+  const userPrompt = `${analysisContext ? `Contexto adicional: ${analysisContext}\n\n` : ''}Esta es una imagen del archivo "${fileName}". Analízala como un documento médico: extrae todo el texto visible, interpreta tablas, gráficos o resultados de laboratorio, y devuelve SOLAMENTE el objeto JSON con la estructura especificada.`;
+
+  const body: Record<string, unknown> = {
+    systemInstruction: {
+      parts: [{ text: MEDICAL_ANALYSIS_SYSTEM_PROMPT }],
+    },
+    contents: [{
+      parts: [
+        { text: userPrompt },
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: base64Image,
+          },
+        },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 16000,
+      responseMimeType: "application/json",
+    },
+  };
+
+  const result = await fetchGeminiREST(url, body, logCtx, caller);
+
+  if (result.safetyBlocked) {
+    return `[Documento bloqueado por seguridad: ${fileName}]`;
+  }
+
+  return result.text || `[Documento sin contenido visible: ${fileName}]`;
+}
+
+// ─────────────────────────────────────────────
+// Gemini — Extracción de texto desde imágenes
+// (para cache post-upload, sin análisis médico)
+// ─────────────────────────────────────────────
+
+/**
+ * Extrae texto de una imagen usando Gemini multimodal.
+ * A diferencia de sendImageToGeminiREST, NO hace análisis médico —
+ * solo pide a Gemini que transcriba el texto visible.
+ * Útil como fallback en extractAndCacheDocument cuando tesseract.js falla.
+ */
+export async function extractTextFromImageViaGemini(
+  imageBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+): Promise<string> {
+  const caller = 'extractTextFromImageViaGemini';
+  const logCtx = logger.withContext({ tool: 'gemini-image-text-extraction', fileName });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+
+  const model = resolveModel();
+  const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
+
+  const base64Image = imageBuffer.toString('base64');
+
+  const body: Record<string, unknown> = {
+    contents: [{
+      parts: [
+        {
+          text: `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`,
+        },
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: base64Image,
+          },
+        },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8192,
+    },
+  };
+
+  const result = await fetchGeminiREST(url, body, logCtx, caller);
+
+  if (result.safetyBlocked) {
+    logCtx.warn('AI', `[${caller}] Gemini bloqueó la imagen por seguridad`, { fileName });
+    return '';
+  }
+
+  return result.text || '';
+}
+
 export async function analyzeS3FileWithGemini(
   s3Key: string,
   fileName: string,
@@ -796,7 +913,22 @@ export async function analyzeS3FileWithGemini(
 
     const buffer = Buffer.from(fileBuffer);
 
-    // Extraer texto LOCALMENTE (una sola vez, evitando duplicación)
+    // ── Ruta para imágenes: Gemini multimodal nativo ──
+    // Gemini entiende imágenes directamente, evitando OCR local
+    // (tesseract.js) que tiene problemas con worker_threads en serverless.
+    if (fileType === 'image') {
+      logCtx.info('AI', `[${caller}] Imagen detectada — usando Gemini multimodal nativo`);
+
+      const analysis = await sendImageToGeminiREST(buffer, fileName, mimeType, analysisContext);
+
+      return {
+        analysis,
+        rawText: '',
+        extractionMethod: 'gemini-multimodal',
+      };
+    }
+
+    // ── Ruta para documentos (PDF, DOCX, texto): extracción local + texto ──
     const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
     logCtx.info('AI', `[${caller}] Texto extraído localmente`, {
       method: extracted.method,

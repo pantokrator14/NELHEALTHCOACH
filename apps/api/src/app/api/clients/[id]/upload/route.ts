@@ -9,6 +9,7 @@ import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encr
 import { requireCoachAuth } from '@/app/lib/auth';
 import { extractTextFromBuffer } from '@/app/lib/document-extractor';
 import type { ExtractionResult } from '@/app/lib/document-extractor';
+import { extractTextFromImageViaGemini } from '@/app/lib/agents/utils/llm';
 import { createNotification } from '@/app/lib/create-notification';
 import jwt from 'jsonwebtoken';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -907,14 +908,52 @@ async function extractAndCacheDocument(
 
   const buffer = Buffer.from(await response.arrayBuffer());
 
-  // 2. Extraer texto localmente
-  const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, fileType);
+  // ── 2. Detectar si es imagen ──
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const imageExts = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif']);
+  const isImage = imageExts.has(ext) || fileType.startsWith('image/');
 
-  if (!extracted.text.trim()) {
-    logCtx.warn('AI', 'No se pudo extraer texto del documento', {
-      method: extracted.method,
-    });
-    return; // No guardar si no hay texto
+  // ── 3. Extraer texto localmente (fallback a Gemini multimodal para imágenes) ──
+  let extracted: ExtractionResult;
+
+  if (isImage) {
+    // Intentar OCR local primero
+    extracted = await extractTextFromBuffer(buffer, fileName, fileType);
+
+    if (!extracted.text.trim()) {
+      // OCR local falló → Gemini multimodal como fallback
+      logCtx.info('AI', 'OCR local no extrajo texto, usando Gemini multimodal como fallback', {
+        method: extracted.method,
+        fileName,
+      });
+
+      const geminiText = await extractTextFromImageViaGemini(buffer, fileName, fileType);
+
+      if (geminiText.trim()) {
+        extracted = {
+          text: geminiText,
+          method: 'gemini-multimodal',
+          ocrConfidence: 100,
+        };
+        logCtx.info('AI', 'Texto extraído vía Gemini multimodal (fallback)', {
+          chars: geminiText.length,
+        });
+      } else {
+        logCtx.warn('AI', 'Gemini multimodal tampoco extrajo texto de la imagen', { fileName });
+        return;
+      }
+    }
+  } else {
+    // PDF, DOCX, texto → extracción local
+    extracted = await extractTextFromBuffer(buffer, fileName, fileType);
+
+    if (!extracted.text.trim()) {
+      logCtx.warn('AI', 'No se pudo extraer texto del documento', {
+        method: extracted.method,
+        fileName,
+      });
+      return;
+    }
   }
 
   // 3. Guardar en cache
