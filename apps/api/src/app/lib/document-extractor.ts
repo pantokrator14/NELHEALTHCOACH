@@ -340,31 +340,41 @@ async function extractFromImage(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
-  const worker = await createWorker('spa+eng');
-
   try {
-    const { data } = await worker.recognize(buffer);
-    const text = (data.text ?? '').trim();
-    const confidence = data.confidence ?? 0;
+    const worker = await createWorker('spa+eng');
 
-    logCtx.info('AI', 'OCR completado con tesseract.js', {
-      chars: text.length,
-      confidence,
-    });
+    try {
+      const { data } = await worker.recognize(buffer);
+      const text = (data.text ?? '').trim();
+      const confidence = data.confidence ?? 0;
 
-    return {
-      text: truncate(text),
-      method: 'tesseract-ocr',
-      ocrConfidence: confidence,
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    logCtx.error('AI', 'OCR falló', err instanceof Error ? err : undefined, {
+      logCtx.info('AI', 'OCR completado con tesseract.js', {
+        chars: text.length,
+        confidence,
+      });
+
+      return {
+        text: truncate(text),
+        method: 'tesseract-ocr',
+        ocrConfidence: confidence,
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      logCtx.error('AI', 'OCR falló', err instanceof Error ? err : undefined, {
+        error: message.substring(0, 200),
+      });
+      throw err;
+    } finally {
+      await worker.terminate();
+    }
+  } catch (workerError: unknown) {
+    // Si createWorker falla (ej: tesseract.js no disponible en serverless),
+    // no crasheamos — retornamos texto vacío y la función continúa
+    const message = workerError instanceof Error ? workerError.message : 'Error desconocido';
+    logCtx.warn('AI', 'No se pudo inicializar OCR con tesseract.js, continuando sin texto extraído', {
       error: message.substring(0, 200),
     });
-    throw err;
-  } finally {
-    await worker.terminate();
+    return { text: '', method: 'tesseract-ocr' };
   }
 }
 
