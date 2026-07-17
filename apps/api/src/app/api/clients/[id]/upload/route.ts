@@ -925,7 +925,7 @@ async function extractAndCacheDocument(
     try {
       const paddleResult = await extractTextFromImageViaPaddleOCR(buffer, fileName, fileType);
 
-      if (paddleResult.text.trim() && paddleResult.confidence >= 50) {
+      if (paddleResult.text.trim() && paddleResult.confidence >= 10) {
         extracted = {
           text: paddleResult.text,
           method: 'paddle-ocr',
