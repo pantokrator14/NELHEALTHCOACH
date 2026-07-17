@@ -26,6 +26,7 @@ export type ExtractionMethod =
   | 'pdfjs-dist'
   | 'mammoth'
   | 'tesseract-ocr'
+  | 'paddle-ocr'
   | 'gemini-multimodal'
   | 'raw';
 
@@ -376,6 +377,76 @@ async function extractFromImage(
       error: message.substring(0, 200),
     });
     return { text: '', method: 'tesseract-ocr' };
+  }
+}
+
+// ─────────────────────────────────────────────
+// PaddleOCR (local, sin worker_threads)
+// ─────────────────────────────────────────────
+
+/**
+ * Singleton del servicio PaddleOCR.
+ * Se reusa entre invocaciones calientes (module cache de Vercel).
+ * Los modelos ONNX se descargan una sola vez y se cachean en /tmp.
+ */
+let _paddleOcrService: any | null = null;
+let _paddleOcrInitializing: Promise<void> | null = null;
+
+async function getPaddleOcrService(): Promise<any> {
+  if (_paddleOcrService?.isInitialized?.()) {
+    return _paddleOcrService;
+  }
+
+  if (!_paddleOcrInitializing) {
+    _paddleOcrInitializing = (async () => {
+      const { PaddleOcrService } = await import('ppu-paddle-ocr');
+      const service = new PaddleOcrService({
+        session: {
+          executionProviders: ['cpu'],
+          graphOptimizationLevel: 'all',
+        },
+      });
+      await service.initialize();
+      _paddleOcrService = service;
+    })();
+  }
+
+  await _paddleOcrInitializing;
+  return _paddleOcrService!;
+}
+
+/**
+ * Extrae texto de una imagen usando PaddleOCR (PP-OCRv6).
+ * No requiere worker_threads — corre sobre ONNX Runtime directamente.
+ *
+ * @returns El texto extraído y la confianza promedio (0-100).
+ */
+export async function extractTextFromImageViaPaddleOCR(
+  buffer: Buffer,
+  fileName: string,
+  fileType: string,
+): Promise<{ text: string; confidence: number }> {
+  const logCtx = logger.withContext({ tool: 'paddle-ocr', fileName });
+
+  try {
+    const service = await getPaddleOcrService();
+    const result = await service.recognize(buffer.buffer);
+
+    const text = (result?.text ?? '').trim();
+    const confidence = typeof result?.confidence === 'number' ? Math.round(result.confidence * 100) : 0;
+
+    logCtx.info('AI', 'OCR completado con PaddleOCR', {
+      chars: text.length,
+      confidence,
+    });
+
+    return { text, confidence };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    logCtx.warn('AI', 'PaddleOCR falló — se usará fallback', {
+      error: message.substring(0, 200),
+    });
+    throw error; // El caller decide si hacer fallback
   }
 }
 
