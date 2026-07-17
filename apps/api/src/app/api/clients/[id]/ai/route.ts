@@ -13,6 +13,9 @@ import { analyzeS3FileWithGemini, sendTextToGemini } from '@/app/lib/agents/util
 import Coach from '@/app/models/Coach';
 import { apiHandler } from '@/app/lib/apiHandler';
 
+// El pipeline de generación de IA toma ~60-120s con DeepSeek + delays de 8s entre fases
+export const maxDuration = 300;
+
 /** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
 async function authorizeCoachForClient(request: NextRequest, clientId: string) {
   let auth;

@@ -4,6 +4,9 @@
   "functions": {
     "src/app/api/inngest/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/clients/[id]/ai/route.ts": {
+      "maxDuration": 300
     }
   }
 }
