@@ -814,6 +814,63 @@ async function sendImageToGeminiREST(
   return result.text || `[Documento sin contenido visible: ${fileName}]`;
 }
 
+// ─────────────────────────────────────────────
+// Gemini — Extracción de texto desde imágenes
+// (para cache post-upload, sin análisis médico)
+// ─────────────────────────────────────────────
+
+/**
+ * Extrae texto de una imagen usando Gemini multimodal.
+ * A diferencia de sendImageToGeminiREST, NO hace análisis médico —
+ * solo pide a Gemini que transcriba el texto visible.
+ * Útil como fallback en extractAndCacheDocument cuando tesseract.js falla.
+ */
+export async function extractTextFromImageViaGemini(
+  imageBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+): Promise<string> {
+  const caller = 'extractTextFromImageViaGemini';
+  const logCtx = logger.withContext({ tool: 'gemini-image-text-extraction', fileName });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+
+  const model = resolveModel();
+  const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
+
+  const base64Image = imageBuffer.toString('base64');
+
+  const body: Record<string, unknown> = {
+    contents: [{
+      parts: [
+        {
+          text: `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`,
+        },
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: base64Image,
+          },
+        },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8192,
+    },
+  };
+
+  const result = await fetchGeminiREST(url, body, logCtx, caller);
+
+  if (result.safetyBlocked) {
+    logCtx.warn('AI', `[${caller}] Gemini bloqueó la imagen por seguridad`, { fileName });
+    return '';
+  }
+
+  return result.text || '';
+}
+
 export async function analyzeS3FileWithGemini(
   s3Key: string,
   fileName: string,

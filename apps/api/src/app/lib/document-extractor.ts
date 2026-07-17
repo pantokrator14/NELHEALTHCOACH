@@ -26,6 +26,7 @@ export type ExtractionMethod =
   | 'pdfjs-dist'
   | 'mammoth'
   | 'tesseract-ocr'
+  | 'gemini-multimodal'
   | 'raw';
 
 export interface ExtractionResult {
