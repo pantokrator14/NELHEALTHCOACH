@@ -12,12 +12,14 @@ if (!secretKey) {
 // ✅ FUNCIONES BÁSICAS
 export function encrypt(text: string): string {
   try {
-    logger.debug('ENCRYPTION', 'Encriptando texto', { textLength: text.length });
-    const encrypted = CryptoJS.AES.encrypt(text, secretKey).toString();
+    // Protección contra undefined/null — si no es string, convertirlo a string vacío
+    const safeText = (typeof text === 'string') ? text : String(text ?? '');
+    logger.debug('ENCRYPTION', 'Encriptando texto', { textLength: safeText.length });
+    const encrypted = CryptoJS.AES.encrypt(safeText, secretKey).toString();
     logger.debug('ENCRYPTION', 'Texto encriptado exitosamente', { encryptedLength: encrypted.length });
     return encrypted;
   } catch (error) {
-    logger.error('ENCRYPTION', 'Error al encriptar texto', error as Error, { textLength: text.length });
+    logger.error('ENCRYPTION', 'Error al encriptar texto', error as Error, { textLength: typeof text === 'string' ? text.length : 0 });
     throw error;
   }
 }
