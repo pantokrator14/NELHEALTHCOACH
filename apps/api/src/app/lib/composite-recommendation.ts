@@ -464,6 +464,17 @@ export async function generateShoppingListFromWeeklyPlan(
     throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (error?.message || ""));
   }
 
+  // Sanitizar items: asegurar que todos tengan item, quantity y priority con valores válidos
+  if (Array.isArray(result.shoppingList)) {
+    result.shoppingList = result.shoppingList
+      .filter((item: any) => item && (item.item || item.name || item.ingredient))
+      .map((item: any) => ({
+        item: String(item.item ?? item.name ?? item.ingredient ?? ''),
+        quantity: String(item.quantity ?? item.amount ?? item.cantidad ?? ''),
+        priority: (['high', 'medium', 'low'].includes(item.priority) ? item.priority : 'medium') as 'high' | 'medium' | 'low',
+      }));
+  }
+
   // Guardia Fail-Fast: lista de compras debe ser un array con al menos 1 elemento
   if (!result.shoppingList || !Array.isArray(result.shoppingList) || result.shoppingList.length === 0) {
     logger.error("AI", "❌ Fase 3 (standalone) fallida: Lista de compras inválida o vacía.", new Error("Invalid or empty shopping list"));
