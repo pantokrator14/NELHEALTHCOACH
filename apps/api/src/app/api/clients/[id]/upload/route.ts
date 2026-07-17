@@ -917,31 +917,27 @@ async function extractAndCacheDocument(
   let extracted: ExtractionResult;
 
   if (isImage) {
-    // Intentar OCR local primero
-    extracted = await extractTextFromBuffer(buffer, fileName, fileType);
+    // 🖼️ Las imágenes van DIRECTAMENTE a Gemini multimodal.
+    // tesseract.js NO funciona en Vercel serverless: el worker_thread
+    // crashea de forma fatal (exit 129) y no puede ser capturado con
+    // try-catch porque el error ocurre dentro del worker antes de que
+    // createWorker devuelva la Promise.
+    logCtx.info('AI', 'Imagen detectada — usando Gemini multimodal directamente');
 
-    if (!extracted.text.trim()) {
-      // OCR local falló → Gemini multimodal como fallback
-      logCtx.info('AI', 'OCR local no extrajo texto, usando Gemini multimodal como fallback', {
-        method: extracted.method,
-        fileName,
+    const geminiText = await extractTextFromImageViaGemini(buffer, fileName, fileType);
+
+    if (geminiText.trim()) {
+      extracted = {
+        text: geminiText,
+        method: 'gemini-multimodal',
+        ocrConfidence: 100,
+      };
+      logCtx.info('AI', 'Texto extraído vía Gemini multimodal', {
+        chars: geminiText.length,
       });
-
-      const geminiText = await extractTextFromImageViaGemini(buffer, fileName, fileType);
-
-      if (geminiText.trim()) {
-        extracted = {
-          text: geminiText,
-          method: 'gemini-multimodal',
-          ocrConfidence: 100,
-        };
-        logCtx.info('AI', 'Texto extraído vía Gemini multimodal (fallback)', {
-          chars: geminiText.length,
-        });
-      } else {
-        logCtx.warn('AI', 'Gemini multimodal tampoco extrajo texto de la imagen', { fileName });
-        return;
-      }
+    } else {
+      logCtx.warn('AI', 'Gemini multimodal no extrajo texto de la imagen', { fileName });
+      return;
     }
   } else {
     // PDF, DOCX, texto → extracción local
