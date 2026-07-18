@@ -10,6 +10,8 @@ import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationErr
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
 import { sendTextToGemini } from '@/app/lib/agents/utils/llm';
+import { extractTextFromBuffer } from '@/app/lib/document-extractor';
+import { getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import Coach from '@/app/models/Coach';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -1106,17 +1108,45 @@ async function prepareAIInput(
                 rawTextLength: rawText.length,
               });
             } else {
-              // ❌ No hay rawText cacheado — el documento no se procesó en upload
-              // No hacemos extracción aquí porque:
-              //   1. Duplica trabajo (ya se intentó en upload)
-              //   2. Requiere descargar de S3 (lento)
-              //   3. tesseract.js no funciona en serverless (imágenes)
-              // Simplemente salteamos el documento — docResult se queda null
-              loggerWithContext.warn('AI', 'Documento sin rawText — se saltea del análisis (no se procesó en upload)', {
+              // ❌ No hay rawText cacheado — extraer bajo demanda
+              // Esto pasa cuando el upload no completó la extracción (timeout, error, etc.)
+              loggerWithContext.warn('AI', 'Documento sin rawText — extrayendo bajo demanda', {
                 fileName,
                 s3Key: s3Key.substring(0, 50),
               });
-              break; // Sale del loop de reintentos, docResult=null → se omite
+
+              try {
+                const presignedUrl = await getPresignedUrlForAnalysis(s3Key);
+                const s3Response = await fetch(presignedUrl);
+                if (!s3Response.ok) throw new Error(`S3 download failed: ${s3Response.status}`);
+
+                const buffer = Buffer.from(await s3Response.arrayBuffer());
+                const extracted = await extractTextFromBuffer(buffer, fileName, 'application/pdf');
+
+                if (extracted.text.trim()) {
+                  rawText = extracted.text;
+                  extractionMethod = extracted.method;
+                  geminiAnalysis = await sendTextToGemini(rawText, fileName, prompt);
+                  loggerWithContext.info('AI', 'Texto extraído bajo demanda', {
+                    fileName,
+                    method: extractionMethod,
+                    chars: rawText.length,
+                  });
+                } else {
+                  loggerWithContext.warn('AI', 'No se pudo extraer texto del PDF bajo demanda', {
+                    fileName,
+                    method: extracted.method,
+                  });
+                  break;
+                }
+              } catch (extractErr) {
+                const errMsg = extractErr instanceof Error ? extractErr.message : 'Error desconocido';
+                loggerWithContext.warn('AI', `Extracción bajo demanda falló: ${errMsg}`, {
+                  fileName,
+                  s3Key: s3Key.substring(0, 50),
+                });
+                break;
+              }
             }
 
             if (geminiAnalysis && geminiAnalysis.length > 20) {
