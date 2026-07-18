@@ -26,7 +26,7 @@ const nextConfig = {
           // Content Security Policy básico para API
           { key: 'Content-Security-Policy', value: "default-src 'self'; frame-ancestors 'none'" },
           // Permissions Policy: limitar APIs del navegador
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           // DNS prefetch control
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
           // Descargar tipos MIME correctos
