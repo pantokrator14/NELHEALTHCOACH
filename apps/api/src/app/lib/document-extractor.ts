@@ -133,6 +133,19 @@ async function extractFromPDF(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
+  // ── Pre-configurar pdfjs-dist para entornos serverless ──
+  // pdfjs-dist intenta cargar un worker (pdf.worker.mjs) que no está
+  // disponible en Vercel/AWS Lambda. Deshabilitarlo evita el error:
+  // "Cannot find module 'pdf.worker.mjs'"
+  // Esto afecta tanto a pdf-parse v2 (que usa pdfjs-dist internamente)
+  // como a nuestro fallback directo con pdfjs-dist.
+  try {
+    const pdfjsInit = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    pdfjsInit.GlobalWorkerOptions.workerSrc = '';
+  } catch {
+    logCtx.debug('AI', 'No se pudo pre-configurar pdfjs-dist, continuando igual');
+  }
+
   // ── Intento 1: pdf-parse v2 ──
   try {
     return await extractWithPdfParseV2(buffer, logCtx);
@@ -469,6 +482,11 @@ export async function extractTextFromImageViaPaddleOCR(
  */
 async function extractTextWithPdfjs(buffer: Buffer): Promise<ExtractionResult> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+  // Deshabilitar worker para entornos serverless (Vercel/AWS Lambda)
+  // El worker file no se despliega correctamente y causa:
+  // "Cannot find module 'pdf.worker.mjs'"
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
   // pdfjs-dist requiere Uint8Array, no Buffer
   const typedArray = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
