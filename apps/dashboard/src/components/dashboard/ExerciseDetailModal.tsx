@@ -90,7 +90,7 @@ export default function ExerciseDetailModal({
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
 
           <div className="space-y-4 sm:space-y-6">
-            {/* Demo/Video */}
+            {/* Demo/Video — COMENTADO: se preserva para futuro uso con GIFs
             <div className="bg-white rounded-lg border border-teal-200 p-4 sm:p-6 shadow-sm">
               <h3 className="text-base sm:text-lg font-semibold text-teal-700 mb-3 sm:mb-4">Demostración del Ejercicio</h3>
               <div className="h-40 sm:h-56 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg flex items-center justify-center border border-teal-100">
@@ -117,6 +117,7 @@ export default function ExerciseDetailModal({
                 )}
               </div>
             </div>
+            */}
 
             {/* Nombre + badges */}
             <div className="bg-white rounded-lg border border-teal-200 p-4 sm:p-6 shadow-sm">

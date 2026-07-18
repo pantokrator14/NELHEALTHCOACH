@@ -1099,19 +1099,8 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
       // We'll draw the card after measuring content
       let contentY = y + cardPad;
       
-      // Demo image / GIF static
+      // Demo image — COMENTADO: se preserva para futuro uso
       let imgW = 0;
-      if (exercise?.demoBuffer) {
-        try {
-          const demoW = 100;
-          const demoH = 80;
-          doc.image(exercise.demoBuffer, cardX + cardPad, contentY, { width: demoW, height: demoH });
-          imgW = demoW + cardPad;
-          contentY += demoH + 5;
-        } catch {
-          imgW = 0;
-        }
-      }
       
       // Title
       const titleX = cardX + cardPad + (exercise?.demoBuffer ? imgW : 0);
@@ -1229,31 +1218,218 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
     y += 5;
   }
   
-  // YouTube tutorial suggestion
-  y = checkSpace(doc, y, 60);
-  const tutBoxY = y;
-  const tutBoxH = 55;
-  drawCard(doc, MARGIN, y, USABLE_WIDTH, tutBoxH, COLORS.blueBg, COLORS.exerciseBlue);
-  
-  doc.save()
-    .fillColor(COLORS.exerciseBlue)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.body);
-  doc.text('📺 Tutoriales en YouTube', MARGIN + 12, y + 8);
-  
-  doc.font('Helvetica')
-    .fontSize(FONT_SIZES.small)
-    .fillColor(COLORS.text);
-  const tutMsg = 'Las imágenes en este PDF son estáticas. Para ver el movimiento completo y la técnica correcta de cada ejercicio, te recomendamos buscar el nombre del ejercicio en YouTube. Así podrás ejecutarlos de forma segura y efectiva.';
-  const tutLines = wordWrap(tutMsg, doc, USABLE_WIDTH - 24);
-  let tutY = y + 26;
-  for (const line of tutLines) {
-    doc.text(line, MARGIN + 12, tutY);
-    tutY += 11;
+  // ─── Detalle de Ejercicios por Día ─────────────────────────────────────
+  y = checkSpace(doc, y, 80);
+  y = drawBanner(doc, y, 'Detalle de Ejercicios por Día', COLORS.exerciseBlue);
+
+  const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const exerciseItems = data.checklist.filter(item => item.category === 'exercise');
+
+  if (exerciseItems.length > 0) {
+    const weekSet = new Set(exerciseItems.map(item => item.weekNumber));
+    const weeksWithExercises = Array.from(weekSet).sort();
+
+    for (const weekNum of weeksWithExercises) {
+      y = checkSpace(doc, y, 30);
+
+      doc.save()
+        .fillColor(COLORS.exerciseBlue)
+        .font('Helvetica-Bold')
+        .fontSize(FONT_SIZES.sectionTitle);
+      doc.text(`Semana ${weekNum}`, MARGIN, y);
+      y += doc.currentLineHeight() + 10;
+      doc.restore();
+
+      const weekItems = exerciseItems.filter(item => item.weekNumber === weekNum);
+
+      // Group by day
+      const dayGroups: { day: string; items: PDFChecklistItem[] }[] = [];
+
+      for (const item of weekItems) {
+        let day = '';
+
+        // Try to extract day from details.frequency
+        if (item.details?.frequency) {
+          const freq = item.details.frequency;
+          const matchedDay = dayOrder.find(d => freq.toLowerCase().includes(d.toLowerCase()));
+          if (matchedDay) day = matchedDay;
+        }
+
+        // Try description prefix
+        if (!day) {
+          const matchedDay = dayOrder.find(d =>
+            item.description.toLowerCase().startsWith(d.toLowerCase())
+          );
+          if (matchedDay) day = matchedDay;
+        }
+
+        if (!day) day = 'Sin día asignado';
+
+        let existing = dayGroups.find(g => g.day === day);
+        if (!existing) {
+          existing = { day, items: [] };
+          dayGroups.push(existing);
+        }
+        existing.items.push(item);
+      }
+
+      // Sort by day order; unmapped days go last
+      dayGroups.sort((a, b) => {
+        const ai = dayOrder.indexOf(a.day);
+        const bi = dayOrder.indexOf(b.day);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+
+      for (const group of dayGroups) {
+        y = checkSpace(doc, y, 40);
+
+        // Day header card
+        const dayCardY = y;
+        const dayCardH = 26;
+        drawCard(doc, MARGIN, dayCardY, USABLE_WIDTH, dayCardH, COLORS.exerciseBlue, COLORS.exerciseBlue);
+
+        doc.save()
+          .fillColor(COLORS.white)
+          .font('Helvetica-Bold')
+          .fontSize(FONT_SIZES.body + 2);
+        doc.text(group.day, MARGIN + 12, dayCardY + 5);
+        doc.restore();
+
+        y = dayCardY + dayCardH + 8;
+
+        for (const item of group.items) {
+          y = checkSpace(doc, y, 50);
+
+          const exCardPad = 8;
+          const exCardX = MARGIN + 8;
+          const exCardStartY = y;
+          let exContentY = y + exCardPad;
+
+          // Find matching exercise data
+          let exercise: PDFExerciseData | undefined;
+          const match = Object.values(data.exercises).find(
+            ex => ex.name.toLowerCase().includes(item.description.toLowerCase()) ||
+                  item.description.toLowerCase().includes(ex.name.toLowerCase())
+          );
+          if (match) exercise = match;
+
+          // Exercise name (bold)
+          const exName = exercise?.name || item.description;
+          doc.save()
+            .fillColor(COLORS.exerciseBlue)
+            .font('Helvetica-Bold')
+            .fontSize(FONT_SIZES.recipeTitle);
+          doc.text(exName, exCardX, exContentY);
+          exContentY += doc.currentLineHeight() + 4;
+          doc.restore();
+
+          // Description
+          if (exercise?.description) {
+            doc.save()
+              .fillColor(COLORS.text)
+              .font('Helvetica')
+              .fontSize(FONT_SIZES.body);
+            const descLines = wordWrap(exercise.description, doc, USABLE_WIDTH - 2 * exCardPad - 16);
+            for (const line of descLines) {
+              doc.text(line, exCardX, exContentY);
+              exContentY += 10;
+            }
+            doc.restore();
+          }
+
+          // Instructions as numbered list
+          const instr = exercise?.instructions || [];
+          if (instr.length > 0) {
+            doc.save()
+              .fillColor(COLORS.text)
+              .font('Helvetica')
+              .fontSize(FONT_SIZES.small);
+            doc.text('Instrucciones:', exCardX, exContentY);
+            exContentY += 10;
+            doc.restore();
+
+            for (let i = 0; i < instr.length; i++) {
+              const instrLine = `${i + 1}. ${instr[i]}`;
+              const instrLines = wordWrap(instrLine, doc, USABLE_WIDTH - 2 * exCardPad - 24);
+              for (const line of instrLines) {
+                if (exContentY > PAGE_HEIGHT - MARGIN - 20) break;
+                doc.text(line, exCardX + 10, exContentY);
+                exContentY += 9;
+              }
+            }
+          }
+
+          // Difficulty + muscle groups on the same line
+          if (exercise?.difficulty || exercise?.muscleGroups) {
+            const metaParts: string[] = [];
+            if (exercise?.difficulty) metaParts.push(`Dificultad: ${exercise.difficulty}`);
+            if (exercise?.muscleGroups && exercise.muscleGroups.length > 0) {
+              metaParts.push(`Músculos: ${exercise.muscleGroups.join(', ')}`);
+            }
+            doc.save()
+              .fillColor(COLORS.darkGray)
+              .font('Helvetica')
+              .fontSize(FONT_SIZES.small);
+            doc.text(metaParts.join('  |  '), exCardX, exContentY);
+            exContentY += 10;
+            doc.restore();
+          }
+
+          // Sets × Reps
+          const sets = exercise?.sets || item.details?.sets || '—';
+          const reps = exercise?.repetitions || item.details?.repetitions || '—';
+          doc.save()
+            .fillColor(COLORS.text)
+            .font('Helvetica')
+            .fontSize(FONT_SIZES.small);
+          doc.text(`Series: ${sets} × Repeticiones: ${reps}`, exCardX, exContentY);
+          exContentY += 10;
+          doc.restore();
+
+          // TUT and rest between sets
+          const tut = exercise?.timeUnderTension || item.details?.timeUnderTension;
+          const rest = exercise?.restBetweenSets;
+          if (tut || rest) {
+            doc.save()
+              .fillColor(COLORS.darkGray)
+              .font('Helvetica')
+              .fontSize(FONT_SIZES.small);
+            const parts: string[] = [];
+            if (tut) parts.push(`TUT: ${tut}`);
+            if (rest) parts.push(`Descanso: ${rest}`);
+            doc.text(parts.join('  |  '), exCardX, exContentY);
+            exContentY += 10;
+            doc.restore();
+          }
+
+          // Equipment
+          const equip = exercise?.equipment || item.details?.equipment || [];
+          if (equip.length > 0) {
+            doc.save()
+              .fillColor(COLORS.darkGray)
+              .font('Helvetica')
+              .fontSize(FONT_SIZES.small);
+            doc.text(`Equipo: ${equip.join(', ')}`, exCardX, exContentY);
+            exContentY += 10;
+            doc.restore();
+          }
+
+          exContentY += exCardPad;
+
+          // Draw card background
+          const exCardH = exContentY - exCardStartY;
+          drawCard(doc, exCardX, exCardStartY, USABLE_WIDTH - 16, exCardH, COLORS.blueBg, COLORS.exerciseBlue);
+
+          y = exCardStartY + exCardH + 8;
+        }
+      }
+    }
   }
-  doc.restore();
-  
-  y = tutBoxY + tutBoxH + 15;
+
+  // YouTube tutorial suggestion — COMENTADO: se preserva para futuro uso
   
   return y;
 }

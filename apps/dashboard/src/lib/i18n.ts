@@ -115,7 +115,8 @@ const en = {
     errorUploadingDocuments: 'Error uploading documents',
     extractingDocuments: 'Processing documents. Extracting content...',
     allDocumentsExtracted: 'All documents processed successfully',
-    extractionError: 'Error processing document content'
+    extractionError: 'Error processing document content',
+    screenshotWarning: '⚠️ One or more files appear to be very long screenshots (multiple pages in one). For better processing, we recommend uploading each page as a separate image. Would you like to upload them anyway?'
   },
   ai: {
     recommendations: 'AI Recommendations',
@@ -980,7 +981,8 @@ const es = {
     errorUploadingDocuments: 'Error al subir los documentos',
     extractingDocuments: 'Procesando documentos. Extrayendo contenido...',
     allDocumentsExtracted: 'Todos los documentos procesados exitosamente',
-    extractionError: 'Error al procesar el contenido del documento'
+    extractionError: 'Error al procesar el contenido del documento',
+    screenshotWarning: '⚠️ Uno o más archivos parecen ser capturas de pantalla muy largas (varias páginas en una sola). Para un mejor procesamiento, recomendamos subir cada página como una imagen separada. ¿Quieres subirlos de todas formas?'
   },
   ai: {
     recommendations: 'Recomendaciones de IA',
@@ -1833,7 +1835,8 @@ const fr = {
     cancelDelete: 'Annuler',
     extractingDocuments: 'Traitement des documents. Extraction du contenu...',
     allDocumentsExtracted: 'Tous les documents traités avec succès',
-    extractionError: 'Erreur lors du traitement du contenu du document'
+    extractionError: 'Erreur lors du traitement du contenu du document',
+    screenshotWarning: '⚠️ Un ou plusieurs fichiers semblent être de très longues captures d\'écran (plusieurs pages en une seule). Pour un meilleur traitement, nous recommandons de télécharger chaque page comme une image séparée. Voulez-vous les télécharger quand même ?'
   },
   ai: {
     recommendations: 'Recommandations IA',
@@ -2683,7 +2686,8 @@ const it = {
     cancelDelete: 'Annulla',
     extractingDocuments: 'Elaborazione documenti. Estrazione del contenuto...',
     allDocumentsExtracted: 'Tutti i documenti elaborati con successo',
-    extractionError: 'Errore durante l\'elaborazione del contenuto del documento'
+    extractionError: 'Errore durante l\'elaborazione del contenuto del documento',
+    screenshotWarning: '⚠️ Uno o più file sembrano essere screenshot molto lunghi (più pagine in una). Per un\'elaborazione migliore, consigliamo di caricare ogni pagina come immagine separata. Vuoi caricarli comunque?'
   },
   ai: {
     recommendations: 'Raccomandazioni IA',
@@ -3533,7 +3537,8 @@ const pt = {
     cancelDelete: 'Cancelar',
     extractingDocuments: 'Processando documentos. Extraindo conteúdo...',
     allDocumentsExtracted: 'Todos os documentos processados com sucesso',
-    extractionError: 'Erro ao processar o conteúdo do documento'
+    extractionError: 'Erro ao processar o conteúdo do documento',
+    screenshotWarning: '⚠️ Um ou mais arquivos parecem ser capturas de tela muito longas (várias páginas em uma). Para um melhor processamento, recomendamos enviar cada página como uma imagem separada. Deseja enviá-los mesmo assim?'
   },
   ai: {
     recommendations: 'Recomendações de IA',
@@ -4383,7 +4388,8 @@ const de = {
     cancelDelete: 'Abbrechen',
     extractingDocuments: 'Dokumente werden verarbeitet. Inhalt wird extrahiert...',
     allDocumentsExtracted: 'Alle Dokumente erfolgreich verarbeitet',
-    extractionError: 'Fehler bei der Verarbeitung des Dokumentinhalts'
+    extractionError: 'Fehler bei der Verarbeitung des Dokumentinhalts',
+    screenshotWarning: '⚠️ Eine oder mehrere Dateien scheinen sehr lange Screenshots zu sein (mehrere Seiten in einer). Für eine bessere Verarbeitung empfehlen wir, jede Seite als separates Bild hochzuladen. Möchten Sie sie trotzdem hochladen?'
   },
   ai: {
     recommendations: 'KI-Empfehlungen',

@@ -3215,34 +3215,7 @@ export default function AIRecommendationsModal({
                                           className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/ex:opacity-100 transition-opacity text-[10px] z-10"
                                           title="Eliminar"
                                         >✕</button>
-                                        {/* Image placeholder */}
-                                        <div
-                                          onClick={async () => {
-                                            if (item.recipeId) {
-                                              // Check cache first
-                                              if (exerciseCache[item.recipeId]) {
-                                                setSelectedExercise(exerciseCache[item.recipeId]);
-                                                setShowExerciseDetail(true);
-                                                return;
-                                              }
-                                              try {
-                                                const res = await apiClient.getExercises();
-                                                if (res.success && res.data) {
-                                                  const found = res.data.find((ex: Exercise) => ex.id === item.recipeId);
-                                                  if (found) {
-                                                    setExerciseCache(prev => ({ ...prev, [item.recipeId!]: found }));
-                                                    setSelectedExercise(found);
-                                                    setShowExerciseDetail(true);
-                                                  }
-                                                }
-                                              } catch { /* fallback */ }
-                                            }
-                                          }}
-                                          className="w-full h-20 bg-gradient-to-br from-blue-100 to-cyan-100 rounded mb-1 flex items-center justify-center text-blue-400 text-xl overflow-hidden"
-                                        >
-                                          <span>🏋️</span>
-                                        </div>
-                                        {/* Title */}
+                                        {/* Title (click to open detail) */}
                                         <p
                                           onClick={async () => {
                                             if (item.recipeId) {
@@ -3264,16 +3237,15 @@ export default function AIRecommendationsModal({
                                               } catch { /* fallback */ }
                                             }
                                           }}
-                                          className="text-[11px] font-semibold text-gray-900 line-clamp-2 leading-snug"
+                                          className="text-[11px] font-semibold text-gray-900 line-clamp-2 leading-snug mb-1"
                                         >
                                           {item.description.includes(': ') ? item.description.split(': ').slice(1).join(': ') : item.description}
                                         </p>
-                                        {/* Basic info */}
-                                        {item.details?.duration && (
-                                          <p className="text-[10px] text-gray-600 mt-0.5">{item.details.duration}</p>
-                                        )}
-                                        {item.details?.equipment && item.details.equipment.length > 0 && (
-                                          <p className="text-[10px] text-gray-600 truncate">{item.details.equipment.join(', ')}</p>
+                                        {/* Reps info */}
+                                        {item.details?.sets && item.details?.repetitions && (
+                                          <p className="text-[10px] font-medium text-blue-700">
+                                            {item.details.sets} × {item.details.repetitions}
+                                          </p>
                                         )}
                                       </div>
                                     ))}
