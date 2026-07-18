@@ -50,14 +50,14 @@ export default function ExerciseModal({
   const [progressionOf, setProgressionOf] = useState(exercise?.progressionOf ?? '');
   const [progressesTo, setProgressesTo] = useState<string[]>(exercise?.progressesTo ?? []);
 
-  // Demo/GIF state
-  const [demoUrl, setDemoUrl] = useState(exercise?.demo?.url ?? '');
-  const [demoType, setDemoType] = useState(exercise?.demo?.type ?? 'placeholder');
-  const [demoFile, setDemoFile] = useState<File | null>(null);
-  const [demoPreview, setDemoPreview] = useState<string | null>(exercise?.demo?.url ?? null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Demo/GIF state — COMENTADO: se preserva para futuro uso
+  // const [demoUrl, setDemoUrl] = useState(exercise?.demo?.url ?? '');
+  // const [demoType, setDemoType] = useState(exercise?.demo?.type ?? 'placeholder');
+  // const [demoFile, setDemoFile] = useState<File | null>(null);
+  // const [demoPreview, setDemoPreview] = useState<string | null>(exercise?.demo?.url ?? null);
+  // const [uploadProgress, setUploadProgress] = useState(0);
+  // const [isUploading, setIsUploading] = useState(false);
+  // const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit state for instructions
   const [newInstruction, setNewInstruction] = useState('');
@@ -188,97 +188,63 @@ export default function ExerciseModal({
     setContraindications(contraindications.filter((_, i) => i !== index));
   };
 
-  // Demo file handler
-  const handleDemoFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
-        showToast(t('exercises.invalidImageType'), 'error');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      const maxSize = 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        showToast(t('exercises.imageTooLarge'), 'error');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      setDemoFile(file);
-      setDemoType(file.type.includes('gif') ? 'gif' : 'image');
-      const reader = new FileReader();
-      reader.onloadend = () => setDemoPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
+  // Demo file handler — COMENTADO: se preserva para futuro uso
+  // const handleDemoFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0];
+  //   if (file) {
+  //     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  //     if (!allowedTypes.includes(file.type)) {
+  //       showToast(t('exercises.invalidImageType'), 'error');
+  //       if (fileInputRef.current) fileInputRef.current.value = '';
+  //       return;
+  //     }
+  //     const maxSize = 10 * 1024 * 1024;
+  //     if (file.size > maxSize) {
+  //       showToast(t('exercises.imageTooLarge'), 'error');
+  //       if (fileInputRef.current) fileInputRef.current.value = '';
+  //       return;
+  //     }
+  //     setDemoFile(file);
+  //     setDemoType(file.type.includes('gif') ? 'gif' : 'image');
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => setDemoPreview(reader.result as string);
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
 
-  // Upload demo file to S3
-  const uploadDemoToS3 = useCallback(async (file: File, exerciseId: string) => {
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const uploadResponse = await apiClient.generateExerciseUploadURL(
-        exerciseId,
-        file.name,
-        file.type,
-        file.size,
-      );
-
-      const { uploadURL, fileKey } = uploadResponse;
-      const fileURL = uploadResponse.fileURL || '';
-
-      return new Promise<{ url: string; key: string; name: string; type: string; size: number; uploadedAt: string }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            setUploadProgress(Math.round((event.loaded / event.total) * 100));
-          }
-        });
-
-        xhr.addEventListener('load', async () => {
-          if (xhr.status === 200) {
-            try {
-              await apiClient.confirmExerciseUpload(
-                exerciseId,
-                fileKey,
-                file.name,
-                file.type,
-                file.size,
-                fileURL,
-              );
-
-              resolve({
-                url: fileURL || '',
-                key: fileKey,
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                uploadedAt: new Date().toISOString(),
-              });
-            } catch (confirmError) {
-              reject(new Error(`Error confirmando upload: ${confirmError instanceof Error ? confirmError.message : 'Error desconocido'}`));
-            }
-          } else {
-            reject(new Error(`Error subiendo archivo a S3: ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Error de conexión al subir archivo')));
-        xhr.addEventListener('abort', () => reject(new Error('Upload cancelado')));
-
-        xhr.open('PUT', uploadURL);
-        xhr.setRequestHeader('Content-Type', file.type);
-        xhr.send(file);
-      });
-    } catch (error) {
-      throw new Error(`Error generando URL de upload: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  }, []);
+  // Upload demo file to S3 — COMENTADO: se preserva para futuro uso
+  // const uploadDemoToS3 = useCallback(async (file: File, exerciseId: string) => {
+  //   setIsUploading(true);
+  //   setUploadProgress(0);
+  //   try {
+  //     const uploadResponse = await apiClient.generateExerciseUploadURL(exerciseId, file.name, file.type, file.size);
+  //     const { uploadURL, fileKey } = uploadResponse;
+  //     const fileURL = uploadResponse.fileURL || '';
+  //     return new Promise<...>((resolve, reject) => {
+  //       const xhr = new XMLHttpRequest();
+  //       xhr.upload.addEventListener('progress', (event) => {
+  //         if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+  //       });
+  //       xhr.addEventListener('load', async () => {
+  //         if (xhr.status === 200) {
+  //           try {
+  //             await apiClient.confirmExerciseUpload(exerciseId, fileKey, file.name, file.type, file.size, fileURL);
+  //             resolve({ url: fileURL || '', key: fileKey, name: file.name, type: file.type, size: file.size, uploadedAt: new Date().toISOString() });
+  //           } catch (confirmError) {
+  //             reject(new Error(...));
+  //           }
+  //         } else { reject(new Error(...)); }
+  //       });
+  //       xhr.addEventListener('error', () => reject(new Error(...)));
+  //       xhr.addEventListener('abort', () => reject(new Error(...)));
+  //       xhr.open('PUT', uploadURL);
+  //       xhr.setRequestHeader('Content-Type', file.type);
+  //       xhr.send(file);
+  //     });
+  //   } catch (error) {
+  //     throw new Error(...);
+  //   } finally { setIsUploading(false); setUploadProgress(0); }
+  // }, []);
 
   // Filter exercises for progression dropdowns
   const easierExercises = useMemo(() => {
@@ -327,13 +293,12 @@ if (!description.trim()) newErrors.description = t('exercises.required');
         tags,
         isPublished,
         demo: {
-          url: demoUrl || '',
+          url: '',
           key: '',
-          type: demoType,
-          name: demoFile?.name || name,
-          size: demoFile?.size || 0,
+          type: 'placeholder',
+          name: name,
+          size: 0,
           uploadedAt: new Date().toISOString(),
-          videoSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}+tutorial`,
         },
         progressionOf: progressionOf || null,
         progressesTo,
@@ -341,81 +306,19 @@ if (!description.trim()) newErrors.description = t('exercises.required');
 
       if (isEditing && exercise) {
         // === EDICIÓN ===
-        // Si hay un archivo demo nuevo, subirlo a S3 primero
-        if (demoFile) {
-          try {
-            const demoData = await uploadDemoToS3(demoFile, exercise.id);
-            formData.demo = {
-              ...formData.demo!,
-              url: demoData.url,
-              key: demoData.key,
-              name: demoData.name,
-              type: demoData.type,
-              size: demoData.size,
-              uploadedAt: demoData.uploadedAt,
-            };
-          } catch (uploadError) {
-            console.error('Error subiendo demo:', uploadError);
-            showToast(t('exercises.errorUploading'), 'warning');
-          }
-        } else if (demoUrl && demoUrl !== exercise?.demo?.url) {
-          // Usar URL directa si no hay archivo
-          formData.demo!.url = demoUrl;
-          formData.demo!.key = '';
-        }
+        // Subida de demo — COMENTADO: se preserva para futuro uso
+        // if (demoFile) { ... }
+        // else if (demoUrl && demoUrl !== exercise?.demo?.url) { ... }
 
         await apiClient.updateExercise(exercise.id, formData);
         showToast(t('exercises.updated'), 'success');
       } else {
         // === CREACIÓN ===
-        let createdExerciseId: string | null = null;
+        // Subida de demo — COMENTADO: se preserva para futuro uso
+        // const createResponse = await apiClient.createExercise({ ...formData, demo: undefined });
+        // if (demoFile) { ... } else if (demoUrl) { ... }
 
-        // 1. Crear ejercicio sin demo (para obtener ID)
-        const createResponse = await apiClient.createExercise({
-          ...formData,
-          demo: undefined,
-        });
-
-        if (!createResponse.success || !createResponse.data?.id) {
-          throw new Error('Error creando ejercicio: No se pudo obtener el ID');
-        }
-
-        createdExerciseId = createResponse.data.id;
-
-        // 2. Si hay archivo, subirlo a S3 y actualizar el ejercicio
-        if (demoFile) {
-          try {
-            const demoData = await uploadDemoToS3(demoFile, createdExerciseId);
-            await apiClient.updateExercise(createdExerciseId, {
-              demo: {
-                url: demoData.url,
-                key: demoData.key,
-                type: demoData.type,
-                name: demoData.name,
-                size: demoData.size,
-                uploadedAt: demoData.uploadedAt,
-                videoSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}+tutorial`,
-              },
-            });
-          } catch (uploadError) {
-            console.error('Error subiendo demo:', uploadError);
-            showToast(t('exercises.createdUploadError'), 'warning');
-          }
-        } else if (demoUrl) {
-          // 3. Si hay URL directa pero no archivo, actualizar
-          await apiClient.updateExercise(createdExerciseId, {
-            demo: {
-              url: demoUrl,
-              key: '',
-              type: 'image',
-              name: name,
-              size: 0,
-              uploadedAt: new Date().toISOString(),
-              videoSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(name)}+tutorial`,
-            },
-          });
-        }
-
+        await apiClient.createExercise(formData);
         showToast(t('exercises.created'), 'success');
       }
       onSuccess();
@@ -465,100 +368,12 @@ if (!description.trim()) newErrors.description = t('exercises.required');
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
               {/* Left column */}
               <div className="space-y-4 sm:space-y-6">
-                {/* Demo/GIF Upload */}
+                {/* Demo/GIF Upload — COMENTADO: se preserva para futuro uso
                 <div className="bg-white rounded-lg border border-teal-200 p-4 sm:p-6 shadow-sm">
                   <h3 className="text-base sm:text-lg font-semibold text-teal-700 mb-3 sm:mb-4">{t('exercises.modalDemoSection')}</h3>
-                  <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) {
-                        const fakeEvent = { target: { files: e.dataTransfer.files } } as ChangeEvent<HTMLInputElement>;
-                        handleDemoFileChange(fakeEvent);
-                      }
-                    }}
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-teal-500 transition bg-gray-50"
-                  >
-                    {demoPreview && demoType !== 'placeholder' ? (
-                      <div className="relative">
-                        <div
-                          className="w-full h-32 sm:h-48 bg-cover bg-center rounded-lg border border-gray-200 mb-4"
-                          style={{ backgroundImage: `url(${demoPreview})` }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDemoPreview(null);
-                            setDemoFile(null);
-                            setDemoUrl('');
-                            setDemoType('placeholder');
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                          className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-red-500 text-white p-1 sm:p-1.5 rounded-full hover:bg-red-600 shadow-sm"
-                        >
-                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="py-4 sm:py-8">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-teal-100 rounded-full flex items-center justify-center mb-3 sm:mb-4">
-                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-700 font-medium mb-2 text-sm sm:text-base">
-                          {t('exercises.modalUploadLabel')}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-500 mb-4">{t('exercises.modalUploadHint')}</p>
-                      </div>
-                    )}
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDemoFileChange}
-                      className="hidden"
-                      id="exercise-demo-upload"
-                      disabled={isSubmitting || isUploading}
-                    />
-                    <label
-                      htmlFor="exercise-demo-upload"
-                      className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
-                    >
-                      {demoPreview ? t('exercises.modalChangeImage') : t('exercises.modalSelectImage')}
-                    </label>
-
-                    {/* URL input as alternative */}
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        type="text"
-                        value={demoUrl}
-                        onChange={(e) => { setDemoUrl(e.target.value); if (e.target.value) { setDemoPreview(e.target.value); setDemoType('image'); } }}
-                        className="flex-1 px-3 py-2 text-gray-700 border border-gray-300 rounded-lg text-sm"
-                        placeholder={t('exercises.modalUrlPlaceholder')}
-                      />
-                    </div>
-                  </div>
-
-                  {isUploading && (
-                    <div className="mt-4">
-                      <div className="flex justify-between text-sm text-gray-700 mb-1">
-                        <span className="font-medium">{t('exercises.modalUploading')}</span>
-                        <span className="font-bold">{uploadProgress}%</span>
-                      </div>
-                      <div className="w-full bg-teal-200 rounded-full h-2">
-                        <div
-                          className="bg-teal-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  ...
                 </div>
+                */}
 
                 {/* Nombre y Descripción */}
                 <div className="bg-white rounded-lg border border-blue-200 p-4 sm:p-6 shadow-sm">

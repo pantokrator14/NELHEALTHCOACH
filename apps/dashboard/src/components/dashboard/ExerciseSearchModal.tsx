@@ -115,7 +115,7 @@ const ExerciseSearchModal: React.FC<ExerciseSearchModalProps> = ({ onSelect, onC
                         : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow'
                     }`}
                   >
-                    {/* Image / Placeholder */}
+                    {/* Image / Placeholder — COMENTADO: se preserva para futuro uso con GIFs
                     <div className="w-full h-20 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                       {ex.demo?.url && (ex.demo.type === 'image' || ex.demo.type === 'gif') ? (
                         <img src={ex.demo.url} alt={ex.name} className="w-full h-full object-cover" />
@@ -123,6 +123,7 @@ const ExerciseSearchModal: React.FC<ExerciseSearchModalProps> = ({ onSelect, onC
                         <span className="text-3xl text-blue-300">🏋️</span>
                       )}
                     </div>
+                    */}
 
                     {/* Info */}
                     <p className="font-semibold text-sm text-gray-900 line-clamp-2 leading-snug mb-1">{ex.name}</p>

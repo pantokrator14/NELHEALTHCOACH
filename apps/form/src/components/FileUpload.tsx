@@ -1,5 +1,6 @@
 // apps/form/src/components/FileUpload.tsx
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Image from 'next/image';
 
 interface FileUploadProps {
@@ -23,9 +24,46 @@ const FileUpload: React.FC<FileUploadProps> = ({
   previewUrl,
   existingFile = false
 }) => {
+  const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Umbrales para detectar screenshots multi-página cosidos verticalmente
+  // Usamos AND: solo se rechaza si la imagen es MUY alta Y MUY estrecha
+  // Esto evita falsos positivos con documentos escaneados/fotografiados (alta pero con ratio normal ~1.4:1)
+  const MAX_IMAGE_HEIGHT = 6000; // píxeles — un A4 escaneado a 300dpi mide ~3508px
+  const MAX_ASPECT_RATIO = 5; // alto / ancho — 2 screenshots cosidos dan ~4.4:1, 3+ dan ~6.6:1
+
+  const validateFileDimensions = (file: File): Promise<string | null> => {
+    return new Promise((resolve) => {
+      // Solo validamos imágenes
+      if (!file.type.startsWith('image/')) {
+        resolve(null);
+        return;
+      }
+
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const ratio = img.naturalHeight / img.naturalWidth;
+        if (img.naturalHeight > MAX_IMAGE_HEIGHT && ratio > MAX_ASPECT_RATIO) {
+          resolve(t('common.imageTooTall'));
+        } else {
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null); // si no se puede leer, dejamos pasar
+      };
+
+      img.src = url;
+    });
+  };
 
   const validateFile = (file: File): boolean => {
     setError(null);
@@ -43,10 +81,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return true;
   };
 
-  const handleFile = (file: File) => {
-    if (validateFile(file)) {
-      onFileSelect(file);
+  const handleFile = async (file: File) => {
+    if (!validateFile(file)) return;
+
+    const dimensionError = await validateFileDimensions(file);
+    if (dimensionError) {
+      setError(dimensionError);
+      return;
     }
+
+    onFileSelect(file);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

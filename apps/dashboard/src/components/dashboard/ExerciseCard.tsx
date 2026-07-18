@@ -55,7 +55,7 @@ export default function ExerciseCard({
         </button>
       )}
 
-      {/* Demo/Placeholder */}
+      {/* Demo/Placeholder — COMENTADO: se preserva para futuro uso con GIFs
       <div className="h-40 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-t-xl flex items-center justify-center relative overflow-hidden">
         {exercise.demo?.type === 'image' || exercise.demo?.type === 'gif' ? (
           <img
@@ -72,7 +72,7 @@ export default function ExerciseCard({
           </div>
         )}
 
-        {/* Badges */}
+        {/* Badges
         <div className="absolute top-2 right-2 flex gap-1">
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[exercise.difficulty] || 'bg-gray-100 text-gray-800'}`}>
             {exercise.difficulty}
@@ -84,6 +84,7 @@ export default function ExerciseCard({
           </span>
         </div>
       </div>
+      */}
 
       {/* Content */}
       <div className="p-4">

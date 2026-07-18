@@ -30,7 +30,8 @@ const en = {
     required: 'Required',
     optional: 'Optional',
     select: 'Select',
-    selectOption: 'Select an option'
+    selectOption: 'Select an option',
+    imageTooTall: 'This image appears to be a multi-page screenshot. Please upload each page as a separate image for better processing.'
   },
   navigation: {
     home: 'Home',
@@ -273,7 +274,8 @@ const es = {
     required: 'Requerido',
     optional: 'Opcional',
     select: 'Seleccionar',
-    selectOption: 'Selecciona una opción'
+    selectOption: 'Selecciona una opción',
+    imageTooTall: 'La imagen es demasiado larga. Parece ser una captura de pantalla de varias páginas. Por favor, sube cada página como una imagen separada.'
   },
   navigation: {
     home: 'Inicio',
@@ -516,7 +518,8 @@ const fr = {
     required: 'Requis',
     optional: 'Optionnel',
     select: 'Sélectionner',
-    selectOption: 'Sélectionnez une option'
+    selectOption: 'Sélectionnez une option',
+    imageTooTall: 'Cette image semble être une capture d\'écran de plusieurs pages. Veuillez télécharger chaque page comme une image séparée.'
   },
   navigation: {
     home: 'Accueil',
@@ -759,7 +762,8 @@ const it = {
     required: 'Obbligatorio',
     optional: 'Opzionale',
     select: 'Seleziona',
-    selectOption: 'Seleziona un\'opzione'
+    selectOption: 'Seleziona un\'opzione',
+    imageTooTall: 'Questa immagine sembra essere uno screenshot di più pagine. Carica ogni pagina come immagine separata.'
   },
   navigation: {
     home: 'Home',
@@ -919,7 +923,8 @@ const pt = {
     required: 'Obrigatório',
     optional: 'Opcional',
     select: 'Selecionar',
-    selectOption: 'Selecione uma opção'
+    selectOption: 'Selecione uma opção',
+    imageTooTall: 'Esta imagem parece ser uma captura de tela de várias páginas. Envie cada página como uma imagem separada.'
   },
   navigation: {
     home: 'Início',
@@ -1079,7 +1084,8 @@ const de = {
     required: 'Erforderlich',
     optional: 'Optional',
     select: 'Auswählen',
-    selectOption: 'Wählen Sie eine Option'
+    selectOption: 'Wählen Sie eine Option',
+    imageTooTall: 'Dieses Bild scheint ein mehrseitiger Screenshot zu sein. Bitte laden Sie jede Seite als separates Bild hoch.'
   },
   navigation: {
     home: 'Startseite',

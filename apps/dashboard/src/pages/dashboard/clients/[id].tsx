@@ -519,9 +519,60 @@ export default function ClientProfile() {
     }
   }
 
-  const handleFileSelect = (files: FileList | null) => {
+  // Umbrales para detectar screenshots multi-página cosidos verticalmente
+  // Usamos AND: solo se advierte si la imagen es MUY alta Y MUY estrecha
+  // Esto evita falsos positivos con documentos escaneados/fotografiados (alta pero con ratio normal ~1.4:1)
+  const MAX_IMAGE_HEIGHT = 6000 // píxeles — un A4 escaneado a 300dpi mide ~3508px
+  const MAX_ASPECT_RATIO = 5 // alto / ancho — 2 screenshots cosidos dan ~4.4:1, 3+ dan ~6.6:1
+
+  const checkImageDimensions = (file: File): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(false)
+        return
+      }
+
+      const img = new window.Image()
+      const url = URL.createObjectURL(file)
+
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const ratio = img.naturalHeight / img.naturalWidth
+        resolve(img.naturalHeight > MAX_IMAGE_HEIGHT && ratio > MAX_ASPECT_RATIO)
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve(false) // si no se puede leer, dejamos pasar
+      }
+
+      img.src = url
+    })
+  }
+
+  const handleFileSelect = async (files: FileList | null) => {
     if (!files) return
-    setSelectedFiles(prev => [...prev, ...Array.from(files)])
+
+    const fileArray = Array.from(files)
+    const results = await Promise.all(
+      fileArray.map(async (file) => ({
+        file,
+        isSuspicious: await checkImageDimensions(file),
+      }))
+    )
+
+    const suspiciousFiles = results.filter((r) => r.isSuspicious)
+    const safeFiles = results.filter((r) => !r.isSuspicious).map((r) => r.file)
+
+    if (suspiciousFiles.length > 0) {
+      if (window.confirm(t('clients.screenshotWarning'))) {
+        setSelectedFiles(prev => [...prev, ...results.map((r) => r.file)])
+      } else {
+        setSelectedFiles(prev => [...prev, ...safeFiles])
+      }
+    } else {
+      setSelectedFiles(prev => [...prev, ...safeFiles])
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault()
