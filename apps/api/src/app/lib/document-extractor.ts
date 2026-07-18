@@ -54,6 +54,9 @@ const IMAGE_EXTENSIONS = new Set([
 /** Mínimo de caracteres para considerar que la extracción fue exitosa */
 const MIN_TEXT_LENGTH = 20;
 
+/** Máximo de páginas que extraemos de un PDF (las primeras N páginas — los resultados de laboratorio siempre están al inicio) */
+const MAX_PDF_PAGES = 15;
+
 /** Máximo de caracteres que retornamos (Gemini tiene límite de contexto) */
 const MAX_TEXT_LENGTH = 50_000;
 
@@ -183,17 +186,22 @@ async function extractWithPdfParseV2(
   const parser = new PDFParse({ data: buffer });
 
   try {
-    // 1. Extraer texto (pages es un array de PageTextResult[], usamos su length)
-    const textResult = await parser.getText();
+    // 1. Extraer texto (solo primeras MAX_PDF_PAGES páginas — los resultados siempre están al inicio)
+    const textResult = await parser.getText({ first: MAX_PDF_PAGES });
     const text = (textResult?.text ?? '').trim();
     const pages = Array.isArray(textResult?.pages) ? textResult.pages.length : 0;
+
+    // Si se truncó, agregar nota al final
+    const truncatedNote = pages >= MAX_PDF_PAGES
+      ? `\n\n[... El PDF continúa después de la página ${MAX_PDF_PAGES}. Solo se extrajeron las primeras ${MAX_PDF_PAGES} páginas para análisis.]`
+      : '';
 
     // 2. Extraer tablas estructuradas
     let markdownTables = '';
     let tableCount = 0;
 
     try {
-      const tableResult = await parser.getTable();
+      const tableResult = await parser.getTable({ first: MAX_PDF_PAGES });
 
       if (tableResult?.pages && tableResult.pages.length > 0) {
         const tableParts: string[] = [];
@@ -228,10 +236,10 @@ async function extractWithPdfParseV2(
       });
     }
 
-    // 3. Combinar: tablas markdown + texto plano
-    const combined = markdownTables
+    // 3. Combinar: tablas markdown + texto plano + nota de truncado
+    const combined = (markdownTables
       ? `${markdownTables}\n--- TEXTO COMPLETO DEL DOCUMENTO ---\n\n${text}`
-      : text;
+      : text) + truncatedNote;
 
     if (combined.length >= MIN_TEXT_LENGTH || tableCount > 0) {
       logCtx.info('AI', 'PDF extraído con pdf-parse v2', {
@@ -467,9 +475,10 @@ async function extractTextWithPdfjs(buffer: Buffer): Promise<ExtractionResult> {
 
   const doc = await pdfjsLib.getDocument({ data: typedArray }).promise;
   const numPages = doc.numPages as number;
+  const maxPages = Math.min(numPages, MAX_PDF_PAGES);
   const pageTexts: string[] = [];
 
-  for (let i = 1; i <= numPages; i++) {
+  for (let i = 1; i <= maxPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     const pageText = content.items
@@ -481,10 +490,15 @@ async function extractTextWithPdfjs(buffer: Buffer): Promise<ExtractionResult> {
     pageTexts.push(pageText);
   }
 
-  const text = pageTexts
+  let text = pageTexts
     .join('\n\n')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Si se truncaron páginas, agregar nota
+  if (numPages > MAX_PDF_PAGES) {
+    text += `\n\n[... El PDF continúa después de la página ${MAX_PDF_PAGES}. Solo se extrajeron las primeras ${MAX_PDF_PAGES} páginas para análisis.]`;
+  }
 
   return { text: truncate(text), method: 'pdfjs-dist', pages: numPages };
 }
