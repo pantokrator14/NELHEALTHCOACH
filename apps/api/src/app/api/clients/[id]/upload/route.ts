@@ -426,9 +426,8 @@ async function putHandler(
         fileName
       });
 
-      // ── Extraer texto del documento automáticamente (solo documentos) ──
+      // ── Extraer texto del documento (fire-and-forget con timeout) ──
       if (fileCategory === 'document') {
-        // No await — la extracción se dispara pero no bloquea la respuesta
         extractAndCacheDocument(fileKey, fileName, fileType, id, auth?.coachId?.toString()).catch((extractErr: unknown) => {
           const msg = extractErr instanceof Error ? extractErr.message : 'Error desconocido';
           logger.warn('UPLOAD', 'Extracción post-upload falló (no crítico)', {
@@ -901,9 +900,16 @@ async function extractAndCacheDocument(
 
   logCtx.info('AI', 'Iniciando extracción post-upload');
 
-  // 1. Descargar de S3
+  // 1. Descargar de S3 (con timeout de 30s para no colgar la extracción)
   const presignedUrl = await getPresignedUrlForAnalysis(fileKey);
-  const response = await fetch(presignedUrl);
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 30_000);
+  let response: Response;
+  try {
+    response = await fetch(presignedUrl, { signal: abortController.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw new Error(`S3 download failed: ${response.status} ${response.statusText}`);
@@ -970,10 +976,28 @@ async function extractAndCacheDocument(
     extracted = await extractTextFromBuffer(buffer, fileName, fileType);
 
     if (!extracted.text.trim()) {
-      logCtx.warn('AI', 'No se pudo extraer texto del documento', {
+      logCtx.warn('AI', 'No se pudo extraer texto del documento — guardando como fallido', {
         method: extracted.method,
         fileName,
       });
+      // Guardar registro como fallido para que el polling no se quede en 'pending' eternamente
+      const cacheColl = await getMedicalDocumentCacheCollection();
+      await cacheColl.updateOne(
+        { s3Key: fileKey },
+        {
+          $set: {
+            s3Key: fileKey,
+            clientId: new ObjectId(clientId),
+            fileName,
+            rawText: '',
+            extractionMethod: `${extracted.method}-failed`,
+            extractedAt: new Date(),
+            cachedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
       return;
     }
   }
