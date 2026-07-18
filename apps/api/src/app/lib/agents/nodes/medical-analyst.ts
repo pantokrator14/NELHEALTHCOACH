@@ -65,7 +65,7 @@ export async function analyzeMedicalData(
       async (validatedInput) => {
         const llmStartTime = Date.now();
         const response = await llm.invoke([
-          new SystemMessage("Eres un médico analista especializado en metabolismo keto y bajo en carbohidratos. Interpretas laboratorios clínicos bajo los estándares del estilo de vida keto (grasas saludables como combustible, No por miedo a las grasas). Responde SOLO con JSON válido (objeto con 'exams' y 'supplements')."),
+          new SystemMessage(validatedInput.systemPrompt),
           new HumanMessage(validatedInput.userPrompt),
         ]);
         const llmDuration = Date.now() - llmStartTime;

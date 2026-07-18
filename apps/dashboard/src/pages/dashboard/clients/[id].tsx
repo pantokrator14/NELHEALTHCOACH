@@ -204,13 +204,13 @@ export default function ClientProfile() {
     // Poll cada 3 segundos
     extractionPollRef.current = setInterval(checkAll, 3000)
 
-    // Timeout total de 30 segundos
+    // Timeout total de 120 segundos (la extracción de PDFs puede ser lenta)
     extractionTimeoutRef.current = setTimeout(() => {
-      console.warn('⏱️ Timeout de extracción (30s) — los documentos podrían no estar disponibles para análisis')
+      console.warn('⏱️ Timeout de extracción (120s) — los documentos podrían no estar disponibles para análisis')
       if (extractionPollRef.current) clearInterval(extractionPollRef.current)
       setExtractingFileKeys([])
       showToast(t('clients.extractionError'), 'warning')
-    }, 30000)
+    }, 120000)
 
     // Primer check inmediato
     checkAll()
