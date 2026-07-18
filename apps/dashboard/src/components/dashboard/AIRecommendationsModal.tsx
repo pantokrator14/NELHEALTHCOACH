@@ -3242,9 +3242,9 @@ export default function AIRecommendationsModal({
                                           {item.description.includes(': ') ? item.description.split(': ').slice(1).join(': ') : item.description}
                                         </p>
                                         {/* Reps info */}
-                                        {item.details?.sets && item.details?.repetitions && (
+                                        {(item.details?.sets || item.details?.repetitions) && (
                                           <p className="text-[10px] font-medium text-blue-700">
-                                            {item.details.sets} × {item.details.repetitions}
+                                            {item.details?.sets ? `${item.details.sets} × ` : ''}{item.details?.repetitions || ''}
                                           </p>
                                         )}
                                       </div>
