@@ -39,22 +39,14 @@ const nextConfig = {
   },
   // No bundle pdfkit — se carga desde node_modules con sus fuentes .afm
   serverExternalPackages: [
-    'pdfkit', 'pdf-parse', 'pdfjs-dist',
+    'pdfkit', 'pdf-parse',
     // Native addons para OCR local con ppu-paddle-ocr
     'onnxruntime-node', '@napi-rs/canvas', 'ppu-paddle-ocr', 'ppu-ocv',
   ],
-  // Incluir fuentes .afm y workers de PDF en el bundle serverless para Vercel/producción
+  // Incluir fuentes .afm en el bundle serverless para Vercel/producción
   outputFileTracingIncludes: {
     'app/api/clients/[id]/ai/[sessionId]/pdf/route': ['./node_modules/pdfkit/js/data/**'],
     'app/api/admin/finances/reports/pdf/route': ['./node_modules/pdfkit/js/data/**'],
-    // pdfjs-dist worker necesario para pdf-parse v2 y fallback pdfjs-dist
-    'app/api/clients/[id]/upload/route': [
-      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
-      './node_modules/pdf-parse/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
-    ],
-    'app/api/clients/[id]/ai/route': [
-      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
-    ],
   },
 };
 

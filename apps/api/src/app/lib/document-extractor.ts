@@ -5,11 +5,10 @@
  * Extraemos texto localmente y solo enviamos texto plano a Gemini para análisis.
  *
  * Pipeline por tipo de archivo:
- *   PDF  → 1. pdf-parse v2 (getText + getTable para tablas estructuradas)
- *          2. pdfjs-dist (fallback: PDFs complejos o con capa oculta)
- *          3. Se marca como "no extraíble" si ambos fallan
+ *   PDF  → pdf-parse v1 (usa pdfjs-dist v2 internamente con disableWorker=true.
+ *          No necesita workers — funciona en Vercel/AWS Lambda sin config adicional)
  *   DOCX → mammoth.js
- *   Imagen → tesseract.js OCR
+ *   Imagen → tesseract.js OCR + PaddleOCR
  *   TXT   → raw utf-8
  */
 
@@ -23,7 +22,6 @@ import { logger } from './logger';
 
 export type ExtractionMethod =
   | 'pdf-parse'
-  | 'pdfjs-dist'
   | 'mammoth'
   | 'tesseract-ocr'
   | 'paddle-ocr'
@@ -39,8 +37,6 @@ export interface ExtractionResult {
   pages?: number;
   /** Confianza del OCR (0-100, solo tesseract) */
   ocrConfidence?: number;
-  /** Número de tablas detectadas en el PDF (solo pdf-parse v2) */
-  tableCount?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -59,13 +55,6 @@ const MAX_PDF_PAGES = 15;
 
 /** Máximo de caracteres que retornamos (Gemini tiene límite de contexto) */
 const MAX_TEXT_LENGTH = 50_000;
-
-/**
- * Prefijo delimitador para las tablas en el output de texto,
- * para que Gemini pueda identificar fácilmente dónde empiezan/terminan.
- */
-const TABLES_HEADER = '=== TABLAS DETECTADAS EN EL DOCUMENTO ===';
-const TABLES_FOOTER = '=== FIN DE TABLAS ===';
 
 // ─────────────────────────────────────────────
 // Punto de entrada único
@@ -118,208 +107,55 @@ export async function extractTextFromBuffer(
 }
 
 // ─────────────────────────────────────────────
-// Estrategias de extracción
+// PDF
 // ─────────────────────────────────────────────
 
 /**
- * PDF: dos intentos en capas.
+ * PDF: extracción con pdf-parse v1.
  *
- * 1. pdf-parse v2: extrae texto + tablas estructuradas (getTable).
- *    Las tablas se convierten a formato markdown para que Gemini
- *    pueda interpretar correctamente la estructura fila/columna.
- * 2. pdfjs-dist: fallback más robusto, solo texto (sin detección de tablas).
+ * Usa pdfjs-dist v2 internamente con disableWorker=true.
+ * No necesita workers — funciona en Vercel/AWS Lambda
+ * sin configuración adicional.
  */
 async function extractFromPDF(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
-  // ── Pre-configurar pdfjs-dist para entornos serverless ──
-  // pdfjs-dist intenta cargar un worker (pdf.worker.mjs) que no está
-  // disponible en Vercel/AWS Lambda. Deshabilitarlo evita el error:
-  // "Cannot find module 'pdf.worker.mjs'"
-  // Esto afecta tanto a pdf-parse v2 (que usa pdfjs-dist internamente)
-  // como a nuestro fallback directo con pdfjs-dist.
   try {
-    const pdfjsInit = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    pdfjsInit.GlobalWorkerOptions.workerSrc = '';
-  } catch {
-    logCtx.debug('AI', 'No se pudo pre-configurar pdfjs-dist, continuando igual');
-  }
-
-  // ── Intento 1: pdf-parse v2 ──
-  try {
-    return await extractWithPdfParseV2(buffer, logCtx);
+    return await extractWithPdfParseV1(buffer, logCtx);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    logCtx.warn('AI', 'pdf-parse v2 falló, probando pdfjs-dist', { error: message.substring(0, 200) });
+    logCtx.warn('AI', 'pdf-parse v1 falló', { error: message.substring(0, 200) });
   }
 
-  // ── Intento 2: pdfjs-dist (Mozilla PDF.js - más robusto) ──
-  try {
-    const result = await extractTextWithPdfjs(buffer);
-    if (result.text.length >= MIN_TEXT_LENGTH) {
-      logCtx.info('AI', 'PDF extraído con pdfjs-dist (fallback)', {
-        chars: result.text.length,
-      });
-      return result;
-    }
-
-    logCtx.warn('AI', 'pdfjs-dist tampoco extrajo texto', {
-      chars: result.text.length,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    logCtx.warn('AI', 'pdfjs-dist falló', { error: message.substring(0, 200) });
-  }
-
-  // ── No se pudo extraer texto ──
-  logCtx.warn('AI', 'No se pudo extraer texto del PDF (posiblemente escaneado sin capa de texto)');
-  return {
-    text: '',
-    method: 'pdf-parse',
-    pages: 0,
-  };
+  logCtx.warn('AI', 'No se pudo extraer texto del PDF');
+  return { text: '', method: 'pdf-parse', pages: 0 };
 }
 
-// ─────────────────────────────────────────────
-// pdf-parse v2: texto + tablas estructuradas
-// ─────────────────────────────────────────────
-
 /**
- * Extrae texto y tablas usando pdf-parse v2.
- * Las tablas se convierten a formato markdown para preservar
- * la estructura fila/columna que Gemini pueda entender.
+ * Extrae texto plano de un PDF usando pdf-parse v1.
+ * Internamente usa pdfjs-dist v2 con disableWorker=true.
+ * Sin workers, sin configuración adicional.
  */
-async function extractWithPdfParseV2(
+async function extractWithPdfParseV1(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
-  // Import dinámico porque pdf-parse v2 es ESM y causa problemas con RSC
-  const { PDFParse } = await import('pdf-parse');
-  const parser = new PDFParse({ data: buffer });
+  const { default: pdfParse } = await import('pdf-parse');
+  const data = await pdfParse(buffer, { max: MAX_PDF_PAGES });
+  const text = (data.text ?? '').trim();
+  const pages = data.numpages ?? 0;
 
-  try {
-    // 1. Extraer texto (solo primeras MAX_PDF_PAGES páginas — los resultados siempre están al inicio)
-    const textResult = await parser.getText({ first: MAX_PDF_PAGES });
-    const text = (textResult?.text ?? '').trim();
-    const pages = Array.isArray(textResult?.pages) ? textResult.pages.length : 0;
-
-    // Si se truncó, agregar nota al final
-    const truncatedNote = pages >= MAX_PDF_PAGES
-      ? `\n\n[... El PDF continúa después de la página ${MAX_PDF_PAGES}. Solo se extrajeron las primeras ${MAX_PDF_PAGES} páginas para análisis.]`
-      : '';
-
-    // 2. Extraer tablas estructuradas
-    let markdownTables = '';
-    let tableCount = 0;
-
-    try {
-      const tableResult = await parser.getTable({ first: MAX_PDF_PAGES });
-
-      if (tableResult?.pages && tableResult.pages.length > 0) {
-        const tableParts: string[] = [];
-
-        for (const page of tableResult.pages) {
-          if (!page.tables || page.tables.length === 0) continue;
-
-          for (const table of page.tables) {
-            if (!table || table.length === 0) continue;
-
-            tableCount++;
-
-            // Convertir tabla 2D a markdown
-            const mdTable = tableToMarkdown(table);
-            tableParts.push(mdTable);
-          }
-        }
-
-        if (tableParts.length > 0) {
-          markdownTables = `\n${TABLES_HEADER}\n${tableParts.join('\n\n')}\n${TABLES_FOOTER}\n`;
-          logCtx.info('AI', `Tablas detectadas y formateadas`, {
-            tableCount,
-            tablesCharLength: markdownTables.length,
-          });
-        }
-      }
-    } catch (tableErr: unknown) {
-      // getTable() puede fallar en PDFs sin tablas — no es crítico
-      const tblMsg = tableErr instanceof Error ? tableErr.message : '';
-      logCtx.debug('AI', 'getTable() no produjo resultados (puede ser normal)', {
-        error: tblMsg.substring(0, 100),
-      });
-    }
-
-    // 3. Combinar: tablas markdown + texto plano + nota de truncado
-    const combined = (markdownTables
-      ? `${markdownTables}\n--- TEXTO COMPLETO DEL DOCUMENTO ---\n\n${text}`
-      : text) + truncatedNote;
-
-    if (combined.length >= MIN_TEXT_LENGTH || tableCount > 0) {
-      logCtx.info('AI', 'PDF extraído con pdf-parse v2', {
-        pages,
-        chars: text.length,
-        tableCount,
-        combinedChars: combined.length,
-      });
-      return {
-        text: truncate(combined),
-        method: 'pdf-parse',
-        pages,
-        tableCount,
-      };
-    }
-
-    logCtx.warn('AI', 'pdf-parse v2 devolvió muy poco texto', {
+  if (text.length >= MIN_TEXT_LENGTH) {
+    logCtx.info('AI', 'PDF extraído con pdf-parse v1', {
+      pages,
       chars: text.length,
-      tableCount,
     });
-
-    // Si no hay suficiente texto ni tablas, lanzamos para que el fallback intente
-    throw new Error(`pdf-parse v2 returned insufficient content: ${text.length} chars, ${tableCount} tables`);
-  } finally {
-    await parser.destroy();
-  }
-}
-
-/**
- * Convierte una tabla 2D (string[][]) a formato markdown.
- * La primera fila se trata como encabezado si tiene contenido.
- *
- * Ejemplo:
- *   | Biomarcador | Valor | Rango | Estado |
- *   |-------------|-------|-------|--------|
- *   | Glucosa     | 95    | 70-100| Normal |
- */
-function tableToMarkdown(table: string[][]): string {
-  if (!table || table.length === 0) return '';
-
-  const result: string[] = [];
-  const columnCount = Math.max(...table.map(row => row.length), 0);
-
-  if (columnCount === 0) return '';
-
-  // Sanitizar celdas: eliminar saltos de línea internos y recortar
-  const sanitized = table.map(row =>
-    row.map(cell => (cell ?? '').replace(/\s+/g, ' ').trim()),
-  );
-
-  // Encabezado (primera fila)
-  const header = sanitized[0];
-  result.push(`| ${header.join(' | ')} |`);
-
-  // Separador
-  const separator = header.map(() => '---');
-  result.push(`| ${separator.join(' | ')} |`);
-
-  // Filas de datos (resto)
-  for (let i = 1; i < sanitized.length; i++) {
-    const row = sanitized[i];
-    // Rellenar con celdas vacías si faltan columnas
-    while (row.length < columnCount) row.push('');
-    result.push(`| ${row.join(' | ')} |`);
+    return { text: truncate(text), method: 'pdf-parse', pages };
   }
 
-  return result.join('\n');
+  logCtx.warn('AI', 'pdf-parse v1 devolvió muy poco texto', { chars: text.length });
+  throw new Error(`pdf-parse v1 returned insufficient content: ${text.length} chars`);
 }
 
 // ─────────────────────────────────────────────
@@ -469,56 +305,6 @@ export async function extractTextFromImageViaPaddleOCR(
     });
     throw error; // El caller decide si hacer fallback
   }
-}
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-
-/**
- * Extrae texto de un PDF usando pdfjs-dist (Mozilla PDF.js en modo legacy).
- * Se importa dinámicamente porque es un módulo ESM.
- * Esta función solo extrae texto — no detecta tablas.
- */
-async function extractTextWithPdfjs(buffer: Buffer): Promise<ExtractionResult> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-  // Deshabilitar worker para entornos serverless (Vercel/AWS Lambda)
-  // El worker file no se despliega correctamente y causa:
-  // "Cannot find module 'pdf.worker.mjs'"
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-
-  // pdfjs-dist requiere Uint8Array, no Buffer
-  const typedArray = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-
-  const doc = await pdfjsLib.getDocument({ data: typedArray }).promise;
-  const numPages = doc.numPages as number;
-  const maxPages = Math.min(numPages, MAX_PDF_PAGES);
-  const pageTexts: string[] = [];
-
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item) => {
-        if ('str' in item) return item.str;
-        return '';
-      })
-      .join(' ');
-    pageTexts.push(pageText);
-  }
-
-  let text = pageTexts
-    .join('\n\n')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  // Si se truncaron páginas, agregar nota
-  if (numPages > MAX_PDF_PAGES) {
-    text += `\n\n[... El PDF continúa después de la página ${MAX_PDF_PAGES}. Solo se extrajeron las primeras ${MAX_PDF_PAGES} páginas para análisis.]`;
-  }
-
-  return { text: truncate(text), method: 'pdfjs-dist', pages: numPages };
 }
 
 /**
