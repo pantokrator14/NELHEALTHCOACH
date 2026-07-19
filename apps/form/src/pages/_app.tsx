@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 // Luego en useEffect se fuerza la detección del idioma real del navegador
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
@@ -32,7 +33,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <Component {...pageProps} />
+      <ErrorBoundary>
+        <Component {...pageProps} />
+      </ErrorBoundary>
     </>
   );
 }
