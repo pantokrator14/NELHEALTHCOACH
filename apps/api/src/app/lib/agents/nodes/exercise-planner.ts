@@ -316,6 +316,13 @@ Diseña un plan de entrenamiento para las semanas: ${weekList}
 - Semanas 5-8 (Volumen): 4 series, aumentar complejidad
 - Semanas 9-12 (Intensidad): Menor reps, mayor carga, máximo desafío
 
+### Consideraciones especiales para la introducción (intro):
+- Genera un **intro** por semana que sea una introducción motivacional y contextualizada para el cliente
+- El intro debe basarse en: si el cliente hace ejercicio actualmente, su nivel de actividad, acceso a gimnasio, disponibilidad de tiempo, limitaciones físicas y preferencias
+- Ejemplo para alguien sedentario: "Esta semana nos enfocaremos en recuperar el movimiento básico. No te preocupes por la intensidad, lo importante es crear el hábito."
+- Ejemplo para alguien activo: "Esta semana subimos un escalón. Ya tienes buena base, así que trabajaremos en progresión de carga."
+- El intro debe ser personalizado, motivacional y realista
+
 ### Formato de respuesta JSON:
 Devuelve un array JSON con esta estructura EXACTA:
 
@@ -324,6 +331,7 @@ Devuelve un array JSON con esta estructura EXACTA:
   {
     "weekNumber": number,
     "focus": "Enfoque del entrenamiento (1-2 frases)",
+    "intro": "Texto de introducción motivacional personalizado para el cliente (1-3 oraciones)",
     "routine": [
       {
         "exercise": "nombre del ejercicio",
@@ -351,6 +359,7 @@ function parseExerciseResponse(
 ): Array<{
   weekNumber: number;
   focus: string;
+  intro?: string;
   routine: Array<{ exercise: string; sets: number; repetitions: string; timeUnderTension: string; progression: string }>;
   equipment: string[];
   duration: string;
@@ -371,6 +380,7 @@ function parseExerciseResponse(
   const result: Array<{
     weekNumber: number;
     focus: string;
+    intro?: string;
     routine: Array<{ exercise: string; sets: number; repetitions: string; timeUnderTension: string; progression: string }>;
     equipment: string[];
     duration: string;
@@ -399,6 +409,7 @@ function parseExerciseResponse(
     result.push({
       weekNumber,
       focus: typeof item.focus === "string" ? item.focus : "Fortalecimiento general progresivo",
+      intro: typeof item.intro === "string" ? item.intro : undefined,
       routine,
       equipment,
       duration: typeof item.duration === "string" ? item.duration : "30-45 minutos",
@@ -414,6 +425,7 @@ function parseExerciseResponse(
 function generateFallbackExercise(monthNumber: number): Array<{
   weekNumber: number;
   focus: string;
+  intro?: string;
   routine: Array<{ exercise: string; sets: number; repetitions: string; timeUnderTension: string; progression: string }>;
   equipment: string[];
   duration: string;
@@ -422,6 +434,7 @@ function generateFallbackExercise(monthNumber: number): Array<{
   const plans: Array<{
     weekNumber: number;
     focus: string;
+    intro?: string;
     routine: Array<{ exercise: string; sets: number; repetitions: string; timeUnderTension: string; progression: string }>;
     equipment: string[];
     duration: string;
@@ -472,6 +485,7 @@ function generateFallbackExercise(monthNumber: number): Array<{
     plans.push({
       weekNumber: week,
       focus: phase.focus,
+      intro: phase.focus,
       routine: phase.routine,
       equipment: ["Mancuernas (2-10kg)", "Banda elástica", "Esterilla"],
       duration: "30-45 minutos",

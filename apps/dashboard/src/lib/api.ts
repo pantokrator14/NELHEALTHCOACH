@@ -1043,7 +1043,19 @@ export const apiClient = {
   async updateAISessionFields(
     clientId: string,
     sessionId: string,
-    fields: { summary?: string; vision?: string }
+    fields: {
+      summary?: string;
+      vision?: string;
+      structuredMedicalAnalysis?: {
+        examIndex: number;
+        field: 'intro' | 'analysis';
+        value: string;
+      };
+      exerciseIntro?: {
+        weekIndex: number;
+        value: string;
+      };
+    }
   ): Promise<ApiResponse<{ session: AIRecommendationSession }>> {
     const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {
       method: 'PUT',

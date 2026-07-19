@@ -416,10 +416,10 @@ async function postHandler(request: NextRequest) {
       carbohydrateAddiction: 11,
       leptinResistance: 8,
       circadianRhythms: 11,
-      sleepHygiene: 11,
+      sleepHygiene: 12,
       electrosmogExposure: 10,
-      generalToxicity: 8,
-      microbiotaHealth: 10,
+      generalToxicity: 10,
+      microbiotaHealth: 12,
     };
 
     const typedMedicalData = processedMedicalData as Record<string, unknown>;

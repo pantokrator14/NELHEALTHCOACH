@@ -471,6 +471,7 @@ interface GraphResult {
   exercisePlan: Array<{
     weekNumber: number;
     focus: string;
+    intro?: string;
     routine: Array<{
       exercise: string;
       sets: number;
@@ -541,6 +542,7 @@ async function saveRecommendationsToDB(
       exercise: {
         focus: encrypt(exercise?.focus ?? "Entrenamiento progresivo"),
         equipment: exercise?.equipment.map((eq: string) => encrypt(eq)) ?? [],
+        intro: exercise?.intro ? encrypt(exercise.intro) : undefined,
       },
       habits: {
         trackingMethod: habits?.trackingMethod
