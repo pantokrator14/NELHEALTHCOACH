@@ -193,6 +193,7 @@ export interface AIRecommendationWeek {
   exercise: {
     focus: string;
     equipment?: string[];
+    intro?: string;
   };
   habits: {
     trackingMethod?: string;

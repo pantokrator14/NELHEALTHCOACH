@@ -32,6 +32,7 @@ export interface NutritionPlan {
 export interface ExercisePlan {
   weekNumber: number;
   focus: string;
+  intro?: string;
   routine: Array<{
     exercise: string;
     sets: number;

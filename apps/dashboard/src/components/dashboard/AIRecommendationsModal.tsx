@@ -111,6 +111,7 @@ interface AIRecommendationWeek {
   exercise: {
     focus: string;
     equipment?: string[];
+    intro?: string;
   };
   habits: {
     trackingMethod?: string;
@@ -259,7 +260,7 @@ interface AIRecommendationsModalProps {
 
 interface EditingField {
   sessionId: string;
-  type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis';
+  type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis' | 'exerciseIntro';
   itemId?: string;
   weekIndex?: number;
   examIndex?: number;
@@ -872,7 +873,7 @@ export default function AIRecommendationsModal({
   // ===== MANEJADORES DE EDICIÓN =====
   const handleStartEdit = useCallback((
     sessionId: string,
-    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis',
+    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis' | 'exerciseIntro',
     currentValue: string | ChecklistItem[] | AIRecommendationWeek,
     itemId?: string,
     weekIndex?: number,
@@ -984,6 +985,42 @@ export default function AIRecommendationsModal({
                   idx === examIndex ? { ...exam, [medicalField]: editText } : exam
                 );
                 return { ...s, structuredMedicalAnalysis: { ...sma, exams: updatedExams } };
+              }
+              return s;
+            });
+            return { ...prev, sessions };
+          });
+        } else {
+          throw new Error(response.message);
+        }
+      }
+      else if (editingField.type === 'exerciseIntro') {
+        const weekIndex = editingField.weekIndex;
+        if (weekIndex === undefined) {
+          console.error('❌ weekIndex no definido para exerciseIntro');
+          return;
+        }
+        const response = await apiClient.updateAISessionFields(
+          clientId,
+          session.sessionId,
+          {
+            exerciseIntro: {
+              weekIndex,
+              value: editText
+            }
+          }
+        );
+        if (response.success) {
+          setAiProgress(prev => {
+            if (!prev) return prev;
+            const sessions = prev.sessions.map(s => {
+              if (s.sessionId === session.sessionId) {
+                const updatedWeeks = s.weeks.map((w, idx) =>
+                  idx === weekIndex
+                    ? { ...w, exercise: { ...w.exercise, intro: editText } }
+                    : w
+                );
+                return { ...s, weeks: updatedWeeks };
               }
               return s;
             });
@@ -2217,6 +2254,43 @@ export default function AIRecommendationsModal({
                 <span className="mr-2">🏋️</span>
                 Ejercicio: {week.exercise.focus}
               </h4>
+
+              {/* Intro del ejercicio — editable (solo si la IA generó uno) */}
+              {week.exercise.intro && (
+                <div className="p-3 bg-blue-100/60 rounded-lg border border-blue-200">
+                  {editMode && editingField?.type === 'exerciseIntro' && editingField.weekIndex === weekIndex ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="flex justify-end space-x-2">
+                        <button onClick={handleCancelEdit} className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs">Cancelar</button>
+                        <button onClick={handleSaveEdit} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">Guardar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <p className="text-sm text-blue-900 leading-relaxed whitespace-pre-line flex-1">{week.exercise.intro}</p>
+                      {!editMode && session.status === 'draft' && (
+                        <button
+                          onClick={() => handleStartEdit(session.sessionId, 'exerciseIntro', week.exercise.intro || '', undefined, weekIndex)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors ml-2 flex-shrink-0"
+                          title="Editar introducción"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 {exerciseItems.map(item => renderChecklistItem(item, sessionId))}
               </div>

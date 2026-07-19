@@ -1051,6 +1051,10 @@ export const apiClient = {
         field: 'intro' | 'analysis';
         value: string;
       };
+      exerciseIntro?: {
+        weekIndex: number;
+        value: string;
+      };
     }
   ): Promise<ApiResponse<{ session: AIRecommendationSession }>> {
     const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai`, {

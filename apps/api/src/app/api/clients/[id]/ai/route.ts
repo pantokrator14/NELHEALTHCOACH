@@ -83,7 +83,8 @@ function decryptAISessionCompletely(session: any): any {
         },
         exercise: {
           focus: safeDecrypt(week.exercise.focus),
-          equipment: week.exercise.equipment?.map((eq: string) => safeDecrypt(eq)) || []
+          equipment: week.exercise.equipment?.map((eq: string) => safeDecrypt(eq)) || [],
+          intro: week.exercise.intro ? safeDecrypt(week.exercise.intro) : undefined,
         },
         habits: {
           trackingMethod: week.habits.trackingMethod ? safeDecrypt(week.habits.trackingMethod) : undefined,
@@ -2259,6 +2260,10 @@ async function updateSessionFields(
       field: 'intro' | 'analysis';
       value: string;
     };
+    exerciseIntro?: {
+      weekIndex: number;
+      value: string;
+    };
   },
   requestId: string
 ): Promise<any> {
@@ -2280,6 +2285,11 @@ async function updateSessionFields(
     if (fields.structuredMedicalAnalysis !== undefined) {
       const { examIndex, field, value } = fields.structuredMedicalAnalysis;
       const key = `aiProgress.sessions.$.structuredMedicalAnalysis.exams.${examIndex}.${field}`;
+      updateFields[key] = encrypt(value);
+    }
+    if (fields.exerciseIntro !== undefined) {
+      const { weekIndex, value } = fields.exerciseIntro;
+      const key = `aiProgress.sessions.$.weeks.${weekIndex}.exercise.intro`;
       updateFields[key] = encrypt(value);
     }
     updateFields['aiProgress.sessions.$.updatedAt'] = new Date();
