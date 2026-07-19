@@ -259,9 +259,10 @@ interface AIRecommendationsModalProps {
 
 interface EditingField {
   sessionId: string;
-  type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week';
+  type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis';
   itemId?: string;
   weekIndex?: number;
+  examIndex?: number;
   category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement';
   currentValue: string | ChecklistItem[] | AIRecommendationWeek;
 }
@@ -871,14 +872,15 @@ export default function AIRecommendationsModal({
   // ===== MANEJADORES DE EDICIÓN =====
   const handleStartEdit = useCallback((
     sessionId: string,
-    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week',
+    type: 'summary' | 'vision' | 'checklistItem' | 'checklist' | 'week' | 'medicalIntro' | 'medicalAnalysis',
     currentValue: string | ChecklistItem[] | AIRecommendationWeek,
     itemId?: string,
     weekIndex?: number,
-    category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement'
+    category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement',
+    examIndex?: number
   ) => {
     setEditMode(true);
-    setEditingField({ sessionId, type, itemId, weekIndex, category, currentValue });
+    setEditingField({ sessionId, type, itemId, weekIndex, examIndex, category, currentValue });
     if (type === 'checklistItem' && itemId) {
       const item = activeSession?.checklist?.find(item => item.id === itemId);
       setEditText(item?.description || '');
@@ -947,6 +949,44 @@ export default function AIRecommendationsModal({
                 ? { ...s, [field]: value }
                 : s
             );
+            return { ...prev, sessions };
+          });
+        } else {
+          throw new Error(response.message);
+        }
+      }
+      else if (editingField.type === 'medicalIntro' || editingField.type === 'medicalAnalysis') {
+        const medicalField = editingField.type === 'medicalIntro' ? 'intro' : 'analysis';
+        const examIndex = editingField.examIndex;
+        if (examIndex === undefined) {
+          console.error('❌ examIndex no definido');
+          return;
+        }
+        const response = await apiClient.updateAISessionFields(
+          clientId,
+          session.sessionId,
+          {
+            structuredMedicalAnalysis: {
+              examIndex,
+              field: medicalField,
+              value: editText
+            }
+          }
+        );
+        if (response.success) {
+          setAiProgress(prev => {
+            if (!prev) return prev;
+            const sessions = prev.sessions.map(s => {
+              if (s.sessionId === session.sessionId) {
+                const sma = s.structuredMedicalAnalysis;
+                if (!sma) return s;
+                const updatedExams = sma.exams.map((exam, idx) =>
+                  idx === examIndex ? { ...exam, [medicalField]: editText } : exam
+                );
+                return { ...s, structuredMedicalAnalysis: { ...sma, exams: updatedExams } };
+              }
+              return s;
+            });
             return { ...prev, sessions };
           });
         } else {
@@ -2561,9 +2601,47 @@ export default function AIRecommendationsModal({
                       <>
                         {activeSession.structuredMedicalAnalysis.exams.map((exam, examIdx) => (
                           <div key={examIdx} className="space-y-3">
-                            {/* Intro del examen */}
+                            {/* Intro del examen — editable */}
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                              <p className="text-sm text-gray-800 leading-relaxed italic">{exam.intro}</p>
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm text-gray-800 leading-relaxed italic flex-1">{exam.intro}</p>
+                                {!editMode && activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => handleStartEdit(activeSession.sessionId, 'medicalIntro', exam.intro, undefined, undefined, undefined, examIdx)}
+                                    className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2 flex-shrink-0"
+                                    title="Editar introducción"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                              {editMode && editingField?.type === 'medicalIntro' && editingField.examIndex === examIdx && (
+                                <div className="space-y-2 mt-2">
+                                  <textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                                    rows={3}
+                                    autoFocus
+                                  />
+                                  <div className="flex justify-end space-x-2">
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                      onClick={handleSaveEdit}
+                                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
+                                    >
+                                      Guardar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             {/* Tabla de biomarcadores — SIN drag-and-drop */}
@@ -2601,12 +2679,51 @@ export default function AIRecommendationsModal({
                               </div>
                             )}
 
-                            {/* Análisis clínico */}
+                            {/* Análisis clínico — editable */}
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                              <h5 className="font-semibold text-red-800 mb-2 text-sm flex items-center gap-2">
-                                <span>🔬</span> Análisis Clínico
-                              </h5>
-                              <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{exam.analysis}</p>
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-semibold text-red-800 text-sm flex items-center gap-2">
+                                  <span>🔬</span> Análisis Clínico
+                                </h5>
+                                {!editMode && activeSession.status === 'draft' && (
+                                  <button
+                                    onClick={() => handleStartEdit(activeSession.sessionId, 'medicalAnalysis', exam.analysis, undefined, undefined, undefined, examIdx)}
+                                    className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors flex-shrink-0"
+                                    title="Editar análisis clínico"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                              {editMode && editingField?.type === 'medicalAnalysis' && editingField.examIndex === examIdx ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                                    rows={4}
+                                    autoFocus
+                                  />
+                                  <div className="flex justify-end space-x-2">
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs"
+                                    >
+                                      Cancelar
+                                    </button>
+                                    <button
+                                      onClick={handleSaveEdit}
+                                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
+                                    >
+                                      Guardar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{exam.analysis}</p>
+                              )}
                             </div>
 
                             {/* Divisor sutil entre exámenes */}

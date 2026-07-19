@@ -48,7 +48,29 @@ function decryptAISessionCompletely(session: any): any {
       vision: safeDecrypt(session.vision),
       medicalSummary: safeDecrypt(session.medicalSummary) || '',
       medicalComparativeAnalysis: safeDecrypt(session.medicalComparativeAnalysis) || '',
-      structuredMedicalAnalysis: session.structuredMedicalAnalysis || { exams: [], supplements: [] },
+      structuredMedicalAnalysis: session.structuredMedicalAnalysis ? {
+        ...session.structuredMedicalAnalysis,
+        exams: session.structuredMedicalAnalysis.exams?.map((exam: any) => ({
+          ...exam,
+          intro: safeDecrypt(exam.intro),
+          analysis: safeDecrypt(exam.analysis),
+          table: exam.table?.map((row: any) => ({
+            ...row,
+            biomarcador: safeDecrypt(row.biomarcador),
+            valor: safeDecrypt(row.valor),
+            rango_normal: safeDecrypt(row.rango_normal),
+            estado: safeDecrypt(row.estado),
+          })) || [],
+        })) || [],
+        supplements: session.structuredMedicalAnalysis.supplements?.map((supp: any) => ({
+          ...supp,
+          name: safeDecrypt(supp.name),
+          dosage: safeDecrypt(supp.dosage),
+          timing: safeDecrypt(supp.timing),
+          rationale: safeDecrypt(supp.rationale),
+          contraindications: supp.contraindications ? safeDecrypt(supp.contraindications) : undefined,
+        })) || [],
+      } : { exams: [], supplements: [] },
       weeks: session.weeks?.map((week: any) => ({
         weekNumber: week.weekNumber,
         nutrition: {
@@ -103,7 +125,29 @@ function decryptAISessionCompletely(session: any): any {
       ...session,
       summary: safeDecrypt(session.summary) || 'Error desencriptando',
       vision: safeDecrypt(session.vision) || 'Error desencriptando',
-      structuredMedicalAnalysis: session.structuredMedicalAnalysis || { exams: [], supplements: [] },
+      structuredMedicalAnalysis: session.structuredMedicalAnalysis ? {
+        ...session.structuredMedicalAnalysis,
+        exams: session.structuredMedicalAnalysis.exams?.map((exam: any) => ({
+          ...exam,
+          intro: safeDecrypt(exam.intro) || exam.intro,
+          analysis: safeDecrypt(exam.analysis) || exam.analysis,
+          table: exam.table?.map((row: any) => ({
+            ...row,
+            biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
+            valor: safeDecrypt(row.valor) || row.valor,
+            rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
+            estado: safeDecrypt(row.estado) || row.estado,
+          })) || [],
+        })) || [],
+        supplements: session.structuredMedicalAnalysis.supplements?.map((supp: any) => ({
+          ...supp,
+          name: safeDecrypt(supp.name) || supp.name,
+          dosage: safeDecrypt(supp.dosage) || supp.dosage,
+          timing: safeDecrypt(supp.timing) || supp.timing,
+          rationale: safeDecrypt(supp.rationale) || supp.rationale,
+          contraindications: supp.contraindications ? safeDecrypt(supp.contraindications) || supp.contraindications : undefined,
+        })) || [],
+      } : { exams: [], supplements: [] },
       weeks: [],
       checklist: []
     };
@@ -2207,7 +2251,15 @@ async function debugSessionStatus(clientId: string, targetSessionId: string): Pr
 async function updateSessionFields(
   clientId: string,
   sessionId: string,
-  fields: { summary?: string; vision?: string },
+  fields: {
+    summary?: string;
+    vision?: string;
+    structuredMedicalAnalysis?: {
+      examIndex: number;
+      field: 'intro' | 'analysis';
+      value: string;
+    };
+  },
   requestId: string
 ): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
@@ -2224,6 +2276,11 @@ async function updateSessionFields(
     }
     if (fields.vision !== undefined) {
       updateFields['aiProgress.sessions.$.vision'] = encrypt(fields.vision);
+    }
+    if (fields.structuredMedicalAnalysis !== undefined) {
+      const { examIndex, field, value } = fields.structuredMedicalAnalysis;
+      const key = `aiProgress.sessions.$.structuredMedicalAnalysis.exams.${examIndex}.${field}`;
+      updateFields[key] = encrypt(value);
     }
     updateFields['aiProgress.sessions.$.updatedAt'] = new Date();
     updateFields['aiProgress.updatedAt'] = new Date();
