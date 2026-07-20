@@ -1,5 +1,5 @@
 // apps/form/src/lib/api.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 /**
  * Retorna headers base con el visitorId de FingerprintJS si está disponible.

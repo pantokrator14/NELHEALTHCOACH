@@ -147,8 +147,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               </button>
             </div>
 
-            {/* Detalles del error (colapsado) */}
-            <details style={{
+            {/* Detalles del error (expandido por defecto) */}
+            <details open style={{
               textAlign: 'left',
               backgroundColor: '#f8fafc',
               borderRadius: '8px',
