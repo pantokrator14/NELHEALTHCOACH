@@ -57,11 +57,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     this.setState({ errorInfo });
   }
 
-  handleRetry = (): void => {
-    // Reinicia el estado para intentar renderizar de nuevo
-    this.setState({ hasError: false, error: null, errorInfo: null });
-  };
-
   handleReload = (): void => {
     // Recarga completa de la página
     if (typeof window !== 'undefined') {
@@ -128,15 +123,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               Si el problema persiste, contacta a tu coach con el código de error de abajo.
             </p>
 
-            {/* Botones */}
+            {/* Botón único: recarga la página */}
             <div style={{
               display: 'flex',
-              gap: '12px',
               justifyContent: 'center',
               marginBottom: '24px',
             }}>
               <button
-                onClick={this.handleRetry}
+                onClick={this.handleReload}
                 style={{
                   padding: '10px 24px',
                   backgroundColor: '#6366f1',
@@ -149,21 +143,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                 }}
               >
                 Reintentar
-              </button>
-              <button
-                onClick={this.handleReload}
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: '#e2e8f0',
-                  color: '#475569',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                Recargar página
               </button>
             </div>
 

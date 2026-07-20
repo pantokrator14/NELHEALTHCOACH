@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
 
-    logger.error('FORM', 'Error capturado por ErrorBoundary en el formulario', {
+    logger.error('FRONTEND', 'Error capturado por ErrorBoundary en el formulario', {
       ip,
       errorName: body.errorName || 'unknown',
       errorMessage: body.errorMessage || 'unknown',
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logger.error('FORM', 'Error en log-form-error', error as Error);
+    logger.error('FRONTEND', 'Error en log-form-error', error as Error);
     return NextResponse.json({ success: true });
   }
 }
