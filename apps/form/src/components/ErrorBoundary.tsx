@@ -3,6 +3,7 @@
 // y muestra información útil para diagnóstico, sin afectar el flujo normal.
 
 import React from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -26,7 +27,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Registrar el error para diagnóstico
+    // Registrar el error para diagnóstico (local y remoto)
     console.error('❌ [ErrorBoundary] Error capturado:', {
       name: error.name,
       message: error.message,
@@ -34,13 +35,27 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       componentStack: errorInfo.componentStack,
     });
 
+    // Enviar el error a la API para que el coach lo vea sin esperar al cliente
+    const payload = {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      componentStack: errorInfo.componentStack,
+      url: typeof window !== 'undefined' ? window.location.href : '',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      timestamp: new Date().toISOString(),
+    };
+
+    fetch(`${API_BASE_URL}/api/log-form-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Si falla el envío, no interrumpimos al usuario
+    });
+
     this.setState({ errorInfo });
   }
-
-  handleRetry = (): void => {
-    // Reinicia el estado para intentar renderizar de nuevo
-    this.setState({ hasError: false, error: null, errorInfo: null });
-  };
 
   handleReload = (): void => {
     // Recarga completa de la página
@@ -108,15 +123,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               Si el problema persiste, contacta a tu coach con el código de error de abajo.
             </p>
 
-            {/* Botones */}
+            {/* Botón único: recarga la página */}
             <div style={{
               display: 'flex',
-              gap: '12px',
               justifyContent: 'center',
               marginBottom: '24px',
             }}>
               <button
-                onClick={this.handleRetry}
+                onClick={this.handleReload}
                 style={{
                   padding: '10px 24px',
                   backgroundColor: '#6366f1',
@@ -130,25 +144,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               >
                 Reintentar
               </button>
-              <button
-                onClick={this.handleReload}
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: '#e2e8f0',
-                  color: '#475569',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                Recargar página
-              </button>
             </div>
 
-            {/* Detalles del error (colapsado) */}
-            <details style={{
+            {/* Detalles del error (expandido por defecto) */}
+            <details open style={{
               textAlign: 'left',
               backgroundColor: '#f8fafc',
               borderRadius: '8px',

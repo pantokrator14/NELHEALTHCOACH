@@ -11,7 +11,7 @@ import LifestyleContextStep from '@/components/LifestyleContextStep';
 import MentalHealthStep from '@/components/MentalHealthStep';
 import DocumentsStep from '@/components/DocumentsStep';
 import SuccessStep from '@/components/SuccessStep';
-import { apiClient, FormPayload } from '@/lib/api';
+import { apiClient, FormPayload, API_BASE_URL } from '@/lib/api';
 import { PersonalDataFormValues, MedicalDataFormValues } from '@/lib/validation';
 
 interface CompleteHealthFormData {
@@ -117,6 +117,7 @@ const FormPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [coachId, setCoachId] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   // Leer coachId de query params al montar
   const [isFree, setIsFree] = useState(false);
@@ -127,6 +128,21 @@ const FormPage: React.FC = () => {
       if (coachParam) {
         setCoachId(coachParam);
         console.log('🔗 Coach ID recibido via query param:', coachParam);
+      } else {
+        // Sin coachId: bloquear acceso y loguear el intento en la API
+        setBlocked(true);
+        console.warn('🚫 Acceso denegado: no se proporcionó coach ID');
+        fetch(`${API_BASE_URL}/api/log-unauthorized`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ip: window.location.hostname,
+            path: window.location.pathname,
+            query: window.location.search,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+          }),
+        }).catch(() => console.warn('No se pudo loguear intento no autorizado'));
       }
 
       // Detectar si es link gratuito (sin pago)
@@ -591,7 +607,62 @@ const FormPage: React.FC = () => {
           </div>
         </div>
       )}
-      {steps[step]}
+      {blocked ? (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          backgroundColor: '#fef2f2',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        }}>
+          <div style={{
+            maxWidth: '500px',
+            width: '100%',
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            padding: '40px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 24px',
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <h1 style={{
+              fontSize: '20px',
+              fontWeight: '700',
+              color: '#1e293b',
+              marginBottom: '12px',
+            }}>
+              Acceso no autorizado
+            </h1>
+            <p style={{
+              fontSize: '14px',
+              color: '#64748b',
+              lineHeight: '1.6',
+            }}>
+              No se puede acceder al formulario porque no estás asociado a ningún asesor de NELHEALTHCOACH.
+              Si crees que esto es un error, contacta directamente a tu coach para que te proporcione un enlace válido.
+            </p>
+          </div>
+        </div>
+      ) : (
+        steps[step]
+      )}
     </div>
   );
 };
