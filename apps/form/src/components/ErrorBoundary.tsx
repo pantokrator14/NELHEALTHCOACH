@@ -3,6 +3,7 @@
 // y muestra información útil para diagnóstico, sin afectar el flujo normal.
 
 import React from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -26,12 +27,31 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Registrar el error para diagnóstico
+    // Registrar el error para diagnóstico (local y remoto)
     console.error('❌ [ErrorBoundary] Error capturado:', {
       name: error.name,
       message: error.message,
       stack: error.stack,
       componentStack: errorInfo.componentStack,
+    });
+
+    // Enviar el error a la API para que el coach lo vea sin esperar al cliente
+    const payload = {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      componentStack: errorInfo.componentStack,
+      url: typeof window !== 'undefined' ? window.location.href : '',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      timestamp: new Date().toISOString(),
+    };
+
+    fetch(`${API_BASE_URL}/api/log-form-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Si falla el envío, no interrumpimos al usuario
     });
 
     this.setState({ errorInfo });
