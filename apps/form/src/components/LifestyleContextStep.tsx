@@ -20,7 +20,7 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
   // Log errores de validación al desarrollador (consola)
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
-      console.error('❌ Errores de validación en Estilo de Vida:', JSON.stringify(errors, null, 2));
+      console.error('❌ Errores de validación en Estilo de Vida:', JSON.stringify(errors, (key, value) => key === 'ref' ? undefined : value, 2));
     }
   }, [errors]);
 
@@ -30,7 +30,7 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
   };
 
   const onInvalidSubmit = (formErrors: typeof errors) => {
-    console.error('❌ Estilo de Vida - validación fallida:', JSON.stringify(formErrors, null, 2));
+    console.error('❌ Estilo de Vida - validación fallida:', JSON.stringify(formErrors, (key, value) => key === 'ref' ? undefined : value, 2));
   };
 
   // Scroll al primer campo con error cuando hay errores de validación
