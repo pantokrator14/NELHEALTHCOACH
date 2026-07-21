@@ -107,7 +107,7 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
   // Log errores de validación al desarrollador
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
-      console.error('❌ Errores de validación en Bienestar Emocional:', JSON.stringify(errors, null, 2));
+      console.error('❌ Errores de validación en Bienestar Emocional:', JSON.stringify(errors, (key, value) => key === 'ref' ? undefined : value, 2));
     }
   }, [errors]);
 

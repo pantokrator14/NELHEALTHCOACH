@@ -162,7 +162,7 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
   // Log errores de validación al desarrollador
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
-      console.error('❌ Errores de validación en Evaluaciones de Salud:', JSON.stringify(errors, null, 2));
+      console.error('❌ Errores de validación en Evaluaciones de Salud:', JSON.stringify(errors, (key, value) => key === 'ref' ? undefined : value, 2));
     }
   }, [errors]);
 
