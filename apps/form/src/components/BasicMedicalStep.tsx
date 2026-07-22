@@ -91,14 +91,16 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                   <label
-                    key={num}
+                    key={`intensity-${num}`}
+                    htmlFor={`mainComplaintIntensity-${num}`}
                     className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                      watch('mainComplaintIntensity') === num
+                      watch('mainComplaintIntensity') == num
                         ? 'bg-yellow-600 text-white border-yellow-700'
                         : 'bg-white text-gray-700 border-yellow-300 hover:bg-yellow-50'
                     }`}
                   >
                     <input
+                      id={`mainComplaintIntensity-${num}`}
                       type="radio"
                       value={num}
                       {...register('mainComplaintIntensity', { valueAsNumber: true })}
@@ -109,7 +111,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
                 ))}
               </div>
               {errors.mainComplaintIntensity?.message && (
-                <p className="text-red-500 text-sm mt-1">{String(errors.mainComplaintIntensity?.message)}</p>
+                <p className="text-red-500 text-sm mt-1">{String(errors.mainComplaintIntensity.message)}</p>
               )}
             </div>
 
