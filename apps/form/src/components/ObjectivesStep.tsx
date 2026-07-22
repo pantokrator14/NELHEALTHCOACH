@@ -11,7 +11,7 @@ interface ObjectivesStepProps {
 }
 
 const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit } = useForm<MedicalDataFormValues>({
+  const { register, handleSubmit, watch } = useForm<MedicalDataFormValues>({
     defaultValues: data,
   });
 
@@ -68,20 +68,31 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
             </div>
 
             {/* Nivel de compromiso */}
-           <div>
+            <div>
               <label className="block text-sm font-medium text-indigo-600 mb-2">
-                En una escala del 1 al 10, ¿cuál es tu nivel de compromiso para realizar cambios en tus hábitos en los próximos 3 meses?
+                En una escala del 1 al 10, ¿cuál es tu nivel de compromiso para realizar cambios en tus hábitos en los próximos 3 meses? (1: Nada comprometido, 10: Totalmente comprometido)
               </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                {...register('commitmentLevel')}
-                className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-              />
-              <div className="flex justify-between text-xs text-indigo-600 mt-1 px-1">
-                <span>1 (Nada comprometido)</span>
-                <span>10 (Totalmente comprometido)</span>
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <label
+                    key={`commitment-${num}`}
+                    htmlFor={`commitmentLevel-${num}`}
+                    className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      watch('commitmentLevel') == num
+                        ? 'bg-indigo-600 text-white border-indigo-700'
+                        : 'bg-white text-gray-700 border-indigo-300 hover:bg-indigo-50'
+                    }`}
+                  >
+                    <input
+                      id={`commitmentLevel-${num}`}
+                      type="radio"
+                      value={num}
+                      {...register('commitmentLevel', { valueAsNumber: true })}
+                      className="sr-only"
+                    />
+                    <span className="text-lg font-bold">{num}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
