@@ -42,9 +42,15 @@ async function getHandler(
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     }
 
-    const session = client.aiProgress.sessions.find(
-      (s: any) => s.sessionId === sessionId
-    );
+    // Convertir a objeto plano (elimina referencias internas de Mongoose)
+    const session = (() => {
+      const raw = client.aiProgress.sessions.find(
+        (s: any) => s.sessionId === sessionId
+      );
+      if (!raw) return null;
+      // toObject elimina propiedades internas de Mongoose
+      return raw.toObject ? raw.toObject() : JSON.parse(JSON.stringify(raw));
+    })();
 
     if (!session) {
       loggerWithContext.warn('PDF', 'Sesión no encontrada');
