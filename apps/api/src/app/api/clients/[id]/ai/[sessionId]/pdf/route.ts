@@ -352,12 +352,13 @@ async function getHandler(
       },
     });
   } catch (error: any) {
-    loggerWithContext.error('PDF', '❌ Error generando PDF', error);
+    const errorName = error?.name || 'Error';
+    const errorMsg = error?.message || String(error);
+    loggerWithContext.error('PDF', `❌ Error generando PDF: ${errorName} - ${errorMsg}`, error);
     return NextResponse.json(
       { 
         error: 'Error generando PDF', 
-        message: 'Error interno del servidor',
-        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        message: `Error interno del servidor (${errorName}: ${errorMsg})`,
       },
       { status: 500 }
     );
