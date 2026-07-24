@@ -295,7 +295,28 @@ async function getHandler(
     // ── 8. Generar PDF ──
     const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
 
-    const structuredMedicalAnalysis = session.structuredMedicalAnalysis || undefined;
+    // Desencriptar structuredMedicalAnalysis si existe (para que el PDF muestre texto legible)
+    const structuredMedicalAnalysis = session.structuredMedicalAnalysis ? {
+      ...session.structuredMedicalAnalysis,
+      exams: (session.structuredMedicalAnalysis.exams || []).map((exam: any) => ({
+        ...exam,
+        intro: safeDecrypt(exam.intro) || '',
+        analysis: safeDecrypt(exam.analysis) || '',
+        table: (exam.table || []).map((row: any) => ({
+          biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
+          valor: safeDecrypt(row.valor) || row.valor,
+          rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
+          estado: safeDecrypt(row.estado) || row.estado,
+        })),
+      })),
+      supplements: (session.structuredMedicalAnalysis.supplements || []).map((supp: any) => ({
+        name: safeDecrypt(supp.name) || supp.name,
+        dosage: safeDecrypt(supp.dosage) || supp.dosage,
+        timing: safeDecrypt(supp.timing) || supp.timing,
+        rationale: safeDecrypt(supp.rationale) || supp.rationale,
+        contraindications: safeDecrypt(supp.contraindications) || supp.contraindications,
+      })),
+    } : undefined;
 
     const pdfData: PDFRecommendationData = {
       client: {
@@ -352,12 +373,13 @@ async function getHandler(
       },
     });
   } catch (error: any) {
-    loggerWithContext.error('PDF', '❌ Error generando PDF', error);
+    const errorName = error?.name || 'Error';
+    const errorMsg = error?.message || String(error);
+    loggerWithContext.error('PDF', `❌ Error generando PDF: ${errorName} - ${errorMsg}`, error);
     return NextResponse.json(
       { 
         error: 'Error generando PDF', 
-        message: 'Error interno del servidor',
-        ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+        message: `Error interno del servidor (${errorName}: ${errorMsg})`,
       },
       { status: 500 }
     );

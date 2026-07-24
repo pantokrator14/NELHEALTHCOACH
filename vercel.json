@@ -7,6 +7,9 @@
     },
     "src/app/api/clients/[id]/ai/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/clients/[id]/ai/[sessionId]/pdf/route.ts": {
+      "maxDuration": 300
     }
   }
 }
