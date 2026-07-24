@@ -13,6 +13,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import { logger } from './logger';
 
 // ─── PATCH: Redirigir carga de fuentes .afm de pdfkit ──────────────────
 // pdfkit 0.18 hace fs.readFileSync(__dirname + '/data/Helvetica.afm').
@@ -1732,6 +1733,7 @@ function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData, start
  * Devuelve un Buffer del PDF generado.
  */
 export async function generateRecommendationPDF(data: PDFRecommendationData): Promise<Buffer> {
+  logger.info('PDF', '[PDF-GEN] Entrando a generateRecommendationPDF, creando PDFDocument...');
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -1768,7 +1770,7 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       let y = MARGIN;
       
       // === CLIENT HEADER ===
-      console.log('[PDF] Iniciando CLIENT HEADER');
+      logger.info('PDF', '[PDF-GEN] Iniciando CLIENT HEADER');
       y = buildClientHeader(doc, data, y);
       
       // === BLUE DIVIDER ===
@@ -1776,47 +1778,47 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       y += 20;
       
       // === SUMMARY ===
-      console.log('[PDF] Iniciando SUMMARY');
+      logger.info('PDF', '[PDF-GEN] Iniciando SUMMARY');
       y = buildSummarySection(doc, data, y);
       
       // === VISION ===
-      console.log('[PDF] Iniciando VISION');
+      logger.info('PDF', '[PDF-GEN] Iniciando VISION');
       y = buildVisionSection(doc, data, y);
       
       // === MEDICAL ANALYSIS ===
-      console.log('[PDF] Iniciando MEDICAL ANALYSIS');
+      logger.info('PDF', '[PDF-GEN] Iniciando MEDICAL ANALYSIS');
       y = buildMedicalAnalysisSection(doc, data, y, data.session.index ?? 0);
       
       // === NUTRITION PLAN ===
-      console.log('[PDF] Iniciando NUTRITION PLAN');
+      logger.info('PDF', '[PDF-GEN] Iniciando NUTRITION PLAN');
       y = buildNutritionPlan(doc, data, y + 10);
       
       // === SHOPPING LIST ===
-      console.log('[PDF] Iniciando SHOPPING LIST');
+      logger.info('PDF', '[PDF-GEN] Iniciando SHOPPING LIST');
       y = buildShoppingListSection(doc, data, y + 15);
       
       // === EXERCISE PLAN ===
-      console.log('[PDF] Iniciando EXERCISE PLAN');
+      logger.info('PDF', '[PDF-GEN] Iniciando EXERCISE PLAN');
       y = buildExercisePlan(doc, data, y + 15);
       
       // === HABITS ===
-      console.log('[PDF] Iniciando HABITS');
+      logger.info('PDF', '[PDF-GEN] Iniciando HABITS');
       y = buildHabits(doc, data, y + 15);
       
       // === TIPS ===
-      console.log('[PDF] Iniciando TIPS');
+      logger.info('PDF', '[PDF-GEN] Iniciando TIPS');
       y = buildTips(doc, data, y + 10);
       
       // === MOTIVATIONAL MESSAGE ===
-      console.log('[PDF] Iniciando MOTIVATION');
+      logger.info('PDF', '[PDF-GEN] Iniciando MOTIVATION');
       y = buildMotivationMessage(doc, y + 10);
       
       // === COACH INFO ===
-      console.log('[PDF] Iniciando COACH INFO');
+      logger.info('PDF', '[PDF-GEN] Iniciando COACH INFO');
       y = buildCoachInfo(doc, data, y + 10);
       
       // === FOOTER ===
-      console.log('[PDF] Iniciando FOOTER');
+      logger.info('PDF', '[PDF-GEN] Iniciando FOOTER');
       buildFooter(doc, data, y + 10);
       
       doc.end();

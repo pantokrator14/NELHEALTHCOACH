@@ -56,7 +56,12 @@ async function getHandler(
     const vision = safeDecrypt(session.vision) || '';
     const medicalSummary = safeDecrypt(session.medicalSummary) || '';
     const medicalComparativeAnalysis = safeDecrypt(session.medicalComparativeAnalysis) || '';
-    const labResults = session.labResults || [];
+    const labResults = (session.labResults || []).map((lab: any) => ({
+      name: safeDecrypt(lab.name) || lab.name,
+      value: safeDecrypt(lab.value) || lab.value,
+      range: safeDecrypt(lab.range) || lab.range,
+      status: safeDecrypt(lab.status) || lab.status,
+    }));
     const weeks = (session.weeks || []).map((week: any) => ({
       weekNumber: week.weekNumber,
       nutrition: {
@@ -361,6 +366,7 @@ async function getHandler(
       websiteUrl,
     };
 
+    loggerWithContext.info('PDF', '[PDF-ROUTE] Datos construidos, llamando a generateRecommendationPDF...');
     const pdfBuffer = await generateRecommendationPDF(pdfData);
 
     loggerWithContext.info('PDF', '✅ PDF generado exitosamente', {
