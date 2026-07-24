@@ -151,24 +151,29 @@ async function getHandler(
         const r = await Recipe.findById(rid);
         if (r) {
           let imageBuffer: Buffer | undefined;
-          if (r.image?.url) {
+          const imageUrl = r.image?.url ? safeDecrypt(r.image.url) : undefined;
+          if (imageUrl) {
             try {
-              const resp = await fetch(r.image.url, { signal: AbortSignal.timeout(10000) });
+              const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
               if (resp.ok) {
                 const arrayBuffer = await resp.arrayBuffer();
                 imageBuffer = Buffer.from(arrayBuffer);
               }
             } catch {
-              loggerWithContext.warn('PDF', `No se pudo cargar imagen de receta: ${r.title}`);
+              loggerWithContext.warn('PDF', `No se pudo cargar imagen de receta: ${safeDecrypt(r.title)}`);
             }
           }
 
           recipes[rid] = {
-            title: r.title,
-            imageUrl: r.image?.url,
+            title: safeDecrypt(r.title) || r.title,
+            imageUrl,
             imageBuffer,
-            ingredients: r.ingredients || [],
-            instructions: r.instructions || [],
+            ingredients: (r.ingredients || []).map((ing: any) => ({
+              name: safeDecrypt(ing.name) || ing.name,
+              quantity: typeof ing.quantity === 'string' ? safeDecrypt(ing.quantity) : ing.quantity,
+              notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
+            })),
+            instructions: (r.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
             macros: {
               protein: r.nutrition?.protein,
               carbs: r.nutrition?.carbs,
@@ -202,31 +207,33 @@ async function getHandler(
         });
         if (ex) {
           let demoBuffer: Buffer | undefined;
-          if (ex.demo?.url && ex.demo?.type !== 'placeholder' && ex.demo?.type !== 'youtube_search') {
+          const demoUrl = ex.demo?.url && ex.demo?.type !== 'placeholder' && ex.demo?.type !== 'youtube_search'
+            ? safeDecrypt(ex.demo.url) : undefined;
+          if (demoUrl) {
             try {
-              const resp = await fetch(ex.demo.url, { signal: AbortSignal.timeout(10000) });
+              const resp = await fetch(demoUrl, { signal: AbortSignal.timeout(10000) });
               if (resp.ok) {
                 const arrayBuffer = await resp.arrayBuffer();
                 demoBuffer = Buffer.from(arrayBuffer);
               }
             } catch {
-              loggerWithContext.warn('PDF', `No se pudo cargar demo de ejercicio: ${ex.name}`);
+              loggerWithContext.warn('PDF', `No se pudo cargar demo de ejercicio: ${safeDecrypt(ex.name)}`);
             }
           }
 
           exercises[exName] = {
-            name: ex.name,
-            description: ex.description,
-            demoUrl: ex.demo?.url,
+            name: safeDecrypt(ex.name) || ex.name,
+            description: safeDecrypt(ex.description) || ex.description,
+            demoUrl,
             demoBuffer,
-            instructions: ex.instructions || [],
+            instructions: (ex.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
             sets: ex.sets || 3,
-            repetitions: ex.repetitions || '',
-            timeUnderTension: ex.timeUnderTension,
-            restBetweenSets: ex.restBetweenSets,
-            equipment: ex.equipment || [],
-            muscleGroups: ex.muscleGroups || [],
-            difficulty: ex.difficulty,
+            repetitions: safeDecrypt(ex.repetitions) || ex.repetitions || '',
+            timeUnderTension: safeDecrypt(ex.timeUnderTension) || ex.timeUnderTension,
+            restBetweenSets: safeDecrypt(ex.restBetweenSets) || ex.restBetweenSets,
+            equipment: (ex.equipment || []).map((eq: string) => safeDecrypt(eq) || eq),
+            muscleGroups: (ex.muscleGroups || []).map((mg: string) => safeDecrypt(mg) || mg),
+            difficulty: safeDecrypt(ex.difficulty) || ex.difficulty,
           };
         }
       } catch (err) {
