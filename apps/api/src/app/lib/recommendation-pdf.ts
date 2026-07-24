@@ -249,9 +249,11 @@ function drawBanner(doc: PDFKit.PDFDocument, y: number, label: string, bgColor: 
   return y + bannerH + 15;
 }
 
-/** Wraps text to fit width, returns lines */
+/** Wraps text to fit width, returns lines. Safely handles very long strings. */
 function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): string[] {
-  const words = text.split(' ');
+  // Safety: truncate extremely long strings (> 50000 chars) to prevent stack issues
+  const safeText = (text && text.length > 50000) ? text.substring(0, 50000) + '...' : (text || '');
+  const words = safeText.split(' ');
   const lines: string[] = [];
   let currentLine = '';
   
@@ -1766,6 +1768,7 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       let y = MARGIN;
       
       // === CLIENT HEADER ===
+      console.log('[PDF] Iniciando CLIENT HEADER');
       y = buildClientHeader(doc, data, y);
       
       // === BLUE DIVIDER ===
@@ -1773,36 +1776,47 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
       y += 20;
       
       // === SUMMARY ===
+      console.log('[PDF] Iniciando SUMMARY');
       y = buildSummarySection(doc, data, y);
       
       // === VISION ===
+      console.log('[PDF] Iniciando VISION');
       y = buildVisionSection(doc, data, y);
       
       // === MEDICAL ANALYSIS ===
+      console.log('[PDF] Iniciando MEDICAL ANALYSIS');
       y = buildMedicalAnalysisSection(doc, data, y, data.session.index ?? 0);
       
       // === NUTRITION PLAN ===
+      console.log('[PDF] Iniciando NUTRITION PLAN');
       y = buildNutritionPlan(doc, data, y + 10);
       
       // === SHOPPING LIST ===
+      console.log('[PDF] Iniciando SHOPPING LIST');
       y = buildShoppingListSection(doc, data, y + 15);
       
       // === EXERCISE PLAN ===
+      console.log('[PDF] Iniciando EXERCISE PLAN');
       y = buildExercisePlan(doc, data, y + 15);
       
       // === HABITS ===
+      console.log('[PDF] Iniciando HABITS');
       y = buildHabits(doc, data, y + 15);
       
       // === TIPS ===
+      console.log('[PDF] Iniciando TIPS');
       y = buildTips(doc, data, y + 10);
       
       // === MOTIVATIONAL MESSAGE ===
+      console.log('[PDF] Iniciando MOTIVATION');
       y = buildMotivationMessage(doc, y + 10);
       
       // === COACH INFO ===
+      console.log('[PDF] Iniciando COACH INFO');
       y = buildCoachInfo(doc, data, y + 10);
       
       // === FOOTER ===
+      console.log('[PDF] Iniciando FOOTER');
       buildFooter(doc, data, y + 10);
       
       doc.end();
