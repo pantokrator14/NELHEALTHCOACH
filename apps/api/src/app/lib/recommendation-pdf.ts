@@ -240,7 +240,11 @@ function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): stri
   return lines;
 }
 
-/** Draws text within a given width. Returns final y position. */
+/** 
+ * Draws text with automatic word wrap and page break handling.
+ * Uses pdfkit's native text flow — no manual positioning per line.
+ * Returns final y position.
+ */
 function drawJustifiedText(
   doc: PDFKit.PDFDocument,
   text: string,
@@ -252,14 +256,24 @@ function drawJustifiedText(
 ): number {
   if (!text) return y;
   const lh = lineHeight || fontSize * 1.5;
+  const safeText = text.length > 50000 ? text.substring(0, 50000) + '...' : text;
+  
+  // Use pdfkit's built-in text with width constraint for automatic wrapping
+  doc.save();
   doc.font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
   
-  const lines = wordWrap(text, doc, maxWidth);
+  // doc.text with {width} wraps automatically and respects page margins
+  // but it starts from the current position. We need to restore to our y.
+  // Use text with explicit y and measure height after.
+  doc.text(safeText, x, y, { 
+    width: maxWidth, 
+    align: 'left',
+    lineGap: lh - fontSize,
+  });
+  doc.restore();
   
-  for (let i = 0; i < lines.length; i++) {
-    doc.text(lines[i], x, y + i * lh, { width: maxWidth, align: 'left' });
-  }
-  
+  // Calculate approximate height based on word wrap
+  const lines = wordWrap(safeText, doc, maxWidth);
   return y + lines.length * lh;
 }
 
@@ -325,13 +339,22 @@ function drawInfoBox(
   doc.restore();
 }
 
-/** Ferifies we have space, adds a new page if needed */
+/** Checks we have space, adds a new page if needed */
 function checkSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number {
   if (y + needed > PAGE_HEIGHT - MARGIN) {
     doc.addPage();
     return MARGIN;
   }
   return y;
+}
+
+/** Formats values into fixed-width columns using space padding */
+function padColumns(values: string[], colWidths: number[]): string {
+  return values.map((v, i) => {
+    const str = String(v || '').substring(0, 30);
+    const targetWidth = Math.floor(colWidths[i] / 4); // rough char width at 7-8pt
+    return str.padEnd(targetWidth, ' ');
+  }).join(' ');
 }
 
 // ─── SECTION BUILDERS ─────────────────────────────────────────────────────
@@ -495,11 +518,8 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         doc.save();
         drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
         doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7.5);
-        const headerText = ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'];
-        headerText.forEach((h, i) => {
-          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
-          doc.text(h, cx, y + 3, { continued: i < headerText.length - 1, width: colWidths[i], align: 'left' });
-        });
+        const hdrText = padColumns(['Biomarcador', 'Valor', 'Rango Normal', 'Estado'], colWidths);
+        doc.text(hdrText, MARGIN + 4, y + 3);
         y += rowH + 1;
         doc.restore();
 
@@ -516,14 +536,9 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
           doc.fillColor(COLORS.text).font('Helvetica').fontSize(7);
 
-          const vals = [row.biomarcador, row.valor, row.rango_normal, row.estado];
-          const statusColor = row.estado === 'Normal' ? '#2E7D32' : '#C62828';
-          vals.forEach((v, i) => {
-            const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
-            if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
-            else doc.fillColor(COLORS.text).font('Helvetica');
-            doc.text(v || '', cx, rowY + 3, { continued: i < vals.length - 1, width: colWidths[i], align: 'left' });
-          });
+          const rowText = padColumns([row.biomarcador, row.valor, row.rango_normal, row.estado], colWidths);
+          doc.fillColor(row.estado === 'Normal' ? '#2E7D32' : row.estado === 'Alto' || row.estado === 'Bajo' ? '#C62828' : COLORS.text);
+          doc.text(rowText, MARGIN + 4, rowY + 3);
 
           y = rowY + rowH;
           doc.restore();
