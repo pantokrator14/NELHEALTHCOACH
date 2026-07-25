@@ -495,8 +495,10 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         doc.save();
         drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
         doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7.5);
-        ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'].forEach((h, i) => {
-          doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 3, { width: colWidths[i], align: 'left' });
+        const headerText = ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'];
+        headerText.forEach((h, i) => {
+          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+          doc.text(h, cx, y + 3, { continued: i < headerText.length - 1, width: colWidths[i], align: 'left' });
         });
         y += rowH + 1;
         doc.restore();
@@ -508,7 +510,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
 
           y = checkSpace(doc, y, rowH + 5);
-          const rowY = y; // Capture AFTER checkSpace (page break may have occurred)
+          const rowY = y;
 
           doc.save();
           drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
@@ -520,7 +522,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
             const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
             if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
             else doc.fillColor(COLORS.text).font('Helvetica');
-            doc.text(v || '', cx, rowY + 3);
+            doc.text(v || '', cx, rowY + 3, { continued: i < vals.length - 1, width: colWidths[i], align: 'left' });
           });
 
           y = rowY + rowH;

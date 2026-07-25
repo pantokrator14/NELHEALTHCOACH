@@ -92,8 +92,8 @@ async function getHandler(
       id: item.id || item._id?.toString() || '',
       description: safeDecrypt(item.description) || '',
       weekNumber: item.weekNumber || 1,
-      category: item.category || 'nutrition',
-      type: item.type,
+      category: safeDecrypt(item.category) || 'nutrition',
+      type: safeDecrypt(item.type),
       recipeId: item.recipeId,
       details: item.details ? {
         recipe: item.details.recipe ? {
