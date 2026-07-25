@@ -240,7 +240,7 @@ function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): stri
   return lines;
 }
 
-/** Draws text within a given width using pdfkit's built-in text wrapping. Returns final y position. */
+/** Draws text within a given width. Returns final y position. */
 function drawJustifiedText(
   doc: PDFKit.PDFDocument,
   text: string,
@@ -250,11 +250,16 @@ function drawJustifiedText(
   fontSize: number,
   lineHeight?: number
 ): number {
+  if (!text) return y;
   const lh = lineHeight || fontSize * 1.5;
   doc.font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
-  doc.text(text || '', x, y, { width: maxWidth, align: 'left', lineGap: 0 });
-  // Calculate new y based on text height (approximate)
+  
   const lines = wordWrap(text, doc, maxWidth);
+  
+  for (let i = 0; i < lines.length; i++) {
+    doc.text(lines[i], x, y + i * lh, { width: maxWidth, align: 'left' });
+  }
+  
   return y + lines.length * lh;
 }
 
@@ -514,9 +519,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
             const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
             if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
             else doc.fillColor(COLORS.text).font('Helvetica');
-            // Render cell text clipped to column width, without {width} to avoid vertical advance
-            const cellText = String(v || '').substring(0, 40);
-            doc.text(cellText, cx, rowY + 3, { width: colWidths[i], align: 'left', lineBreak: false });
+            doc.text(v || '', cx, rowY + 3);
           });
 
           y = rowY + rowH;
