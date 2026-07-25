@@ -210,13 +210,22 @@ async function getHandler(
     const exerciseNames = Array.from(exerciseNameSet);
 
     const exercises: Record<string, PDFExerciseData> = {};
+    // Load ALL exercises and decrypt to match by name (DB has encrypted names)
+    const allExercises = await Exercise.find({}).lean();
+    const decryptedExercises = allExercises.map((ex: any) => ({
+      ...ex,
+      _name: safeDecrypt(ex.name) || ex.name,
+      _description: safeDecrypt(ex.description) || ex.description,
+    }));
+
     for (const exName of exerciseNames) {
       try {
-        // Try to find by name (case-insensitive)
-        const ex = await Exercise.findOne({
-          name: { $regex: new RegExp(exName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
-        });
-        if (ex) {
+        const exMatch = decryptedExercises.find((ex: any) =>
+          ex._name.toLowerCase().includes(exName.toLowerCase()) ||
+          exName.toLowerCase().includes(ex._name.toLowerCase())
+        );
+        if (exMatch) {
+          const ex = exMatch;
           let demoBuffer: Buffer | undefined;
           const demoUrl = ex.demo?.url && ex.demo?.type !== 'placeholder' && ex.demo?.type !== 'youtube_search'
             ? safeDecrypt(ex.demo.url) : undefined;
@@ -228,13 +237,13 @@ async function getHandler(
                 demoBuffer = Buffer.from(arrayBuffer);
               }
             } catch {
-              loggerWithContext.warn('PDF', `No se pudo cargar demo de ejercicio: ${safeDecrypt(ex.name)}`);
+              loggerWithContext.warn('PDF', `No se pudo cargar demo de ejercicio: ${ex._name}`);
             }
           }
 
           exercises[exName] = {
-            name: safeDecrypt(ex.name) || ex.name,
-            description: safeDecrypt(ex.description) || ex.description,
+            name: ex._name,
+            description: ex._description,
             demoUrl,
             demoBuffer,
             instructions: (ex.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
