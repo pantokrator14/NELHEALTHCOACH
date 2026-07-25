@@ -1,35 +1,9 @@
 // apps/api/src/app/lib/finance-report-pdf.ts
 // Generates PDF tax reports (Schedule C, Form 568, Quarterly Estimated Tax)
-// Uses pdfkit with the same monkey-patch pattern as recommendation-pdf.ts
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
-
-// ─── Monkey-patch fs.readFileSync for pdfkit .afm fonts ───
-
-function resolveFontPath(fontName: string): string | null {
-  const localPath = path.join(__dirname, 'pdf-fonts', fontName);
-  if (fs.existsSync(localPath)) return localPath;
-
-  const projectPath = path.join(process.cwd(), 'apps/api/src/app/lib/pdf-fonts', fontName);
-  if (fs.existsSync(projectPath)) return projectPath;
-
-  const nodeModulesPath = path.join(process.cwd(), 'node_modules/pdfkit/js/data', fontName);
-  if (fs.existsSync(nodeModulesPath)) return nodeModulesPath;
-
-  return null;
-}
-
-const originalReadFileSync = fs.readFileSync;
-fs.readFileSync = function patchedReadFileSync(filePath: fs.PathOrFileDescriptor, options?: any) {
-  if (typeof filePath === 'string' && filePath.endsWith('.afm')) {
-    const fontName = path.basename(filePath);
-    const resolved = resolveFontPath(fontName);
-    if (resolved) return originalReadFileSync(resolved, 'utf8');
-  }
-  return originalReadFileSync(filePath, options);
-} as typeof fs.readFileSync;
 
 // ─── Constants ───
 
