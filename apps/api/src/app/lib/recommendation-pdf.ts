@@ -240,7 +240,7 @@ function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): stri
   return lines;
 }
 
-/** Draws justified text within a given width. Returns final y position. */
+/** Draws text within a given width using pdfkit's built-in text wrapping. Returns final y position. */
 function drawJustifiedText(
   doc: PDFKit.PDFDocument,
   text: string,
@@ -252,33 +252,10 @@ function drawJustifiedText(
 ): number {
   const lh = lineHeight || fontSize * 1.5;
   doc.font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
-  
+  doc.text(text || '', x, y, { width: maxWidth, align: 'left', lineGap: 0 });
+  // Calculate new y based on text height (approximate)
   const lines = wordWrap(text, doc, maxWidth);
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const isLastLine = i === lines.length - 1;
-    
-    if (isLastLine || line.split(' ').length <= 1) {
-      // Last line or single word: left-aligned
-      doc.text(line, x, y);
-    } else {
-      // Justified
-      const words = line.split(' ');
-      const wordWidths = words.map(w => doc.widthOfString(w));
-      const totalCharsWidth = wordWidths.reduce((a, b) => a + b, 0);
-      const spaceWidth = (maxWidth - totalCharsWidth) / (words.length - 1);
-      
-      let cursorX = x;
-      for (let j = 0; j < words.length; j++) {
-        doc.text(words[j], cursorX, y);
-        cursorX += wordWidths[j] + (j < words.length - 1 ? spaceWidth : 0);
-      }
-    }
-    y += lh;
-  }
-  
-  return y;
+  return y + lines.length * lh;
 }
 
 /** Draws a rounded rectangle */
@@ -537,7 +514,9 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
             const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
             if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
             else doc.fillColor(COLORS.text).font('Helvetica');
-            doc.text(v || '', cx, rowY + 3, { width: colWidths[i], align: 'left' });
+            // Render cell text clipped to column width, without {width} to avoid vertical advance
+            const cellText = String(v || '').substring(0, 40);
+            doc.text(cellText, cx, rowY + 3, { width: colWidths[i], align: 'left', lineBreak: false });
           });
 
           y = rowY + rowH;
