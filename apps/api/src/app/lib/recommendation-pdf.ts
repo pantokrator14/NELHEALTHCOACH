@@ -518,14 +518,18 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         y += rowH + 1;
         doc.restore();
 
-        // Filas
+        // Filas — use doc.y for consistent position tracking
         for (let ri = 0; ri < exam.table.length; ri++) {
           const row = exam.table[ri];
           const isEven = ri % 2 === 0;
           const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
 
-          y = checkSpace(doc, y, rowH + 5);
-          const rowY = y;
+          // Ensure space on current page or add new one
+          if (doc.y + rowH > PAGE_HEIGHT - MARGIN) {
+            doc.addPage();
+            doc.y = MARGIN;
+          }
+          const rowY = doc.y;
 
           doc.save();
           drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
@@ -535,13 +539,15 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           doc.fillColor(row.estado === 'Normal' ? '#2E7D32' : row.estado === 'Alto' || row.estado === 'Bajo' ? '#C62828' : COLORS.text);
           doc.text(rowText, MARGIN + 4, rowY + 3);
 
-          y = rowY + rowH;
           doc.restore();
+          doc.y = rowY + rowH;
         }
-        y += 8;
+        doc.        doc.y += 8;
+        y = doc.y; // Sync with pdfkit's position after table
       }
 
       // Análisis clínico
+      y = doc.y; // Ensure sync
       y = checkSpace(doc, y, 30);
       doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.small);
       const analysisLabel = 'Análisis Clínico: ';
@@ -587,6 +593,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         y += 4;
         doc.restore();
       }
+      y = doc.y; // Sync after supplements
     } else {
       y = checkSpace(doc, y, 30);
       drawCard(doc, MARGIN, y, USABLE_WIDTH, 35, '#E8F5E9', '#4CAF50');
