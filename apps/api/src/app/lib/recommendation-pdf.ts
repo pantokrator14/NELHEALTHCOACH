@@ -1699,9 +1699,12 @@ function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData, start
  * Genera el PDF completo de recomendaciones de salud.
  * Devuelve un Buffer del PDF generado.
  */
-export async function generateRecommendationPDF(data: PDFRecommendationData): Promise<Buffer> {
+export function generateRecommendationPDF(data: PDFRecommendationData): Promise<Buffer> {
   logger.info('PDF', '[PDF-GEN] Entrando a generateRecommendationPDF, creando PDFDocument...');
+  
   return new Promise((resolve, reject) => {
+    // Run PDFDocument creation outside Next.js async context to avoid stack overflow
+    setImmediate(() => {
     try {
       const doc = new PDFDocument({
         size: 'LETTER',
@@ -1792,7 +1795,8 @@ export async function generateRecommendationPDF(data: PDFRecommendationData): Pr
     } catch (error) {
       reject(error);
     }
-  });
+    }); // close setImmediate
+  }); // close Promise
 }
 
 export default generateRecommendationPDF;
