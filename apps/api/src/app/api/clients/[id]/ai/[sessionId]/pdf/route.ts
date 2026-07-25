@@ -373,6 +373,19 @@ async function getHandler(
     };
 
     loggerWithContext.info('PDF', '[PDF-ROUTE] Datos construidos, llamando a generateRecommendationPDF...');
+    
+    // Diagnostic: log text sizes to identify oversized content
+    loggerWithContext.info('PDF', '[PDF-DIAG] Text sizes', {
+      summaryChars: (pdfData.session.summary || '').length,
+      visionChars: (pdfData.session.vision || '').length,
+      medicalSummaryChars: (pdfData.session.medicalSummary || '').length,
+      examCount: pdfData.session.structuredMedicalAnalysis?.exams?.length || 0,
+      checklistCount: pdfData.checklist?.length || 0,
+      weeksCount: pdfData.weeks?.length || 0,
+      recipeCount: Object.keys(pdfData.recipes || {}).length,
+      exerciseCount: Object.keys(pdfData.exercises || {}).length,
+    });
+    
     const pdfBuffer = await generateRecommendationPDF(pdfData);
 
     loggerWithContext.info('PDF', '✅ PDF generado exitosamente', {
