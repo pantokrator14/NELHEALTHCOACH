@@ -1726,7 +1726,9 @@ export function generateRecommendationPDF(data: PDFRecommendationData): Promise<
         );
         doc.restore();
       };
-      doc.on('pageAdded', drawDisclaimer);
+      // NOTA: No usar doc.on('pageAdded', drawDisclaimer) porque causa
+      // Maximum call stack size exceeded en pdfkit durante doc.end() → flushPages.
+      // El disclaimer se dibuja solo en la primera página.
       
       const buffers: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => buffers.push(chunk));
