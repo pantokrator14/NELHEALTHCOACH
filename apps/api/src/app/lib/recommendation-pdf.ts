@@ -241,8 +241,8 @@ function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): stri
 }
 
 /** 
- * Draws text with automatic word wrap and page break handling.
- * Uses pdfkit's native text flow — no manual positioning per line.
+ * Draws text using pdfkit's native text flow.
+ * Uses doc.y to track position. Handles wrapping and page breaks automatically.
  * Returns final y position.
  */
 function drawJustifiedText(
@@ -252,29 +252,24 @@ function drawJustifiedText(
   y: number,
   maxWidth: number,
   fontSize: number,
-  lineHeight?: number
+  _lineHeight?: number
 ): number {
   if (!text) return y;
-  const lh = lineHeight || fontSize * 1.5;
   const safeText = text.length > 50000 ? text.substring(0, 50000) + '...' : text;
   
-  // Use pdfkit's built-in text with width constraint for automatic wrapping
   doc.save();
   doc.font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
   
-  // doc.text with {width} wraps automatically and respects page margins
-  // but it starts from the current position. We need to restore to our y.
-  // Use text with explicit y and measure height after.
-  doc.text(safeText, x, y, { 
-    width: maxWidth, 
-    align: 'left',
-    lineGap: lh - fontSize,
-  });
+  // Set the current drawing position explicitly
+  doc.y = y;
+  
+  // pdfkit auto-wraps and auto-paginates when width is set
+  doc.text(safeText, x, doc.y, { width: maxWidth, align: 'left' });
+  
   doc.restore();
   
-  // Calculate approximate height based on word wrap
-  const lines = wordWrap(safeText, doc, maxWidth);
-  return y + lines.length * lh;
+  // Return actual y position after text (pdfkit auto-advances doc.y)
+  return doc.y;
 }
 
 /** Draws a rounded rectangle */
