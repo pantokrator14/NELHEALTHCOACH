@@ -506,9 +506,10 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           const row = exam.table[ri];
           const isEven = ri % 2 === 0;
           const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
-          const rowY = y;
 
           y = checkSpace(doc, y, rowH + 5);
+          const rowY = y; // Capture AFTER checkSpace (page break may have occurred)
+
           doc.save();
           drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
           doc.fillColor(COLORS.text).font('Helvetica').fontSize(7);
@@ -606,6 +607,8 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         const lab = data.session.labResults![ri];
         const isEven = ri % 2 === 0;
         const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
+
+        y = checkSpace(doc, y, rowH + 4);
         const rowY = y;
 
         doc.save();
@@ -618,7 +621,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
           if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
           else doc.fillColor(COLORS.text).font('Helvetica');
-          doc.text(v || '', cx, rowY + 4, { width: colWidths[i], align: 'left' });
+          doc.text(v || '', cx, rowY + 4);
         });
 
         y = rowY + rowH;
