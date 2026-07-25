@@ -1410,12 +1410,15 @@ export default function AIRecommendationsModal({
   }, [activeSession, clientId, loadAIProgress]);
 
   const handleSendToClient = useCallback(async (sessionId: string) => {
+    setLoading(true);
     try {
       await apiClient.sendAISessionToClient(clientId, sessionId);
       await loadAIProgress();
-      showToast(t('common.success'), 'success');
+      showToast('Correo reenviado exitosamente', 'success');
     } catch (e) {
       showToast((e as Error).message || 'Error', 'error');
+    } finally {
+      setLoading(false);
     }
   }, [clientId, loadAIProgress]);
 
@@ -3710,6 +3713,19 @@ export default function AIRecommendationsModal({
                       <div className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm md:text-base text-center">
                         ✅ Enviado el {new Date(activeSession.sentAt || activeSession.updatedAt).toLocaleDateString()}
                       </div>
+                      <button
+                        onClick={() => handleSendToClient(activeSession.sessionId)}
+                        disabled={loading}
+                        className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
+                        title="Volver a enviar el correo con las recomendaciones al cliente"
+                      >
+                        {loading ? (
+                          <svg className="h-3 w-3 md:h-4 md:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="4" stroke="currentColor" strokeOpacity="0.25"></circle><path d="M22 12a10 10 0 00-10-10" strokeWidth="4" stroke="currentColor" strokeLinecap="round"></path></svg>
+                        ) : (
+                          <svg className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        )}
+                        <span>Reenviar correo</span>
+                      </button>
                       {!videoRoomName ? (
                         <button
                           onClick={handleOpenScheduler}

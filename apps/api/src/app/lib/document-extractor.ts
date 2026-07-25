@@ -141,7 +141,9 @@ async function extractWithPdfParseV1(
   buffer: Buffer,
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
-  const { default: pdfParse } = await import('pdf-parse');
+  // pdf-parse v1 exports the function directly (not as default)
+  const pdfParseModule = await import('pdf-parse');
+  const pdfParse = (pdfParseModule as any).default || pdfParseModule;
   const data = await pdfParse(buffer, { max: MAX_PDF_PAGES });
   const text = (data.text ?? '').trim();
   const pages = data.numpages ?? 0;

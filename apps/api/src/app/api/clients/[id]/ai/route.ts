@@ -1691,12 +1691,12 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     const session = client.aiProgress.sessions[sessionIndex];
 
-    // 3. Verificar que la sesión esté aprobada
-    if (session.status !== 'approved') {
-      loggerWithContext.warn('AI', 'Sesión no está aprobada', {
+    // 3. Verificar que la sesión esté aprobada (o ya enviada para reenvío)
+    if (session.status !== 'approved' && session.status !== 'sent') {
+      loggerWithContext.warn('AI', 'Sesión no está aprobada ni enviada', {
         sessionId,
         currentStatus: session.status,
-        requiredStatus: 'approved'
+        requiredStatus: 'approved o sent'
       });
       return false;
     }
