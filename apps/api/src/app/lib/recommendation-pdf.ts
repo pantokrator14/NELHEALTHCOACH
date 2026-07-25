@@ -513,8 +513,11 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         doc.save();
         drawRect(doc, MARGIN, doc.y, USABLE_WIDTH, rowH, '#C62828');
         doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7.5);
-        const hdrText = padColumns(['Biomarcador', 'Valor', 'Rango Normal', 'Estado'], colWidths);
-        doc.text(hdrText, MARGIN + 4, doc.y + 3);
+        const headerCols = ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'];
+        headerCols.forEach((h, i) => {
+          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a: number, c: number) => a + c, 0);
+          doc.text(h.substring(0, 20), cx, doc.y + 3, { width: colWidths[i], align: 'left' });
+        });
         doc.y += rowH + 1;
         doc.restore();
 
@@ -534,9 +537,15 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
           doc.fillColor(COLORS.text).font('Helvetica').fontSize(7);
 
-          const rowText = padColumns([row.biomarcador, row.valor, row.rango_normal, row.estado], colWidths);
-          doc.fillColor(row.estado === 'Normal' ? '#2E7D32' : row.estado === 'Alto' || row.estado === 'Bajo' ? '#C62828' : COLORS.text);
-          doc.text(rowText, MARGIN + 4, rowY + 3);
+          const vals = [row.biomarcador, row.valor, row.rango_normal, row.estado];
+          const statusColor = row.estado === 'Normal' ? '#2E7D32' : '#C62828';
+          vals.forEach((v, i) => {
+            const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a: number, c: number) => a + c, 0);
+            if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
+            else doc.fillColor(COLORS.text).font('Helvetica');
+            const cellText = String(v || '').substring(0, 20);
+            doc.text(cellText, cx, rowY + 3, { width: colWidths[i], align: 'left' });
+          });
 
           doc.restore();
           doc.y = rowY + rowH;
