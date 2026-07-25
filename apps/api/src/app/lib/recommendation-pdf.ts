@@ -517,6 +517,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
         doc.text(hdrText, MARGIN + 4, y + 3);
         y += rowH + 1;
         doc.restore();
+        doc.y = y; // Sync doc.y for table body
 
         // Filas — use doc.y for consistent position tracking
         for (let ri = 0; ri < exam.table.length; ri++) {
@@ -542,7 +543,7 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
           doc.restore();
           doc.y = rowY + rowH;
         }
-        doc.        doc.y += 8;
+        doc.y += 8;
         y = doc.y; // Sync with pdfkit's position after table
       }
 
