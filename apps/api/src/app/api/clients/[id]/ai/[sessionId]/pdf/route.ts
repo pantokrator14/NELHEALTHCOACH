@@ -16,55 +16,6 @@ import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
-import { execFileSync } from 'child_process';
-import { writeFileSync, unlinkSync, readFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
-
-/**
- * Genera el PDF en un proceso hijo separado para evitar
- * el Maximum call stack size exceeded de Next.js async context.
- */
-async function generatePDFInChildProcess(data: PDFRecommendationData, log: any): Promise<Buffer> {
-  // Serializar los datos a JSON (los Buffers como base64)
-  const serializable = JSON.parse(JSON.stringify(data, (key, value) => {
-    if (value && value.type === 'Buffer' && Array.isArray(value.data)) {
-      return Buffer.from(value.data).toString('base64');
-    }
-    return value;
-  }));
-
-  // Escribir datos a archivo temporal
-  const tmpFile = join(tmpdir(), `pdf-data-${randomUUID()}.json`);
-  writeFileSync(tmpFile, JSON.stringify(serializable));
-
-  try {
-    const workerScript = join(process.cwd(), 'src/app/lib/pdf-worker.mjs');
-    const result = execFileSync(process.execPath, [workerScript], {
-      input: readFileSync(tmpFile),
-      maxBuffer: 100 * 1024 * 1024, // 100MB max
-      timeout: 120000, // 2 min timeout
-    });
-    
-    log.info('PDF', `✅ PDF generado exitosamente en proceso hijo`, { sizeKB: Math.round(result.length / 1024) });
-    return result;
-  } catch (error: any) {
-    // Si hay stderr, intentar parsear el error
-    if (error.stderr) {
-      try {
-        const errData = JSON.parse(error.stderr.toString());
-        throw new Error(errData.error || 'Error en proceso hijo');
-      } catch (parseErr) {
-        // No es JSON, usar el mensaje crudo
-        throw new Error(error.stderr.toString().substring(0, 500));
-      }
-    }
-    throw error;
-  } finally {
-    try { unlinkSync(tmpFile); } catch {}
-  }
-}
 
 async function getHandler(
   request: NextRequest,
@@ -422,7 +373,7 @@ async function getHandler(
     };
 
     loggerWithContext.info('PDF', '[PDF-ROUTE] Datos construidos, llamando a generateRecommendationPDF...');
-    const pdfBuffer = await generatePDFInChildProcess(pdfData, loggerWithContext);
+    const pdfBuffer = await generateRecommendationPDF(pdfData);
 
     loggerWithContext.info('PDF', '✅ PDF generado exitosamente', {
       sizeKB: Math.round(pdfBuffer.length / 1024),

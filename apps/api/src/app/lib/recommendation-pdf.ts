@@ -10,6 +10,8 @@
  * - Información del coach
  */
 
+import PDFDocument from 'pdfkit';
+import * as PDFKit from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { logger } from './logger';
@@ -1693,12 +1695,6 @@ function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData, start
 }
 
 // ─── MAIN GENERATOR ───────────────────────────────────────────────────────
-
-// Pre-load pdfkit before Next.js async context is fully established.
-// This prevents Maximum call stack size exceeded in new PDFDocument().
-const _pdfkit = require('pdfkit');
-type PDFKit = typeof _pdfkit;
-const PDFDocument = _pdfkit as unknown as PDFKit & { default: typeof _pdfkit };
 
 /**
  * Genera el PDF completo de recomendaciones de salud.
