@@ -832,7 +832,7 @@ function buildNutritionPlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData
       .fillColor(COLORS.darkGreen)
       .font('Helvetica-Bold')
       .fontSize(FONT_SIZES.sectionTitle);
-    doc.text(`Semana ${week.weekNumber}`, MARGIN, y);
+        doc.text(`Plan Mensual`, MARGIN, y);
     y += doc.currentLineHeight() + 4;
     doc.restore();
     
@@ -1031,7 +1031,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
       .fillColor(COLORS.exerciseBlue)
       .font('Helvetica-Bold')
       .fontSize(FONT_SIZES.sectionTitle);
-    doc.text(`Semana ${week.weekNumber}`, MARGIN, y);
+        doc.text(`Plan Mensual`, MARGIN, y);
     y += doc.currentLineHeight() + 4;
     
     if (week.exercise.focus) {
@@ -1212,7 +1212,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
         .fillColor(COLORS.exerciseBlue)
         .font('Helvetica-Bold')
         .fontSize(FONT_SIZES.sectionTitle);
-      doc.text(`Semana ${weekNum}`, MARGIN, y);
+      doc.text(`Plan Mensual`, MARGIN, y);
       y += doc.currentLineHeight() + 10;
       doc.restore();
 
