@@ -1,56 +1,22 @@
 /**
  * Generador de PDF para recomendaciones de salud (Plan Mensual)
  * 
- * Usa pdfkit para generar un PDF profesional con:
- * - Datos del cliente (foto, nombre, sexo, edad)
- * - Resumen y visión
- * - Plan nutricional completo con recetas
- * - Plan de ejercicios con demostraciones
- * - Plan de hábitos
- * - Información del coach
+ * - Paginación Modular Estricta: Cada sección inicia en una hoja nueva.
+ * - Resumen y Visión: Retorno al diseño de múltiples tarjetas por párrafo.
+ * - Diseño Mixto: 1 hoja por día en nutrición / Flujo continuo en ejercicios.
+ * - Aviso Legal: Integrado como banner superior para evitar páginas blancas finales.
  */
 
 import PDFDocument from 'pdfkit';
+import * as PDFKit from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { logger } from './logger';
 
-// ─── PATCH: Redirigir carga de fuentes .afm de pdfkit ──────────────────
-// pdfkit 0.18 hace fs.readFileSync(__dirname + '/data/Helvetica.afm').
-// Cuando Next.js bundlea el código, __dirname cambia y las fuentes no se
-// encuentran. Este patch intercepta las llamadas y las redirige a las
-// fuentes en múltiples ubicaciones posibles (local + node_modules).
-function resolveFontPath(fontName: string): string | null {
-  // 1. Junto a este mismo archivo (src/app/lib/pdf-fonts/)
-  const localPath = path.join(__dirname, 'pdf-fonts', fontName);
-  if (fs.existsSync(localPath)) return localPath;
-
-  // 2. Ruta absoluta del proyecto (desarrollo local)
-  const projectPath = path.join(process.cwd(), 'apps/api/src/app/lib/pdf-fonts', fontName);
-  if (fs.existsSync(projectPath)) return projectPath;
-
-  // 3. node_modules de pdfkit (producción con serverExternalModules)
-  const nodeModulesPath = path.join(process.cwd(), 'node_modules/pdfkit/js/data', fontName);
-  if (fs.existsSync(nodeModulesPath)) return nodeModulesPath;
-
-  return null;
-}
-
-const originalReadFileSync = fs.readFileSync;
-fs.readFileSync = function patchedReadFileSync(filePath: fs.PathOrFileDescriptor, options?: any): any {
-  if (typeof filePath === 'string' && filePath.endsWith('.afm')) {
-    const fontName = path.basename(filePath);
-    const resolved = resolveFontPath(fontName);
-    if (resolved) {
-      return originalReadFileSync(resolved, 'utf8');
-    }
-  }
-  return originalReadFileSync(filePath, options as any);
-} as typeof fs.readFileSync;
-
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 
-const MARGIN = 85; // 3cm ≈ 85pt
+const MARGIN = 50; 
+const SAFE_BOTTOM = 50; 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN;
@@ -78,19 +44,18 @@ const COLORS = {
 };
 
 const FONT_SIZES = {
-  clientName: 26,
-  clientSub: 14,
-  sectionTitle: 18,
-  bannerText: 20,
-  subTitle: 14,
-  body: 10,
-  small: 8,
-  recipeTitle: 13,
-  macroNumber: 16,
-  macroLabel: 7,
-  coachName: 16,
-  footer: 9,
-  emojiLabel: 12,
+  clientName: 20,
+  clientSub: 11,
+  sectionTitle: 14,
+  bannerText: 12,
+  subTitle: 10,
+  body: 9,
+  small: 7.5,
+  recipeTitle: 10,
+  macroNumber: 14,
+  macroLabel: 8,
+  coachName: 12,
+  footer: 8,
 };
 
 // ─── TYPES ────────────────────────────────────────────────────────────────
@@ -99,7 +64,7 @@ export interface PDFRecipeData {
   title: string;
   imageUrl?: string;
   imageBuffer?: Buffer;
-  ingredients: string[];
+  ingredients: Array<string | { name: string; quantity: string; notes?: string }>;
   instructions: string[];
   macros: {
     protein?: number;
@@ -136,7 +101,7 @@ export interface PDFChecklistItem {
   recipeId?: string;
   details?: {
     recipe?: {
-      ingredients: Array<{ name: string; quantity: string; notes?: string }>;
+      ingredients: Array<string | { name: string; quantity: string; notes?: string }>;
       preparation: string;
       tips?: string;
     };
@@ -160,1672 +125,906 @@ export interface PDFWeekData {
 }
 
 export interface PDFRecommendationData {
-  client: {
-    name: string;
-    photoBuffer?: Buffer | null;
-    sex?: string;
-    age?: string;
-  };
+  client: { name: string; photoBuffer?: Buffer | null; sex?: string; age?: string; };
   session: {
     summary: string;
     vision: string;
     medicalSummary?: string;
     medicalComparativeAnalysis?: string;
-    index?: number; // 0 = primera sesión, 1+ = siguientes
+    index?: number;
     labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
     structuredMedicalAnalysis?: {
-      exams: Array<{
-        intro: string;
-        table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: 'Alto' | 'Bajo' | 'Normal' }>;
-        analysis: string;
-      }>;
-      supplements: Array<{
-        name: string;
-        dosage: string;
-        timing: string;
-        rationale: string;
-        contraindications?: string;
-      }>;
+      exams: Array<{ intro: string; table: Array<any>; analysis: string; }>;
+      supplements: Array<{ name: string; dosage: string; timing: string; rationale: string; contraindications?: string; }>;
     };
   };
   checklist: PDFChecklistItem[];
   weeks: PDFWeekData[];
   recipes: Record<string, PDFRecipeData>;
   exercises: Record<string, PDFExerciseData>;
-  habitData?: {
-    toAdopt?: string[];
-    toEliminate?: string[];
-    trackingMethod?: string;
-    motivationTip?: string;
-    tips?: string[];
-  };
-  coach: {
-    name: string;
-    email: string;
-    phone: string;
-    photoBuffer?: Buffer | null;
-  };
+  habitData?: { toAdopt?: string[]; toEliminate?: string[]; trackingMethod?: string; motivationTip?: string; tips?: string[]; };
+  coach: { name: string; email: string; phone: string; photoBuffer?: Buffer | null; };
   websiteUrl?: string;
   currentYear?: number;
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-/** Draws a horizontal line */
+function deeplyCleanEmojis(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    let cleaned = obj.replace(/[^\x20-\x7E\xA0-\xFF\u0100-\u017F\u2013-\u201D\u2022\n\r]/g, '');
+    cleaned = cleaned.replace(/Ø[A-Z0-9=]+/g, '•'); 
+    return cleaned.trim();
+  }
+  if (Array.isArray(obj)) return obj.map(deeplyCleanEmojis);
+  if (typeof obj === 'object') {
+    if (Buffer.isBuffer(obj)) return obj;
+    const cleaned: any = {};
+    for (const key in obj) cleaned[key] = deeplyCleanEmojis(obj[key]);
+    return cleaned;
+  }
+  return obj;
+}
+
 function drawLine(doc: PDFKit.PDFDocument, y: number, color: string, width?: number) {
-  doc.save()
-    .moveTo(MARGIN, y)
-    .lineTo(MARGIN + (width || USABLE_WIDTH), y)
-    .strokeColor(color)
-    .lineWidth(1.5)
-    .stroke()
-    .restore();
+  doc.save().moveTo(MARGIN, y).lineTo(MARGIN + (width || USABLE_WIDTH), y)
+    .strokeColor(color).lineWidth(1.5).stroke().restore();
 }
 
-/** Draws a filled rectangle */
 function drawRect(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, color: string) {
-  doc.save()
-    .rect(x, y, w, h)
-    .fillColor(color)
-    .fill()
-    .restore();
+  doc.save().rect(x, y, w, h).fillColor(color).fill().restore();
 }
 
-/** Draws a banner (full-width colored bar with centered white text) */
-function drawBanner(doc: PDFKit.PDFDocument, y: number, label: string, bgColor: string, icon?: string) {
-  const bannerH = 40;
+function drawRoundedRect(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, r: number, color: string) {
+  doc.save().roundedRect(x, y, w, h, r).fillColor(color).fill().restore();
+}
+
+function drawBanner(doc: PDFKit.PDFDocument, y: number, label: string, bgColor: string): number {
+  const bannerH = 26; 
   drawRect(doc, MARGIN, y, USABLE_WIDTH, bannerH, bgColor);
-  
-  doc.save()
-    .fillColor(COLORS.white)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.bannerText);
-  
-  const text = icon ? `${icon}  ${label}` : label;
-  const textW = doc.widthOfString(text);
-  const textX = MARGIN + (USABLE_WIDTH - textW) / 2;
-  doc.text(text, textX, y + (bannerH - doc.currentLineHeight()) / 2);
+  doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.bannerText);
+  const textW = doc.widthOfString(label);
+  doc.text(label, MARGIN + (USABLE_WIDTH - textW) / 2, y + (bannerH - doc.currentLineHeight()) / 2);
   doc.restore();
-  
-  return y + bannerH + 15;
+  return y + bannerH + 12;
 }
 
-/** Wraps text to fit width, returns lines. Safely handles very long strings. */
-function wordWrap(text: string, doc: PDFKit.PDFDocument, maxWidth: number): string[] {
-  // Safety: truncate extremely long strings (> 50000 chars) to prevent stack issues
-  const safeText = (text && text.length > 50000) ? text.substring(0, 50000) + '...' : (text || '');
-  const words = safeText.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-  
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const w = doc.widthOfString(testLine);
-    if (w > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines;
+function drawJustifiedText(doc: PDFKit.PDFDocument, text: string, x: number, y: number, maxWidth: number, fontSize: number): number {
+  if (!text) { doc.y = y; return doc.y; }
+  doc.save().font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
+  doc.text(text, x, y, { width: maxWidth, align: 'left', lineGap: 1 });
+  doc.restore();
+  return doc.y; 
 }
 
-/** Draws justified text within a given width. Returns final y position. */
-function drawJustifiedText(
-  doc: PDFKit.PDFDocument,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  fontSize: number,
-  lineHeight?: number
-): number {
-  const lh = lineHeight || fontSize * 1.5;
-  doc.font('Helvetica').fontSize(fontSize).fillColor(COLORS.text);
-  
-  const lines = wordWrap(text, doc, maxWidth);
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const isLastLine = i === lines.length - 1;
-    
-    if (isLastLine || line.split(' ').length <= 1) {
-      // Last line or single word: left-aligned
-      doc.text(line, x, y);
-    } else {
-      // Justified
-      const words = line.split(' ');
-      const wordWidths = words.map(w => doc.widthOfString(w));
-      const totalCharsWidth = wordWidths.reduce((a, b) => a + b, 0);
-      const spaceWidth = (maxWidth - totalCharsWidth) / (words.length - 1);
-      
-      let cursorX = x;
-      for (let j = 0; j < words.length; j++) {
-        doc.text(words[j], cursorX, y);
-        cursorX += wordWidths[j] + (j < words.length - 1 ? spaceWidth : 0);
-      }
-    }
-    y += lh;
-  }
-  
-  return y;
-}
-
-/** Draws a rounded rectangle */
-function drawRoundedRect(
-  doc: PDFKit.PDFDocument,
-  x: number, y: number, w: number, h: number, r: number, color: string
-) {
-  doc.save()
-    .roundedRect(x, y, w, h, r)
-    .fillColor(color)
-    .fill()
-    .restore();
-}
-
-/** Draws a colored card (rounded rect) with optional border */
-function drawCard(
-  doc: PDFKit.PDFDocument,
-  x: number, y: number, w: number, h: number,
-  bgColor: string, borderColor?: string
-) {
+function drawCard(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, bgColor: string, borderColor?: string) {
   doc.save();
-  if (borderColor) {
-    doc.roundedRect(x, y, w, h, 6)
-      .fillColor(bgColor)
-      .fill()
-      .roundedRect(x, y, w, h, 6)
-      .strokeColor(borderColor)
-      .lineWidth(1)
-      .stroke();
-  } else {
-    doc.roundedRect(x, y, w, h, 6)
-      .fillColor(bgColor)
-      .fill();
-  }
+  doc.roundedRect(x, y, w, h, 4).fillColor(bgColor).fill();
+  if (borderColor) doc.roundedRect(x, y, w, h, 4).strokeColor(borderColor).lineWidth(1).stroke();
   doc.restore();
 }
 
-/** Draw a small info box for macros/TUT */
-function drawInfoBox(
-  doc: PDFKit.PDFDocument,
-  x: number, y: number, w: number, h: number,
-  value: string, label: string,
-  bgColor: string, textColor: string
-) {
+function drawInfoBox(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, value: string, label: string, bgColor: string, textColor: string) {
   drawRoundedRect(doc, x, y, w, h, 4, bgColor);
-  
-  // Value (big number)
-  doc.save()
-    .fillColor(textColor)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.macroNumber);
+  doc.save().fillColor(textColor).font('Helvetica-Bold').fontSize(FONT_SIZES.macroNumber);
   const valW = doc.widthOfString(value);
   doc.text(value, x + (w - valW) / 2, y + 4);
-  
-  // Label (small text below)
-  doc.font('Helvetica')
-    .fontSize(FONT_SIZES.macroLabel)
-    .fillColor(textColor);
+  doc.font('Helvetica').fontSize(FONT_SIZES.macroLabel).fillColor(textColor);
   const lblW = doc.widthOfString(label);
-  doc.text(label, x + (w - lblW) / 2, y + 22);
-  
+  doc.text(label, x + (w - lblW) / 2, y + 18);
   doc.restore();
 }
 
-/** Ferifies we have space, adds a new page if needed */
 function checkSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number {
-  if (y + needed > PAGE_HEIGHT - MARGIN) {
+  if (y + needed > PAGE_HEIGHT - SAFE_BOTTOM) {
     doc.addPage();
     return MARGIN;
   }
   return y;
 }
 
+function forceNewPage(doc: PDFKit.PDFDocument) {
+  // Evita añadir una página si ya estamos limpios arriba
+  if (doc.y > MARGIN + 10) {
+    doc.addPage();
+    doc.y = MARGIN;
+  }
+}
+
+/** 
+ * Dibuja cajitas individuales por párrafo (Retorno al diseño de tarjetas múltiples para fluidez visual)
+ */
+function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: number, accentColor: string, bgColor: string): number {
+  doc.y = startY;
+  const paragraphs = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+  const textW = USABLE_WIDTH - 16;
+
+  for (const p of paragraphs) {
+    doc.font('Helvetica').fontSize(FONT_SIZES.body);
+    const pHeight = doc.heightOfString(p, { width: textW, lineGap: 2 });
+    const blockH = pHeight + 16; // Padding limpio
+
+    doc.y = checkSpace(doc, doc.y, blockH);
+    const currentY = doc.y;
+
+    doc.save().roundedRect(MARGIN, currentY, USABLE_WIDTH, blockH, 4).fillColor(bgColor).fill().restore();
+    doc.save().roundedRect(MARGIN, currentY, 4, blockH, 4).fillColor(accentColor).fill().restore();
+
+    doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
+    doc.text(p, MARGIN + 8, currentY + 8, { width: textW, lineGap: 2, align: 'left' });
+    doc.restore();
+
+    doc.y = currentY + blockH + 6; // Espacio entre cajitas
+  }
+
+  return doc.y + 4;
+}
+
 // ─── SECTION BUILDERS ─────────────────────────────────────────────────────
 
-/** Client header: photo + name + sex/age */
 function buildClientHeader(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = startY;
-  const photoSize = 70;
+  doc.y = startY;
+  const photoSize = 60; 
+  const initialY = doc.y;
   
-  // Photo
   if (data.client.photoBuffer) {
     try {
-      doc.image(data.client.photoBuffer, MARGIN, y, { width: photoSize, height: photoSize });
-    } catch {
-      // If image fails, draw placeholder
-      drawRoundedRect(doc, MARGIN, y, photoSize, photoSize, 35, COLORS.blue);
-      doc.save()
-        .fillColor(COLORS.white)
-        .font('Helvetica-Bold')
-        .fontSize(28);
-      const initial = data.client.name.charAt(0).toUpperCase();
-      const iw = doc.widthOfString(initial);
-      doc.text(initial, MARGIN + (photoSize - iw) / 2, y + 18);
+      doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).clip();
+      doc.image(data.client.photoBuffer as Buffer, MARGIN, initialY, { fit: [photoSize, photoSize], align: 'center', valign: 'center' });
       doc.restore();
+    } catch {
+      doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).fillColor(COLORS.blue).fill().restore();
     }
   } else {
-    // Placeholder circle with initial
-    drawRoundedRect(doc, MARGIN, y, photoSize, photoSize, 35, COLORS.blue);
-    doc.save()
-      .fillColor(COLORS.white)
-      .font('Helvetica-Bold')
-      .fontSize(28);
-    const initial = data.client.name.charAt(0).toUpperCase();
-    const iw = doc.widthOfString(initial);
-    doc.text(initial, MARGIN + (photoSize - iw) / 2, y + 18);
-    doc.restore();
+    doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).fillColor(COLORS.blue).fill().restore();
   }
   
-  // Name (dark blue, large, bold)
-  const textX = MARGIN + photoSize + 20;
-  const nameY = y + 5;
-  doc.save()
-    .fillColor(COLORS.darkBlue)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.clientName);
+  const textX = MARGIN + photoSize + 15;
+  const nameY = initialY + 10; 
+  doc.save().fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(FONT_SIZES.clientName);
   
-  // Handle long names by truncating
   let displayName = data.client.name;
-  if (doc.widthOfString(displayName) > USABLE_WIDTH - photoSize - 20) {
-    while (doc.widthOfString(displayName + '…') > USABLE_WIDTH - photoSize - 20 && displayName.length > 5) {
-      displayName = displayName.slice(0, -1);
-    }
-    displayName += '…';
+  if (doc.widthOfString(displayName) > USABLE_WIDTH - photoSize - 15) {
+    displayName = displayName.substring(0, 30) + '…';
   }
   doc.text(displayName, textX, nameY);
   doc.restore();
   
-  // Sex, Age (lighter blue)
-  const subY = nameY + 32;
+  const subY = nameY + 24;
   const subParts: string[] = [];
   if (data.client.sex) subParts.push(data.client.sex);
   if (data.client.age) subParts.push(`${data.client.age} años`);
-  const subText = subParts.join('  |  ');
-  
-  if (subText) {
-    doc.save()
-      .fillColor(COLORS.lightBlue)
-      .font('Helvetica')
-      .fontSize(FONT_SIZES.clientSub)
-      .text(subText, textX, subY)
-      .restore();
+  if (subParts.length > 0) {
+    doc.save().fillColor(COLORS.lightBlue).font('Helvetica').fontSize(FONT_SIZES.clientSub).text(subParts.join('  |  '), textX, subY).restore();
   }
   
-  // Return bottom of the header area
-  const bottomY = Math.max(y + photoSize, nameY + 32 + (subText ? 20 : 0) + 15);
-  return bottomY;
+  return Math.max(initialY + photoSize, subY + 15) + 5;
 }
 
-/** Summary section */
+function buildDisclaimer(doc: PDFKit.PDFDocument, startY: number): number {
+  doc.y = checkSpace(doc, startY, 40);
+  const currentY = doc.y;
+  
+  const blockH = 32;
+  // Fondo amarillo claro con borde elegante
+  doc.save().roundedRect(MARGIN, currentY, USABLE_WIDTH, blockH, 4).fillColor('#FFF9C4').fill().restore();
+  doc.save().roundedRect(MARGIN, currentY, USABLE_WIDTH, blockH, 4).strokeColor('#FBC02D').lineWidth(1).stroke().restore();
+
+  doc.save().fillColor('#E65100').font('Helvetica-Bold').fontSize(8);
+  doc.text('⚠️ Las presentes recomendaciones no son un substituto a las consultas médicas profesionales.', MARGIN, currentY + 7, { width: USABLE_WIDTH, align: 'center' });
+  doc.font('Helvetica').fillColor('#E65100').fontSize(8);
+  doc.text('Consultar con un médico y/o profesional de la salud de confianza previamente.', MARGIN, currentY + 18, { width: USABLE_WIDTH, align: 'center' });
+  doc.restore();
+
+  return currentY + blockH + 15;
+}
+
 function buildSummarySection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 60);
-  
-  // Title with decorative element
-  doc.save()
-    .fillColor(COLORS.blue)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.sectionTitle);
-  
-  const title = 'Resumen de la situación actual';
-  doc.text(title, MARGIN, y);
-  y += doc.currentLineHeight() + 8;
+  doc.y = checkSpace(doc, startY, 40);
+  doc.save().fillColor(COLORS.blue).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
+  doc.text('Resumen de la situación actual', MARGIN, doc.y);
+  doc.y += 8;
   doc.restore();
-  
-  // Body text - justified
-  if (data.session.summary) {
-    y = drawJustifiedText(doc, data.session.summary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
-    y += 10;
-  }
-  
-  return y;
+  if (data.session.summary) doc.y = buildHighlightBlock(doc, data.session.summary, doc.y, COLORS.blue, COLORS.blueBg);
+  return doc.y;
 }
 
-/** Vision section */
 function buildVisionSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 60);
-  
-  doc.save()
-    .fillColor(COLORS.blue)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.sectionTitle);
-  doc.text('Visión para los próximos meses', MARGIN, y);
-  y += doc.currentLineHeight() + 8;
+  doc.y = checkSpace(doc, startY, 40);
+  doc.save().fillColor(COLORS.blue).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
+  doc.text('Visión para los próximos meses', MARGIN, doc.y);
+  doc.y += 8;
   doc.restore();
-  
-  if (data.session.vision) {
-    y = drawJustifiedText(doc, data.session.vision, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
-    y += 15;
-  }
-  
-  return y;
+  if (data.session.vision) doc.y = buildHighlightBlock(doc, data.session.vision, doc.y, COLORS.lightBlue, '#F5F9FF');
+  return doc.y;
 }
 
-/** Medical Analysis section — structured format (intro → table → analysis per exam) */
 function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number, sessionIndex: number): number {
-  let y = checkSpace(doc, startY, 60);
+  doc.y = startY; 
   const hasStructured = data.session.structuredMedicalAnalysis && data.session.structuredMedicalAnalysis.exams.length > 0;
   const hasLabResults = data.session.labResults && data.session.labResults.length > 0;
   const hasMedicalText = data.session.medicalSummary;
 
-  if (!hasStructured && !hasLabResults && !hasMedicalText) return y;
+  if (!hasStructured && !hasLabResults && !hasMedicalText) return doc.y;
 
-  // Banner rojo
-  doc.save();
-  drawRect(doc, MARGIN, y, USABLE_WIDTH, 28, '#C62828');
-  doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
-  doc.text('Análisis de documentos médicos', MARGIN + 10, y + 6);
-  y += 34;
+  drawRect(doc, MARGIN, doc.y, USABLE_WIDTH, 20, '#C62828');
+  doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle - 2);
+  doc.text('Análisis de documentos médicos', MARGIN + 8, doc.y + 4);
   doc.restore();
+  doc.y += 28;
 
-  // ── FORMATO ESTRUCTURADO (nuevo) ──
   if (hasStructured) {
     const structured = data.session.structuredMedicalAnalysis!;
-
     for (let ei = 0; ei < structured.exams.length; ei++) {
       const exam = structured.exams[ei];
 
-      // Intro
-      y = checkSpace(doc, y, 30);
+      doc.y = checkSpace(doc, doc.y, 20);
       doc.save().fillColor(COLORS.text).font('Helvetica-Oblique').fontSize(FONT_SIZES.small);
-      y = drawJustifiedText(doc, exam.intro, MARGIN, y, USABLE_WIDTH, FONT_SIZES.small);
-      y += 8;
+      doc.y = drawJustifiedText(doc, exam.intro, MARGIN, doc.y, USABLE_WIDTH, FONT_SIZES.small);
+      doc.y += 6;
       doc.restore();
 
-      // Tabla de biomarcadores
       if (exam.table.length > 0) {
-        y = checkSpace(doc, y, 30);
-        const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.22, USABLE_WIDTH * 0.26, USABLE_WIDTH * 0.2];
-        const rowH = 16;
-
-        // Cabecera
-        doc.save();
-        drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
-        doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7.5);
+        doc.y = checkSpace(doc, doc.y, 20);
+        const colWidths = [USABLE_WIDTH * 0.35, USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.25, USABLE_WIDTH * 0.20];
+        const headerY = doc.y;
+        
+        drawRect(doc, MARGIN, headerY, USABLE_WIDTH, 14, '#C62828');
+        doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(7);
         ['Biomarcador', 'Valor', 'Rango Normal', 'Estado'].forEach((h, i) => {
-          doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 3, { width: colWidths[i], align: 'left' });
+          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+          doc.text(h, cx, headerY + 3, { width: colWidths[i] - 4, align: 'left' });
         });
-        y += rowH + 1;
         doc.restore();
+        doc.y = headerY + 14;
 
-        // Filas
         for (let ri = 0; ri < exam.table.length; ri++) {
           const row = exam.table[ri];
-          const isEven = ri % 2 === 0;
-          const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
-          const rowY = y;
-
-          y = checkSpace(doc, y, rowH + 5);
-          doc.save();
-          drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
-          doc.fillColor(COLORS.text).font('Helvetica').fontSize(7);
-
           const vals = [row.biomarcador, row.valor, row.rango_normal, row.estado];
-          const statusColor = row.estado === 'Normal' ? '#2E7D32' : '#C62828';
+          
+          doc.font('Helvetica').fontSize(7);
+          let maxH = 12; 
           vals.forEach((v, i) => {
-            const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
-            if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
-            else doc.fillColor(COLORS.text).font('Helvetica');
-            doc.text(v || '', cx, rowY + 3, { width: colWidths[i], align: 'left' });
+            const h = doc.heightOfString(String(v || ''), { width: colWidths[i] - 4 });
+            if (h + 4 > maxH) maxH = h + 4; 
           });
 
-          y = rowY + rowH;
+          doc.y = checkSpace(doc, doc.y, maxH);
+          const rowY = doc.y;
+          drawRect(doc, MARGIN, rowY, USABLE_WIDTH, maxH, ri % 2 === 0 ? '#FFEBEE' : '#FFFFFF');
+
+          doc.save();
+          vals.forEach((v, i) => {
+            const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
+            if (i === 3) doc.fillColor(row.estado === 'Normal' ? '#2E7D32' : '#C62828').font('Helvetica-Bold');
+            else doc.fillColor(COLORS.text).font('Helvetica');
+            doc.text(String(v || '').replace(/\$/g,''), cx, rowY + 3, { width: colWidths[i] - 4, align: 'left' });
+          });
           doc.restore();
+          doc.y = rowY + maxH; 
         }
-        y += 8;
+        doc.y += 8;
       }
 
-      // Análisis clínico
-      y = checkSpace(doc, y, 30);
-      doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.small);
-      const analysisLabel = 'Análisis Clínico: ';
-      doc.font('Helvetica-Bold').text(analysisLabel, MARGIN, y);
-      const labelW = doc.widthOfString(analysisLabel);
-      y = drawJustifiedText(doc, exam.analysis, MARGIN + labelW, y, USABLE_WIDTH - labelW, FONT_SIZES.small);
-      y += 8;
+      doc.y = checkSpace(doc, doc.y, 20);
+      doc.save().fillColor(COLORS.text).fontSize(FONT_SIZES.small);
+      doc.font('Helvetica-Bold').text('Análisis Clínico: ', MARGIN, doc.y, { continued: true });
+      doc.font('Helvetica').text(exam.analysis, { continued: false, lineGap: 1 });
+      doc.y += 10;
       doc.restore();
 
-      // Divisor entre exámenes
       if (ei < structured.exams.length - 1) {
-        y = checkSpace(doc, y, 15);
-        drawLine(doc, y, '#FFCDD2', USABLE_WIDTH);
-        y += 10;
+        drawLine(doc, doc.y, '#FFCDD2', USABLE_WIDTH);
+        doc.y += 10;
       }
     }
 
-    // ── SUPLEMENTOS ──
     if (structured.supplements.length > 0) {
-      y = checkSpace(doc, y, 30);
-      doc.save();
-      drawRect(doc, MARGIN, y, USABLE_WIDTH, 22, '#F57F17');
-      doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.body);
-      doc.text('Suplementación Estratégica Recomendada', MARGIN + 10, y + 4);
-      y += 28;
+      doc.y = checkSpace(doc, doc.y, 25);
+      drawRect(doc, MARGIN, doc.y, USABLE_WIDTH, 18, '#F57F17');
+      doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(10);
+      doc.text('Suplementación Estratégica Recomendada', MARGIN + 8, doc.y + 4);
       doc.restore();
+      doc.y += 24;
 
       for (const supp of structured.supplements) {
-        y = checkSpace(doc, y, 30);
+        doc.y = checkSpace(doc, doc.y, 20);
         doc.save().fillColor(COLORS.text).font('Helvetica-Bold').fontSize(FONT_SIZES.small);
-        doc.text(`• ${supp.name}`, MARGIN + 5, y);
-        y += doc.currentLineHeight() + 2;
+        doc.text(`• ${supp.name}`, MARGIN + 5, doc.y);
+        doc.y += 3;
+        
         doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.darkGray);
-        doc.text(`  Dosis: ${supp.dosage} | Momento: ${supp.timing}`, MARGIN + 5, y);
-        y += doc.currentLineHeight() + 2;
-        doc.text(`  Razón: ${supp.rationale}`, MARGIN + 5, y);
-        y += doc.currentLineHeight() + 2;
+        doc.text(`  Dosis: ${supp.dosage} | Momento: ${supp.timing}`, MARGIN + 5, doc.y);
+        doc.y += 2;
+        doc.text(`  Razón: ${supp.rationale}`, MARGIN + 5, doc.y, { width: USABLE_WIDTH - 10 });
+        doc.y += 2;
+        
         if (supp.contraindications) {
-          doc.fillColor('#C62828').font('Helvetica-Bold').fontSize(FONT_SIZES.small);
-          doc.text(`  ⚠️ Contraindicaciones: ${supp.contraindications}`, MARGIN + 5, y);
-          y += doc.currentLineHeight() + 2;
+          doc.fillColor('#C62828').font('Helvetica-Bold');
+          doc.text(`  ⚠️ Contraindicaciones: ${supp.contraindications}`, MARGIN + 5, doc.y, { width: USABLE_WIDTH - 10 });
+          doc.y += 2;
         }
-        y += 4;
+        doc.y += 6;
         doc.restore();
       }
-    } else {
-      y = checkSpace(doc, y, 30);
-      drawCard(doc, MARGIN, y, USABLE_WIDTH, 35, '#E8F5E9', '#4CAF50');
-      doc.save().fillColor('#2E7D32').font('Helvetica-Bold').fontSize(FONT_SIZES.small);
-      doc.text('🥗 Optimización Nutricional sin Suplementos', MARGIN + 10, y + 8);
-      doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
-      doc.text('No se requiere suplementación adicional. El plan alimenticio diseñado para tus necesidades metabólicas permitirá regular tus biomarcadores de forma natural.', MARGIN + 10, y + 22, { width: USABLE_WIDTH - 20 });
-      y += 42;
-      doc.restore();
-    }
-  } else {
-    /* ── FALLBACK: formato antiguo ── */
-    // Tabla de laboratorios
-    if (hasLabResults) {
-      const colWidths = [USABLE_WIDTH * 0.32, USABLE_WIDTH * 0.2, USABLE_WIDTH * 0.28, USABLE_WIDTH * 0.2];
-      const rowH = 18;
-
-      // Cabecera
-      doc.save();
-      drawRect(doc, MARGIN, y, USABLE_WIDTH, rowH, '#C62828');
-      doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(8);
-      ['Indicador', 'Valor', 'Rango referencia', 'Estado'].forEach((h, i) => {
-        doc.text(h, MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0), y + 4, { width: colWidths[i], align: 'left' });
-      });
-      y += rowH + 1;
-      doc.restore();
-
-      // Filas
-      for (let ri = 0; ri < data.session.labResults!.length; ri++) {
-        const lab = data.session.labResults![ri];
-        const isEven = ri % 2 === 0;
-        const bgColor = isEven ? '#FFEBEE' : '#FFFFFF';
-        const rowY = y;
-
-        doc.save();
-        drawRect(doc, MARGIN, rowY, USABLE_WIDTH, rowH, bgColor);
-        doc.fillColor(COLORS.text).font('Helvetica').fontSize(7.5);
-
-        const vals = [lab.name, lab.value, lab.range, lab.status.toUpperCase()];
-        const statusColor = lab.status === 'normal' ? '#2E7D32' : '#C62828';
-        vals.forEach((v, i) => {
-          const cx = MARGIN + 4 + colWidths.slice(0, i).reduce((a, c) => a + c, 0);
-          if (i === 3) doc.fillColor(statusColor).font('Helvetica-Bold');
-          else doc.fillColor(COLORS.text).font('Helvetica');
-          doc.text(v || '', cx, rowY + 4, { width: colWidths[i], align: 'left' });
-        });
-
-        y = rowY + rowH;
-        doc.restore();
-      }
-      y += 12;
-    }
-
-    // Texto del análisis
-    if (data.session.medicalSummary) {
-      doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
-      y = drawJustifiedText(doc, data.session.medicalSummary, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
-      y += 12;
-      doc.restore();
     }
   }
-
-  // ── ANÁLISIS COMPARATIVO (solo desde sesión 2+) ──
-  if (sessionIndex >= 1 && data.session.medicalComparativeAnalysis) {
-    y = checkSpace(doc, y, 30);
-    doc.save();
-    drawRect(doc, MARGIN, y, USABLE_WIDTH, 24, '#C62828');
-    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.body + 1);
-    doc.text('Análisis comparativo vs sesiones anteriores', MARGIN + 10, y + 5);
-    y += 30;
-    doc.restore();
-
-    doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
-    y = drawJustifiedText(doc, data.session.medicalComparativeAnalysis, MARGIN, y, USABLE_WIDTH, FONT_SIZES.body);
-    y += 12;
-    doc.restore();
-  }
-
-  // ── DISCLAIMER ──
-  y = checkSpace(doc, y, 20);
-  doc.save()
-    .fillColor('#C62828')
-    .font('Helvetica-Oblique')
-    .fontSize(7.5);
-  const disclaimer = '⚠️ Las presentes recomendaciones no son un substituto a las consultas médicas profesionales. Consultar con un médico y/o profesional de la salud de confianza previamente.';
-  drawRect(doc, MARGIN, y, USABLE_WIDTH, 26, '#FFEBEE');
-  doc.fillColor('#C62828');
-  doc.text(disclaimer, MARGIN + 10, y + 8, { width: USABLE_WIDTH - 20, align: 'center' });
-  y += 32;
-  doc.restore();
-
-  return y;
+  return doc.y;
 }
 
-/** Build a single recipe card within a day+meal */
-function buildRecipeCard(
-  doc: PDFKit.PDFDocument,
-  recipe: PDFRecipeData,
-  x: number,
-  startY: number,
-  cardWidth: number
-): number {
-  let y = startY;
+function getRecipeCardHeight(doc: PDFKit.PDFDocument, recipe: PDFRecipeData, mealTypeStr: string, cardWidth: number): number {
   const pad = 10;
+  const innerW = cardWidth - 2 * pad;
+  const imgW = 120;
+  const gap = 15;
+  const hasImg = !!recipe.imageBuffer;
+  const textW = hasImg ? innerW - imgW - gap : innerW;
+  const colW = (textW - 10) / 2;
+
+  let textH = 0;
+  if (mealTypeStr) textH += 22;
+
+  doc.font('Helvetica-Bold').fontSize(FONT_SIZES.recipeTitle);
+  textH += doc.heightOfString(recipe.title, { width: textW }) + 4;
+
+  doc.font('Helvetica-Oblique').fontSize(FONT_SIZES.macroLabel);
+  textH += doc.heightOfString('M') + 6;
+
+  doc.font('Helvetica-Bold').fontSize(FONT_SIZES.subTitle);
+  textH += doc.heightOfString('Ingredientes', { width: colW }) + 4;
+
+  doc.font('Helvetica').fontSize(FONT_SIZES.small);
+  let ingH = 0;
+  for (const ing of recipe.ingredients || []) {
+      let text = '• ';
+      if (typeof ing === 'string') text += ing;
+      else if (ing && typeof ing === 'object') {
+         if (ing.name && ing.quantity) text += `${ing.name} - ${ing.quantity}`;
+         else text += ing.name || ing.quantity || '';
+         if (ing.notes) text += ` (${ing.notes})`;
+      }
+      ingH += doc.heightOfString(text, { width: colW, lineGap: 1 }) + 2;
+  }
+
+  let instH = 0;
+  for (let i = 0; i < (recipe.instructions || []).length; i++) {
+      instH += doc.heightOfString(`${i + 1}. ${recipe.instructions[i]}`, { width: colW, lineGap: 1 }) + 2;
+  }
+
+  textH += Math.max(ingH, instH);
+
+  const imgH = hasImg ? 80 : 0;
+  return Math.max(imgH, textH) + (pad * 2) + 4;
+}
+
+function buildRecipeCard(doc: PDFKit.PDFDocument, recipe: PDFRecipeData, mealTypeStr: string, x: number, startY: number, cardWidth: number): number {
+  doc.y = startY;
+  const pad = 10;
+  const cardHeight = getRecipeCardHeight(doc, recipe, mealTypeStr, cardWidth);
+  doc.y = checkSpace(doc, doc.y, cardHeight);
+  const cardStartY = doc.y;
   
-  // Card background
-  drawCard(doc, x, y, cardWidth, 1000, COLORS.greenBg); // height will be determined
+  drawCard(doc, x, cardStartY, cardWidth, cardHeight, COLORS.greenBg);
+  
   const innerX = x + pad;
   const innerW = cardWidth - 2 * pad;
+  const imgW = 120;
+  const gap = 15;
+  const hasImg = !!recipe.imageBuffer;
+  const textX = hasImg ? innerX + imgW + gap : innerX;
+  const textW = hasImg ? innerW - imgW - gap : innerW;
   
-  // Image
-  let imageHeight = 0;
-  if (recipe.imageBuffer) {
-    try {
-      const imgW = innerW;
-      const imgH = 120;
-      doc.image(recipe.imageBuffer, innerX, y + pad, { width: imgW, height: imgH });
-      imageHeight = imgH + pad;
-    } catch {
-      imageHeight = 0;
-    }
+  if (hasImg) {
+      try {
+        doc.save().roundedRect(innerX, cardStartY + pad, imgW, 80, 4).clip();
+        doc.image(recipe.imageBuffer as Buffer, innerX, cardStartY + pad, { fit: [imgW, 80], align: 'center', valign: 'center' });
+        doc.restore();
+      } catch (err) {
+        doc.restore();
+      }
+  } 
+  
+  let currentY = cardStartY + pad;
+
+  if (mealTypeStr) {
+      doc.save().font('Helvetica-Bold').fontSize(9);
+      const pillW = doc.widthOfString(mealTypeStr) + 16;
+      drawRoundedRect(doc, textX, currentY, pillW, 16, 8, '#FFF3E0');
+      doc.fillColor('#F57C00');
+      doc.text(mealTypeStr, textX + 8, currentY + 4);
+      doc.restore();
+      currentY += 22;
   }
   
-  y += pad + imageHeight;
-  
-  // Title
-  doc.save()
-    .fillColor(COLORS.darkGreen)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.recipeTitle);
-  const titleText = recipe.title;
-  doc.text(titleText, innerX, y);
-  y += doc.currentLineHeight() + 6;
+  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(FONT_SIZES.recipeTitle);
+  doc.text(recipe.title, textX, currentY, { width: textW });
+  currentY += doc.heightOfString(recipe.title, { width: textW }) + 4;
   doc.restore();
   
-  // Divider
-  drawLine(doc, y, COLORS.green, innerW);
-  y += 8;
+  const macros = [];
+  if (recipe.cookTime) macros.push(`Tiempo: ${recipe.cookTime} min`);
+  if (recipe.macros?.calories) macros.push(`Calorías: ${Math.round(recipe.macros.calories)} kcal`);
+  if (recipe.macros?.protein) macros.push(`Prot: ${Math.round(recipe.macros.protein)}g`);
+  if (recipe.macros?.carbs) macros.push(`Carb: ${Math.round(recipe.macros.carbs)}g`);
+  if (recipe.macros?.fat) macros.push(`Grasa: ${Math.round(recipe.macros.fat)}g`);
   
-  // Macros + cookTime in a row
-  const boxH = 36;
-  const boxGap = 6;
-  const numBoxes = 4; // time, fat, carbs, calories
-  const boxW = (innerW - boxGap * (numBoxes - 1)) / numBoxes;
+  doc.save().fillColor(COLORS.darkGray).font('Helvetica-Oblique').fontSize(FONT_SIZES.macroLabel);
+  doc.text(macros.join('   |   '), textX, currentY, { width: textW });
+  currentY += doc.heightOfString('M') + 6;
+  doc.restore();
+
+  doc.save().moveTo(textX, currentY - 2).lineTo(textX + textW, currentY - 2).strokeColor(COLORS.green).lineWidth(1).stroke().restore();
   
-  // Cook time
-  const cookTimeStr = recipe.cookTime ? `${recipe.cookTime}` : '—';
-  drawInfoBox(doc, innerX, y, boxW, boxH, cookTimeStr, 'mins', COLORS.white, COLORS.darkGreen);
+  const colW = (textW - 10) / 2;
+  let leftY = currentY + 4;
+  let rightY = currentY + 4;
   
-  // Fat
-  const fatStr = recipe.macros.fat !== undefined ? `${Math.round(recipe.macros.fat)}g` : '—';
-  drawInfoBox(doc, innerX + boxW + boxGap, y, boxW, boxH, fatStr, 'grasas', COLORS.white, COLORS.darkGreen);
+  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(FONT_SIZES.subTitle);
+  doc.text('Ingredientes', textX, leftY);
+  leftY += doc.heightOfString('Ingredientes') + 4;
   
-  // Carbs
-  const carbsStr = recipe.macros.carbs !== undefined ? `${Math.round(recipe.macros.carbs)}g` : '—';
-  drawInfoBox(doc, innerX + 2 * (boxW + boxGap), y, boxW, boxH, carbsStr, 'carbohidratos', COLORS.white, COLORS.darkGreen);
-  
-  // Calories
-  const calStr = recipe.macros.calories !== undefined ? `${Math.round(recipe.macros.calories)}` : '—';
-  drawInfoBox(doc, innerX + 3 * (boxW + boxGap), y, boxW, boxH, calStr, 'calorías', COLORS.white, COLORS.darkGreen);
-  
-  y += boxH + 10;
-  
-  // Two columns: Ingredients | Steps
-  const colW = (innerW - 15) / 2;
-  const colGap = 15;
-  
-  // Column 1: Ingredients
-  doc.save()
-    .fillColor(COLORS.darkGreen)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.subTitle);
-  doc.text('Ingredientes', innerX, y);
-  y += doc.currentLineHeight() + 4;
+  doc.text('Preparación', textX + colW + 10, rightY);
+  rightY += doc.heightOfString('Preparación') + 4;
   
   doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
-  const ingredients = recipe.ingredients || [];
-  for (const ing of ingredients) {
-    const ingText = `• ${ing}`;
-    const lines = wordWrap(ingText, doc, colW);
-    for (const line of lines) {
-      doc.text(line, innerX, y);
-      y += 11;
+  for (const ing of recipe.ingredients || []) {
+    let t = '• ';
+    if (typeof ing === 'string') t += ing;
+    else if (ing && typeof ing === 'object') {
+       if (ing.name && ing.quantity) t += `${ing.name} - ${ing.quantity}`;
+       else t += ing.name || ing.quantity || '';
+       if (ing.notes) t += ` (${ing.notes})`;
     }
+    doc.text(t, textX, leftY, { width: colW, lineGap: 1 });
+    leftY += doc.heightOfString(t, { width: colW, lineGap: 1 }) + 2;
+  }
+  
+  for (let i = 0; i < (recipe.instructions || []).length; i++) {
+    const t = `${i + 1}. ${recipe.instructions[i]}`;
+    doc.text(t, textX + colW + 10, rightY, { width: colW, lineGap: 1 });
+    rightY += doc.heightOfString(t, { width: colW, lineGap: 1 }) + 2;
   }
   doc.restore();
   
-  // Column 2: Instructions
-  let instrY = startY + pad + imageHeight + doc.currentLineHeight() + 4;
-  doc.save()
-    .fillColor(COLORS.darkGreen)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.subTitle);
-  const intsrTitle = 'Preparación';
-  doc.text(intsrTitle, innerX + colW + colGap, instrY);
-  instrY += doc.currentLineHeight() + 4;
-  
-  doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
-  const instructions = recipe.instructions || [];
-  for (let i = 0; i < instructions.length; i++) {
-    const stepText = `${i + 1}. ${instructions[i]}`;
-    const lines = wordWrap(stepText, doc, colW);
-    for (const line of lines) {
-      doc.text(line, innerX + colW + colGap, instrY);
-      instrY += 11;
-    }
-  }
-  doc.restore();
-  
-  // Return the lower of the two columns
-  const finalY = Math.max(y, instrY) + 5;
-  return finalY;
+  doc.y = cardStartY + cardHeight;
+  return doc.y;
 }
 
-/** Nutrition plan section */
 function buildNutritionPlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 80);
-  
-  // Green banner
-  y = drawBanner(doc, y, 'Plan Nutricional', COLORS.green);
-  
-  // Group checklist items by weekNumber, then organize by day
-  // We have `data.weeks` with week info. For the PDF, we'll use weeks data.
-  // Actually, the user wants "Lunes, Martes..." structure. The checklist items
-  // have weekNumber but not dayOfWeek. Let's use a simplified approach:
-  // Show each week's nutrition items organized by meal type.
-  
+  doc.y = startY;
+  const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const mealMap: Record<string, string> = {
+    desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena', snack: 'Snack',
+    breakfast: 'Desayuno', lunch: 'Almuerzo', dinner: 'Cena'
+  };
+
+  let isFirstDay = true;
+
   for (const week of data.weeks) {
-    y = checkSpace(doc, y, 40);
+    const weekItems = data.checklist.filter(item => item.weekNumber === week.weekNumber && item.category === 'nutrition');
+    if (weekItems.length === 0) continue;
     
-    // Week header
-    doc.save()
-      .fillColor(COLORS.darkGreen)
-      .font('Helvetica-Bold')
-      .fontSize(FONT_SIZES.sectionTitle);
-    doc.text(`Semana ${week.weekNumber}`, MARGIN, y);
-    y += doc.currentLineHeight() + 4;
-    doc.restore();
-    
-    // Nutrition focus
-    if (week.nutrition.focus) {
-      doc.save()
-        .fillColor(COLORS.darkGray)
-        .font('Helvetica-Oblique')
-        .fontSize(FONT_SIZES.body);
-      doc.text(`Enfoque: ${week.nutrition.focus}`, MARGIN, y);
-      y += doc.currentLineHeight() + 8;
-      doc.restore();
-    }
-    
-    // Get checklist items for this week's nutrition
-    const weekItems = data.checklist.filter(
-      item => item.weekNumber === week.weekNumber && item.category === 'nutrition'
-    );
-    
-    if (weekItems.length === 0) {
-      doc.save()
-        .fillColor(COLORS.darkGray)
-        .font('Helvetica')
-        .fontSize(FONT_SIZES.body);
-      doc.text('No hay items nutricionales para esta semana.', MARGIN, y);
-      y += doc.currentLineHeight() + 10;
-      doc.restore();
-      continue;
-    }
-    
-    // Group items by meal type (breakfast, lunch, dinner) based on description or type
-    const mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
-    const mealLabels: Record<string, string> = {
-      breakfast: 'Desayuno',
-      lunch: 'Almuerzo',
-      dinner: 'Cena',
-      snack: 'Snack',
-    };
-    
-    for (const mealType of mealOrder) {
-      const mealItems = weekItems.filter(
-        item => (item.type || '').toLowerCase() === mealType
-      );
-      if (mealItems.length === 0) continue;
-      
-      y = checkSpace(doc, y, 30);
-      
-      // Meal label in bold
-      doc.save()
-        .fillColor(COLORS.text)
-        .font('Helvetica-Bold')
-        .fontSize(FONT_SIZES.subTitle);
-      doc.text(mealLabels[mealType] || mealType, MARGIN, y);
-      y += doc.currentLineHeight() + 6;
-      doc.restore();
-      
-      for (const item of mealItems) {
-        y = checkSpace(doc, y, 200);
-        
-        let recipe: PDFRecipeData | undefined;
-        
-        // Try to find recipe by recipeId
-        if (item.recipeId && data.recipes[item.recipeId]) {
-          recipe = data.recipes[item.recipeId];
-        }
-        // Try by matching description with recipe title
-        else {
-          const match = Object.values(data.recipes).find(
-            r => r.title.toLowerCase().includes(item.description.toLowerCase()) ||
-                 item.description.toLowerCase().includes(r.title.toLowerCase())
-          );
-          if (match) recipe = match;
-        }
-        
-        if (recipe) {
-          const cardStartY = y;
-          y = buildRecipeCard(doc, recipe, MARGIN, y, USABLE_WIDTH);
-          y += 12;
-        } else {
-          // Fallback: show item description and inline recipe details
-          drawCard(doc, MARGIN, y, USABLE_WIDTH, 50, COLORS.greenBg);
-          
-          doc.save()
-            .fillColor(COLORS.darkGreen)
-            .font('Helvetica-Bold')
-            .fontSize(FONT_SIZES.body + 1);
-          doc.text(item.description, MARGIN + 10, y + 8);
-          y += doc.currentLineHeight() + 10;
-          doc.restore();
-          
-          if (item.details?.recipe) {
-            const r = item.details.recipe;
-            // Macros inline
-            if (item.details.macros || item.details.calories) {
-              doc.save()
-                .font('Helvetica')
-                .fontSize(FONT_SIZES.small)
-                .fillColor(COLORS.darkGray);
-              const macros = item.details.macros;
-              const parts: string[] = [];
-              if (macros?.fat) parts.push(`Grasas: ${macros.fat}`);
-              if (macros?.carbs) parts.push(`Carbohidratos: ${macros.carbs}`);
-              if (item.details.calories) parts.push(`Calorías: ${item.details.calories}`);
-              doc.text(parts.join('  |  '), MARGIN + 10, y);
-              y += doc.currentLineHeight() + 6;
-              doc.restore();
-            }
-            
-            // Preparation
-            if (r.preparation) {
-              doc.save()
-                .font('Helvetica')
-                .fontSize(FONT_SIZES.small)
-                .fillColor(COLORS.text);
-              const prepLines = wordWrap(r.preparation, doc, USABLE_WIDTH - 20);
-              for (const line of prepLines) {
-                doc.text(line, MARGIN + 10, y);
-                y += 11;
-              }
-              doc.restore();
-            }
-          }
-          y += 10;
-        }
+    const dayGroups: { day: string; items: PDFChecklistItem[] }[] = dayOrder.map(d => ({ day: d, items: [] }));
+    const noDayItems: PDFChecklistItem[] = [];
+
+    for (const item of weekItems) {
+      let dayFound = dayOrder.find(d => item.details?.frequency?.toLowerCase().includes(d.toLowerCase())) || 
+                     dayOrder.find(d => item.description.toLowerCase().startsWith(d.toLowerCase()));
+      if (dayFound) {
+        dayGroups.find(g => g.day === dayFound)!.items.push(item);
+      } else {
+        noDayItems.push(item);
       }
     }
     
-    y += 10; // space between weeks
+    if (noDayItems.length > 0 && dayGroups.every(g => g.items.length === 0)) {
+       dayGroups[0].items = noDayItems;
+    }
+
+    for (const group of dayGroups) {
+      if (group.items.length === 0) continue;
+      
+      // Control Modular: 1 Día = 1 Hoja
+      if (!isFirstDay) forceNewPage(doc);
+      
+      if (isFirstDay) {
+         doc.y = drawBanner(doc, doc.y, 'Plan Nutricional', COLORS.green);
+         isFirstDay = false;
+      }
+
+      doc.y = checkSpace(doc, doc.y, 40);
+      drawCard(doc, MARGIN, doc.y, USABLE_WIDTH, 22, COLORS.green, COLORS.green);
+      doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(11);
+      doc.text(group.day, MARGIN + 12, doc.y + 5);
+      doc.restore();
+      doc.y += 28; 
+
+      for (const item of group.items) {
+          const type = (item.type || '').toLowerCase();
+          const mealTypeStr = mealMap[type] || 'Recomendación';
+
+          let recipe: PDFRecipeData | undefined;
+          if (item.recipeId && data.recipes[item.recipeId]) {
+            recipe = data.recipes[item.recipeId];
+          } else {
+            recipe = Object.values(data.recipes).find(r => 
+              r.title.toLowerCase().includes(item.description.toLowerCase()) || 
+              item.description.toLowerCase().includes(r.title.toLowerCase())
+            );
+          }
+          
+          if (recipe) {
+            doc.y = buildRecipeCard(doc, recipe, mealTypeStr, MARGIN, doc.y, USABLE_WIDTH);
+            doc.y += 10; 
+          } else {
+             const fH = 40;
+             doc.y = checkSpace(doc, doc.y, fH);
+             drawCard(doc, MARGIN, doc.y, USABLE_WIDTH, fH, COLORS.greenBg);
+             doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(FONT_SIZES.body);
+             doc.text(`[${mealTypeStr}] ${item.description}`, MARGIN + 10, doc.y + 10, { width: USABLE_WIDTH - 20 });
+             doc.restore();
+             doc.y += fH + 10;
+          }
+      }
+    }
   }
-  
-  return y;
+  return doc.y;
 }
 
-/** Shopping list section — hoja dedicada */
 function buildShoppingListSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  // Recopilar TODOS los items de compras de todas las semanas
+  doc.y = startY;
   const allItems: Array<{ item: string; quantity: string; }> = [];
   for (const week of data.weeks) {
     if (week.nutrition.shoppingList) {
-      for (const si of week.nutrition.shoppingList) {
-        allItems.push({ item: si.item, quantity: si.quantity });
-      }
+      for (const si of week.nutrition.shoppingList) allItems.push(si);
     }
   }
-  if (allItems.length === 0) return startY;
+  if (allItems.length === 0) return doc.y;
 
-  let y = checkSpace(doc, startY, 80);
+  doc.y = drawBanner(doc, doc.y, 'Lista de compras', COLORS.darkGreen);
+
+  doc.save().fillColor(COLORS.darkGray).font('Helvetica-Oblique').fontSize(FONT_SIZES.small);
+  doc.text('Usa esta lista como guía para tu visita al supermercado.', MARGIN, doc.y);
+  doc.y += 16;
   
-  // Banner
-  y = drawBanner(doc, y, 'Lista de compras semanal', COLORS.darkGreen);
-
-  // Subtítulo
-  doc.save()
-    .fillColor(COLORS.darkGray)
-    .font('Helvetica-Oblique')
-    .fontSize(FONT_SIZES.small)
-    .text('Usa esta lista como guía para tu visita al supermercado.', MARGIN, y);
-  y += doc.currentLineHeight() + 14;
+  const listText = allItems.map(item => `• ${item.item}: ${item.quantity}`).join('\n');
+  
+  doc.fillColor(COLORS.text).font('Helvetica').fontSize(9);
+  doc.text(listText, MARGIN, doc.y, { columns: 3, columnGap: 15, lineGap: 3, align: 'left' });
   doc.restore();
-
-  // Tabla de compras
-  for (const item of allItems) {
-    y = checkSpace(doc, y, 14);
-    doc.save()
-      .fillColor(COLORS.text)
-      .font('Helvetica')
-      .fontSize(FONT_SIZES.body);
-    
-    const label = `${item.item}`;
-    const qty = `${item.quantity}`;
-    const labelW = doc.widthOfString(label);
-    const qtyW = doc.widthOfString(qty);
-    const dotX = MARGIN + 8;
-    
-    doc.text(`•  ${label}`, dotX, y);
-    doc.text(qty, PAGE_WIDTH - MARGIN - qtyW, y);
-    y += 14;
-    doc.restore();
-  }
-
-  return y + 10;
+  
+  doc.y += 15; 
+  return doc.y;
 }
 
-/** Exercise plan section */
 function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 80);
-  
-  // Blue banner
-  y = drawBanner(doc, y, 'Plan de Ejercicios', COLORS.exerciseBlue);
-  
-  // Group exercises by week
-  for (const week of data.weeks) {
-    y = checkSpace(doc, y, 40);
-    
-    doc.save()
-      .fillColor(COLORS.exerciseBlue)
-      .font('Helvetica-Bold')
-      .fontSize(FONT_SIZES.sectionTitle);
-    doc.text(`Semana ${week.weekNumber}`, MARGIN, y);
-    y += doc.currentLineHeight() + 4;
-    
-    if (week.exercise.focus) {
-      doc.font('Helvetica-Oblique').fontSize(FONT_SIZES.body).fillColor(COLORS.darkGray);
-      doc.text(`Enfoque: ${week.exercise.focus}`, MARGIN, y);
-      y += doc.currentLineHeight() + 8;
-    }
-    doc.restore();
-    
-    const weekExercises = data.checklist.filter(
-      item => item.weekNumber === week.weekNumber && item.category === 'exercise'
-    );
-    
-    if (weekExercises.length === 0) {
-      doc.save()
-        .fillColor(COLORS.darkGray)
-        .font('Helvetica')
-        .fontSize(FONT_SIZES.body);
-      doc.text('No hay ejercicios programados para esta semana.', MARGIN, y);
-      y += doc.currentLineHeight() + 10;
-      doc.restore();
-      continue;
-    }
-    
-    for (const item of weekExercises) {
-      y = checkSpace(doc, y, 150);
-      
-      // Find full exercise data
-      let exercise: PDFExerciseData | undefined;
-      const match = Object.values(data.exercises).find(
-        ex => ex.name.toLowerCase().includes(item.description.toLowerCase()) ||
-              item.description.toLowerCase().includes(ex.name.toLowerCase())
-      );
-      if (match) exercise = match;
-      
-      // Exercise card (light blue bg)
-      const cardPad = 10;
-      const cardX = MARGIN;
-      const cardStartY = y;
-      
-      // We'll draw the card after measuring content
-      let contentY = y + cardPad;
-      
-      // Demo image — COMENTADO: se preserva para futuro uso
-      let imgW = 0;
-      
-      // Title
-      const titleX = cardX + cardPad + (exercise?.demoBuffer ? imgW : 0);
-      const titleW = USABLE_WIDTH - 2 * cardPad - (exercise?.demoBuffer ? imgW : 0);
-      
-      doc.save()
-        .fillColor(COLORS.exerciseBlue)
-        .font('Helvetica-Bold')
-        .fontSize(FONT_SIZES.recipeTitle);
-      const exTitle = exercise?.name || item.description;
-      doc.text(exTitle, titleX > cardX + cardPad ? titleX : cardX + cardPad, y + cardPad);
-      contentY = y + cardPad + doc.currentLineHeight() + 6;
-      doc.restore();
-      
-      // TUT (Time Under Tension) boxes
-      const tut = exercise?.timeUnderTension || item.details?.timeUnderTension;
-      if (tut) {
-        const phases = tut.split('-').filter(Boolean);
-        const boxH = 30;
-        const boxW = 35;
-        const boxGap = 4;
-        const tutX = titleX > cardX + cardPad ? titleX : cardX + cardPad;
-        
-        doc.save()
-          .fillColor(COLORS.exerciseBlue)
-          .font('Helvetica-Bold')
-          .fontSize(FONT_SIZES.small);
-        doc.text('TUT:', tutX, contentY);
-        const tutLabelW = doc.widthOfString('TUT:');
-        doc.restore();
-        
-        for (let i = 0; i < phases.length; i++) {
-          const bx = tutX + tutLabelW + 8 + i * (boxW + boxGap);
-          drawRoundedRect(doc, bx, contentY - 2, boxW, boxH, 3, COLORS.blueBg);
-          
-          doc.save()
-            .fillColor(COLORS.exerciseBlue)
-            .font('Helvetica-Bold')
-            .fontSize(12);
-          const valW = doc.widthOfString(phases[i]);
-          doc.text(phases[i], bx + (boxW - valW) / 2, contentY + 2);
-          
-          doc.font('Helvetica').fontSize(6).fillColor(COLORS.darkGray);
-          const phaseLabels = ['excéntrica', 'pausa', 'concéntrica'];
-          const phaseLabel = phaseLabels[i] || '';
-          const plW = doc.widthOfString(phaseLabel);
-          doc.text(phaseLabel, bx + (boxW - plW) / 2, contentY + 16);
-          doc.restore();
-        }
-        contentY += boxH + 8;
-      }
-      
-      // Sets + Reps in a row
-      const sets = exercise?.sets || item.details?.sets || 3;
-      const reps = exercise?.repetitions || item.details?.repetitions || '—';
-      
-      const dataX = cardX + cardPad;
-      doc.save()
-        .fillColor(COLORS.text)
-        .font('Helvetica')
-        .fontSize(FONT_SIZES.small);
-      doc.text(`Series: ${sets}    Repeticiones: ${reps}`, dataX, contentY);
-      contentY += doc.currentLineHeight() + 4;
-      doc.restore();
-      
-      // Equipment
-      const equip = exercise?.equipment || item.details?.equipment || [];
-      if (equip.length > 0) {
-        doc.save()
-          .fillColor(COLORS.darkGray)
-          .font('Helvetica')
-          .fontSize(FONT_SIZES.small);
-        doc.text(`Equipo: ${equip.join(', ')}`, dataX, contentY);
-        contentY += doc.currentLineHeight() + 4;
-        doc.restore();
-      }
-      
-      // Instructions
-      const instr = exercise?.instructions || [];
-      if (instr.length > 0) {
-        doc.save()
-          .fillColor(COLORS.text)
-          .font('Helvetica')
-          .fontSize(FONT_SIZES.small);
-        const instrText = instr.join(' ');
-        const instrLines = wordWrap(instrText, doc, USABLE_WIDTH - 2 * cardPad);
-        for (const line of instrLines) {
-          doc.text(line, cardX + cardPad, contentY);
-          contentY += 10;
-        }
-        doc.restore();
-      }
-      
-      contentY += cardPad;
-      
-      // Draw the card background
-      const cardH = contentY - cardStartY;
-      drawCard(doc, cardX, cardStartY, USABLE_WIDTH, cardH, COLORS.blueBg, COLORS.exerciseBlue);
-      
-      y = cardStartY + cardH + 12;
-    }
-    
-    // Equipment list
-    if (week.exercise.equipment && week.exercise.equipment.length > 0) {
-      y = checkSpace(doc, y, 20);
-      doc.save()
-        .fillColor(COLORS.darkGray)
-        .font('Helvetica-Oblique')
-        .fontSize(FONT_SIZES.small);
-      doc.text(`Equipo necesario: ${week.exercise.equipment.join(', ')}`, MARGIN, y);
-      y += doc.currentLineHeight() + 10;
-      doc.restore();
-    }
-    
-    y += 5;
-  }
-  
-  // ─── Detalle de Ejercicios por Día ─────────────────────────────────────
-  y = checkSpace(doc, y, 80);
-  y = drawBanner(doc, y, 'Detalle de Ejercicios por Día', COLORS.exerciseBlue);
-
+  doc.y = startY;
   const dayOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const exerciseItems = data.checklist.filter(item => item.category === 'exercise');
 
   if (exerciseItems.length > 0) {
     const weekSet = new Set(exerciseItems.map(item => item.weekNumber));
     const weeksWithExercises = Array.from(weekSet).sort();
+    let isFirstRender = true;
 
     for (const weekNum of weeksWithExercises) {
-      y = checkSpace(doc, y, 30);
-
-      doc.save()
-        .fillColor(COLORS.exerciseBlue)
-        .font('Helvetica-Bold')
-        .fontSize(FONT_SIZES.sectionTitle);
-      doc.text(`Semana ${weekNum}`, MARGIN, y);
-      y += doc.currentLineHeight() + 10;
-      doc.restore();
-
+      const week = data.weeks.find(w => w.weekNumber === weekNum);
       const weekItems = exerciseItems.filter(item => item.weekNumber === weekNum);
-
-      // Group by day
       const dayGroups: { day: string; items: PDFChecklistItem[] }[] = [];
 
       for (const item of weekItems) {
-        let day = '';
-
-        // Try to extract day from details.frequency
-        if (item.details?.frequency) {
-          const freq = item.details.frequency;
-          const matchedDay = dayOrder.find(d => freq.toLowerCase().includes(d.toLowerCase()));
-          if (matchedDay) day = matchedDay;
-        }
-
-        // Try description prefix
-        if (!day) {
-          const matchedDay = dayOrder.find(d =>
-            item.description.toLowerCase().startsWith(d.toLowerCase())
-          );
-          if (matchedDay) day = matchedDay;
-        }
-
-        if (!day) day = 'Sin día asignado';
+        let day = dayOrder.find(d => item.details?.frequency?.toLowerCase().includes(d.toLowerCase())) || 
+                  dayOrder.find(d => item.description.toLowerCase().startsWith(d.toLowerCase())) || 'General';
 
         let existing = dayGroups.find(g => g.day === day);
-        if (!existing) {
-          existing = { day, items: [] };
-          dayGroups.push(existing);
-        }
+        if (!existing) { existing = { day, items: [] }; dayGroups.push(existing); }
         existing.items.push(item);
       }
 
-      // Sort by day order; unmapped days go last
       dayGroups.sort((a, b) => {
-        const ai = dayOrder.indexOf(a.day);
-        const bi = dayOrder.indexOf(b.day);
+        const ai = dayOrder.indexOf(a.day); const bi = dayOrder.indexOf(b.day);
         if (ai === -1 && bi === -1) return 0;
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
+        if (ai === -1) return 1; if (bi === -1) return -1;
         return ai - bi;
       });
 
       for (const group of dayGroups) {
-        y = checkSpace(doc, y, 40);
+        if (group.items.length === 0) continue;
 
-        // Day header card
-        const dayCardY = y;
-        const dayCardH = 26;
-        drawCard(doc, MARGIN, dayCardY, USABLE_WIDTH, dayCardH, COLORS.exerciseBlue, COLORS.exerciseBlue);
+        // Control Modular: Cada día inicia en su propia hoja limpia
+        if (!isFirstRender) forceNewPage(doc);
 
-        doc.save()
-          .fillColor(COLORS.white)
-          .font('Helvetica-Bold')
-          .fontSize(FONT_SIZES.body + 2);
+        if (isFirstRender) {
+          doc.y = drawBanner(doc, doc.y, 'Plan de Ejercicios', COLORS.exerciseBlue);
+          if (week?.exercise.focus) {
+            doc.font('Helvetica-Oblique').fontSize(FONT_SIZES.body).fillColor(COLORS.darkGray);
+            doc.text(`Enfoque: ${week.exercise.focus}`, MARGIN, doc.y, { lineGap: 2 });
+            doc.y += doc.heightOfString(`Enfoque: ${week.exercise.focus}`, { lineGap: 2 }) + 8;
+          }
+          isFirstRender = false;
+        }
+
+        doc.y = checkSpace(doc, doc.y, 40);
+        const dayCardY = doc.y;
+        drawCard(doc, MARGIN, dayCardY, USABLE_WIDTH, 22, COLORS.exerciseBlue, COLORS.exerciseBlue);
+        doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(11);
         doc.text(group.day, MARGIN + 12, dayCardY + 5);
         doc.restore();
-
-        y = dayCardY + dayCardH + 8;
+        doc.y = dayCardY + 28; 
 
         for (const item of group.items) {
-          y = checkSpace(doc, y, 50);
-
+          let exercise = Object.values(data.exercises).find(ex => ex.name.toLowerCase().includes(item.description.toLowerCase()) || item.description.toLowerCase().includes(ex.name.toLowerCase()));
+          
           const exCardPad = 8;
-          const exCardX = MARGIN + 8;
-          const exCardStartY = y;
-          let exContentY = y + exCardPad;
-
-          // Find matching exercise data
-          let exercise: PDFExerciseData | undefined;
-          const match = Object.values(data.exercises).find(
-            ex => ex.name.toLowerCase().includes(item.description.toLowerCase()) ||
-                  item.description.toLowerCase().includes(ex.name.toLowerCase())
-          );
-          if (match) exercise = match;
-
-          // Exercise name (bold)
+          const exCardX = MARGIN + 4;
+          const exCardW = USABLE_WIDTH - 8;
           const exName = exercise?.name || item.description;
-          doc.save()
-            .fillColor(COLORS.exerciseBlue)
-            .font('Helvetica-Bold')
-            .fontSize(FONT_SIZES.recipeTitle);
-          doc.text(exName, exCardX, exContentY);
-          exContentY += doc.currentLineHeight() + 4;
-          doc.restore();
 
-          // Description
-          if (exercise?.description) {
-            doc.save()
-              .fillColor(COLORS.text)
-              .font('Helvetica')
-              .fontSize(FONT_SIZES.body);
-            const descLines = wordWrap(exercise.description, doc, USABLE_WIDTH - 2 * exCardPad - 16);
-            for (const line of descLines) {
-              doc.text(line, exCardX, exContentY);
-              exContentY += 10;
-            }
-            doc.restore();
+          doc.font('Helvetica-Bold').fontSize(10);
+          let exCardH = exCardPad + doc.heightOfString(exName, { width: exCardW - 2 * exCardPad }) + 2;
+          
+          doc.font('Helvetica').fontSize(8);
+          if (exercise?.description) exCardH += doc.heightOfString(exercise.description, { width: exCardW - 2 * exCardPad, lineGap: 1 }) + 2;
+          
+          doc.fontSize(7.5);
+          const instr2 = exercise?.instructions || [];
+          if (instr2.length > 0) {
+              const joinedInst = instr2.map((ins, i) => `${i + 1}. ${ins}`).join('  ');
+              exCardH += doc.heightOfString(joinedInst, { width: exCardW - 2 * exCardPad, lineGap: 1 }) + 4;
           }
-
-          // Instructions as numbered list
-          const instr = exercise?.instructions || [];
-          if (instr.length > 0) {
-            doc.save()
-              .fillColor(COLORS.text)
-              .font('Helvetica')
-              .fontSize(FONT_SIZES.small);
-            doc.text('Instrucciones:', exCardX, exContentY);
-            exContentY += 10;
-            doc.restore();
-
-            for (let i = 0; i < instr.length; i++) {
-              const instrLine = `${i + 1}. ${instr[i]}`;
-              const instrLines = wordWrap(instrLine, doc, USABLE_WIDTH - 2 * exCardPad - 24);
-              for (const line of instrLines) {
-                if (exContentY > PAGE_HEIGHT - MARGIN - 20) break;
-                doc.text(line, exCardX + 10, exContentY);
-                exContentY += 9;
-              }
-            }
-          }
-
-          // Difficulty + muscle groups on the same line
-          if (exercise?.difficulty || exercise?.muscleGroups) {
-            const metaParts: string[] = [];
-            if (exercise?.difficulty) metaParts.push(`Dificultad: ${exercise.difficulty}`);
-            if (exercise?.muscleGroups && exercise.muscleGroups.length > 0) {
-              metaParts.push(`Músculos: ${exercise.muscleGroups.join(', ')}`);
-            }
-            doc.save()
-              .fillColor(COLORS.darkGray)
-              .font('Helvetica')
-              .fontSize(FONT_SIZES.small);
-            doc.text(metaParts.join('  |  '), exCardX, exContentY);
-            exContentY += 10;
-            doc.restore();
-          }
-
-          // Sets × Reps
+          
           const sets = exercise?.sets || item.details?.sets || '—';
           const reps = exercise?.repetitions || item.details?.repetitions || '—';
-          doc.save()
-            .fillColor(COLORS.text)
-            .font('Helvetica')
-            .fontSize(FONT_SIZES.small);
-          doc.text(`Series: ${sets} × Repeticiones: ${reps}`, exCardX, exContentY);
-          exContentY += 10;
+          const infoStr = `Series: ${sets}  |  Reps: ${reps}`;
+          doc.font('Helvetica-Bold').fontSize(8);
+          exCardH += doc.heightOfString(infoStr) + 2;
+          
+          exCardH += exCardPad; 
+
+          doc.y = checkSpace(doc, doc.y, exCardH);
+          const exCardStartY = doc.y;
+
+          drawCard(doc, exCardX, exCardStartY, exCardW, exCardH, COLORS.blueBg, COLORS.exerciseBlue);
+          let exContentY = exCardStartY + exCardPad;
+          
+          doc.save().fillColor(COLORS.exerciseBlue).font('Helvetica-Bold').fontSize(10);
+          doc.text(exName, exCardX + exCardPad, exContentY, { width: exCardW - 2 * exCardPad });
+          exContentY += doc.heightOfString(exName, { width: exCardW - 2 * exCardPad }) + 2;
+          doc.restore();
+          
+          if (exercise?.description) {
+            doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(8);
+            doc.text(exercise.description, exCardX + exCardPad, exContentY, { width: exCardW - 2 * exCardPad, lineGap: 1 });
+            exContentY += doc.heightOfString(exercise.description, { width: exCardW - 2 * exCardPad, lineGap: 1 }) + 2;
+            doc.restore();
+          }
+
+          if (instr2.length > 0) {
+            doc.save().fillColor(COLORS.darkGray).font('Helvetica').fontSize(7.5);
+            const joinedInst = instr2.map((ins, i) => `${i + 1}. ${ins}`).join('  ');
+            doc.text(joinedInst, exCardX + exCardPad, exContentY, { width: exCardW - 2 * exCardPad, lineGap: 1 });
+            exContentY += doc.heightOfString(joinedInst, { width: exCardW - 2 * exCardPad, lineGap: 1 }) + 4;
+            doc.restore();
+          }
+
+          doc.save().fillColor(COLORS.text).font('Helvetica-Bold').fontSize(8);
+          doc.text(infoStr, exCardX + exCardPad, exContentY);
           doc.restore();
 
-          // TUT and rest between sets
-          const tut = exercise?.timeUnderTension || item.details?.timeUnderTension;
-          const rest = exercise?.restBetweenSets;
-          if (tut || rest) {
-            doc.save()
-              .fillColor(COLORS.darkGray)
-              .font('Helvetica')
-              .fontSize(FONT_SIZES.small);
-            const parts: string[] = [];
-            if (tut) parts.push(`TUT: ${tut}`);
-            if (rest) parts.push(`Descanso: ${rest}`);
-            doc.text(parts.join('  |  '), exCardX, exContentY);
-            exContentY += 10;
-            doc.restore();
-          }
-
-          // Equipment
-          const equip = exercise?.equipment || item.details?.equipment || [];
-          if (equip.length > 0) {
-            doc.save()
-              .fillColor(COLORS.darkGray)
-              .font('Helvetica')
-              .fontSize(FONT_SIZES.small);
-            doc.text(`Equipo: ${equip.join(', ')}`, exCardX, exContentY);
-            exContentY += 10;
-            doc.restore();
-          }
-
-          exContentY += exCardPad;
-
-          // Draw card background
-          const exCardH = exContentY - exCardStartY;
-          drawCard(doc, exCardX, exCardStartY, USABLE_WIDTH - 16, exCardH, COLORS.blueBg, COLORS.exerciseBlue);
-
-          y = exCardStartY + exCardH + 8;
+          doc.y = exCardStartY + exCardH + 8; // Mínima distancia
         }
       }
     }
   }
-
-  // YouTube tutorial suggestion — COMENTADO: se preserva para futuro uso
-  
-  return y;
+  return doc.y;
 }
 
-/** Habits section */
 function buildHabits(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 80);
+  doc.y = startY;
+  doc.y = drawBanner(doc, doc.y, 'Plan de Hábitos', COLORS.purple);
   
-  // Purple banner
-  y = drawBanner(doc, y, 'Plan de Hábitos', COLORS.purple);
-  
-  // Separate checklist items into toAdopt and toEliminate
   const habitItems = data.checklist.filter(item => item.category === 'habit');
   const toAdopt = habitItems.filter(item => item.type === 'toAdopt' || !item.type);
   const toEliminate = habitItems.filter(item => item.type === 'toEliminate');
   
-  // Two columns
   const colW = (USABLE_WIDTH - 20) / 2;
+  const startColsY = doc.y;
+  let maxLeftY = startColsY;
+  let maxRightY = startColsY;
   
+  doc.y = startColsY;
   if (toAdopt.length > 0 || data.habitData?.toAdopt?.length) {
-    y = checkSpace(doc, y, 30);
+    doc.save().fillColor(COLORS.darkPurple).font('Helvetica-Bold').fontSize(10);
+    doc.text('Hábitos a implementar', MARGIN, doc.y);
+    maxLeftY = doc.y + 6;
     
-    // Column 1: Hábitos a implementar
-    doc.save()
-      .fillColor(COLORS.darkPurple)
-      .font('Helvetica-Bold')
-      .fontSize(FONT_SIZES.subTitle);
-    doc.text('Hábitos a implementar', MARGIN, y);
-    y += doc.currentLineHeight() + 8;
-    
-    doc.font('Helvetica').fontSize(FONT_SIZES.body).fillColor(COLORS.text);
-    
-    const habits = toAdopt.length > 0
-      ? toAdopt.map(item => item.description)
-      : (data.habitData?.toAdopt || []);
-    
+    doc.font('Helvetica').fontSize(9).fillColor(COLORS.text);
+    const habits = toAdopt.length > 0 ? toAdopt.map(i => i.description) : (data.habitData?.toAdopt || []);
     for (const habit of habits) {
-      const lines = wordWrap(`• ${habit}`, doc, colW);
-      for (const line of lines) {
-        doc.text(line, MARGIN + 5, y);
-        y += 12;
-      }
+      doc.save().fillColor(COLORS.green).circle(MARGIN + 3, maxLeftY + 4, 2).fill().restore();
+      doc.text(habit, MARGIN + 10, maxLeftY, { width: colW - 10, lineGap: 2 });
+      maxLeftY += doc.heightOfString(habit, { width: colW - 10, lineGap: 2 }) + 8;
     }
     doc.restore();
   }
   
-  const col2StartY = startY + 30; // align columns
-  
+  doc.y = startColsY;
   if (toEliminate.length > 0 || data.habitData?.toEliminate?.length) {
-    // Column 2: Hábitos a abandonar
-    doc.save()
-      .fillColor(COLORS.darkPurple)
-      .font('Helvetica-Bold')
-      .fontSize(FONT_SIZES.subTitle);
-    doc.text('Hábitos a abandonar', MARGIN + colW + 20, col2StartY);
+    const rightX = MARGIN + colW + 20;
+    doc.save().fillColor(COLORS.darkPurple).font('Helvetica-Bold').fontSize(10);
+    doc.text('Hábitos a abandonar', rightX, doc.y);
+    maxRightY = doc.y + 6;
     
-    doc.font('Helvetica').fontSize(FONT_SIZES.body).fillColor(COLORS.text);
-    
-    const habits = toEliminate.length > 0
-      ? toEliminate.map(item => item.description)
-      : (data.habitData?.toEliminate || []);
-    
-    let hY = col2StartY + doc.currentLineHeight() + 8;
+    doc.font('Helvetica').fontSize(9).fillColor(COLORS.text);
+    const habits = toEliminate.length > 0 ? toEliminate.map(i => i.description) : (data.habitData?.toEliminate || []);
     for (const habit of habits) {
-      const lines = wordWrap(`• ${habit}`, doc, colW);
-      for (const line of lines) {
-        doc.text(line, MARGIN + colW + 25, hY);
-        hY += 12;
-      }
+      doc.save().fillColor('#C62828').circle(rightX + 3, maxRightY + 4, 2).fill().restore();
+      doc.text(habit, rightX + 10, maxRightY, { width: colW - 10, lineGap: 2 });
+      maxRightY += doc.heightOfString(habit, { width: colW - 10, lineGap: 2 }) + 8;
     }
     doc.restore();
-    
-    y = Math.max(y, hY);
   }
   
-  y += 10;
-  
-  // Motivation tip
-  const tip = data.habitData?.motivationTip || 
-    data.weeks.find(w => w.habits.motivationTip)?.habits.motivationTip;
-  if (tip) {
-    y = checkSpace(doc, y, 30);
-    drawCard(doc, MARGIN, y, USABLE_WIDTH, 40, COLORS.purpleBg);
-    
-    doc.save()
-      .fillColor(COLORS.darkPurple)
-      .font('Helvetica-Bold')
-      .fontSize(FONT_SIZES.body);
-    doc.text('💡 Consejo motivacional:', MARGIN + 10, y + 8);
-    
-    doc.font('Helvetica').fontSize(FONT_SIZES.small).fillColor(COLORS.text);
-    const tipLines = wordWrap(tip, doc, USABLE_WIDTH - 30);
-    let tipY = y + 26;
-    for (const line of tipLines) {
-      doc.text(line, MARGIN + 10, tipY);
-      tipY += 11;
-    }
-    doc.restore();
-    
-    y += Math.max(40, tipY - y + 5);
-  }
-  
-  // Tracking method
-  const tracking = data.habitData?.trackingMethod ||
-    data.weeks.find(w => w.habits.trackingMethod)?.habits.trackingMethod;
-  if (tracking) {
-    y += 8;
-    doc.save()
-      .fillColor(COLORS.darkPurple)
-      .font('Helvetica')
-      .fontSize(FONT_SIZES.small);
-    doc.text(`Método de seguimiento: ${tracking}`, MARGIN, y);
-    y += doc.currentLineHeight() + 5;
-    doc.restore();
-  }
-  
-  return y;
+  doc.y = Math.max(maxLeftY, maxRightY) + 15;
+  return doc.y;
 }
 
-/** Tips list */
-function buildTips(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 30);
-  
-  // Collect tips from checklist items' details
-  const allTips: string[] = [];
-  
-  for (const item of data.checklist) {
-    if (item.details?.recipe?.tips && !allTips.includes(item.details.recipe.tips)) {
-      allTips.push(item.details.recipe.tips);
-    }
-  }
-  
-  // Also from habitData
-  if (data.habitData?.tips) {
-    for (const tip of data.habitData.tips) {
-      if (!allTips.includes(tip)) allTips.push(tip);
-    }
-  }
-  
-  if (allTips.length === 0) return y;
-  
-  doc.save()
-    .fillColor(COLORS.text)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.subTitle);
-  doc.text('Tips y recomendaciones', MARGIN, y);
-  y += doc.currentLineHeight() + 8;
-  
-  doc.font('Helvetica').fontSize(FONT_SIZES.body).fillColor(COLORS.text);
-  for (const tip of allTips) {
-    const lines = wordWrap(`• ${tip}`, doc, USABLE_WIDTH);
-    for (const line of lines) {
-      doc.text(line, MARGIN, y);
-      y += 13;
-    }
-  }
-  doc.restore();
-  
-  y += 10;
-  return y;
-}
-
-/** Motivational message */
 function buildMotivationMessage(doc: PDFKit.PDFDocument, startY: number): number {
-  let y = checkSpace(doc, startY, 80);
-  
-  y += 20;
-  
-  // Decorative top line
-  drawLine(doc, y, COLORS.green, 150);
-  y += 10;
+  doc.y = startY;
+  drawLine(doc, doc.y, COLORS.green, 150);
+  doc.y += 10;
   
   const message = 'El verdadero potencial de tu cuerpo está esperando ser descubierto. Cada pequeño paso que das hoy te acerca más a la mejor versión de ti mismo. Confía en el proceso, mantén la constancia y permítete transformar tu vida. ¡Tú puedes lograrlo!';
   
-  doc.save()
-    .fillColor(COLORS.darkBlue)
-    .font('Helvetica-Oblique')
-    .fontSize(FONT_SIZES.body + 2);
-  
-  const msgLines = wordWrap(message, doc, USABLE_WIDTH);
-  for (const line of msgLines) {
-    doc.text(line, MARGIN, y);
-    y += 18;
-  }
+  doc.save().fillColor(COLORS.darkBlue).font('Helvetica-Oblique').fontSize(10);
+  doc.text(message, MARGIN, doc.y, { width: USABLE_WIDTH, align: 'left', lineGap: 2 });
+  doc.y += doc.heightOfString(message, { width: USABLE_WIDTH, lineGap: 2 }) + 10;
   doc.restore();
   
-  // Decorative bottom line
-  drawLine(doc, y, COLORS.green, 150);
-  y += 10;
-  
-  return y;
+  drawLine(doc, doc.y, COLORS.green, 150);
+  doc.y += 10;
+  return doc.y;
 }
 
-/** Coach info section */
 function buildCoachInfo(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 80);
+  doc.y = checkSpace(doc, startY, 90);
   
-  y += 10;
+  const cardStartY = doc.y;
+  const cardH = 80;
+  drawCard(doc, MARGIN, cardStartY, USABLE_WIDTH, cardH, COLORS.greenBg, COLORS.green);
   
-  // Coach card with green background
-  const cardH = 110;
-  drawCard(doc, MARGIN, y, USABLE_WIDTH, cardH, COLORS.greenBg, COLORS.green);
+  const innerX = MARGIN + 12;
+  const innerY = cardStartY + 12;
+  const photoSize = 56;
   
-  const innerX = MARGIN + 15;
-  let innerY = y + 15;
-  
-  // Coach photo
-  const photoSize = 50;
   if (data.coach.photoBuffer) {
     try {
-      doc.image(data.coach.photoBuffer, innerX, innerY, { width: photoSize, height: photoSize });
+      doc.save().roundedRect(innerX, innerY, photoSize, photoSize, 28).clip();
+      doc.image(data.coach.photoBuffer as Buffer, innerX, innerY, { fit: [photoSize, photoSize], align: 'center', valign: 'center' });
+      doc.restore();
     } catch {
-      drawRoundedRect(doc, innerX, innerY, photoSize, photoSize, 25, COLORS.green);
-      doc.save()
-        .fillColor(COLORS.white)
-        .font('Helvetica-Bold')
-        .fontSize(20);
-      const init = data.coach.name.charAt(0).toUpperCase();
-      const initW = doc.widthOfString(init);
-      doc.text(init, innerX + (photoSize - initW) / 2, innerY + 14);
       doc.restore();
     }
   } else {
-    drawRoundedRect(doc, innerX, innerY, photoSize, photoSize, 25, COLORS.green);
-    doc.save()
-      .fillColor(COLORS.white)
-      .font('Helvetica-Bold')
-      .fontSize(20);
+    drawRoundedRect(doc, innerX, innerY, photoSize, photoSize, 28, COLORS.green);
+    doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(18);
     const init = data.coach.name.charAt(0).toUpperCase();
-    const initW = doc.widthOfString(init);
-    doc.text(init, innerX + (photoSize - initW) / 2, innerY + 14);
+    doc.text(init, innerX + (photoSize - doc.widthOfString(init)) / 2, innerY + 18);
     doc.restore();
   }
   
-  // Coach details
   const detailX = innerX + photoSize + 15;
-  doc.save()
-    .fillColor(COLORS.darkGreen)
-    .font('Helvetica-Bold')
-    .fontSize(FONT_SIZES.coachName);
-  doc.text(data.coach.name, detailX, innerY + 2);
+  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(FONT_SIZES.coachName);
+  doc.text(data.coach.name, detailX, innerY + 4);
   
   doc.font('Helvetica').fontSize(FONT_SIZES.body).fillColor(COLORS.darkGreen);
-  doc.text(`Email: ${data.coach.email}`, detailX, innerY + 25);
-  
-  if (data.coach.phone) {
-    doc.text(`Teléfono: ${data.coach.phone}`, detailX, innerY + 42);
-  }
+  doc.text(`Email: ${data.coach.email}`, detailX, innerY + 22);
+  if (data.coach.phone) doc.text(`Teléfono: ${data.coach.phone}`, detailX, innerY + 36);
   doc.restore();
   
-  y += cardH + 15;
-  return y;
+  return cardStartY + cardH + 10;
 }
 
-/** Footer */
 function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  let y = checkSpace(doc, startY, 100);
-  
-  // Dark footer background
-  const footerH = 120;
-  drawRect(doc, MARGIN, y, USABLE_WIDTH, footerH, COLORS.footer);
-  
-  const fX = MARGIN;
-  doc.save()
-    .fillColor(COLORS.white)
-    .font('Helvetica-Bold')
-    .fontSize(11);
-  doc.text('NELHEALTHCOACH', fX + 15, y + 12);
-  
-  doc.font('Helvetica').fontSize(8).fillColor('rgba(255,255,255,0.7)');
-  doc.text('Ayudándote a descubrir el verdadero potencial de tu cuerpo.', fX + 15, y + 28);
-  
-  const year = data.currentYear || new Date().getFullYear();
-  
-  if (data.websiteUrl) {
-    doc.fontSize(7).fillColor('rgba(255,255,255,0.5)');
-    doc.text(`Sitio web: ${data.websiteUrl}`, fX + 15, y + 44);
+  if (startY + 90 > PAGE_HEIGHT - 20) { 
+    forceNewPage(doc);
+    startY = MARGIN;
   }
   
-  doc.fontSize(7).fillColor('rgba(255,255,255,0.5)');
-  doc.text('33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)', fX + 15, y + 56);
+  doc.y = startY;
+  const footerStartY = doc.y;
+  drawRect(doc, MARGIN, footerStartY, USABLE_WIDTH, 90, COLORS.footer); 
   
-  const contactText = `Email: ${data.coach.email} | Tel: ${data.coach.phone || '+1 (442) 342-5050'}`;
-  doc.text(contactText, fX + 15, y + 68);
-  
-  doc.fontSize(7).fillColor('rgba(255,255,255,0.6)');
-  doc.text(`© ${year} NELHEALTHCOACH, LLC. Todos los derechos reservados.`, fX + 15, y + 84);
+  let currentY = footerStartY + 12;
+  doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(10);
+  doc.text('NELHEALTHCOACH', MARGIN + 12, currentY); currentY += 14;
+  doc.font('Helvetica').fontSize(7.5).fillColor('rgba(255,255,255,0.7)');
+  doc.text('Ayudándote a descubrir el verdadero potencial de tu cuerpo.', MARGIN + 12, currentY); currentY += 14;
+  if (data.websiteUrl) doc.text(`Sitio web: ${data.websiteUrl}`, MARGIN + 12, currentY); currentY += 10;
+  doc.text('33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)', MARGIN + 12, currentY); currentY += 10;
+  doc.text(`Email: ${data.coach.email} | Tel: ${data.coach.phone || '+1 (442) 342-5050'}`, MARGIN + 12, currentY); currentY += 14;
+  doc.fontSize(6).fillColor('rgba(255,255,255,0.6)');
+  doc.text(`© ${data.currentYear || new Date().getFullYear()} NELHEALTHCOACH, LLC. Todos los derechos reservados.`, MARGIN + 12, currentY);
   doc.restore();
-  
-  y += footerH + 10;
-  return y;
+  return footerStartY + 90;
 }
 
 // ─── MAIN GENERATOR ───────────────────────────────────────────────────────
 
-/**
- * Genera el PDF completo de recomendaciones de salud.
- * Devuelve un Buffer del PDF generado.
- */
-export async function generateRecommendationPDF(data: PDFRecommendationData): Promise<Buffer> {
-  logger.info('PDF', '[PDF-GEN] Entrando a generateRecommendationPDF, creando PDFDocument...');
+export function generateRecommendationPDF(raw_data: PDFRecommendationData): Promise<Buffer> {
+  logger.info('PDF', '[PDF-GEN] Entrando a generateRecommendationPDF, sanitizando datos...');
+  const data = deeplyCleanEmojis(raw_data) as PDFRecommendationData;
+  
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: 'LETTER',
-        margins: { top: MARGIN, bottom: MARGIN + 30, left: MARGIN, right: MARGIN },
-        info: {
-          Title: 'Recomendaciones de Salud - NELHEALTHCOACH',
-          Author: data.coach.name,
-          Subject: `Plan de salud para ${data.client.name}`,
-        },
+        margins: { top: MARGIN, bottom: 20, left: MARGIN, right: MARGIN }, 
+        info: { Title: 'Recomendaciones', Author: data.coach.name, Subject: `Plan para ${data.client.name}` },
       });
       
-      // Disclaimer en el pie de cada página
-      const drawDisclaimer = () => {
-        doc.save();
-        doc.fontSize(7).fillColor(COLORS.darkGray).font('Helvetica-Oblique');
-        doc.text(
-          'Las presentes recomendaciones no son un substituto a las consultas médicas profesionales. Consultar con un médico y/o profesional de la salud de confianza previamente.',
-          MARGIN, doc.page.height - 55,
-          { width: USABLE_WIDTH, align: 'center' }
-        );
-        doc.restore();
-      };
-      doc.on('pageAdded', drawDisclaimer);
-      
       const buffers: Buffer[] = [];
-      doc.on('data', (chunk: Buffer) => buffers.push(chunk));
+      doc.on('data', (chunk) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
       
-      // Disclaimer en primera página
-      drawDisclaimer();
+      doc.y = MARGIN; 
       
-      let y = MARGIN;
+      // -- SECCIÓN 1: Header, Disclaimer, Resumen y Visión
+      doc.y = buildClientHeader(doc, data, doc.y);
+      drawLine(doc, doc.y, COLORS.blue); doc.y += 15;
       
-      // === CLIENT HEADER ===
-      logger.info('PDF', '[PDF-GEN] Iniciando CLIENT HEADER');
-      y = buildClientHeader(doc, data, y);
+      doc.y = buildDisclaimer(doc, doc.y);
       
-      // === BLUE DIVIDER ===
-      drawLine(doc, y, COLORS.blue);
-      y += 20;
+      doc.y = buildSummarySection(doc, data, doc.y);
+      doc.y = buildVisionSection(doc, data, doc.y);
       
-      // === SUMMARY ===
-      logger.info('PDF', '[PDF-GEN] Iniciando SUMMARY');
-      y = buildSummarySection(doc, data, y);
+      // -- SECCIÓN 2: Análisis Médico (Hoja exclusiva)
+      const hasMed = data.session.structuredMedicalAnalysis?.exams?.length || data.session.labResults?.length || data.session.medicalSummary;
+      if (hasMed) {
+        forceNewPage(doc);
+        doc.y = buildMedicalAnalysisSection(doc, data, doc.y, data.session.index ?? 0);
+      }
       
-      // === VISION ===
-      logger.info('PDF', '[PDF-GEN] Iniciando VISION');
-      y = buildVisionSection(doc, data, y);
+      // -- SECCIÓN 3: Nutrición (Cada día es una hoja exclusiva)
+      const hasNut = data.checklist.some(i => i.category === 'nutrition');
+      if (hasNut) {
+        forceNewPage(doc);
+        doc.y = buildNutritionPlan(doc, data, doc.y);
+      }
       
-      // === MEDICAL ANALYSIS ===
-      logger.info('PDF', '[PDF-GEN] Iniciando MEDICAL ANALYSIS');
-      y = buildMedicalAnalysisSection(doc, data, y, data.session.index ?? 0);
+      // -- SECCIÓN 4: Lista de Compras (Hoja exclusiva)
+      const hasShop = data.weeks.some(w => w.nutrition.shoppingList?.length > 0);
+      if (hasShop) {
+        forceNewPage(doc);
+        doc.y = buildShoppingListSection(doc, data, doc.y);
+      }
       
-      // === NUTRITION PLAN ===
-      logger.info('PDF', '[PDF-GEN] Iniciando NUTRITION PLAN');
-      y = buildNutritionPlan(doc, data, y + 10);
+      // -- SECCIÓN 5: Ejercicios (Flujo continuo, hoja nueva para el primer día)
+      const hasEx = data.checklist.some(i => i.category === 'exercise');
+      if (hasEx) {
+        forceNewPage(doc);
+        doc.y = buildExercisePlan(doc, data, doc.y);
+      }
       
-      // === SHOPPING LIST ===
-      logger.info('PDF', '[PDF-GEN] Iniciando SHOPPING LIST');
-      y = buildShoppingListSection(doc, data, y + 15);
+      // -- SECCIÓN 6: Hábitos (Hoja exclusiva)
+      const hasHabits = data.checklist.some(i => i.category === 'habit') || data.habitData?.toAdopt?.length || data.habitData?.toEliminate?.length;
+      if (hasHabits) {
+        forceNewPage(doc);
+        doc.y = buildHabits(doc, data, doc.y);
+      }
       
-      // === EXERCISE PLAN ===
-      logger.info('PDF', '[PDF-GEN] Iniciando EXERCISE PLAN');
-      y = buildExercisePlan(doc, data, y + 15);
-      
-      // === HABITS ===
-      logger.info('PDF', '[PDF-GEN] Iniciando HABITS');
-      y = buildHabits(doc, data, y + 15);
-      
-      // === TIPS ===
-      logger.info('PDF', '[PDF-GEN] Iniciando TIPS');
-      y = buildTips(doc, data, y + 10);
-      
-      // === MOTIVATIONAL MESSAGE ===
-      logger.info('PDF', '[PDF-GEN] Iniciando MOTIVATION');
-      y = buildMotivationMessage(doc, y + 10);
-      
-      // === COACH INFO ===
-      logger.info('PDF', '[PDF-GEN] Iniciando COACH INFO');
-      y = buildCoachInfo(doc, data, y + 10);
-      
-      // === FOOTER ===
-      logger.info('PDF', '[PDF-GEN] Iniciando FOOTER');
-      buildFooter(doc, data, y + 10);
+      // -- SECCIÓN 7: Cierre y Coach (Se empacan todos juntos al final)
+      doc.y = checkSpace(doc, doc.y, 200); 
+      doc.y = buildMotivationMessage(doc, doc.y);
+      doc.y += 10; 
+      doc.y = buildCoachInfo(doc, data, doc.y);
+      doc.y += 10;
+      doc.y = buildFooter(doc, data, doc.y);
       
       doc.end();
-    } catch (error) {
-      reject(error);
-    }
+    } catch (error) { reject(error); }
   });
 }
-
 export default generateRecommendationPDF;

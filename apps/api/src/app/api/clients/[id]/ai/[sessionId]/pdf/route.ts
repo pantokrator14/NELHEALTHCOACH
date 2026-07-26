@@ -16,6 +16,45 @@ import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
+import { getPresignedUrlForAnalysis } from '@/app/lib/s3';
+
+/**
+ * Descarga una imagen (desde S3 o URL pública) y la convierte a JPEG si es necesario,
+ * garantizando que PDFKit no crashee por formatos no soportados como WebP.
+ */
+async function fetchImageBuffer(urlOrKey: string | undefined): Promise<Buffer | undefined> {
+  if (!urlOrKey) return undefined;
+  try {
+    let finalUrl = urlOrKey;
+    // Si no empieza con http, asumimos que es una key de S3
+    if (!urlOrKey.startsWith('http')) {
+      finalUrl = await getPresignedUrlForAnalysis(urlOrKey);
+    }
+    
+    const resp = await fetch(finalUrl, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) return undefined;
+    
+    let buf = Buffer.from(await resp.arrayBuffer());
+    
+    // Validar Magic Bytes para JPEG o PNG (los únicos nativos de PDFKit)
+    const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+    const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+    
+    if (!isJpeg && !isPng) {
+      try {
+        // Usa sharp (integrado en el entorno de Next) para convertir WebP/AVIF a JPEG
+        const sharp = (await import('sharp')).default;
+        buf = await sharp(buf).jpeg().toBuffer();
+      } catch (e) {
+        // Si no se puede convertir, descartamos el buffer para evitar el "Unknown image format"
+        return undefined;
+      }
+    }
+    return buf;
+  } catch (err) {
+    return undefined;
+  }
+}
 
 async function getHandler(
   request: NextRequest,
@@ -42,13 +81,11 @@ async function getHandler(
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     }
 
-    // Convertir a objeto plano (elimina referencias internas de Mongoose)
     const session = (() => {
       const raw = client.aiProgress.sessions.find(
         (s: any) => s.sessionId === sessionId
       );
       if (!raw) return null;
-      // toObject elimina propiedades internas de Mongoose
       return raw.toObject ? raw.toObject() : JSON.parse(JSON.stringify(raw));
     })();
 
@@ -68,13 +105,14 @@ async function getHandler(
       range: safeDecrypt(lab.range) || lab.range,
       status: safeDecrypt(lab.status) || lab.status,
     }));
+    
     const weeks = (session.weeks || []).map((week: any) => ({
       weekNumber: week.weekNumber,
       nutrition: {
         focus: safeDecrypt(week.nutrition?.focus || ''),
         shoppingList: (week.nutrition?.shoppingList || []).map((item: any) => ({
-          item: safeDecrypt(item.item),
-          quantity: safeDecrypt(item.quantity),
+          item: safeDecrypt(item.item) || item.item || '',
+          quantity: safeDecrypt(item.quantity) || item.quantity || '',
           priority: item.priority,
         })),
       },
@@ -92,16 +130,20 @@ async function getHandler(
       id: item.id || item._id?.toString() || '',
       description: safeDecrypt(item.description) || '',
       weekNumber: item.weekNumber || 1,
-      category: item.category || 'nutrition',
-      type: item.type,
+      category: safeDecrypt(item.category) || 'nutrition',
+      type: safeDecrypt(item.type),
       recipeId: item.recipeId,
       details: item.details ? {
         recipe: item.details.recipe ? {
-          ingredients: (item.details.recipe.ingredients || []).map((ing: any) => ({
-            name: safeDecrypt(ing.name) || ing.name,
-            quantity: safeDecrypt(ing.quantity) || ing.quantity,
-            notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
-          })),
+          ingredients: (item.details.recipe.ingredients || []).map((ing: any) => {
+            if (typeof ing === 'string') return safeDecrypt(ing) || ing;
+            if (!ing) return '';
+            return {
+              name: safeDecrypt(ing.name) || ing.name || '',
+              quantity: safeDecrypt(ing.quantity) || ing.quantity || '',
+              notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
+            };
+          }),
           preparation: safeDecrypt(item.details.recipe.preparation) || '',
           tips: item.details.recipe.tips ? safeDecrypt(item.details.recipe.tips) : undefined,
         } : undefined,
@@ -128,26 +170,14 @@ async function getHandler(
       if (client.personalData?.gender) clientSex = safeDecrypt(client.personalData.gender);
       if (client.personalData?.age) clientAge = safeDecrypt(client.personalData.age);
 
-      // Cliente photo
       if (client.personalData?.profilePhoto) {
-        try {
-          const decryptedPhoto = decryptFileObject(client.personalData.profilePhoto);
-          if (decryptedPhoto?.url) {
-            const resp = await fetch(decryptedPhoto.url, { signal: AbortSignal.timeout(10000) });
-            if (resp.ok) {
-              const arrayBuffer = await resp.arrayBuffer();
-              clientPhotoBuffer = Buffer.from(arrayBuffer);
-            }
-          }
-        } catch (photoErr) {
-          loggerWithContext.warn('PDF', 'No se pudo cargar la foto del cliente', photoErr);
-        }
+        const decryptedPhoto = decryptFileObject(client.personalData.profilePhoto);
+        const clientPhotoUrlOrKey = decryptedPhoto?.key || decryptedPhoto?.url;
+        clientPhotoBuffer = (await fetchImageBuffer(clientPhotoUrlOrKey || undefined)) || null;
       }
-    } catch (err) {
-      loggerWithContext.warn('PDF', 'Error obteniendo datos del cliente', err as Error);
-    }
+    } catch (err) {}
 
-    // ── 4. Recopilar recipeIds del checklist ──
+    // ── 4. Recopilar recipes ──
     const recipeIdSet = new Set<string>();
     for (const item of checklist) {
       if (item.category === 'nutrition' && item.recipeId) {
@@ -161,29 +191,30 @@ async function getHandler(
       try {
         const r = await Recipe.findById(rid);
         if (r) {
-          let imageBuffer: Buffer | undefined;
-          const imageUrl = r.image?.url ? safeDecrypt(r.image.url) : undefined;
-          if (imageUrl) {
-            try {
-              const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(10000) });
-              if (resp.ok) {
-                const arrayBuffer = await resp.arrayBuffer();
-                imageBuffer = Buffer.from(arrayBuffer);
-              }
-            } catch {
-              loggerWithContext.warn('PDF', `No se pudo cargar imagen de receta: ${safeDecrypt(r.title)}`);
-            }
+          let urlOrKey: string | undefined = undefined;
+          if (r.image?.key) {
+              urlOrKey = safeDecrypt(r.image.key) || r.image.key;
+          } else if (typeof r.image === 'string') {
+              urlOrKey = safeDecrypt(r.image) || r.image;
+          } else if (r.image?.url) {
+              urlOrKey = safeDecrypt(r.image.url) || r.image.url;
           }
+
+          const imageBuffer = await fetchImageBuffer(urlOrKey);
 
           recipes[rid] = {
             title: safeDecrypt(r.title) || r.title,
-            imageUrl,
+            imageUrl: urlOrKey,
             imageBuffer,
-            ingredients: (r.ingredients || []).map((ing: any) => ({
-              name: safeDecrypt(ing.name) || ing.name,
-              quantity: typeof ing.quantity === 'string' ? safeDecrypt(ing.quantity) : ing.quantity,
-              notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
-            })),
+            ingredients: (r.ingredients || []).map((ing: any) => {
+              if (typeof ing === 'string') return safeDecrypt(ing) || ing;
+              if (!ing) return '';
+              return {
+                name: safeDecrypt(ing.name) || ing.name || '',
+                quantity: typeof ing.quantity === 'string' ? safeDecrypt(ing.quantity) : (ing.quantity || ''),
+                notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
+              };
+            }),
             instructions: (r.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
             macros: {
               protein: r.nutrition?.protein,
@@ -210,32 +241,32 @@ async function getHandler(
     const exerciseNames = Array.from(exerciseNameSet);
 
     const exercises: Record<string, PDFExerciseData> = {};
+    const allExercises = await Exercise.find({}).lean();
+    const decryptedExercises = allExercises.map((ex: any) => ({
+      ...ex,
+      _name: safeDecrypt(ex.name) || ex.name,
+      _description: safeDecrypt(ex.description) || ex.description,
+    }));
+
     for (const exName of exerciseNames) {
       try {
-        // Try to find by name (case-insensitive)
-        const ex = await Exercise.findOne({
-          name: { $regex: new RegExp(exName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
-        });
-        if (ex) {
-          let demoBuffer: Buffer | undefined;
-          const demoUrl = ex.demo?.url && ex.demo?.type !== 'placeholder' && ex.demo?.type !== 'youtube_search'
-            ? safeDecrypt(ex.demo.url) : undefined;
-          if (demoUrl) {
-            try {
-              const resp = await fetch(demoUrl, { signal: AbortSignal.timeout(10000) });
-              if (resp.ok) {
-                const arrayBuffer = await resp.arrayBuffer();
-                demoBuffer = Buffer.from(arrayBuffer);
-              }
-            } catch {
-              loggerWithContext.warn('PDF', `No se pudo cargar demo de ejercicio: ${safeDecrypt(ex.name)}`);
-            }
+        const exMatch = decryptedExercises.find((ex: any) =>
+          ex._name.toLowerCase().includes(exName.toLowerCase()) ||
+          exName.toLowerCase().includes(ex._name.toLowerCase())
+        );
+        if (exMatch) {
+          const ex = exMatch;
+          
+          let demoUrlOrKey: string | undefined = ex.demo?.key ? (safeDecrypt(ex.demo.key) || ex.demo.key) : undefined;
+          if (!demoUrlOrKey && ex.demo?.url && ex.demo?.type !== 'placeholder' && ex.demo?.type !== 'youtube_search') {
+              demoUrlOrKey = safeDecrypt(ex.demo.url) || ex.demo.url;
           }
+          const demoBuffer = await fetchImageBuffer(demoUrlOrKey);
 
           exercises[exName] = {
-            name: safeDecrypt(ex.name) || ex.name,
-            description: safeDecrypt(ex.description) || ex.description,
-            demoUrl,
+            name: ex._name,
+            description: ex._description,
+            demoUrl: demoUrlOrKey,
             demoBuffer,
             instructions: (ex.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
             sets: ex.sets || 3,
@@ -247,9 +278,7 @@ async function getHandler(
             difficulty: safeDecrypt(ex.difficulty) || ex.difficulty,
           };
         }
-      } catch (err) {
-        loggerWithContext.warn('PDF', `Error cargando ejercicio: ${exName}`, err as Error);
-      }
+      } catch (err) {}
     }
 
     // ── 6. Datos del coach ──
@@ -266,25 +295,17 @@ async function getHandler(
           coachEmail = decrypt(coach.email);
           coachPhone = coach.phone ? decrypt(coach.phone) : '';
 
-          if (coach.profilePhoto?.url) {
-            try {
-              const photoUrl = decrypt(coach.profilePhoto.url);
-              const resp = await fetch(photoUrl, { signal: AbortSignal.timeout(10000) });
-              if (resp.ok) {
-                const arrayBuffer = await resp.arrayBuffer();
-                coachPhotoBuffer = Buffer.from(arrayBuffer);
-              }
-            } catch {
-              loggerWithContext.warn('PDF', 'No se pudo cargar foto del coach');
-            }
+          let coachPhotoUrlOrKey: string | undefined = coach.profilePhoto?.key ? decrypt(coach.profilePhoto.key) : undefined;
+          if (!coachPhotoUrlOrKey && coach.profilePhoto?.url) {
+              coachPhotoUrlOrKey = decrypt(coach.profilePhoto.url);
           }
+          // Usamos || undefined para garantizar que nunca le pasemos un null a la función
+          coachPhotoBuffer = (await fetchImageBuffer(coachPhotoUrlOrKey || undefined)) || null;
         }
       }
-    } catch (err) {
-      loggerWithContext.warn('PDF', 'Error obteniendo datos del coach', err as Error);
-    }
+    } catch (err) {}
 
-    // ── 7. Recopilar tips de hábitos ──
+    // ── 7. Recopilar tips ──
     const tips: string[] = [];
     for (const item of checklist) {
       if (item.details?.recipe?.tips && !tips.includes(item.details.recipe.tips)) {
@@ -292,28 +313,17 @@ async function getHandler(
       }
     }
 
-    // Classification: toAdopt vs toEliminate
-    const toAdopt = checklist
-      .filter((item: any) => item.category === 'habit' && (!item.type || item.type === 'toAdopt'))
-      .map((item: any) => item.description);
-    const toEliminate = checklist
-      .filter((item: any) => item.category === 'habit' && item.type === 'toEliminate')
-      .map((item: any) => item.description);
-
-    // Motivation tip from weeks
+    const toAdopt = checklist.filter((item: any) => item.category === 'habit' && (!item.type || item.type === 'toAdopt')).map((item: any) => item.description);
+    const toEliminate = checklist.filter((item: any) => item.category === 'habit' && item.type === 'toEliminate').map((item: any) => item.description);
     const motivationTip = weeks.find((w: any) => w.habits.motivationTip)?.habits.motivationTip;
-
-    // Tracking method
     const trackingMethod = weeks.find((w: any) => w.habits.trackingMethod)?.habits.trackingMethod;
 
-    // Índice de la sesión (para saber si mostrar análisis comparativo)
     const sessions = client.aiProgress.sessions || [];
     const sessionIndex = sessions.findIndex((s: any) => s.sessionId === sessionId);
 
-    // ── 8. Generar PDF ──
+    // ── 8. Construir JSON y generar PDF ──
     const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
 
-    // Desencriptar structuredMedicalAnalysis si existe (para que el PDF muestre texto legible)
     const structuredMedicalAnalysis = session.structuredMedicalAnalysis ? {
       ...session.structuredMedicalAnalysis,
       exams: (session.structuredMedicalAnalysis.exams || []).map((exam: any) => ({
@@ -337,49 +347,19 @@ async function getHandler(
     } : undefined;
 
     const pdfData: PDFRecommendationData = {
-      client: {
-        name: clientName,
-        photoBuffer: clientPhotoBuffer,
-        sex: clientSex,
-        age: clientAge,
-      },
+      client: { name: clientName, photoBuffer: clientPhotoBuffer, sex: clientSex, age: clientAge },
       session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, structuredMedicalAnalysis, index: sessionIndex },
-      checklist: checklist.map((item: any) => ({
-        ...item,
-        details: item.details || undefined,
-      })),
-      weeks: weeks.map((w: any) => ({
-        ...w,
-        nutrition: { focus: w.nutrition.focus, shoppingList: w.nutrition.shoppingList || [] },
-        exercise: { focus: w.exercise.focus, equipment: w.exercise.equipment || [] },
-        habits: { trackingMethod: w.habits.trackingMethod, motivationTip: w.habits.motivationTip },
-      })),
+      checklist,
+      weeks,
       recipes,
       exercises,
-      habitData: {
-        toAdopt,
-        toEliminate,
-        trackingMethod,
-        motivationTip,
-        tips,
-      },
-      coach: {
-        name: coachName,
-        email: coachEmail,
-        phone: coachPhone,
-        photoBuffer: coachPhotoBuffer,
-      },
+      habitData: { toAdopt, toEliminate, trackingMethod, motivationTip, tips },
+      coach: { name: coachName, email: coachEmail, phone: coachPhone, photoBuffer: coachPhotoBuffer },
       websiteUrl,
     };
 
-    loggerWithContext.info('PDF', '[PDF-ROUTE] Datos construidos, llamando a generateRecommendationPDF...');
     const pdfBuffer = await generateRecommendationPDF(pdfData);
 
-    loggerWithContext.info('PDF', '✅ PDF generado exitosamente', {
-      sizeKB: Math.round(pdfBuffer.length / 1024),
-    });
-
-    // ── 9. Retornar PDF ──
     const filename = encodeURIComponent(`Recomendaciones_${clientName.replace(/\s+/g, '_')}.pdf`);
 
     return new NextResponse(pdfBuffer, {
@@ -392,16 +372,8 @@ async function getHandler(
       },
     });
   } catch (error: any) {
-    const errorName = error?.name || 'Error';
-    const errorMsg = error?.message || String(error);
-    loggerWithContext.error('PDF', `❌ Error generando PDF: ${errorName} - ${errorMsg}`, error);
-    return NextResponse.json(
-      { 
-        error: 'Error generando PDF', 
-        message: `Error interno del servidor (${errorName}: ${errorMsg})`,
-      },
-      { status: 500 }
-    );
+    loggerWithContext.error('PDF', `❌ Error generando PDF: ${error.message}`, error);
+    return NextResponse.json({ error: 'Error generando PDF', message: error.message }, { status: 500 });
   }
 }
 

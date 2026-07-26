@@ -26,4 +26,4 @@ apps/*/testsprite_tests/node_modules/
 .agents/
 skills-lock.json
 
-emails-preview/
+emails-preview/docs/*.pdf
