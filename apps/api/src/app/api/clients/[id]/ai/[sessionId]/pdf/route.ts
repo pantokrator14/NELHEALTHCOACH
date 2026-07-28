@@ -163,12 +163,16 @@ async function getHandler(
     let clientName = 'Cliente';
     let clientSex = '';
     let clientAge = '';
+    let clientWeight = '';
+    let clientHeight = '';
     let clientPhotoBuffer: Buffer | null = null;
 
     try {
       if (client.personalData?.name) clientName = safeDecrypt(client.personalData.name);
       if (client.personalData?.gender) clientSex = safeDecrypt(client.personalData.gender);
       if (client.personalData?.age) clientAge = safeDecrypt(client.personalData.age);
+      if (client.personalData?.weight) clientWeight = safeDecrypt(client.personalData.weight);
+      if (client.personalData?.height) clientHeight = safeDecrypt(client.personalData.height);
 
       if (client.personalData?.profilePhoto) {
         const decryptedPhoto = decryptFileObject(client.personalData.profilePhoto);
@@ -347,7 +351,7 @@ async function getHandler(
     } : undefined;
 
     const pdfData: PDFRecommendationData = {
-      client: { name: clientName, photoBuffer: clientPhotoBuffer, sex: clientSex, age: clientAge },
+      client: { name: clientName, photoBuffer: clientPhotoBuffer, sex: clientSex, age: clientAge, weight: clientWeight, height: clientHeight },
       session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, structuredMedicalAnalysis, index: sessionIndex },
       checklist,
       weeks,
