@@ -253,7 +253,7 @@ function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: numb
 function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
   // 1. BANNER AZUL SUPERIOR (Full Width)
   const bannerHeight = 80;
-  doc.save().rect(0, 0, PAGE_WIDTH, bannerHeight).fill(COLORS.darkBlue).restore();
+  doc.save().rect(0, 0, PAGE_WIDTH, bannerHeight).fill('#2486C8').restore();
 
   const logoPath = path.join(process.cwd(), 'public', 'images', 'logo1.png');
   let logoDrawn = false;
@@ -283,7 +283,7 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   doc.restore();
   doc.y += 20;
 
-  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(18);
+  doc.save().fillColor('#185FA0').font('Helvetica-Bold').fontSize(18);
   doc.text('PLAN DE SALUD METABÓLICA', MARGIN, doc.y, { align: 'center' });
   doc.restore();
   doc.y += 35;
@@ -295,10 +295,10 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   const startGridY = doc.y;
 
   // Subtítulos superiores
-  doc.save().fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(12);
-  doc.text('Datos de cliente', MARGIN, startGridY);
-  doc.fillColor(COLORS.darkGreen);
-  doc.text('Coach asignado', MARGIN + colW + 20, startGridY);
+    doc.save().fillColor('#185FA0').font('Helvetica-Bold').fontSize(12);
+    doc.text('Datos de cliente', MARGIN, startGridY);
+    doc.fillColor('#185FA0');
+    doc.text('Coach asignado', MARGIN + colW + 20, startGridY);
   doc.restore();
 
   const boxesY = startGridY + 20;
@@ -354,8 +354,8 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   const boxH = Math.max(avaSize + boxPad*2, Math.max(clientH, coachH) + boxPad*2);
 
   // --- Dibujo de Fondos herméticos ---
-  drawRoundedRect(doc, MARGIN, boxesY, colW, boxH, 6, COLORS.yellow);
-  drawRoundedRect(doc, MARGIN + colW + 20, boxesY, colW, boxH, 6, COLORS.greenBg);
+  drawRoundedRect(doc, MARGIN, boxesY, colW, boxH, 6, '#189CD8');
+  drawRoundedRect(doc, MARGIN + colW + 20, boxesY, colW, boxH, 6, '#189CD8');
 
   // --- DIBUJO CLIENTE ---
   const leftX = MARGIN + boxPad;
@@ -375,30 +375,30 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
 
   const clientTextX = leftX + avaSize + 12;
   
-  doc.fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(14);
+  doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(14);
   doc.text(cName, clientTextX, cY);
-  cY = doc.y + 4; // Actualizado a la siguiente línea
+  cY = doc.y + 4;
 
   doc.fontSize(9);
   if (data.client.sex) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Género: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.text).text(data.client.sex);
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Género: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.white).text(data.client.sex);
     cY = doc.y;
   }
   if (data.client.age) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Edad: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Edad: ', clientTextX, cY, { continued: true });
     const ageText = String(data.client.age || '').includes('año') ? data.client.age : `${data.client.age} años`;
-    doc.font('Helvetica').fillColor(COLORS.text).text(ageText);
+    doc.font('Helvetica').fillColor(COLORS.white).text(ageText);
     cY = doc.y;
   }
   if (weight) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Peso: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.text).text(weight);
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Peso: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.white).text(weight);
     cY = doc.y;
   }
   if (height) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Altura: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.text).text(height);
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Altura: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.white).text(height);
     cY = doc.y;
   }
 
@@ -420,26 +420,26 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
 
   const coachTextX = rightX + avaSize + 12;
   
-  doc.fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(14);
+  doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(14);
   doc.text(cchName, coachTextX, chY);
   chY = doc.y + 4;
   
   doc.fontSize(9);
-  doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text(`Email: `, coachTextX, chY, { continued: true });
-  doc.font('Helvetica').fillColor(COLORS.text).text(data.coach.email);
+  doc.font('Helvetica-Bold').fillColor(COLORS.white).text(`Email: `, coachTextX, chY, { continued: true });
+  doc.font('Helvetica').fillColor(COLORS.white).text(data.coach.email);
   chY = doc.y;
 
   if (data.coach.phone) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text(`Tel: `, coachTextX, chY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.text).text(data.coach.phone);
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text(`Tel: `, coachTextX, chY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.white).text(data.coach.phone);
     chY = doc.y;
   }
   
   if (isManuel) {
     chY += 4;
-    doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text('Acreditación:', coachTextX, chY);
+    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Acreditación:', coachTextX, chY);
     chY = doc.y;
-    doc.font('Helvetica').fontSize(8).fillColor(COLORS.text).text('Florida Global University / UCAM San Antonio de Murcia', coachTextX, chY, { width: textColW });
+    doc.font('Helvetica').fontSize(8).fillColor(COLORS.white).text('Florida Global University / UCAM San Antonio de Murcia', coachTextX, chY, { width: textColW });
   }
 
   return boxesY + boxH + 25;
