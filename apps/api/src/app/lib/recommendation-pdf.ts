@@ -1,10 +1,11 @@
 /**
  * Generador de PDF para recomendaciones de salud (Plan Mensual)
  * 
- * - Paginación Modular Estricta: Cada sección inicia en una hoja nueva.
- * - Resumen y Visión: Retorno al diseño de múltiples tarjetas por párrafo.
- * - Diseño Mixto: 1 hoja por día en nutrición / Flujo continuo en ejercicios.
- * - Aviso Legal: Integrado como banner superior para evitar páginas blancas finales.
+ * - Portada Oficial: Encabezado Azul + Cajas Cliente/Coach.
+ * - Alturas de cajas calculadas milimétricamente (Sin espacios sobrantes).
+ * - Colores corregidos en la info del Coach (Subtítulos verdes, texto negro).
+ * - Footer Institucional Perfecto: Gris oscuro, Logo alto, textos en BLANCO PURO.
+ * - Paginación Modular Estricta: 1 hoja por día en nutrición y ejercicios.
  */
 
 import PDFDocument from 'pdfkit';
@@ -30,22 +31,22 @@ const COLORS = {
   exerciseBlue: '#2196F3',
   purple: '#9C27B0',
   darkPurple: '#7B1FA2',
-  yellow: '#FFF9C4',
+  yellow: '#FFF9C4', 
   yellowBorder: '#FDD835',
   lightGray: '#F5F5F5',
   mediumGray: '#E0E0E0',
   darkGray: '#666666',
-  text: '#333333',
+  text: '#333333', 
   white: '#FFFFFF',
-  footer: '#263238',
+  footer: '#263238', 
   greenBg: '#E8F5E9',
   blueBg: '#E3F2FD',
   purpleBg: '#F3E5F5',
 };
 
 const FONT_SIZES = {
-  clientName: 20,
-  clientSub: 11,
+  clientName: 16,
+  clientSub: 10,
   sectionTitle: 14,
   bannerText: 12,
   subTitle: 10,
@@ -54,7 +55,7 @@ const FONT_SIZES = {
   recipeTitle: 10,
   macroNumber: 14,
   macroLabel: 8,
-  coachName: 12,
+  coachName: 14,
   footer: 8,
 };
 
@@ -125,7 +126,7 @@ export interface PDFWeekData {
 }
 
 export interface PDFRecommendationData {
-  client: { name: string; photoBuffer?: Buffer | null; sex?: string; age?: string; };
+  client: { name: string; photoBuffer?: Buffer | null; sex?: string; age?: string; weight?: string; height?: string; };
   session: {
     summary: string;
     vision: string;
@@ -155,6 +156,7 @@ function deeplyCleanEmojis(obj: any): any {
   if (typeof obj === 'string') {
     let cleaned = obj.replace(/[^\x20-\x7E\xA0-\xFF\u0100-\u017F\u2013-\u201D\u2022\n\r]/g, '');
     cleaned = cleaned.replace(/Ø[A-Z0-9=]+/g, '•'); 
+    cleaned = cleaned.replace(/&\s*[a-zA-Z]\b/g, ''); 
     return cleaned.trim();
   }
   if (Array.isArray(obj)) return obj.map(deeplyCleanEmojis);
@@ -205,17 +207,6 @@ function drawCard(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: n
   doc.restore();
 }
 
-function drawInfoBox(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number, value: string, label: string, bgColor: string, textColor: string) {
-  drawRoundedRect(doc, x, y, w, h, 4, bgColor);
-  doc.save().fillColor(textColor).font('Helvetica-Bold').fontSize(FONT_SIZES.macroNumber);
-  const valW = doc.widthOfString(value);
-  doc.text(value, x + (w - valW) / 2, y + 4);
-  doc.font('Helvetica').fontSize(FONT_SIZES.macroLabel).fillColor(textColor);
-  const lblW = doc.widthOfString(label);
-  doc.text(label, x + (w - lblW) / 2, y + 18);
-  doc.restore();
-}
-
 function checkSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number {
   if (y + needed > PAGE_HEIGHT - SAFE_BOTTOM) {
     doc.addPage();
@@ -225,16 +216,12 @@ function checkSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number 
 }
 
 function forceNewPage(doc: PDFKit.PDFDocument) {
-  // Evita añadir una página si ya estamos limpios arriba
   if (doc.y > MARGIN + 10) {
     doc.addPage();
     doc.y = MARGIN;
   }
 }
 
-/** 
- * Dibuja cajitas individuales por párrafo (Retorno al diseño de tarjetas múltiples para fluidez visual)
- */
 function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: number, accentColor: string, bgColor: string): number {
   doc.y = startY;
   const paragraphs = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
@@ -242,8 +229,8 @@ function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: numb
 
   for (const p of paragraphs) {
     doc.font('Helvetica').fontSize(FONT_SIZES.body);
-    const pHeight = doc.heightOfString(p, { width: textW, lineGap: 2 });
-    const blockH = pHeight + 16; // Padding limpio
+    const pHeight = doc.heightOfString(p, { width: textW, lineGap: 1 });
+    const blockH = pHeight + 16; 
 
     doc.y = checkSpace(doc, doc.y, blockH);
     const currentY = doc.y;
@@ -252,10 +239,10 @@ function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: numb
     doc.save().roundedRect(MARGIN, currentY, 4, blockH, 4).fillColor(accentColor).fill().restore();
 
     doc.save().fillColor(COLORS.text).font('Helvetica').fontSize(FONT_SIZES.body);
-    doc.text(p, MARGIN + 8, currentY + 8, { width: textW, lineGap: 2, align: 'left' });
+    doc.text(p, MARGIN + 8, currentY + 8, { width: textW, lineGap: 1, align: 'left' });
     doc.restore();
 
-    doc.y = currentY + blockH + 6; // Espacio entre cajitas
+    doc.y = currentY + blockH + 6; 
   }
 
   return doc.y + 4;
@@ -263,61 +250,226 @@ function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: numb
 
 // ─── SECTION BUILDERS ─────────────────────────────────────────────────────
 
-function buildClientHeader(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  doc.y = startY;
-  const photoSize = 60; 
-  const initialY = doc.y;
+function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
+  // 1. BANNER AZUL SUPERIOR (Full Width)
+  const bannerHeight = 80;
+  doc.save().rect(0, 0, PAGE_WIDTH, bannerHeight).fill(COLORS.darkBlue).restore();
+
+  const logoPath = path.join(process.cwd(), 'public', 'images', 'logo1.png');
+  let logoDrawn = false;
+  if (fs.existsSync(logoPath)) {
+    try {
+      doc.image(logoPath, MARGIN, 20, { width: 130 });
+      logoDrawn = true;
+    } catch (e) {}
+  }
+  
+  if (!logoDrawn) {
+    doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(20);
+    doc.text('NEL Health Coach', MARGIN, 25);
+    doc.restore();
+  }
+
+  doc.save().fillColor(COLORS.white).font('Helvetica-Oblique').fontSize(10);
+  doc.text('Te guiamos a conocer el poder de tu cuerpo', MARGIN, 40, { width: USABLE_WIDTH, align: 'right' });
+  doc.restore();
+
+  doc.y = bannerHeight + 20;
+
+  // 2. FECHA Y TÍTULO
+  const dateStr = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.save().fillColor(COLORS.darkGray).font('Helvetica').fontSize(10);
+  doc.text(`Fecha: ${dateStr}`, MARGIN, doc.y, { align: 'right' });
+  doc.restore();
+  doc.y += 20;
+
+  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(18);
+  doc.text('PLAN DE SALUD METABÓLICA', MARGIN, doc.y, { align: 'center' });
+  doc.restore();
+  doc.y += 35;
+
+  // 3. ── GRID DE DATOS: Cliente (Amarillo) y Coach (Verde) ──
+  const colW = (USABLE_WIDTH - 20) / 2;
+  const boxPad = 12;
+  const avaSize = 56;
+  const startGridY = doc.y;
+
+  // Subtítulos superiores
+  doc.save().fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(12);
+  doc.text('Datos de cliente', MARGIN, startGridY);
+  doc.fillColor(COLORS.darkGreen);
+  doc.text('Coach asignado', MARGIN + colW + 20, startGridY);
+  doc.restore();
+
+  const boxesY = startGridY + 20;
+  const textColW = colW - avaSize - boxPad*2 - 10;
+
+  // --- Recuperación Dinámica de Peso y Altura ---
+  let weight = data.client.weight || '';
+  let height = data.client.height || '';
+  if (!weight && data.session.labResults) {
+    const wMatch = data.session.labResults.find(r => r.name.toLowerCase().includes('peso'));
+    if (wMatch) weight = wMatch.value;
+  }
+  if (!height && data.session.labResults) {
+    const hMatch = data.session.labResults.find(r => r.name.toLowerCase().includes('altura') || r.name.toLowerCase().includes('estatura'));
+    if (hMatch) height = hMatch.value;
+  }
+
+  // --- CALCULO EXACTO DE ALTURAS ---
+  
+  // Altura Cliente
+  doc.font('Helvetica-Bold').fontSize(14);
+  let cName = data.client.name;
+  if (doc.widthOfString(cName) > textColW) cName = cName.substring(0, 20) + '…';
+  let clientH = doc.heightOfString(cName, { width: textColW }) + 4;
+  
+  doc.font('Helvetica').fontSize(9);
+  if (data.client.sex) clientH += doc.heightOfString(`Género: ${data.client.sex}`, { width: textColW });
+  if (data.client.age) {
+    const ageText = String(data.client.age || '').includes('año') ? data.client.age : `${data.client.age} años`;
+    clientH += doc.heightOfString(`Edad: ${ageText}`, { width: textColW });
+  }
+  if (weight) clientH += doc.heightOfString(`Peso: ${weight}`, { width: textColW });
+  if (height) clientH += doc.heightOfString(`Altura: ${height}`, { width: textColW });
+  // Altura Coach
+  doc.font('Helvetica-Bold').fontSize(14);
+  let cchName = data.coach.name;
+  if (doc.widthOfString(cchName) > textColW) cchName = cchName.substring(0, 25) + '…';
+  let coachH = doc.heightOfString(cchName, { width: textColW }) + 4;
+  
+  doc.font('Helvetica').fontSize(9);
+  coachH += doc.heightOfString(`Email: ${data.coach.email}`, { width: textColW });
+  if (data.coach.phone) coachH += doc.heightOfString(`Tel: ${data.coach.phone}`, { width: textColW });
+  
+  const isManuel = data.coach.name.toLowerCase().includes('manuel');
+  if (isManuel) {
+    coachH += 4; // Espacio
+    doc.font('Helvetica-Bold').fontSize(9);
+    coachH += doc.heightOfString('Acreditación:', { width: textColW });
+    doc.font('Helvetica').fontSize(8);
+    coachH += doc.heightOfString('Florida Global University / UCAM San Antonio de Murcia', { width: textColW });
+  }
+  
+  const boxH = Math.max(avaSize + boxPad*2, Math.max(clientH, coachH) + boxPad*2);
+
+  // --- Dibujo de Fondos herméticos ---
+  drawRoundedRect(doc, MARGIN, boxesY, colW, boxH, 6, COLORS.yellow);
+  drawRoundedRect(doc, MARGIN + colW + 20, boxesY, colW, boxH, 6, COLORS.greenBg);
+
+  // --- DIBUJO CLIENTE ---
+  const leftX = MARGIN + boxPad;
+  let cY = boxesY + boxPad;
   
   if (data.client.photoBuffer) {
     try {
-      doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).clip();
-      doc.image(data.client.photoBuffer as Buffer, MARGIN, initialY, { fit: [photoSize, photoSize], align: 'center', valign: 'center' });
+      doc.save().roundedRect(leftX, cY, avaSize, avaSize, avaSize/2).clip();
+      doc.image(data.client.photoBuffer as Buffer, leftX, cY, { fit: [avaSize, avaSize], align: 'center', valign: 'center' });
       doc.restore();
     } catch {
-      doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).fillColor(COLORS.blue).fill().restore();
+      drawRoundedRect(doc, leftX, cY, avaSize, avaSize, avaSize/2, COLORS.blue);
     }
   } else {
-    doc.save().roundedRect(MARGIN, initialY, photoSize, photoSize, 30).fillColor(COLORS.blue).fill().restore();
+    drawRoundedRect(doc, leftX, cY, avaSize, avaSize, avaSize/2, COLORS.blue);
+  }
+
+  const clientTextX = leftX + avaSize + 12;
+  
+  doc.fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(14);
+  doc.text(cName, clientTextX, cY);
+  cY = doc.y + 4; // Actualizado a la siguiente línea
+
+  doc.fontSize(9);
+  if (data.client.sex) {
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Género: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.text).text(data.client.sex);
+    cY = doc.y;
+  }
+  if (data.client.age) {
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Edad: ', clientTextX, cY, { continued: true });
+    const ageText = String(data.client.age || '').includes('año') ? data.client.age : `${data.client.age} años`;
+    doc.font('Helvetica').fillColor(COLORS.text).text(ageText);
+    cY = doc.y;
+  }
+  if (weight) {
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Peso: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.text).text(weight);
+    cY = doc.y;
+  }
+  if (height) {
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkBlue).text('Altura: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.text).text(height);
+    cY = doc.y;
+  }
+
+  // --- DIBUJO COACH ---
+  const rightX = MARGIN + colW + 20 + boxPad;
+  let chY = boxesY + boxPad;
+
+  if (data.coach.photoBuffer) {
+    try {
+      doc.save().roundedRect(rightX, chY, avaSize, avaSize, avaSize/2).clip();
+      doc.image(data.coach.photoBuffer as Buffer, rightX, chY, { fit: [avaSize, avaSize], align: 'center', valign: 'center' });
+      doc.restore();
+    } catch {
+      drawRoundedRect(doc, rightX, chY, avaSize, avaSize, avaSize/2, COLORS.green);
+    }
+  } else {
+    drawRoundedRect(doc, rightX, chY, avaSize, avaSize, avaSize/2, COLORS.green);
+  }
+
+  const coachTextX = rightX + avaSize + 12;
+  
+  doc.fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(14);
+  doc.text(cchName, coachTextX, chY);
+  chY = doc.y + 4;
+  
+  doc.fontSize(9);
+  doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text(`Email: `, coachTextX, chY, { continued: true });
+  doc.font('Helvetica').fillColor(COLORS.text).text(data.coach.email);
+  chY = doc.y;
+
+  if (data.coach.phone) {
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text(`Tel: `, coachTextX, chY, { continued: true });
+    doc.font('Helvetica').fillColor(COLORS.text).text(data.coach.phone);
+    chY = doc.y;
   }
   
-  const textX = MARGIN + photoSize + 15;
-  const nameY = initialY + 10; 
-  doc.save().fillColor(COLORS.darkBlue).font('Helvetica-Bold').fontSize(FONT_SIZES.clientName);
-  
-  let displayName = data.client.name;
-  if (doc.widthOfString(displayName) > USABLE_WIDTH - photoSize - 15) {
-    displayName = displayName.substring(0, 30) + '…';
+  if (isManuel) {
+    chY += 4;
+    doc.font('Helvetica-Bold').fillColor(COLORS.darkGreen).text('Acreditación:', coachTextX, chY);
+    chY = doc.y;
+    doc.font('Helvetica').fontSize(8).fillColor(COLORS.text).text('Florida Global University / UCAM San Antonio de Murcia', coachTextX, chY, { width: textColW });
   }
-  doc.text(displayName, textX, nameY);
-  doc.restore();
-  
-  const subY = nameY + 24;
-  const subParts: string[] = [];
-  if (data.client.sex) subParts.push(data.client.sex);
-  if (data.client.age) subParts.push(`${data.client.age} años`);
-  if (subParts.length > 0) {
-    doc.save().fillColor(COLORS.lightBlue).font('Helvetica').fontSize(FONT_SIZES.clientSub).text(subParts.join('  |  '), textX, subY).restore();
-  }
-  
-  return Math.max(initialY + photoSize, subY + 15) + 5;
+
+  return boxesY + boxH + 25;
 }
 
 function buildDisclaimer(doc: PDFKit.PDFDocument, startY: number): number {
-  doc.y = checkSpace(doc, startY, 40);
-  const currentY = doc.y;
+  doc.y = checkSpace(doc, startY, 50);
+  const startBoxY = doc.y;
   
-  const blockH = 32;
-  // Fondo amarillo claro con borde elegante
-  doc.save().roundedRect(MARGIN, currentY, USABLE_WIDTH, blockH, 4).fillColor('#FFF9C4').fill().restore();
-  doc.save().roundedRect(MARGIN, currentY, USABLE_WIDTH, blockH, 4).strokeColor('#FBC02D').lineWidth(1).stroke().restore();
+  const txt1 = 'IMPORTANTE: Las presentes recomendaciones no son un substituto a las consultas médicas profesionales.';
+  const txt2 = 'Consultar con un médico y/o profesional de la salud de confianza previamente.';
+  
+  doc.font('Helvetica-Bold').fontSize(8.5);
+  const h1 = doc.heightOfString(txt1, { width: USABLE_WIDTH - 20 });
+  doc.font('Helvetica').fontSize(8.5);
+  const h2 = doc.heightOfString(txt2, { width: USABLE_WIDTH - 20 });
+  
+  const blockH = h1 + h2 + 20; 
+  
+  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 4).fillColor('#FFF9C4').fill().restore();
+  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 4).strokeColor('#FBC02D').lineWidth(1).stroke().restore();
 
-  doc.save().fillColor('#E65100').font('Helvetica-Bold').fontSize(8);
-  doc.text('⚠️ Las presentes recomendaciones no son un substituto a las consultas médicas profesionales.', MARGIN, currentY + 7, { width: USABLE_WIDTH, align: 'center' });
-  doc.font('Helvetica').fillColor('#E65100').fontSize(8);
-  doc.text('Consultar con un médico y/o profesional de la salud de confianza previamente.', MARGIN, currentY + 18, { width: USABLE_WIDTH, align: 'center' });
+  doc.y = startBoxY + 8;
+  doc.save().fillColor('#E65100').font('Helvetica-Bold').fontSize(8.5);
+  doc.text(txt1, MARGIN + 10, doc.y, { width: USABLE_WIDTH - 20, align: 'center' });
+  doc.font('Helvetica').fillColor('#E65100').fontSize(8.5);
+  doc.text(txt2, MARGIN + 10, doc.y + 2, { width: USABLE_WIDTH - 20, align: 'center' });
   doc.restore();
 
-  return currentY + blockH + 15;
+  return startBoxY + blockH + 20;
 }
 
 function buildSummarySection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
@@ -625,7 +777,6 @@ function buildNutritionPlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData
     for (const group of dayGroups) {
       if (group.items.length === 0) continue;
       
-      // Control Modular: 1 Día = 1 Hoja
       if (!isFirstDay) forceNewPage(doc);
       
       if (isFirstDay) {
@@ -732,7 +883,6 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
       for (const group of dayGroups) {
         if (group.items.length === 0) continue;
 
-        // Control Modular: Cada día inicia en su propia hoja limpia
         if (!isFirstRender) forceNewPage(doc);
 
         if (isFirstRender) {
@@ -751,7 +901,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
         doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(11);
         doc.text(group.day, MARGIN + 12, dayCardY + 5);
         doc.restore();
-        doc.y = dayCardY + 28; 
+        doc.y += 28; 
 
         for (const item of group.items) {
           let exercise = Object.values(data.exercises).find(ex => ex.name.toLowerCase().includes(item.description.toLowerCase()) || item.description.toLowerCase().includes(ex.name.toLowerCase()));
@@ -812,7 +962,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
           doc.text(infoStr, exCardX + exCardPad, exContentY);
           doc.restore();
 
-          doc.y = exCardStartY + exCardH + 8; // Mínima distancia
+          doc.y = exCardStartY + exCardH + 8;
         }
       }
     }
@@ -887,67 +1037,57 @@ function buildMotivationMessage(doc: PDFKit.PDFDocument, startY: number): number
   return doc.y;
 }
 
-function buildCoachInfo(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  doc.y = checkSpace(doc, startY, 90);
+function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData): void {
+  const footerH = 120; 
   
-  const cardStartY = doc.y;
-  const cardH = 80;
-  drawCard(doc, MARGIN, cardStartY, USABLE_WIDTH, cardH, COLORS.greenBg, COLORS.green);
+  if (doc.y + footerH > PAGE_HEIGHT - 20) {
+    doc.addPage();
+  }
+
+  const footerY = PAGE_HEIGHT - footerH;
   
-  const innerX = MARGIN + 12;
-  const innerY = cardStartY + 12;
-  const photoSize = 56;
+  const oldBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = -100; 
+
+  doc.save().rect(0, footerY, PAGE_WIDTH, footerH).fill(COLORS.footer).restore();
   
-  if (data.coach.photoBuffer) {
+  let currentY = footerY + 15;
+  
+  const logoPath = path.join(process.cwd(), 'public', 'images', 'logo1.png');
+  let logoDrawn = false;
+  if (fs.existsSync(logoPath)) {
     try {
-      doc.save().roundedRect(innerX, innerY, photoSize, photoSize, 28).clip();
-      doc.image(data.coach.photoBuffer as Buffer, innerX, innerY, { fit: [photoSize, photoSize], align: 'center', valign: 'center' });
-      doc.restore();
-    } catch {
-      doc.restore();
-    }
-  } else {
-    drawRoundedRect(doc, innerX, innerY, photoSize, photoSize, 28, COLORS.green);
-    doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(18);
-    const init = data.coach.name.charAt(0).toUpperCase();
-    doc.text(init, innerX + (photoSize - doc.widthOfString(init)) / 2, innerY + 18);
+      const logoW = 100;
+      doc.image(logoPath, (PAGE_WIDTH - logoW) / 2, currentY, { width: logoW });
+      currentY += 45; 
+      logoDrawn = true;
+    } catch (e) {}
+  }
+  
+  if (!logoDrawn) {
+    doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(14);
+    doc.text('NELHEALTHCOACH', 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
+    currentY += 25;
     doc.restore();
   }
-  
-  const detailX = innerX + photoSize + 15;
-  doc.save().fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(FONT_SIZES.coachName);
-  doc.text(data.coach.name, detailX, innerY + 4);
-  
-  doc.font('Helvetica').fontSize(FONT_SIZES.body).fillColor(COLORS.darkGreen);
-  doc.text(`Email: ${data.coach.email}`, detailX, innerY + 22);
-  if (data.coach.phone) doc.text(`Teléfono: ${data.coach.phone}`, detailX, innerY + 36);
-  doc.restore();
-  
-  return cardStartY + cardH + 10;
-}
 
-function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  if (startY + 90 > PAGE_HEIGHT - 20) { 
-    forceNewPage(doc);
-    startY = MARGIN;
-  }
+  doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.white);
+  doc.text('Ubicación Autorizada: 33450 Shifting Sands Trl 4, Cathedral City, CA 92234', 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
+  currentY += 14;
   
-  doc.y = startY;
-  const footerStartY = doc.y;
-  drawRect(doc, MARGIN, footerStartY, USABLE_WIDTH, 90, COLORS.footer); 
+  doc.text('Licencia Municipal: BLIC-IN-000492-2026 (Cathedral City, CA)  |  Registro Estatal CA (LLC): B20260151206', 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
+  currentY += 14;
   
-  let currentY = footerStartY + 12;
-  doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(10);
-  doc.text('NELHEALTHCOACH', MARGIN + 12, currentY); currentY += 14;
-  doc.font('Helvetica').fontSize(7.5).fillColor('rgba(255,255,255,0.7)');
-  doc.text('Ayudándote a descubrir el verdadero potencial de tu cuerpo.', MARGIN + 12, currentY); currentY += 14;
-  if (data.websiteUrl) doc.text(`Sitio web: ${data.websiteUrl}`, MARGIN + 12, currentY); currentY += 10;
-  doc.text('33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)', MARGIN + 12, currentY); currentY += 10;
-  doc.text(`Email: ${data.coach.email} | Tel: ${data.coach.phone || '+1 (442) 342-5050'}`, MARGIN + 12, currentY); currentY += 14;
-  doc.fontSize(6).fillColor('rgba(255,255,255,0.6)');
-  doc.text(`© ${data.currentYear || new Date().getFullYear()} NELHEALTHCOACH, LLC. Todos los derechos reservados.`, MARGIN + 12, currentY);
-  doc.restore();
-  return footerStartY + 90;
+  doc.text(`Contacto: +1 (442) 342-5050 (ES)  |  +1 (442) 234-6169 (EN)`, 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
+  currentY += 14;
+  
+  doc.text(`Email: contact@nelhealthcoach.com  |  Web: www.nelhealthcoach.com`, 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
+  currentY += 20; 
+  
+  doc.fontSize(6.5).fillColor('rgba(255,255,255,0.6)');
+  doc.text(`© ${data.currentYear || new Date().getFullYear()} NELHEALTHCOACH, LLC. Todos los derechos reservados.`, 0, currentY, { align: 'center', width: PAGE_WIDTH });
+
+  doc.page.margins.bottom = oldBottom;
 }
 
 // ─── MAIN GENERATOR ───────────────────────────────────────────────────────
@@ -962,6 +1102,7 @@ export function generateRecommendationPDF(raw_data: PDFRecommendationData): Prom
         size: 'LETTER',
         margins: { top: MARGIN, bottom: 20, left: MARGIN, right: MARGIN }, 
         info: { Title: 'Recomendaciones', Author: data.coach.name, Subject: `Plan para ${data.client.name}` },
+        autoFirstPage: true
       });
       
       const buffers: Buffer[] = [];
@@ -971,58 +1112,54 @@ export function generateRecommendationPDF(raw_data: PDFRecommendationData): Prom
       
       doc.y = MARGIN; 
       
-      // -- SECCIÓN 1: Header, Disclaimer, Resumen y Visión
-      doc.y = buildClientHeader(doc, data, doc.y);
-      drawLine(doc, doc.y, COLORS.blue); doc.y += 15;
-      
+      // -- SECCIÓN 1: Portada Oficial, Disclaimer, Resumen y Visión
+      doc.y = buildOfficialCover(doc, data, doc.y);
       doc.y = buildDisclaimer(doc, doc.y);
-      
       doc.y = buildSummarySection(doc, data, doc.y);
       doc.y = buildVisionSection(doc, data, doc.y);
       
-      // -- SECCIÓN 2: Análisis Médico (Hoja exclusiva)
+      // -- SECCIÓN 2: Análisis Médico
       const hasMed = data.session.structuredMedicalAnalysis?.exams?.length || data.session.labResults?.length || data.session.medicalSummary;
       if (hasMed) {
         forceNewPage(doc);
         doc.y = buildMedicalAnalysisSection(doc, data, doc.y, data.session.index ?? 0);
       }
       
-      // -- SECCIÓN 3: Nutrición (Cada día es una hoja exclusiva)
+      // -- SECCIÓN 3: Nutrición
       const hasNut = data.checklist.some(i => i.category === 'nutrition');
       if (hasNut) {
         forceNewPage(doc);
         doc.y = buildNutritionPlan(doc, data, doc.y);
       }
       
-      // -- SECCIÓN 4: Lista de Compras (Hoja exclusiva)
+      // -- SECCIÓN 4: Lista de Compras
       const hasShop = data.weeks.some(w => w.nutrition.shoppingList?.length > 0);
       if (hasShop) {
         forceNewPage(doc);
         doc.y = buildShoppingListSection(doc, data, doc.y);
       }
       
-      // -- SECCIÓN 5: Ejercicios (Flujo continuo, hoja nueva para el primer día)
+      // -- SECCIÓN 5: Ejercicios
       const hasEx = data.checklist.some(i => i.category === 'exercise');
       if (hasEx) {
         forceNewPage(doc);
         doc.y = buildExercisePlan(doc, data, doc.y);
       }
       
-      // -- SECCIÓN 6: Hábitos (Hoja exclusiva)
+      // -- SECCIÓN 6: Hábitos
       const hasHabits = data.checklist.some(i => i.category === 'habit') || data.habitData?.toAdopt?.length || data.habitData?.toEliminate?.length;
       if (hasHabits) {
         forceNewPage(doc);
         doc.y = buildHabits(doc, data, doc.y);
       }
       
-      // -- SECCIÓN 7: Cierre y Coach (Se empacan todos juntos al final)
-      doc.y = checkSpace(doc, doc.y, 200); 
+      // -- SECCIÓN 7: Cierre 
+      doc.y = checkSpace(doc, doc.y, 80); 
       doc.y = buildMotivationMessage(doc, doc.y);
-      doc.y += 10; 
-      doc.y = buildCoachInfo(doc, data, doc.y);
-      doc.y += 10;
-      doc.y = buildFooter(doc, data, doc.y);
       
+      // -- SECCIÓN 8: Footer Institucional
+      buildFooter(doc, data);
+
       doc.end();
     } catch (error) { reject(error); }
   });
