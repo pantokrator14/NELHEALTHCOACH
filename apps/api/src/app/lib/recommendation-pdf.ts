@@ -1,10 +1,10 @@
 /**
  * Generador de PDF para recomendaciones de salud (Plan Mensual)
  * 
- * - Portada Oficial: Encabezado Azul + Cajas Cliente/Coach.
- * - Alturas de cajas calculadas milimétricamente (Sin espacios sobrantes).
- * - Colores corregidos en la info del Coach (Subtítulos verdes, texto negro).
- * - Footer Institucional Perfecto: Gris oscuro, Logo alto, textos en BLANCO PURO.
+ * - Portada Oficial: Doble Banner (Azul claro arriba, Azul oscuro abajo).
+ * - Información del cliente y coach estructurada en la franja oscura (Sin fotos).
+ * - Título del plan debajo del banner.
+ * - Footer Institucional Full-Width: Gris oscuro, Logo alto, textos en BLANCO PURO.
  * - Paginación Modular Estricta: 1 hoja por día en nutrición y ejercicios.
  */
 
@@ -42,6 +42,10 @@ const COLORS = {
   greenBg: '#E8F5E9',
   blueBg: '#E3F2FD',
   purpleBg: '#F3E5F5',
+  // Nuevos colores para el Banner
+  bannerTop: '#009DDC',
+  bannerBottom: '#005B8C',
+  titleBlue: '#185FA0'
 };
 
 const FONT_SIZES = {
@@ -251,9 +255,9 @@ function buildHighlightBlock(doc: PDFKit.PDFDocument, text: string, startY: numb
 // ─── SECTION BUILDERS ─────────────────────────────────────────────────────
 
 function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
-  // 1. BANNER AZUL SUPERIOR (Full Width)
-  const bannerHeight = 80;
-  doc.save().rect(0, 0, PAGE_WIDTH, bannerHeight).fill('#2486C8').restore();
+  // 1. BANNER SUPERIOR AZUL CLARO
+  const topBannerH = 75;
+  doc.save().rect(0, 0, PAGE_WIDTH, topBannerH).fill(COLORS.bannerTop).restore();
 
   const logoPath = path.join(process.cwd(), 'public', 'images', 'logo1.png');
   let logoDrawn = false;
@@ -270,41 +274,16 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
     doc.restore();
   }
 
-  doc.save().fillColor(COLORS.white).font('Helvetica-Oblique').fontSize(10);
-  doc.text('Te guiamos a conocer el poder de tu cuerpo', MARGIN, 40, { width: USABLE_WIDTH, align: 'right' });
+  doc.save().fillColor(COLORS.white).font('Helvetica-Oblique').fontSize(11);
+  doc.text('Te guiamos a conocer el poder de tu cuerpo', MARGIN, 35, { width: USABLE_WIDTH, align: 'right' });
   doc.restore();
 
-  doc.y = bannerHeight + 20;
-
-  // 2. FECHA Y TÍTULO
-  const dateStr = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
-  doc.save().fillColor(COLORS.darkGray).font('Helvetica').fontSize(10);
-  doc.text(`Fecha: ${dateStr}`, MARGIN, doc.y, { align: 'right' });
-  doc.restore();
-  doc.y += 20;
-
-  doc.save().fillColor('#185FA0').font('Helvetica-Bold').fontSize(18);
-  doc.text('PLAN DE SALUD METABÓLICA', MARGIN, doc.y, { align: 'center' });
-  doc.restore();
-  doc.y += 35;
-
-  // 3. ── GRID DE DATOS: Cliente (Amarillo) y Coach (Verde) ──
+  // 2. BANNER INFERIOR AZUL OSCURO (Datos del Cliente y Coach sin fotos)
+  const startDarkY = topBannerH;
   const colW = (USABLE_WIDTH - 20) / 2;
-  const boxPad = 12;
-  const avaSize = 56;
-  const startGridY = doc.y;
+  const boxPad = 15;
 
-  // Subtítulos superiores
-    doc.save().fillColor('#185FA0').font('Helvetica-Bold').fontSize(12);
-    doc.text('Datos de cliente', MARGIN, startGridY);
-    doc.fillColor('#185FA0');
-    doc.text('Coach asignado', MARGIN + colW + 20, startGridY);
-  doc.restore();
-
-  const boxesY = startGridY + 20;
-  const textColW = colW - avaSize - boxPad*2 - 10;
-
-  // --- Recuperación Dinámica de Peso y Altura ---
+  // Búsqueda Inteligente de Peso y Altura
   let weight = data.client.weight || '';
   let height = data.client.height || '';
   if (!weight && data.session.labResults) {
@@ -316,133 +295,110 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
     if (hMatch) height = hMatch.value;
   }
 
-  // --- CALCULO EXACTO DE ALTURAS ---
-  
-  // Altura Cliente
+  // --- CÁLCULO DE ALTURA DE LA FRANJA OSCURA ---
+  // Cliente
   doc.font('Helvetica-Bold').fontSize(14);
   let cName = data.client.name;
-  if (doc.widthOfString(cName) > textColW) cName = cName.substring(0, 20) + '…';
-  let clientH = doc.heightOfString(cName, { width: textColW }) + 4;
+  if (doc.widthOfString(cName) > colW) cName = cName.substring(0, 25) + '…';
+  let clientH = doc.heightOfString(cName, { width: colW }) + 4;
   
   doc.font('Helvetica').fontSize(9);
-  if (data.client.sex) clientH += doc.heightOfString(`Género: ${data.client.sex}`, { width: textColW });
+  if (data.client.sex) clientH += doc.heightOfString(`Género: ${data.client.sex}`, { width: colW });
   if (data.client.age) {
     const ageText = String(data.client.age || '').includes('año') ? data.client.age : `${data.client.age} años`;
-    clientH += doc.heightOfString(`Edad: ${ageText}`, { width: textColW });
+    clientH += doc.heightOfString(`Edad: ${ageText}`, { width: colW });
   }
-  if (weight) clientH += doc.heightOfString(`Peso: ${weight}`, { width: textColW });
-  if (height) clientH += doc.heightOfString(`Altura: ${height}`, { width: textColW });
-  // Altura Coach
+  if (weight) clientH += doc.heightOfString(`Peso: ${weight}`, { width: colW });
+  if (height) clientH += doc.heightOfString(`Altura: ${height}`, { width: colW });
+
+  // Coach
   doc.font('Helvetica-Bold').fontSize(14);
   let cchName = data.coach.name;
-  if (doc.widthOfString(cchName) > textColW) cchName = cchName.substring(0, 25) + '…';
-  let coachH = doc.heightOfString(cchName, { width: textColW }) + 4;
+  if (doc.widthOfString(cchName) > colW) cchName = cchName.substring(0, 25) + '…';
+  let coachH = doc.heightOfString(cchName, { width: colW }) + 4;
   
   doc.font('Helvetica').fontSize(9);
-  coachH += doc.heightOfString(`Email: ${data.coach.email}`, { width: textColW });
-  if (data.coach.phone) coachH += doc.heightOfString(`Tel: ${data.coach.phone}`, { width: textColW });
+  coachH += doc.heightOfString(`Email: ${data.coach.email}`, { width: colW });
+  if (data.coach.phone) coachH += doc.heightOfString(`Tel: ${data.coach.phone}`, { width: colW });
   
   const isManuel = data.coach.name.toLowerCase().includes('manuel');
   if (isManuel) {
-    coachH += 4; // Espacio
+    coachH += 4;
     doc.font('Helvetica-Bold').fontSize(9);
-    coachH += doc.heightOfString('Acreditación:', { width: textColW });
+    coachH += doc.heightOfString('Acreditación:', { width: colW });
     doc.font('Helvetica').fontSize(8);
-    coachH += doc.heightOfString('Florida Global University / UCAM San Antonio de Murcia', { width: textColW });
+    coachH += doc.heightOfString('Florida Global University / UCAM San Antonio de Murcia', { width: colW });
   }
   
-  const boxH = Math.max(avaSize + boxPad*2, Math.max(clientH, coachH) + boxPad*2);
+  const darkBannerH = Math.max(clientH, coachH) + boxPad * 2;
 
-  // --- Dibujo de Fondos herméticos ---
-  drawRoundedRect(doc, MARGIN, boxesY, colW, boxH, 6, '#189CD8');
-  drawRoundedRect(doc, MARGIN + colW + 20, boxesY, colW, boxH, 6, '#189CD8');
+  // Dibujar el fondo oscuro
+  doc.save().rect(0, startDarkY, PAGE_WIDTH, darkBannerH).fill(COLORS.bannerBottom).restore();
 
-  // --- DIBUJO CLIENTE ---
-  const leftX = MARGIN + boxPad;
-  let cY = boxesY + boxPad;
-  
-  if (data.client.photoBuffer) {
-    try {
-      doc.save().roundedRect(leftX, cY, avaSize, avaSize, avaSize/2).clip();
-      doc.image(data.client.photoBuffer as Buffer, leftX, cY, { fit: [avaSize, avaSize], align: 'center', valign: 'center' });
-      doc.restore();
-    } catch {
-      drawRoundedRect(doc, leftX, cY, avaSize, avaSize, avaSize/2, COLORS.blue);
-    }
-  } else {
-    drawRoundedRect(doc, leftX, cY, avaSize, avaSize, avaSize/2, COLORS.blue);
-  }
-
-  const clientTextX = leftX + avaSize + 12;
+  // --- DIBUJAR DATOS DEL CLIENTE ---
+  let cY = startDarkY + boxPad;
   
   doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(14);
-  doc.text(cName, clientTextX, cY);
+  doc.text(cName, MARGIN, cY);
   cY = doc.y + 4;
 
   doc.fontSize(9);
   if (data.client.sex) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Género: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.white).text(data.client.sex);
+    doc.font('Helvetica-Bold').text('Género: ', MARGIN, cY, { continued: true });
+    doc.font('Helvetica').text(data.client.sex);
     cY = doc.y;
   }
   if (data.client.age) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Edad: ', clientTextX, cY, { continued: true });
+    doc.font('Helvetica-Bold').text('Edad: ', MARGIN, cY, { continued: true });
     const ageText = String(data.client.age || '').includes('año') ? data.client.age : `${data.client.age} años`;
-    doc.font('Helvetica').fillColor(COLORS.white).text(ageText);
+    doc.font('Helvetica').text(ageText);
     cY = doc.y;
   }
   if (weight) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Peso: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.white).text(weight);
+    doc.font('Helvetica-Bold').text('Peso: ', MARGIN, cY, { continued: true });
+    doc.font('Helvetica').text(weight);
     cY = doc.y;
   }
   if (height) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Altura: ', clientTextX, cY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.white).text(height);
+    doc.font('Helvetica-Bold').text('Altura: ', MARGIN, cY, { continued: true });
+    doc.font('Helvetica').text(height);
     cY = doc.y;
   }
 
-  // --- DIBUJO COACH ---
-  const rightX = MARGIN + colW + 20 + boxPad;
-  let chY = boxesY + boxPad;
+  // --- DIBUJAR DATOS DEL COACH ---
+  let chY = startDarkY + boxPad;
+  const rightX = MARGIN + colW + 20;
 
-  if (data.coach.photoBuffer) {
-    try {
-      doc.save().roundedRect(rightX, chY, avaSize, avaSize, avaSize/2).clip();
-      doc.image(data.coach.photoBuffer as Buffer, rightX, chY, { fit: [avaSize, avaSize], align: 'center', valign: 'center' });
-      doc.restore();
-    } catch {
-      drawRoundedRect(doc, rightX, chY, avaSize, avaSize, avaSize/2, COLORS.green);
-    }
-  } else {
-    drawRoundedRect(doc, rightX, chY, avaSize, avaSize, avaSize/2, COLORS.green);
-  }
-
-  const coachTextX = rightX + avaSize + 12;
-  
   doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(14);
-  doc.text(cchName, coachTextX, chY);
+  doc.text(cchName, rightX, chY);
   chY = doc.y + 4;
   
   doc.fontSize(9);
-  doc.font('Helvetica-Bold').fillColor(COLORS.white).text(`Email: `, coachTextX, chY, { continued: true });
-  doc.font('Helvetica').fillColor(COLORS.white).text(data.coach.email);
+  doc.font('Helvetica-Bold').text(`Email: `, rightX, chY, { continued: true });
+  doc.font('Helvetica').text(data.coach.email);
   chY = doc.y;
 
   if (data.coach.phone) {
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text(`Tel: `, coachTextX, chY, { continued: true });
-    doc.font('Helvetica').fillColor(COLORS.white).text(data.coach.phone);
+    doc.font('Helvetica-Bold').text(`Tel: `, rightX, chY, { continued: true });
+    doc.font('Helvetica').text(data.coach.phone);
     chY = doc.y;
   }
   
   if (isManuel) {
     chY += 4;
-    doc.font('Helvetica-Bold').fillColor(COLORS.white).text('Acreditación:', coachTextX, chY);
+    doc.font('Helvetica-Bold').text('Acreditación:', rightX, chY);
     chY = doc.y;
-    doc.font('Helvetica').fontSize(8).fillColor(COLORS.white).text('Florida Global University / UCAM San Antonio de Murcia', coachTextX, chY, { width: textColW });
+    doc.font('Helvetica').fontSize(8).text('Florida Global University / UCAM San Antonio de Murcia', rightX, chY, { width: colW });
   }
 
-  return boxesY + boxH + 25;
+  doc.y = startDarkY + darkBannerH + 25;
+
+  // 3. TÍTULO DEL DOCUMENTO DEBAJO DEL BANNER
+  doc.save().fillColor(COLORS.titleBlue).font('Helvetica-Bold').fontSize(18);
+  doc.text('PLAN DE SALUD METABÓLICA', MARGIN, doc.y, { align: 'center' });
+  doc.restore();
+
+  return doc.y + 25;
 }
 
 function buildDisclaimer(doc: PDFKit.PDFDocument, startY: number): number {
@@ -777,6 +733,7 @@ function buildNutritionPlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData
     for (const group of dayGroups) {
       if (group.items.length === 0) continue;
       
+      // Control Modular: 1 Día = 1 Hoja
       if (!isFirstDay) forceNewPage(doc);
       
       if (isFirstDay) {
@@ -883,6 +840,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
       for (const group of dayGroups) {
         if (group.items.length === 0) continue;
 
+        // Control Modular: Cada día inicia en su propia hoja limpia
         if (!isFirstRender) forceNewPage(doc);
 
         if (isFirstRender) {
@@ -962,7 +920,7 @@ function buildExercisePlan(doc: PDFKit.PDFDocument, data: PDFRecommendationData,
           doc.text(infoStr, exCardX + exCardPad, exContentY);
           doc.restore();
 
-          doc.y = exCardStartY + exCardH + 8;
+          doc.y = exCardStartY + exCardH + 8; // Mínima distancia
         }
       }
     }
@@ -1038,21 +996,26 @@ function buildMotivationMessage(doc: PDFKit.PDFDocument, startY: number): number
 }
 
 function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData): void {
-  const footerH = 120; 
+  const footerH = 160; 
   
+  // Si no cabe limpio al final de la página, forzamos nueva página
   if (doc.y + footerH > PAGE_HEIGHT - 20) {
     doc.addPage();
   }
 
   const footerY = PAGE_HEIGHT - footerH;
-  
+
+  // 🔴 TRUCO PARA EVITAR HOJAS BLANCAS: Apagamos el margen inferior 
+  // para que PDFKit no haga salto automático al dibujar en el límite inferior.
   const oldBottom = doc.page.margins.bottom;
   doc.page.margins.bottom = -100; 
 
+  // Fondo Gris Oscuro Institucional
   doc.save().rect(0, footerY, PAGE_WIDTH, footerH).fill(COLORS.footer).restore();
   
   let currentY = footerY + 15;
   
+  // Logo centrado
   const logoPath = path.join(process.cwd(), 'public', 'images', 'logo1.png');
   let logoDrawn = false;
   if (fs.existsSync(logoPath)) {
@@ -1071,6 +1034,7 @@ function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData): void
     doc.restore();
   }
 
+  // Textos Institucionales en Blanco
   doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.white);
   doc.text('Ubicación Autorizada: 33450 Shifting Sands Trl 4, Cathedral City, CA 92234', 0, currentY, { align: 'center', width: PAGE_WIDTH }); 
   currentY += 14;
@@ -1087,6 +1051,7 @@ function buildFooter(doc: PDFKit.PDFDocument, data: PDFRecommendationData): void
   doc.fontSize(6.5).fillColor('rgba(255,255,255,0.6)');
   doc.text(`© ${data.currentYear || new Date().getFullYear()} NELHEALTHCOACH, LLC. Todos los derechos reservados.`, 0, currentY, { align: 'center', width: PAGE_WIDTH });
 
+  // Restauramos márgenes
   doc.page.margins.bottom = oldBottom;
 }
 
@@ -1153,11 +1118,11 @@ export function generateRecommendationPDF(raw_data: PDFRecommendationData): Prom
         doc.y = buildHabits(doc, data, doc.y);
       }
       
-      // -- SECCIÓN 7: Cierre 
+      // -- SECCIÓN 7: Cierre y Motivación 
       doc.y = checkSpace(doc, doc.y, 80); 
       doc.y = buildMotivationMessage(doc, doc.y);
       
-      // -- SECCIÓN 8: Footer Institucional
+      // -- SECCIÓN 8: Footer Institucional (Absolute Bottom, Sin márgenes)
       buildFooter(doc, data);
 
       doc.end();
