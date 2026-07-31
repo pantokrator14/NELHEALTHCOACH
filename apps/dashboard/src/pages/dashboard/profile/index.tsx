@@ -376,7 +376,7 @@ export default function ProfilePage() {
             </svg>
             Foto de perfil
           </h2>
-          <div className="flex items-center">
+          <div className="flex flex-col items-center sm:flex-row sm:items-center">
             <div className="relative flex-shrink-0">
               <div className="w-28 h-28 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white text-4xl font-bold relative">
                 {profile?.profilePhoto?.url ? (
@@ -399,9 +399,9 @@ export default function ProfilePage() {
                 )}
               </button>
             </div>
-            <div className="ml-6">
-              <h3 className="text-xl font-semibold text-gray-800">{profile?.firstName} {profile?.lastName}</h3>
-              <p className="text-blue-600 font-medium">{profile?.email}</p>
+            <div className="mt-4 sm:mt-0 sm:ml-6 min-w-0 w-full sm:w-auto text-center sm:text-left">
+              <h3 className="text-xl font-semibold text-gray-800 break-words">{profile?.firstName} {profile?.lastName}</h3>
+              <p className="text-blue-600 font-medium break-words">{profile?.email}</p>
               <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium ${profile?.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                 {profile?.role === 'admin' ? 'Administrador' : 'Coach'}
               </span>
@@ -425,7 +425,7 @@ export default function ProfilePage() {
             Información personal
           </h2>
           <form onSubmit={handleSaveProfile} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-1">Nombre</label>
                 <input type="text" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
@@ -439,7 +439,7 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium text-blue-500 mb-1">Teléfono</label>
               <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-1">Título profesional</label>
                 <input type="text" value={form.professionalTitle} onChange={(e) => setForm({ ...form, professionalTitle: e.target.value })} placeholder="Ej: Coach certificado en nutrición" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" />
@@ -461,11 +461,11 @@ export default function ProfilePage() {
                   </span>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   placeholder="Ej: Pérdida de peso"
-                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full sm:flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                   id="specialty-input"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -489,7 +489,7 @@ export default function ProfilePage() {
                     }
                     if (input) input.value = '';
                   }}
-                  className="px-4 py-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition font-medium text-sm"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition font-medium text-sm"
                 >
                   Agregar
                 </button>
@@ -708,7 +708,7 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium text-blue-500 mb-1">Biografía</label>
               <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={4} placeholder="Cuéntanos sobre ti, tu formación y enfoque profesional..." className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-y" />
             </div>
-            <button type="submit" disabled={saving} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 shadow-sm">
+            <button type="submit" disabled={saving} className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 shadow-sm">
               {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
           </form>
@@ -752,7 +752,7 @@ export default function ProfilePage() {
                   <button
                     onClick={handleConnectStripe}
                     disabled={connectingStripe}
-                    className="mt-4 inline-flex items-center px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                    className="mt-4 w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
                   >
                     {connectingStripe ? (
                       <>
@@ -790,7 +790,7 @@ export default function ProfilePage() {
                   <button
                     onClick={handleContinueOnboarding}
                     disabled={connectingStripe}
-                    className="mt-4 inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                    className="mt-4 w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
                   >
                     {connectingStripe ? (
                       <>
@@ -840,8 +840,8 @@ export default function ProfilePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Precio por sesión (USD)
                 </label>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="relative w-full sm:w-32">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
                     <input
                       type="number"
@@ -850,14 +850,14 @@ export default function ProfilePage() {
                       step="5"
                       value={sessionPriceInput}
                       onChange={(e) => setSessionPriceInput(e.target.value)}
-                      className="w-32 pl-7 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-center"
+                      className="w-full sm:w-32 pl-7 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-center"
                     />
                   </div>
                   <span className="text-sm text-gray-500">USD</span>
                   <button
                     onClick={handleSavePrice}
                     disabled={savingPrice}
-                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium text-sm disabled:opacity-50 shadow-sm"
                   >
                     {savingPrice ? 'Guardando...' : 'Guardar precio'}
                   </button>
@@ -906,7 +906,7 @@ export default function ProfilePage() {
               <label className="block text-sm font-medium text-orange-500 mb-1">Confirmar nueva contraseña</label>
               <PasswordInput value={passForm.confirm} onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })} required autoComplete="new-password" />
             </div>
-            <button type="submit" disabled={changingPass} className="bg-orange-500 text-white px-6 py-2.5 rounded-lg hover:bg-orange-600 transition font-medium disabled:opacity-50 shadow-sm">
+            <button type="submit" disabled={changingPass} className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2.5 rounded-lg hover:bg-orange-600 transition font-medium disabled:opacity-50 shadow-sm">
               {changingPass ? 'Cambiando...' : 'Cambiar contraseña'}
             </button>
           </form>
