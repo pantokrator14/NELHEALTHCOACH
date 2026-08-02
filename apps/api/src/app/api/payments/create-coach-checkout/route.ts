@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripeClient, getCoachSubscriptionAmount } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { hashToken } from '@/app/lib/tokenHash';
 import { apiHandler } from '@/app/lib/apiHandler';
 import crypto from 'crypto';
 
@@ -22,9 +23,10 @@ async function postHandler(request: NextRequest) {
     await connectMongoose();
 
     const body = await request.json();
-    const { email, contractAccepted } = body as {
+    const { email, contractAccepted, contractVersion } = body as {
       email?: string;
       contractAccepted?: boolean;
+      contractVersion?: string;
     };
 
     if (!email || typeof email !== 'string') {
@@ -42,6 +44,7 @@ async function postHandler(request: NextRequest) {
     }
 
     // Crear un token único para este registro pendiente
+    // SEC-15: guardar SOLO el hash del token en DB; el token plano va en la URL
     const token = crypto.randomBytes(32).toString('hex');
     const coachPriceId = process.env.STRIPE_COACH_PRICE_ID;
 
@@ -60,9 +63,11 @@ async function postHandler(request: NextRequest) {
     // Guardar el pending coach
     const { default: PendingCoach } = await import('@/app/models/PendingCoach');
     await PendingCoach.create({
-      token,
+      token: hashToken(token),
       email: email.toLowerCase().trim(),
       contractAccepted: true,
+      contractVersion: contractVersion || '1.0',
+      contractAcceptedAt: new Date(),
       paymentStatus: 'pending',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hora
     });

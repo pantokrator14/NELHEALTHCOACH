@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { emailHashVariants } from '@/app/models/Coach';
 import { generateToken } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt } from '@/app/lib/encryption';
@@ -10,10 +10,9 @@ import { secureRoute } from '@/app/lib/security/routeGuard';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
-const LEGACY_CREDENTIALS = {
-  email: process.env.COACH_EMAIL,
-  password: process.env.COACH_PASSWORD,
-};
+// SEC-08: hash bcrypt de un password dummy (cost 10) para igualar timing de
+// respuesta cuando el email no existe — previene enumeración de cuentas.
+const DUMMY_BCRYPT_HASH = '$2b$10$sc6DZCaZ7kqM6w00pth7luvhAyRpf8aBzPL6DfR6UKJIGcVUyzgy2';
 
 async function loginHandler(request: NextRequest) {
   await connectMongoose();
@@ -54,7 +53,6 @@ async function loginHandler(request: NextRequest) {
   const { email, password } = parsed.data;
 
   const emailLower = email.toLowerCase().trim();
-  const emailHash = hashEmail(emailLower);
 
   // Extraer request context para audit logs
   const reqCtx = {
@@ -63,8 +61,8 @@ async function loginHandler(request: NextRequest) {
     requestId: request.headers.get('x-request-id') || undefined,
   };
 
-  // 1. Buscar por hash
-  const coach = await Coach.findOne({ emailHash });
+  // 1. Buscar por hash (dual: v2 HMAC + legacy sha256 para cuentas pre-SEC-10)
+  const coach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
 
   if (coach) {
     // Recolectar TODAS las razones por las que no puede iniciar sesión
@@ -222,46 +220,12 @@ async function loginHandler(request: NextRequest) {
     );
   }
 
-  // 2. Fallback: credenciales de env vars
-  if (
-    LEGACY_CREDENTIALS.email &&
-    LEGACY_CREDENTIALS.password &&
-    emailLower === LEGACY_CREDENTIALS.email.toLowerCase().trim() &&
-    password === LEGACY_CREDENTIALS.password
-  ) {
-    const token = generateToken({
-      coachId: 'legacy-admin',
-      email: LEGACY_CREDENTIALS.email,
-      role: 'admin',
-    });
+  // 2. Email no encontrado
+  // SEC-08: ejecutar un bcrypt dummy para igualar el tiempo de respuesta del
+  // path con cuenta existente — evita enumerar emails vía timing side-channel
+  // (la respuesta debe tardar lo mismo que un bcrypt.compare real).
+  await bcrypt.compare(password, DUMMY_BCRYPT_HASH);
 
-    logAuditEvent({
-      eventType: 'LOGIN_SUCCESS',
-      severity: 'info',
-      message: `Login exitoso (legacy admin): ${emailLower}`,
-      actorEmail: emailLower,
-      actorRole: 'admin',
-      ...reqCtx,
-      path: '/api/auth/login',
-      method: 'POST',
-      statusCode: 200,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Login exitoso (modo heredado)',
-      token,
-      coach: {
-        id: 'legacy-admin',
-        email: LEGACY_CREDENTIALS.email,
-        firstName: 'Admin',
-        lastName: '',
-        role: 'admin',
-      },
-    });
-  }
-
-  // Email no encontrado
   logAuditEvent({
     eventType: 'LOGIN_FAILURE',
     severity: 'warning',

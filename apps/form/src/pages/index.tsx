@@ -11,17 +11,19 @@ import LifestyleContextStep from '@/components/LifestyleContextStep';
 import MentalHealthStep from '@/components/MentalHealthStep';
 import DocumentsStep from '@/components/DocumentsStep';
 import SuccessStep from '@/components/SuccessStep';
-import { apiClient, FormPayload, API_BASE_URL } from '@/lib/api';
+import { apiClient, FormPayload, API_BASE_URL, CONTRACT_VERSION } from '@/lib/api';
 import { PersonalDataFormValues, MedicalDataFormValues } from '@/lib/validation';
 
 interface CompleteHealthFormData {
   contractAccepted: boolean;
+  contractVersion: string;
   personalData: PersonalDataFormValues;
   medicalData: MedicalDataFormValues;
 }
 
 interface HealthFormData {
   contractAccepted?: boolean;
+  contractVersion?: string;
   paymentCompleted?: boolean;
   personalData?: Partial<PersonalDataFormValues>;
   medicalData?: Partial<MedicalDataFormValues>;
@@ -203,7 +205,7 @@ const FormPage: React.FC = () => {
   };
 
   const handleContractAccept = () => {
-    updateFormData({ contractAccepted: true, paymentCompleted: isFree });
+    updateFormData({ contractAccepted: true, contractVersion: CONTRACT_VERSION, paymentCompleted: isFree });
     if (isFree) {
       // Link gratuito: saltar PaymentStep (índice 1), ir directo a ObjectivesStep (índice 2)
       console.log('🆓 Modo gratuito — saltando paso de pago');
@@ -404,6 +406,7 @@ const FormPage: React.FC = () => {
 
     return {
       contractAccepted: formData.contractAccepted,
+      contractVersion: formData.contractVersion || CONTRACT_VERSION,
       personalData: personalData as PersonalDataFormValues,
       medicalData: medicalData as MedicalDataFormValues,
     };
@@ -439,6 +442,7 @@ const FormPage: React.FC = () => {
 
       const formPayload: FormPayload = {
         contractAccepted: completeData.contractAccepted,
+        contractVersion: completeData.contractVersion,
         personalData: convertPersonalDataForApi(completeData.personalData),
         medicalData: convertMedicalDataForApi(medicalDataWithDocs),
         // Stripe Session ID para verificar el pago en backend

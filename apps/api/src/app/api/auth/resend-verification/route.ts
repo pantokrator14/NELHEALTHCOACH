@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { emailHashVariants } from '@/app/models/Coach';
 import { EmailService } from '@/app/lib/email-service';
 import { logger } from '@/app/lib/logger';
 import { decrypt } from '@/app/lib/encryption';
+import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { generateVerificationEmailHTML } from '@/app/lib/email-templates';
@@ -12,7 +13,9 @@ import { generateVerificationEmailHTML } from '@/app/lib/email-templates';
  * POST /api/auth/resend-verification
  *
  * Reenvía el enlace de verificación al email del coach.
- * Si ya existe un token pendiente, lo REUTILIZA (no invalida el anterior).
+ * Siempre genera un token NUEVO (el anterior queda invalidado): el token
+ * almacenado en DB es solo el hash (SEC-15), no es recuperable, y rotar el
+ * token en cada reenvío es la práctica segura.
  */
 async function postHandler(request: NextRequest) {
   try {
@@ -28,8 +31,8 @@ async function postHandler(request: NextRequest) {
     }
 
     const emailLower = email.toLowerCase().trim();
-    const emailHashVal = hashEmail(emailLower);
-    const coach = await Coach.findOne({ emailHash: emailHashVal });
+    // Búsqueda dual: v2 HMAC + legacy sha256 (cuentas pre-SEC-10)
+    const coach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
 
     // Por seguridad, siempre retornamos éxito aunque el coach no exista
     // o ya esté verificado, para no revelar información.
@@ -40,13 +43,10 @@ async function postHandler(request: NextRequest) {
       });
     }
 
-    // Reutilizar token existente si ya hay uno pendiente
-    // Así el enlace del email anterior SEGUIRÁ FUNCIONANDO
-    const verificationToken = coach.verificationToken || crypto.randomBytes(32).toString('hex');
-    if (!coach.verificationToken) {
-      coach.verificationToken = verificationToken;
-      await coach.save();
-    }
+    // SEC-15: generar token nuevo y guardar solo su hash
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    coach.verificationToken = hashToken(verificationToken);
+    await coach.save();
 
     // Obtener nombre del coach para personalizar el email
     let coachName = 'Coach';
@@ -77,7 +77,7 @@ async function postHandler(request: NextRequest) {
 
     logger.info('AUTH', 'Enlace de verificación reenviado', {
       email: coach.email,
-      reusedToken: !!coach.verificationToken,
+      tokenRotated: true,
     });
 
     return NextResponse.json({

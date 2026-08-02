@@ -8,6 +8,12 @@ import CoachContractStep from '@/components/CoachContractStep';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+/**
+ * Versión vigente del acuerdo de asesor (register.contract).
+ * Se envía al API al registrarse y queda registrada junto a la fecha de aceptación.
+ */
+const COACH_CONTRACT_VERSION = '1.0';
+
 type RegisterStep = 'landing' | 'contract' | 'form' | 'verify-email';
 
 const TIMEZONE_OPTIONS = [
@@ -233,6 +239,9 @@ export default function Register() {
       bio: formData.bio,
       timezone: formData.timezone,
       profilePhoto: profilePhotoBase64 || undefined,
+      // Evidencia de aceptación del acuerdo de asesor
+      contractAccepted: true,
+      contractVersion: COACH_CONTRACT_VERSION,
     };
 
     // Guardar en sessionStorage por si Stripe cancela

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Coach from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { hashToken } from '@/app/lib/tokenHash';
 import { apiHandler } from '@/app/lib/apiHandler';
 
 async function getHandler(request: NextRequest) {
@@ -17,7 +18,13 @@ async function getHandler(request: NextRequest) {
       );
     }
 
-    const coach = await Coach.findOne({ verificationToken: token });
+    // SEC-15: el token en DB está hasheado (sha256); se compara el hash.
+    // Fallback legacy: tokens guardados en texto plano antes de SEC-15.
+    const tokenHash = hashToken(token);
+    let coach = await Coach.findOne({ verificationToken: tokenHash });
+    if (!coach) {
+      coach = await Coach.findOne({ verificationToken: token });
+    }
 
     if (!coach) {
       // Token no encontrado: ya fue usado, fue reemplazado por reenvío, o es inválido.

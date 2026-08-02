@@ -4,12 +4,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { hashEmail, emailHashVariants } from '@/app/models/Coach';
 import PendingCoach from '@/app/models/PendingCoach';
 import { generateToken } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
+import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
 import { registerSchema } from '@/app/lib/schemas';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -63,7 +64,11 @@ async function completeRegistrationHandler(request: NextRequest) {
   } = parsed.data;
 
   // Buscar el pending coach
-  const pending = await PendingCoach.findOne({ token });
+  // SEC-15: buscar por hash del token (con fallback legacy para tokens planos)
+  let pending = await PendingCoach.findOne({ token: hashToken(token) });
+  if (!pending) {
+    pending = await PendingCoach.findOne({ token });
+  }
 
   if (!pending) {
     logAuditEvent({
@@ -109,7 +114,8 @@ async function completeRegistrationHandler(request: NextRequest) {
   const emailLower = validEmail.toLowerCase().trim();
   const emailHash = hashEmail(emailLower);
 
-  const existingCoach = await Coach.findOne({ emailHash });
+  // Búsqueda dual: v2 HMAC + legacy sha256 (cuentas pre-SEC-10)
+  const existingCoach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
   if (existingCoach) {
     logAuditEvent({
       eventType: 'REGISTER_FAILURE',
@@ -178,6 +184,7 @@ async function completeRegistrationHandler(request: NextRequest) {
   // Crear el coach
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(validPassword, salt);
+  // SEC-15: guardar solo el hash del token de verificación en DB
   const verificationToken = crypto.randomBytes(32).toString('hex');
 
   const encryptedStripeCustomerId = pending.stripeCustomerId
@@ -196,7 +203,7 @@ async function completeRegistrationHandler(request: NextRequest) {
     phone: validPhone ? encrypt(validPhone) : '',
     role: 'coach',
     emailVerified: false,
-    verificationToken,
+    verificationToken: hashToken(verificationToken),
     isActive: true,
     stripeCustomerId: encryptedStripeCustomerId,
     subscriptionId: encryptedSubscriptionId,

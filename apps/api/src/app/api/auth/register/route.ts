@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { hashEmail, emailHashVariants } from '@/app/models/Coach';
 import { generateToken } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
+import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
 import { registerSchema } from '@/app/lib/schemas';
 import { secureRoute } from '@/app/lib/security/routeGuard';
@@ -85,8 +86,8 @@ async function registerHandler(request: NextRequest) {
     requestId: request.headers.get('x-request-id') || undefined,
   };
 
-  // Verificar si ya existe por hash
-  const existingCoach = await Coach.findOne({ emailHash });
+  // Verificar si ya existe por hash (dual: v2 HMAC + legacy sha256 pre-SEC-10)
+  const existingCoach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
   if (existingCoach) {
     logAuditEvent({
       eventType: 'REGISTER_FAILURE',
@@ -133,6 +134,7 @@ async function registerHandler(request: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(validPassword, salt);
+  // SEC-15: guardar solo el hash del token de verificación en DB
   const verificationToken = crypto.randomBytes(32).toString('hex');
 
   const coach = await Coach.create({
@@ -149,7 +151,7 @@ async function registerHandler(request: NextRequest) {
     timezone: validTimezone || '',
     role: 'coach',
     emailVerified: false,
-    verificationToken,
+    verificationToken: hashToken(verificationToken),
     isActive: true,
   });
 

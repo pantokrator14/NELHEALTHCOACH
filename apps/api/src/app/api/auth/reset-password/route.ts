@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import Coach from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
+import { hashToken } from '@/app/lib/tokenHash';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
@@ -33,10 +34,19 @@ async function postHandler(request: NextRequest) {
     }
 
     // Buscar coach con token válido y no expirado
-    const coach = await Coach.findOne({
-      resetToken: token,
+    // SEC-15: el token en DB está hasheado (sha256); se compara el hash.
+    // Fallback legacy: tokens guardados en texto plano antes de SEC-15.
+    const tokenHash = hashToken(token);
+    let coach = await Coach.findOne({
+      resetToken: tokenHash,
       resetTokenExpiry: { $gt: new Date() },
     });
+    if (!coach) {
+      coach = await Coach.findOne({
+        resetToken: token,
+        resetTokenExpiry: { $gt: new Date() },
+      });
+    }
 
     if (!coach) {
       logAuditEvent({

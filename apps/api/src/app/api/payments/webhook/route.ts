@@ -129,13 +129,13 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
     return;
   }
 
-  const { default: Coach, hashEmail } = await import('@/app/models/Coach');
+  const { default: Coach, emailHashVariants } = await import('@/app/models/Coach');
   const { refundTrialPayment, stripeClient } = await import('@/app/lib/stripe');
   const { decrypt, encrypt } = await import('@/app/lib/encryption');
   const emailService = (await import('@/app/lib/email-service')).EmailService.getInstance();
 
-  const emailHash = hashEmail(coachEmail.toLowerCase().trim());
-  const coach = await Coach.findOne({ emailHash });
+  // Búsqueda dual: v2 HMAC + legacy sha256 (cuentas pre-SEC-10)
+  const coach = await Coach.findOne({ emailHash: { $in: emailHashVariants(coachEmail.toLowerCase().trim()) } });
 
   if (!coach) {
     logger.error('PAYMENTS', 'Coach no encontrado para trial_verification', { coachEmail });

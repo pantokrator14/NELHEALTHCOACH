@@ -10,7 +10,9 @@ import type { SecurityCheckResult } from './types';
 
 /**
  * Verifica rate limiting contra el request actual.
- * Usa el visitorId de FingerprintJS si está presente, o el IP como fallback.
+ * La key combina IP + visitorId (si está presente): el visitorId de FingerprintJS
+ * agrega granularidad por dispositivo, pero la IP nunca puede ser reemplazada,
+ * evitando evadir el límite rotando el header x-visitor-id.
  */
 export async function requireRateLimit(request: NextRequest): Promise<SecurityCheckResult> {
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
