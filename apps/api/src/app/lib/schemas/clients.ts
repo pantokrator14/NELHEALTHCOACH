@@ -92,6 +92,7 @@ export const clientFormSchema = z.object({
   personalData: personalDataSchema,
   medicalData: medicalDataSchema,
   contractAccepted: z.boolean().default(false),
+  contractVersion: z.string().optional(),
   coachId: z.string().optional(),
 });
 

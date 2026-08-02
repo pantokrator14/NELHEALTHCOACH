@@ -2,6 +2,12 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 /**
+ * Versión vigente del contrato de servicios (contrato de cliente).
+ * Se envía al API al aceptar el contrato y queda registrada junto a la fecha.
+ */
+export const CONTRACT_VERSION = '1.0';
+
+/**
  * Retorna headers base con el visitorId de FingerprintJS si está disponible.
  */
 function getBaseHeaders(): Record<string, string> {
@@ -30,6 +36,7 @@ export type FormPayload = {
   personalData: PersonalData;
   medicalData: MedicalData;
   contractAccepted?: boolean;
+  contractVersion?: string;
   stripeSessionId?: string;
   free?: boolean;
   [key: string]: unknown;
@@ -86,6 +93,7 @@ export const apiClient = {
         documents: undefined
       },
       contractAccepted: formData.contractAccepted,
+      contractVersion: formData.contractVersion,
       // Reenviar campos de pago/link gratuito (JSON.stringify omite undefined)
       stripeSessionId: formData.stripeSessionId,
       free: formData.free,

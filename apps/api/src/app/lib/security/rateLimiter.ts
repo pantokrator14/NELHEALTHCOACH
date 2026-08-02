@@ -77,14 +77,16 @@ async function getRateLimitCollection(): Promise<Collection<RateLimitDocument>> 
 // ─── Funciones de rate limiting ───
 
 /**
- * Construye una key única combinando IP (o visitorId) + path.
- * Si se provee visitorId (de FingerprintJS), se usa como key primaria
- * en lugar del IP, permitiendo límites por dispositivo.
+ * Construye una key única combinando IP + visitorId (si existe) + path.
+ * La IP SIEMPRE forma parte de la key: el visitorId (header controlado por el
+ * cliente) NO puede reemplazarla, de lo contrario un atacante que rote
+ * x-visitor-id evadiría el límite de intentos por IP.
+ * El visitorId solo agrega granularidad por dispositivo sobre la misma IP.
  */
 function buildRateLimitKey(ip: string, path: string, visitorId?: string): string {
   const namespace = process.env.NODE_ENV === 'production' ? 'prd' : 'dev';
-  const primary = visitorId && visitorId.trim() !== '' ? visitorId : ip;
-  return `rl:${namespace}:${primary}:${path}`;
+  const device = visitorId && visitorId.trim() !== '' ? `:${visitorId}` : '';
+  return `rl:${namespace}:${ip}${device}:${path}`;
 }
 
 /**
@@ -143,7 +145,7 @@ export async function checkRateLimit(
 
     if (currentCount > config.maxRequests) {
       const retryAfterSeconds = config.windowSeconds;
-      const identifier = visitorId ? `fingerprint:${visitorId.substring(0, 12)}` : `ip:${ip}`;
+      const identifier = visitorId ? `ip:${ip}:fingerprint:${visitorId.substring(0, 12)}` : `ip:${ip}`;
 
       logger.warn('RATE_LIMITER', `Rate limit excedido para ${identifier} en ${path}`, {
         count: currentCount,
@@ -175,10 +177,11 @@ export async function checkRateLimit(
 }
 
 /**
- * Limpia los rate limits para un IP específico (útil después de login exitoso).
+ * Limpia los rate limits para una IP (y visitorId opcional) en un path específico.
+ * Útil después de login exitoso.
  */
-export async function resetRateLimit(ip: string, path: string): Promise<void> {
-  const key = buildRateLimitKey(ip, path);
+export async function resetRateLimit(ip: string, path: string, visitorId?: string): Promise<void> {
+  const key = buildRateLimitKey(ip, path, visitorId);
 
   try {
     const collection = await getRateLimitCollection();

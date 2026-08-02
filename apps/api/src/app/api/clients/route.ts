@@ -472,6 +472,9 @@ async function postHandler(request: NextRequest) {
       personalData: encryptedPersonalData,
       medicalData: encryptedMedicalData,
       contractAccepted: encrypt(data.contractAccepted.toString()),
+      // Registro de evidencia de consentimiento: versión del contrato y fecha de aceptación
+      contractVersion: data.contractVersion || null,
+      contractAcceptedAt: data.contractAccepted ? new Date() : null,
       ipAddress: encrypt(clientIP),
       coachId: coachId || null,
       submissionDate: new Date()

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
+import { lookup } from 'node:dns/promises';
 import { getHealthFormsCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { decrypt, safeDecrypt, decryptFileObject } from '@/app/lib/encryption';
@@ -17,6 +18,74 @@ import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { getPresignedUrlForAnalysis } from '@/app/lib/s3';
+
+/**
+ * ─── Protección SSRF ───
+ * fetchImageBuffer descarga URLs guardadas en DB (S3 presigned, Cloudinary, etc.).
+ * Para evitar que una URL maliciosa apunte a metadata de la nube (169.254.169.254),
+ * IPs privadas o localhost, validamos: solo https + resolución DNS pública.
+ */
+
+/** Devuelve true si la IP es privada/loopback/link-local/metadata/global broadcast. */
+function isBlockedIp(ip: string): boolean {
+  const normalized = ip.toLowerCase();
+
+  // IPv6: loopback ::1, unspecified ::, link-local fe80::/10, unique local fc00::/7,
+  // e IPv4-mapped (::ffff:a.b.c.d)
+  if (normalized.includes(':')) {
+    if (normalized === '::1' || normalized === '::' || normalized.startsWith('fe80:')) return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+    const v4Mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (v4Mapped) return isBlockedIp(v4Mapped[1]);
+    return false;
+  }
+
+  const parts = normalized.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return true;
+  const [a, b] = parts;
+
+  // 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10 (CGNAT), 127.0.0.0/8, 169.254.0.0/16
+  // (incluye metadata AWS 169.254.169.254), 172.16.0.0/12, 192.0.0.0/24,
+  // 192.168.0.0/16, 198.18.0.0/15 (benchmark), multicast 224.0.0.0/4, reservado 240.0.0.0/4
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && (b === 168 || b === 0)) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true;
+  return false;
+}
+
+/** Valida que una URL sea descargable de forma segura (https + IPs públicas). */
+async function isSafeFetchUrl(urlStr: string): Promise<boolean> {
+  let url: URL;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    return false;
+  }
+
+  // Solo https — nunca http plano ni otros esquemas (file:, gopher:, etc.)
+  if (url.protocol !== 'https:') return false;
+
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+    return false;
+  }
+
+  // IP literal → validar directamente
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.includes(':')) {
+    return !isBlockedIp(hostname);
+  }
+
+  // Hostname → resolver DNS y exigir que TODAS las IPs sean públicas
+  try {
+    const addresses = await lookup(hostname, { all: true });
+    return addresses.length > 0 && addresses.every(({ address }) => !isBlockedIp(address));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Descarga una imagen (desde S3 o URL pública) y la convierte a JPEG si es necesario,
@@ -30,7 +99,13 @@ async function fetchImageBuffer(urlOrKey: string | undefined): Promise<Buffer | 
     if (!urlOrKey.startsWith('http')) {
       finalUrl = await getPresignedUrlForAnalysis(urlOrKey);
     }
-    
+
+    // Protección SSRF: solo https + IPs públicas
+    if (!(await isSafeFetchUrl(finalUrl))) {
+      logger.warn('PDF', `Imagen ignorada por validación SSRF: ${finalUrl?.substring(0, 120)}`);
+      return undefined;
+    }
+
     const resp = await fetch(finalUrl, { signal: AbortSignal.timeout(10000) });
     if (!resp.ok) return undefined;
     

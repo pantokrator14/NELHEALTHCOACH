@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { emailHashVariants } from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { generatePasswordResetHTML } from '@/app/lib/email-templates';
 import { connectMongoose } from '@/app/lib/database';
 import { decrypt } from '@/app/lib/encryption';
+import { hashToken } from '@/app/lib/tokenHash';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
@@ -29,9 +30,9 @@ async function postHandler(request: NextRequest) {
     }
 
     const emailLower = email.toLowerCase().trim();
-    const emailHash = hashEmail(emailLower);
 
-    const coach = await Coach.findOne({ emailHash });
+    // Búsqueda dual: v2 HMAC + legacy sha256 (cuentas pre-SEC-10)
+    const coach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
 
     if (!coach || !coach.isActive) {
       // No revelar si el email existe o no (seguridad por oscuridad)
@@ -51,8 +52,9 @@ async function postHandler(request: NextRequest) {
     }
 
     // Generar token de reseteo
+    // SEC-15: guardar SOLO el hash del token en DB; el token plano va en el email
     const resetToken = crypto.randomBytes(32).toString('hex');
-    coach.resetToken = resetToken;
+    coach.resetToken = hashToken(resetToken);
     coach.resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hora
     await coach.save();
 

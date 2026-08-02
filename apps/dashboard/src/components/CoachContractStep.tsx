@@ -1,5 +1,6 @@
 // apps/dashboard/src/components/CoachContractStep.tsx
-// Contrato para coaches/asesores con soporte i18n
+// Acuerdo de Asesor/Coach con soporte i18n (6 idiomas) — v1.0
+// Las traducciones viven en apps/dashboard/src/lib/i18n.ts bajo el namespace register.contract
 
 import React from 'react';
 import Image from 'next/image';
@@ -11,6 +12,9 @@ interface CoachContractStepProps {
   isTrial?: boolean;
 }
 
+// Número total de secciones del acuerdo (1..12)
+const TOTAL_SECTIONS = 12;
+
 const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onReject, isTrial = false }) => {
   const { t } = useTranslation();
   const subscriptionAmount = process.env.NEXT_PUBLIC_COACH_SUBSCRIPTION_AMOUNT || '150';
@@ -21,6 +25,19 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
   const accentColor = isTrial ? 'text-emerald-700' : 'text-blue-700';
   const sectionTitleColor = isTrial ? 'text-emerald-700' : 'text-blue-700';
   const btnColor = isTrial ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700';
+
+  const getItems = (section: number): string[] | null => {
+    const items = t(`register.contract.section${section}Items`, {
+      returnObjects: true,
+      defaultValue: [],
+    }) as unknown;
+    return Array.isArray(items) ? (items as string[]) : null;
+  };
+
+  const getText = (section: number, kind: 'Content' | 'Intro' | 'Price'): string => {
+    const value = t(`register.contract.section${section}${kind}`, { defaultValue: '' });
+    return typeof value === 'string' ? value : '';
+  };
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${bgGradient} py-12 px-4`}>
@@ -39,71 +56,44 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
                 />
               </div>
             </div>
-            <h1 className={`text-3xl font-bold text-center ${accentColor} mb-8`}>
+            <h1 className={`text-3xl font-bold text-center ${accentColor} mb-2`}>
               {t('register.contract.title')}
             </h1>
+            <p className="text-center text-sm text-gray-500 mb-8">
+              {t('register.contract.version')}
+            </p>
 
             <div className="bg-gray-50 p-6 rounded-lg max-h-96 overflow-y-auto mb-8">
               <div className="space-y-6 text-gray-700">
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section1Title')}
-                  </h2>
-                  <p className="text-sm">{t('register.contract.section1Content')}</p>
-                  <ul className="list-disc list-inside mt-2 text-sm ml-4">
-                    {(t('register.contract.section1Items', { returnObjects: true }) as string[]).map(
-                      (item: string, i: number) => <li key={i}>{item}</li>
-                    )}
-                  </ul>
-                </section>
+                {Array.from({ length: TOTAL_SECTIONS }, (_, i) => i + 1).map((section) => {
+                  const title = t(`register.contract.section${section}Title`, { defaultValue: '' });
+                  const intro = getText(section, 'Intro');
+                  const content = getText(section, 'Content');
+                  const price = getText(section, 'Price');
+                  const items = getItems(section);
 
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section2Title')}
-                  </h2>
-                  <p className="text-sm">
-                    {t('register.contract.section2Content')}{' '}
-                    <strong>{t('register.contract.section2Price', { amount: subscriptionAmount })}</strong>
-                  </p>
-                  <ul className="list-disc list-inside mt-2 text-sm ml-4">
-                    {(t('register.contract.section2Items', { returnObjects: true }) as string[]).map(
-                      (item: string, i: number) => <li key={i}>{item}</li>
-                    )}
-                  </ul>
-                </section>
+                  if (!title && !content && !intro && !items && !price) return null;
 
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section3Title')}
-                  </h2>
-                  <p className="text-sm">{t('register.contract.section3Intro')}</p>
-                  <ul className="list-disc list-inside mt-2 text-sm ml-4">
-                    {(t('register.contract.section3Items', { returnObjects: true }) as string[]).map(
-                      (item: string, i: number) => <li key={i}>{item}</li>
-                    )}
-                  </ul>
-                </section>
-
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section4Title')}
-                  </h2>
-                  <p className="text-sm">{t('register.contract.section4Content')}</p>
-                </section>
-
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section5Title')}
-                  </h2>
-                  <p className="text-sm">{t('register.contract.section5Content')}</p>
-                </section>
-
-                <section>
-                  <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>
-                    {t('register.contract.section6Title')}
-                  </h2>
-                  <p className="text-sm">{t('register.contract.section6Content')}</p>
-                </section>
+                  return (
+                    <section key={section}>
+                      <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>{title}</h2>
+                      {intro && <p className="text-sm mb-2">{intro}</p>}
+                      {content && <p className="text-sm">{content}</p>}
+                      {price && (
+                        <p className="text-sm mt-1">
+                          <strong>{t('register.contract.section3Price', { amount: subscriptionAmount })}</strong>
+                        </p>
+                      )}
+                      {items && items.length > 0 && (
+                        <ul className="list-disc list-inside mt-2 text-sm ml-4">
+                          {items.map((item: string, i: number) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })}
               </div>
             </div>
 

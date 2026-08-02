@@ -5,12 +5,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import Coach, { hashEmail } from '@/app/models/Coach';
+import Coach, { hashEmail, emailHashVariants } from '@/app/models/Coach';
 import TrialRecord from '@/app/models/TrialRecord';
 import { generateToken } from '@/app/lib/auth';
 import { createTrialCheckoutSession } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { encrypt } from '@/app/lib/encryption';
+import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
 import { registerSchema } from '@/app/lib/schemas';
 
@@ -68,12 +69,17 @@ async function postHandler(request: NextRequest) {
 
     // profilePhoto no está en el schema (es dato opcional base64)
     const { profilePhoto } = body as { profilePhoto?: string };
+    // Evidencia de aceptación del acuerdo de asesor (v1.0+): opcional por compatibilidad
+    const { contractAccepted, contractVersion } = body as {
+      contractAccepted?: boolean;
+      contractVersion?: string;
+    };
 
     const emailLower = validEmail.toLowerCase().trim();
     const emailHash = hashEmail(emailLower);
 
-    // Verificar si ya existe como coach
-    const existingCoach = await Coach.findOne({ emailHash });
+    // Verificar si ya existe como coach (dual: v2 HMAC + legacy sha256 pre-SEC-10)
+    const existingCoach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
     if (existingCoach) {
       logAuditEvent({
         eventType: 'REGISTER_FAILURE',
@@ -93,7 +99,7 @@ async function postHandler(request: NextRequest) {
     }
 
     // Verificar si ya usó trial anteriormente (persiste aunque la cuenta se haya borrado)
-    const existingTrial = await TrialRecord.findOne({ emailHash });
+    const existingTrial = await TrialRecord.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
     if (existingTrial) {
       logAuditEvent({
         eventType: 'REGISTER_FAILURE',
@@ -146,6 +152,7 @@ async function postHandler(request: NextRequest) {
     // Hash de password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(validPassword, salt);
+    // SEC-15: guardar solo el hash del token de verificación en DB
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
     // Crear coach (inactivo hasta verificar tarjeta via Stripe Checkout)
@@ -163,12 +170,18 @@ async function postHandler(request: NextRequest) {
       timezone: validTimezone || '',
       role: 'coach',
       emailVerified: false,
-      verificationToken,
+      verificationToken: hashToken(verificationToken),
       isActive: false,
       subscriptionStatus: 'incomplete',
       trialStatus: 'active',
       trialStartDate: now,
       trialEndDate: trialEndDate,
+      // Evidencia de aceptación del acuerdo de asesor (solo si el front lo envió)
+      ...(contractAccepted === true && {
+        contractAccepted: true,
+        contractVersion: contractVersion || '1.0',
+        contractAcceptedAt: now,
+      }),
     });
 
     // Subir foto de perfil si se proporcionó (base64)

@@ -169,6 +169,8 @@ async function getHandler(
         personalData: decryptObject(client.personalData),
         medicalData: decryptObject(rawMedicalData),
         contractAccepted: safeDecrypt(client.contractAccepted) === 'true',
+        contractVersion: client.contractVersion || null,
+        contractAcceptedAt: client.contractAcceptedAt || null,
         ipAddress: safeDecrypt(client.ipAddress),
         submissionDate: client.submissionDate,
         // Incluir sesiones de video para que el dashboard gestione transcripciones
@@ -552,6 +554,9 @@ async function putHandler(
         personalData: encryptedPersonalData,
         medicalData: encryptedMedicalData,
         contractAccepted: encrypt(data.contractAccepted.toString()),
+        // Registrar versión y fecha de aceptación del contrato si se reacepta
+        ...(data.contractVersion && { contractVersion: data.contractVersion }),
+        ...(data.contractAccepted && { contractAcceptedAt: new Date() }),
         updatedAt: new Date()
       };
 

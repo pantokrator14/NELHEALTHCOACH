@@ -10,6 +10,10 @@ export interface IPendingCoach extends Document {
   email: string;
   /** Contrato de coach aceptado */
   contractAccepted: boolean;
+  /** Versión del acuerdo de asesor aceptada (ej. "1.0") */
+  contractVersion: string;
+  /** Fecha y hora de aceptación del acuerdo */
+  contractAcceptedAt: Date;
   /** Estado del pago */
   paymentStatus: 'pending' | 'completed' | 'expired';
   /** ID del cliente de Stripe (se llena después del checkout) */
@@ -37,6 +41,14 @@ const PendingCoachSchema = new Schema<IPendingCoach>(
     contractAccepted: {
       type: Boolean,
       default: false,
+    },
+    contractVersion: {
+      type: String,
+      default: '',
+    },
+    contractAcceptedAt: {
+      type: Date,
+      default: null,
     },
     paymentStatus: {
       type: String,

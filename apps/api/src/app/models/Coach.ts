@@ -58,6 +58,12 @@ export interface ICoach extends Document {
   timezone?: string;
   /** Cuenta suspendida temporalmente por el coach */
   isSuspended?: boolean;
+  /** Aceptación del acuerdo de asesor (evidencia de consentimiento) */
+  contractAccepted?: boolean;
+  /** Versión del acuerdo de asesor aceptada (ej. "1.0") */
+  contractVersion?: string;
+  /** Fecha y hora de aceptación del acuerdo */
+  contractAcceptedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -199,15 +205,48 @@ const CoachSchema = new Schema<ICoach>(
       type: Boolean,
       default: false,
     },
+    contractAccepted: {
+      type: Boolean,
+      default: false,
+    },
+    contractVersion: {
+      type: String,
+      default: '',
+    },
+    contractAcceptedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Helper para generar hash de email
+// SEC-10: hash de email con HMAC-SHA256 + clave secreta (formato v2:).
+// - hashEmail(): genera el hash NUEVO (v2) — usado para escrituras nuevas.
+// - emailHashVariants(): [v2, legacy] para búsquedas duales ($in).
+// - El formato legacy (sha256 plano) se mantiene solo para lectura de
+//   registros creados antes del fix (formato dual, igual que SEC-03).
+const EMAIL_HASH_SECRET =
+  process.env.EMAIL_HASH_SECRET || process.env.JWT_SECRET || '';
+
 export function hashEmail(email: string): string {
+  const normalized = email.toLowerCase().trim();
+  return `v2:${crypto
+    .createHmac('sha256', EMAIL_HASH_SECRET)
+    .update(normalized)
+    .digest('hex')}`;
+}
+
+/** Hash legacy (sha256 plano) — solo para lecturas de datos pre-SEC-10 */
+export function legacyHashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+}
+
+/** Variantes de hash para búsqueda dual (nuevo + legacy) */
+export function emailHashVariants(email: string): string[] {
+  return [hashEmail(email), legacyHashEmail(email)];
 }
 
 export default mongoose.models.Coach || mongoose.model<ICoach>('Coach', CoachSchema);
