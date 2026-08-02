@@ -4,7 +4,7 @@ import Coach, { emailHashVariants } from '@/app/models/Coach';
 import { logger } from '@/app/lib/logger';
 import { EmailService } from '@/app/lib/email-service';
 import { generatePasswordResetHTML } from '@/app/lib/email-templates';
-import { connectMongoose } from '@/app/lib/database';
+import { requireServiceAvailable } from '@/app/lib/security/routeGuard';
 import { decrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -12,7 +12,11 @@ import { logAuditEvent } from '@/app/lib/auditLogger';
 
 async function postHandler(request: NextRequest) {
   try {
-    await connectMongoose();
+    // SEC-13: si MongoDB no está disponible, responder 503 (servicio caído)
+    // con el mensaje uniforme que el frontend detecta para el toast de warning.
+    const serviceCheck = await requireServiceAvailable();
+    if (serviceCheck) return serviceCheck;
+
     const body = await request.json();
     const { email } = body;
 

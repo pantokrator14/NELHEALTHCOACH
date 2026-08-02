@@ -27,6 +27,22 @@ const PATH_CONFIGS: Readonly<Record<string, Readonly<RateLimitConfig>>> = {
   '/api/recipes': { windowSeconds: 10, maxRequests: 10 },
 };
 
+// ─── Rutas con fail-closed (seguridad > disponibilidad) ───
+// Si MongoDB falla en estos endpoints, BLOQUEAMOS el request (503) en lugar de
+// permitirlo: son rutas de autenticación, el objetivo principal de brute force
+// y abuso. Como toda operación de auth necesita la BD de todos modos para
+// funcionar, bloquear no degrada nada que ya estaría funcionando.
+const FAIL_CLOSED_PATHS: readonly string[] = ['/api/auth/'];
+
+/** Mensaje uniforme de servicio no disponible (SEC-13) — el frontend lo usa
+ *  para mostrar el toast de warning. No cambiar sin actualizar el frontend. */
+export const SERVICE_UNAVAILABLE_MESSAGE =
+  'Servicio temporalmente no disponible. Intenta de nuevo en unos minutos.';
+
+function isFailClosedPath(path: string): boolean {
+  return FAIL_CLOSED_PATHS.some((prefix) => path.startsWith(prefix));
+}
+
 // ─── Interfaz del documento MongoDB ───
 
 interface RateLimitDocument {
@@ -165,11 +181,46 @@ export async function checkRateLimit(
 
     return { passed: true };
   } catch (error) {
-    // Fail-open: si MongoDB falla, permitir el request
-    logger.error(
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+    const isCritical = isFailClosedPath(path);
+    const logMetadata = { path, ip };
+
+    if (isCritical) {
+      // ── FAIL-CLOSED (solo rutas de autenticación) ──
+      // MongoDB no disponible: bloqueamos el request de auth para no dejar
+      // el brute force / abuso sin límite. Marcador único RATE_LIMITER_FAIL_CLOSED
+      // para distinguir este caso de otros problemas en los logs.
+      logger.error(
+        'RATE_LIMITER',
+        'RATE_LIMITER_FAIL_CLOSED — MongoDB no disponible en ruta crítica de autenticación, request bloqueado (503)',
+        error,
+        undefined,
+        logMetadata,
+      );
+      console.error(
+        `[RATE_LIMITER_FAIL_CLOSED] MongoDB caído en ${path} (ip=${ip}) — bloqueando request de autenticación. Error: ${errorMsg}`,
+      );
+
+      return {
+        passed: false,
+        reason: 'RATE_LIMITER_UNAVAILABLE',
+        statusCode: 503,
+        message: SERVICE_UNAVAILABLE_MESSAGE,
+      };
+    }
+
+    // ── FAIL-OPEN (resto de rutas) ──
+    // Decisión de disponibilidad: si MongoDB falla en rutas no críticas,
+    // permitimos el request para no bloquear a usuarios reales.
+    // Marcador único RATE_LIMITER_FAIL_OPEN para distinguirlo en los logs.
+    logger.warn(
       'RATE_LIMITER',
-      'Error en rate limiter, fallback a permitir (fail-open)',
-      error instanceof Error ? error : undefined,
+      'RATE_LIMITER_FAIL_OPEN — Error en rate limiter, fallback a permitir (fail-open)',
+      { mongoError: errorMsg },
+      logMetadata,
+    );
+    console.warn(
+      `[RATE_LIMITER_FAIL_OPEN] MongoDB caído en ${path} (ip=${ip}) — permitiendo request (fail-open). Error: ${errorMsg}`,
     );
 
     return { passed: true };

@@ -12,7 +12,7 @@ import { createTrialCheckoutSession } from '@/app/lib/stripe';
 import { logger } from '@/app/lib/logger';
 import { encrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
-import { connectMongoose } from '@/app/lib/database';
+import { requireServiceAvailable } from '@/app/lib/security/routeGuard';
 import { registerSchema } from '@/app/lib/schemas';
 
 import { uploadBufferToS3 } from '@/app/lib/s3';
@@ -33,7 +33,10 @@ const TRIAL_DAYS = 30;
  */
 async function postHandler(request: NextRequest) {
   try {
-    await connectMongoose();
+    // SEC-13: si MongoDB no está disponible, responder 503 (servicio caído)
+    // con el mensaje uniforme que el frontend detecta para el toast de warning.
+    const serviceCheck = await requireServiceAvailable();
+    if (serviceCheck) return serviceCheck;
 
     const body = await request.json();
 
