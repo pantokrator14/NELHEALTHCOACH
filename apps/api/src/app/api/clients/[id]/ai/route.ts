@@ -427,7 +427,11 @@ async function postHandler(
       const exerciseIds: Record<string, string> = compositeResult._exerciseIds || {};
 
       // 6. Construir sesión y guardar en DB
-      const sessionId = `session_${Date.now()}_${monthNumber}`;
+      // SEC-15: sessionId con entropía (randomUUID) — antes era predecible
+      // (timestamp + mes), lo que permitía IDOR en el PDF share-by-link.
+      // Las sesiones existentes con formato viejo siguen siendo encontrables
+      // (búsqueda por igualdad exacta, sin parsing del formato).
+      const sessionId = `session_${crypto.randomUUID()}`;
 
       // Construir checklist items desde el plan semanal
       const checklistItems: ChecklistItem[] = [];
