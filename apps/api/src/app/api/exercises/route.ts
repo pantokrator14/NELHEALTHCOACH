@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
 import { getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
-import { encrypt, decrypt, safeDecrypt } from '@/app/lib/encryption';
+import { encrypt, decrypt, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { S3Service } from '@/app/lib/s3';
 import { exerciseSchema } from '@/app/lib/schemas';
@@ -448,8 +448,8 @@ async function deleteHandler(request: NextRequest) {
         if (exercise.demo?.key) {
           try {
             let fileKey = exercise.demo.key;
-            // Desencriptar si está encriptada
-            if (typeof fileKey === 'string' && fileKey.startsWith('U2FsdGVkX1')) {
+            // Desencriptar si está encriptada (v2 o legacy)
+            if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
               try {
                 fileKey = decrypt(fileKey);
               } catch {

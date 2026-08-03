@@ -7,7 +7,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getHealthFormsCollection, getMedicalDocumentCacheCollection } from '@/app/lib/database';
 import { S3Service, getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
-import { decrypt, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { decrypt, encrypt, encryptFileObject, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { extractTextFromBuffer } from '@/app/lib/document-extractor';
 import type { ExtractionResult } from '@/app/lib/document-extractor';
@@ -311,8 +311,8 @@ async function putHandler(
           if (currentProfilePhoto) {
             let oldFileKey = currentProfilePhoto.key;
             
-            // ✅ DESENCRIPTAR LA KEY SI ESTÁ ENCRIPTADA
-            if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+            // ✅ DESENCRIPTAR LA KEY SI ESTÁ ENCRIPTADA (formato v2 o legacy)
+            if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
               oldFileKey = decrypt(oldFileKey);
               logger.debug('UPLOAD', 'Key de foto anterior desencriptada', {
                 clientId: id,
@@ -558,7 +558,7 @@ async function deleteHandler(
 
               // ✅ DESENCRIPTAR EL CAMPO 'key' PARA COMPARAR
               let currentKey = doc.key;
-              if (typeof currentKey === 'string' && currentKey.startsWith('U2FsdGVkX1')) {
+              if (typeof currentKey === 'string' && isEncrypted(currentKey)) {
                 currentKey = decrypt(currentKey);
               }
 
@@ -569,7 +569,7 @@ async function deleteHandler(
                 
                 // ✅ TAMBIÉN DESENCRIPTAR EL NOMBRE PARA LOGS
                 let documentName = doc.name;
-                if (typeof documentName === 'string' && documentName.startsWith('U2FsdGVkX1')) {
+                if (typeof documentName === 'string' && isEncrypted(documentName)) {
                   documentName = decrypt(documentName);
                 }
                 
@@ -606,7 +606,7 @@ async function deleteHandler(
                   let name = doc.name;
                   
                   // Intentar desencriptar para el log
-                  if (typeof key === 'string' && key.startsWith('U2FsdGVkX1')) {
+                  if (typeof key === 'string' && isEncrypted(key)) {
                     try {
                       key = decrypt(key);
                     } catch (e) {
@@ -614,7 +614,7 @@ async function deleteHandler(
                     }
                   }
                   
-                  if (typeof name === 'string' && name.startsWith('U2FsdGVkX1')) {
+                  if (typeof name === 'string' && isEncrypted(name)) {
                     try {
                       name = decrypt(name);
                     } catch (e) {
@@ -808,8 +808,8 @@ async function repairCorruptedDocuments(clientId: string) {
     
     const documents = client.medicalData.documents;
     const repairedDocs = documents.map((doc: any) => {
-      // Si es un string que parece encriptado
-      if (typeof doc === 'string' && doc.startsWith('U2FsdGVkX1')) {
+      // Si es un string que parece encriptado (v2 o legacy)
+      if (typeof doc === 'string' && isEncrypted(doc)) {
         try {
           // Desencriptar
           const decrypted = safeDecrypt(doc);
@@ -838,8 +838,8 @@ async function repairCorruptedDocuments(clientId: string) {
       
       // Si ya es objeto, asegurarse de que los campos estén encriptados
       if (typeof doc === 'object' && doc !== null) {
-        // Verificar si los campos necesitan encriptación
-        const needsEncryption = doc.name && !doc.name.startsWith('U2FsdGVkX1');
+        // Verificar si los campos necesitan encriptación (v2 o legacy)
+        const needsEncryption = doc.name && !isEncrypted(doc.name);
         
         if (needsEncryption) {
           return {

@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Coach from '@/app/models/Coach';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
-import { decrypt } from '@/app/lib/encryption';
+import { decrypt, isEncrypted } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { S3Service } from '@/app/lib/s3';
@@ -81,7 +81,7 @@ async function deleteHandler(
       if (photo.key) {
         try {
           let fileKey = String(photo.key);
-          if (fileKey.startsWith('U2FsdGVkX1')) {
+          if (isEncrypted(fileKey)) {
             fileKey = decrypt(fileKey);
           }
           if (fileKey && fileKey.trim() !== '') {

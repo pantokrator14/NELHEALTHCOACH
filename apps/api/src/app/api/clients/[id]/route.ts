@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection } from '@/app/lib/database';
-import { decrypt, decryptFileObject, encrypt, encryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { decrypt, decryptFileObject, encrypt, encryptFileObject, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
@@ -210,8 +210,8 @@ async function getHandler(
           // ✅ CORRECCIÓN: SOLO desencriptar si está encriptado
           let stringToParse = fieldData;
           
-          // Si empieza con U2FsdGVkX1, está encriptado
-          if (fieldData.startsWith('U2FsdGVkX1')) {
+          // Si está encriptado (formato v2 o legacy), desencriptar
+          if (isEncrypted(fieldData)) {
             stringToParse = safeDecrypt(fieldData);
             logger.debug('CLIENTS', `Campo ${field} desencriptado`, {
               clientId: id,
@@ -448,8 +448,8 @@ async function putHandler(
           const isFileField = key === 'profilePhoto' || key === 'documents';
           
           if (typeof value === 'string' && value.trim() !== '') {
-            // ✅ Solo encriptar si no está ya encriptado
-            if (isFileField || value.startsWith('U2FsdGVkX1')) {
+            // ✅ Solo encriptar si no está ya encriptado (v2 o legacy)
+            if (isFileField || isEncrypted(value)) {
               encrypted[key] = value;
             } else {
               encrypted[key] = encrypt(value);

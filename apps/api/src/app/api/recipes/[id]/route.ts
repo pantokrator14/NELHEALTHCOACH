@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
-import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
 import { S3Service } from '@/app/lib/s3';
 import { requireCoachAuth } from '@/app/lib/auth';
 import EditProposal from '@/app/models/EditProposal';
@@ -123,8 +123,8 @@ async function putHandler(
             try {
               let oldFileKey = currentRecipe.image.key;
               
-              // Desencriptar la key si está encriptada
-              if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+              // Desencriptar la key si está encriptada (v2 o legacy)
+              if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
                 try {
                   oldFileKey = decrypt(oldFileKey);
                   logger.debug('RECIPES', 'Key de imagen anterior desencriptada', {
@@ -187,7 +187,7 @@ async function putHandler(
             try {
               let oldFileKey = currentRecipe.image.key;
               
-              if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+              if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
                 try {
                   oldFileKey = decrypt(oldFileKey);
                  } catch (decryptError) {
@@ -420,7 +420,7 @@ async function deleteHandler(
         try {
           let fileKey = recipe.image.key;
           
-          if (typeof fileKey === 'string' && fileKey.startsWith('U2FsdGVkX1')) {
+          if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
             fileKey = decrypt(fileKey);
           }
           

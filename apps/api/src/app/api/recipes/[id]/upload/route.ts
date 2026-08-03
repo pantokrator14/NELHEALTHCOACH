@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb';
 import { getRecipesCollection } from '@/app/lib/database';
 import { S3Service } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
-import { encrypt, decrypt, encryptFileObject, decryptFileObject } from '@/app/lib/encryption';
+import { encrypt, decrypt, encryptFileObject, decryptFileObject, isEncrypted } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { apiHandler } from '@/app/lib/apiHandler';
 
@@ -275,8 +275,8 @@ async function putHandler(
         try {
           let oldFileKey = recipe.image.key;
           
-          // Desencriptar la key si está encriptada
-          if (typeof oldFileKey === 'string' && oldFileKey.startsWith('U2FsdGVkX1')) {
+          // Desencriptar la key si está encriptada (v2 o legacy)
+          if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
             console.log('🔓 Imagen anterior está encriptada, desencriptando...');
             try {
               oldFileKey = decrypt(oldFileKey);
@@ -483,7 +483,7 @@ async function deleteHandler(
       let currentFileKey = recipe.image?.key || '';
       console.log('🔍 Current file key (crudo):', currentFileKey?.substring(0, 30) + '...');
       
-      if (currentFileKey && typeof currentFileKey === 'string' && currentFileKey.startsWith('U2FsdGVkX1')) {
+      if (currentFileKey && typeof currentFileKey === 'string' && isEncrypted(currentFileKey)) {
         try {
           console.log('🔓 Desencriptando currentFileKey...');
           currentFileKey = decrypt(currentFileKey);
@@ -632,7 +632,7 @@ async function patchHandler(
             
             // Intentar desencriptar la key
             let decryptedKey = image.key;
-            if (typeof decryptedKey === 'string' && decryptedKey.startsWith('U2FsdGVkX1')) {
+            if (typeof decryptedKey === 'string' && isEncrypted(decryptedKey)) {
               try {
                 decryptedKey = decrypt(decryptedKey);
                 console.log('✅ Key desencriptada para reparación:', decryptedKey?.substring(0, 30) + '...');

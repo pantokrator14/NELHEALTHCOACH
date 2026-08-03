@@ -5,7 +5,7 @@ import { logger } from '@/app/lib/logger';
 import { getRecipesCollection, getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { ObjectId } from 'mongodb';
 import { S3Service } from '@/app/lib/s3';
-import { decrypt } from '@/app/lib/encryption';
+import { decrypt, isEncrypted } from '@/app/lib/encryption';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 import { createNotification } from '@/app/lib/create-notification';
@@ -158,7 +158,7 @@ async function putHandler(
               if (item.demo?.key) {
                 try {
                   let fileKey = item.demo.key;
-                  if (typeof fileKey === 'string' && fileKey.startsWith('U2FsdGVkX1')) {
+                  if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
                     fileKey = decrypt(fileKey);
                   }
                   if (fileKey) {
@@ -178,7 +178,7 @@ async function putHandler(
               if (item.image?.key) {
                 try {
                   let fileKey = item.image.key;
-                  if (typeof fileKey === 'string' && fileKey.startsWith('U2FsdGVkX1')) {
+                  if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
                     fileKey = decrypt(fileKey);
                   }
                   if (fileKey) {

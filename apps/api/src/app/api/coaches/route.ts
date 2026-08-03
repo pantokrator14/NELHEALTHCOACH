@@ -14,9 +14,9 @@ function decryptPhoto(photo: Record<string, unknown> | null): Record<string, unk
   const typeRaw = String(photo.type || '');
   return {
     url: decrypt(urlRaw),
-    key: keyRaw && keyRaw.startsWith('U2FsdGVkX1') ? decrypt(keyRaw) : keyRaw,
-    name: nameRaw && nameRaw.startsWith('U2FsdGVkX1') ? decrypt(nameRaw) : nameRaw,
-    type: typeRaw && typeRaw.startsWith('U2FsdGVkX1') ? decrypt(typeRaw) : typeRaw,
+    key: keyRaw ? decrypt(keyRaw) : keyRaw,
+    name: nameRaw ? decrypt(nameRaw) : nameRaw,
+    type: typeRaw ? decrypt(typeRaw) : typeRaw,
     size: Number(photo.size) || 0,
     uploadedAt: String(photo.uploadedAt || ''),
   };
