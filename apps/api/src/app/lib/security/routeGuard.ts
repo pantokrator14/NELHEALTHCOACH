@@ -3,10 +3,45 @@
 // para usar en route handlers. Se ejecuta en Node.js runtime (tiene acceso a MongoDB).
 
 import type { NextRequest } from 'next/server';
-import { checkRateLimit } from './rateLimiter';
+import { NextResponse } from 'next/server';
+import { checkRateLimit, SERVICE_UNAVAILABLE_MESSAGE } from './rateLimiter';
 import { scanRequestBody } from './shield';
 import { scanForPromptInjection } from './promptInjection';
+import { connectMongoose } from '../database';
+import { logger } from '../logger';
 import type { SecurityCheckResult } from './types';
+
+/**
+ * SEC-13: Verifica que el servicio (MongoDB) esté disponible ANTES de procesar
+ * una ruta de autenticación. Si la BD falla, responde 503 con el MISMO mensaje
+ * que el fail-closed del rate limiter, para que el frontend lo detecte de forma
+ * uniforme (toast de warning) y no reciba un 500 genérico confuso.
+ * Uso: const unavailable = await requireServiceAvailable(); if (unavailable) return unavailable;
+ */
+export async function requireServiceAvailable(): Promise<NextResponse | null> {
+  try {
+    await connectMongoose();
+    return null;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+
+    logger.error(
+      'DATABASE',
+      'SERVICE_UNAVAILABLE_503 — MongoDB no disponible, respondiendo 503 (SEC-13)',
+      error,
+      undefined,
+      {},
+    );
+    console.error(
+      `[SERVICE_UNAVAILABLE_503] MongoDB no disponible — respondiendo 503 (SEC-13). Error: ${errorMsg}`,
+    );
+
+    return NextResponse.json(
+      { success: false, message: SERVICE_UNAVAILABLE_MESSAGE },
+      { status: 503 },
+    );
+  }
+}
 
 /**
  * Verifica rate limiting contra el request actual.

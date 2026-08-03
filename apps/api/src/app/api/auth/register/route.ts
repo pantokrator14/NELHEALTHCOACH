@@ -9,7 +9,7 @@ import { encrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
 import { registerSchema } from '@/app/lib/schemas';
-import { secureRoute } from '@/app/lib/security/routeGuard';
+import { secureRoute, requireServiceAvailable } from '@/app/lib/security/routeGuard';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 import {
@@ -29,7 +29,11 @@ function encryptPhoto(photo: Record<string, unknown> | null): Record<string, unk
 }
 
 async function registerHandler(request: NextRequest) {
-  await connectMongoose();
+  // SEC-13: si MongoDB no está disponible, responder 503 (servicio caído)
+  // con el mensaje uniforme que el frontend detecta para el toast de warning.
+  const serviceCheck = await requireServiceAvailable();
+  if (serviceCheck) return serviceCheck;
+
   const body = await request.json();
 
   // Rate limiting + brute force protection
@@ -47,7 +51,10 @@ async function registerHandler(request: NextRequest) {
     });
     return NextResponse.json(
       { success: false, message: rateResult.message || 'Demasiados intentos. Intenta más tarde.' },
-      { status: 429 },
+      // Usar el statusCode real del rate limiter: 429 (rate limit normal) o
+      // 503 (fail-closed SEC-13: MongoDB no disponible) para que el frontend
+      // pueda distinguir y avisar al usuario con un toast.
+      { status: rateResult.statusCode || 429 },
     );
   }
 

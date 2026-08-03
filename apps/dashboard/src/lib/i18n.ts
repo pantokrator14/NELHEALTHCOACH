@@ -679,7 +679,8 @@ const en = {
     errors: {
       trialAlreadyUsed: 'This email has already used the trial period. Please sign up for the paid plan.',
       emailExists: 'An account with this email already exists',
-      generic: 'An error occurred. Please try again.'
+      generic: 'An error occurred. Please try again.',
+      serviceUnavailable: 'The service is temporarily unavailable. Please try again in a few minutes.'
     }
   },
   trial: {
@@ -1568,7 +1569,8 @@ const es = {
     errors: {
       trialAlreadyUsed: 'Este email ya us\u00f3 el per\u00edodo de prueba. Reg\u00edstrate al plan de pago.',
       emailExists: 'Ya existe una cuenta con este email',
-      generic: 'Ocurri\u00f3 un error. Intenta nuevamente.'
+      generic: 'Ocurri\u00f3 un error. Intenta nuevamente.',
+      serviceUnavailable: 'El servicio est\u00e1 temporalmente no disponible. Intenta de nuevo en unos minutos.'
     }
   },
   trial: {
@@ -2442,7 +2444,8 @@ const fr = {
     errors: {
       trialAlreadyUsed: 'Cet email a d\u00e9j\u00e0 utilis\u00e9 la p\u00e9riode d\'essai. Inscrivez-vous au forfait payant.',
       emailExists: 'Un compte avec cet email existe d\u00e9j\u00e0',
-      generic: 'Une erreur est survenue. Veuillez r\u00e9essayer.'
+      generic: 'Une erreur est survenue. Veuillez r\u00e9essayer.',
+      serviceUnavailable: 'Le service est temporairement indisponible. Veuillez r\u00e9essayer dans quelques minutes.'
     }
   },
   trial: {
@@ -3316,7 +3319,8 @@ const it = {
     errors: {
       trialAlreadyUsed: 'Questa email ha gi\u00e0 utilizzato il periodo di prova. Iscriviti al piano a pagamento.',
       emailExists: 'Esiste gi\u00e0 un account con questa email',
-      generic: 'Si \u00e8 verificato un errore. Riprova.'
+      generic: 'Si \u00e8 verificato un errore. Riprova.',
+      serviceUnavailable: 'Il servizio \u00e8 temporaneamente non disponibile. Riprova tra qualche minuto.'
     }
   },
   trial: {
@@ -4190,7 +4194,8 @@ const pt = {
     errors: {
       trialAlreadyUsed: 'Este email j\u00e1 usou o per\u00edodo de teste. Inscreva-se no plano pago.',
       emailExists: 'J\u00e1 existe uma conta com este email',
-      generic: 'Ocorreu um erro. Tente novamente.'
+      generic: 'Ocorreu um erro. Tente novamente.',
+      serviceUnavailable: 'O servi\u00e7o est\u00e1 temporariamente indispon\u00edvel. Tente novamente em alguns minutos.'
     }
   },
   trial: {
@@ -5064,7 +5069,8 @@ const de = {
     errors: {
       trialAlreadyUsed: 'Diese E-Mail hat den Testzeitraum bereits genutzt. Bitte melden Sie sich f\u00fcr den kostenpflichtigen Plan an.',
       emailExists: 'Ein Konto mit dieser E-Mail existiert bereits',
-      generic: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'
+      generic: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.',
+      serviceUnavailable: 'Der Dienst ist vor\u00fcbergehend nicht verf\u00fcgbar. Bitte versuchen Sie es in ein paar Minuten erneut.'
     }
   },
   trial: {

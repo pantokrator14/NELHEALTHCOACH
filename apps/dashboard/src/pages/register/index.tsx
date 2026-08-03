@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import CoachContractStep from '@/components/CoachContractStep';
+import { useToast } from '@/components/ui/Toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -129,6 +130,7 @@ const emptyForm: FormDataState = {
 export default function Register() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { showToast, ToastComponent } = useToast();
   const [step, setStep] = useState<RegisterStep>('landing');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -275,7 +277,17 @@ export default function Register() {
         setStep('verify-email');
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('register.errors.generic'));
+      const message = err instanceof Error ? err.message : t('register.errors.generic');
+
+      // SEC-13: si el backend devuelve 503 (fail-closed — MongoDB no disponible),
+      // mostrar el mensaje traducido (i18n) y avisar con toast de warning para que
+      // el usuario sepa que es un problema temporal del servicio, no de sus datos.
+      if (message.includes('temporalmente no disponible')) {
+        setError(t('register.errors.serviceUnavailable'));
+        showToast(t('register.errors.serviceUnavailable'), 'warning');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -723,6 +735,8 @@ export default function Register() {
       )}
 
       {renderStep()}
+
+      <ToastComponent />
     </>
   );
 }

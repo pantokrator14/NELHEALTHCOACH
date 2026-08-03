@@ -1232,7 +1232,7 @@ function AdminFinancesPage() {
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-600 mb-1">{t('adminFinance.fieldDescription')}</label>
-                      <input type="text" placeholder="Ej: Google Gemini API - Marzo 2026" value={expenseForm.description}
+                      <input type="text" placeholder="Ej: Servicio de IA - Marzo 2026" value={expenseForm.description}
                         onChange={(e) => setExpenseForm(f => ({ ...f, description: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500" />
                     </div>

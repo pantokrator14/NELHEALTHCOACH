@@ -427,7 +427,11 @@ async function postHandler(
       const exerciseIds: Record<string, string> = compositeResult._exerciseIds || {};
 
       // 6. Construir sesión y guardar en DB
-      const sessionId = `session_${Date.now()}_${monthNumber}`;
+      // SEC-15: sessionId con entropía (randomUUID) — antes era predecible
+      // (timestamp + mes), lo que permitía IDOR en el PDF share-by-link.
+      // Las sesiones existentes con formato viejo siguen siendo encontrables
+      // (búsqueda por igualdad exacta, sin parsing del formato).
+      const sessionId = `session_${crypto.randomUUID()}`;
 
       // Construir checklist items desde el plan semanal
       const checklistItems: ChecklistItem[] = [];
@@ -563,7 +567,7 @@ async function postHandler(
       }];
 
       const generationError = aiInput.failedDocumentAnalyses.length > 0 ? {
-        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error de Gemini (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
+        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error del servicio de IA (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
         timestamp: new Date(),
       } : null;
 

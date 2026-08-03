@@ -8,11 +8,15 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import PasswordInput from '@/components/PasswordInput';
+import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from 'react-i18next';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function RegisterSuccess() {
   const router = useRouter();
+  const { showToast, ToastComponent } = useToast();
+  const { t } = useTranslation();
   const { token, session_id } = router.query;
 
   const [form, setForm] = useState({
@@ -113,7 +117,17 @@ export default function RegisterSuccess() {
 
       setSuccess('Cuenta creada exitosamente. Revisa tu email para verificar tu cuenta.');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al registrarse');
+      const message = err instanceof Error ? err.message : 'Error al registrarse';
+
+      // SEC-13: si el backend devuelve 503 (fail-closed — MongoDB no disponible),
+      // mostrar el mensaje traducido (i18n) y avisar con toast de warning para que
+      // el usuario sepa que es un problema temporal del servicio, no de sus datos.
+      if (message.includes('temporalmente no disponible')) {
+        setError(t('register.errors.serviceUnavailable'));
+        showToast(t('register.errors.serviceUnavailable'), 'warning');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -306,6 +320,7 @@ export default function RegisterSuccess() {
           </div>
         </div>
       </div>
+      <ToastComponent />
     </>
   );
 }

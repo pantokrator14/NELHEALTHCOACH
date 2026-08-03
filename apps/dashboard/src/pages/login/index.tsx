@@ -6,9 +6,11 @@ import Image from 'next/image'
 import { apiClient } from '@/lib/api';
 import PasswordInput from '@/components/PasswordInput';
 import { useToast } from '../../components/ui/Toast';
+import { useTranslation } from 'react-i18next';
 
 export default function Login() {
   const { showToast, ToastComponent } = useToast();
+  const { t } = useTranslation();
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -28,7 +30,16 @@ export default function Login() {
     } catch (err: unknown) {
       // Mostrar el mensaje real del backend (ej. "Debes verificar tu email antes de iniciar sesión")
       const message = err instanceof Error ? err.message : 'Error de conexión. Intenta nuevamente.';
-      setError(message);
+
+      // SEC-13: si el backend devuelve 503 (fail-closed — MongoDB no disponible),
+      // mostrar el mensaje traducido (i18n) y avisar con toast de warning para que
+      // el usuario sepa que es un problema temporal del servicio, no de sus credenciales.
+      if (message.includes('temporalmente no disponible')) {
+        setError(t('register.errors.serviceUnavailable'));
+        showToast(t('register.errors.serviceUnavailable'), 'warning');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false)
     }
