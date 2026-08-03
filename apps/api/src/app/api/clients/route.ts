@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@/app/lib/database';
-import { encrypt, decrypt, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { encrypt, decrypt, decryptFileObject, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth, generateToken } from '@/app/lib/auth';
 import { secureRoute } from '@/app/lib/security/index';
@@ -116,24 +116,12 @@ async function getHandler(request: NextRequest) {
       });
 
       // ✅ FUNCIÓN MEJORADA PARA DESENCRIPTAR CAMPOS DE TEXTO
+      // Soporta el formato v2 (AES-256-GCM, prefijo "v2:") y el legacy
+      // (CryptoJS, prefijo "U2FsdGVkX1"). decrypt() ya detecta ambos,
+      // y devuelve el texto tal cual si no está encriptado o si falla la clave.
       const decryptTextField = (text: string): string => {
         if (!text) return text;
-        
-        // Si es texto encriptado (comienza con U2FsdGVkX1), desencriptar
-        if (text.startsWith('U2FsdGVkX1')) {
-          try {
-            const bytes = decrypt(text);
-            return bytes;
-          } catch (error) {
-            logger.warn('CLIENTS', 'Error desencriptando campo de texto', undefined, {
-              textPreview: text.substring(0, 30)
-            });
-            return text;
-          }
-        }
-        
-        // Si no está encriptado, devolver tal cual
-        return text;
+        return decrypt(text);
       };
 
       // Procesar y desencriptar clientes
@@ -170,7 +158,7 @@ async function getHandler(request: NextRequest) {
             nameRaw: client.personalData?.name?.substring(0, 30) || 'N/A',
             nameDecrypted: result.firstName + ' ' + result.lastName,
             emailDecrypted: result.email?.substring(0, 30) || 'N/A',
-            wasEncrypted: client.personalData?.name?.startsWith('U2FsdGVkX1')
+            wasEncrypted: isEncrypted(client.personalData?.name || '')
           });
 
           return result;
