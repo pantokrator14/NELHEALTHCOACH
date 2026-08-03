@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 import Head from 'next/head';
 import Layout from '@/components/dashboard/Layout';
+import { clearAuthToken } from '@/lib/authSession';
 
 export default function TrialCancelPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function TrialCancelPage() {
       }
 
       // Limpiar token
-      localStorage.removeItem('token');
+      clearAuthToken();
       setStep('done');
       setMessage(t('trial.cancel.doneMessage'));
     } catch (err: unknown) {

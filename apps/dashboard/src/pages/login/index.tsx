@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api';
+import { setAuthToken } from '@/lib/authSession';
 import PasswordInput from '@/components/PasswordInput';
 import { useToast } from '../../components/ui/Toast';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +26,7 @@ export default function Login() {
     try {
       const result = await apiClient.login({ email, password });
 
-      localStorage.setItem('token', result.token);
+      setAuthToken(result.token);
       router.push('/dashboard');
     } catch (err: unknown) {
       // Mostrar el mensaje real del backend (ej. "Debes verificar tu email antes de iniciar sesión")

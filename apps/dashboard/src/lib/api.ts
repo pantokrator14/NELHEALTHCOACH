@@ -1,6 +1,7 @@
 import { AIRecommendationSession, ChecklistItem } from '../../../../packages/types/src/healthForm';
 import { Recipe, RecipeFormData, RecipeImage } from '../../../../packages/types/src/recipe-types';
 import { NutritionAnalysisResult } from '../../../../packages/types/src/nutrition-types';
+import { clearAuthToken } from './authSession';
 
 export interface Exercise {
   id: string;
@@ -263,7 +264,7 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token');
+        clearAuthToken();
         window.location.href = '/login';
       }
       const errorData = await response.json().catch(() => ({}));
@@ -279,7 +280,7 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token');
+        clearAuthToken();
         window.location.href = '/login';
       }
       const errorData = await response.json().catch(() => ({}));
@@ -337,7 +338,7 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token');
+        clearAuthToken();
         window.location.href = '/login';
       }
       const errorData = await response.json().catch(() => ({}));
@@ -534,7 +535,7 @@ export const apiClient = {
 
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem('token');
+          clearAuthToken();
           window.location.href = '/login';
         }
         const errorData = await response.json().catch(() => ({}));
@@ -801,7 +802,7 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token');
+        clearAuthToken();
         window.location.href = '/login';
       }
       const errorData = await response.json().catch(() => ({}));
@@ -894,7 +895,7 @@ export const apiClient = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('token');
+        clearAuthToken();
         window.location.href = '/login';
       }
       const errorData = await response.json().catch(() => ({}));
