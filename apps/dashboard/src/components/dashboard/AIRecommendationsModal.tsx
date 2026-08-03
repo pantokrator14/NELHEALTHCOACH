@@ -11,12 +11,12 @@ import OriginPin from './OriginPin';
 import SessionScheduler from './SessionScheduler';
 import VideoCallRoom from './VideoCallRoom';
 import { useToast } from '@/components/ui/Toast';
+import { sanitizeProviderName } from '@/lib/aiVisibleText';
 import { ChecklistItem, VideoSession, TranscriptStatus } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation } from 'react-i18next';
 
 // ===== TIPOS Y INTERFACES =====
-
 interface RecipeWithDetails extends Recipe {
   ingredients: string[];
   instructions: string[];
@@ -2416,9 +2416,9 @@ export default function AIRecommendationsModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con Gemini AI... Esto puede tomar hasta 2 minutos.</span>
+              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con IA... Esto puede tomar hasta 2 minutos.</span>
             </div>
-            <p className="text-blue-500 text-sm mt-1 ml-8">Gemini está analizando los datos del cliente, documentos médicos, y planificando nutrición, ejercicio, hábitos y análisis de laboratorio. No cierres esta ventana.</p>
+            <p className="text-blue-500 text-sm mt-1 ml-8">La IA está analizando los datos del cliente, documentos médicos, y planificando nutrición, ejercicio, hábitos y análisis de laboratorio. No cierres esta ventana.</p>
           </div>
         )}
 
@@ -2432,21 +2432,21 @@ export default function AIRecommendationsModal({
                 <p className="text-red-700 font-medium">Error al generar recomendaciones</p>
                 <p className="text-red-600 text-sm mt-1">
                   {displayError.includes('GEMINI_API_KEY')
-                    ? '⚠️ Gemini API Key no configurada. Agrega GEMINI_API_KEY en las variables de entorno.'
+                    ? '⚠️ API Key de IA no configurada. Agrega la API Key del servicio de IA en las variables de entorno.'
                     : displayError.includes('SAFETY') || displayError.includes('security filter')
-                      ? '⚠️ Gemini bloqueó la solicitud por filtros de seguridad. Revisa el contenido de los documentos del cliente.'
+                      ? '⚠️ La IA bloqueó la solicitud por filtros de seguridad. Revisa el contenido de los documentos del cliente.'
                       : displayError.includes('MAX_TOKENS') || displayError.includes('too many tokens')
-                        ? '⚠️ El prompt excede el límite de tokens de Gemini. Reduce los documentos o datos del cliente.'
+                        ? '⚠️ El prompt excede el límite de tokens. Reduce los documentos o datos del cliente.'
                         : displayError.includes('rate') || displayError.includes('429')
-                          ? '⚠️ Límite de rate de Gemini alcanzado. Espera unos segundos y reintenta.'
+                          ? '⚠️ Límite de uso del servicio de IA alcanzado. Espera unos segundos y reintenta.'
                           : displayError.includes('timeout') || displayError.includes('aborted')
-                            ? '⏱️ Timeout de Gemini. La solicitud tomó demasiado tiempo. Reintenta.'
-                            : displayError}
+                            ? '⏱️ Timeout del servicio de IA. La solicitud tomó demasiado tiempo. Reintenta.'
+                            : sanitizeProviderName(displayError)}
                 </p>
                 {displayError.length > 200 && (
                   <details className="mt-2">
                     <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">Ver error completo</summary>
-                    <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-x-auto whitespace-pre-wrap max-h-40">{displayError}</pre>
+                    <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-x-auto whitespace-pre-wrap max-h-40">{sanitizeProviderName(displayError)}</pre>
                   </details>
                 )}
                 <div className="flex gap-3 mt-3">
@@ -2468,9 +2468,9 @@ export default function AIRecommendationsModal({
                 </div>
                 <p className="text-red-400 text-xs mt-2">
                   {displayError.includes('GEMINI_API_KEY')
-                    ? 'Configura GEMINI_API_KEY y GEMINI_MODEL en tu .env o en el dashboard de Vercel.'
+                    ? 'Configura la API Key del servicio de IA en tu .env o en el dashboard de Vercel.'
                     : displayError.includes('429')
-                      ? 'Gemini tiene límites de uso. Si usas la capa gratuita, espera y vuelve a intentar.'
+                      ? 'El servicio de IA tiene límites de uso. Si usas la capa gratuita, espera y vuelve a intentar.'
                       : 'Si el error persiste, verifica los logs del servidor para más detalles.'}
                 </p>
               </div>
@@ -2485,7 +2485,7 @@ export default function AIRecommendationsModal({
             </svg>
             <div className="flex-1">
               <p className="text-amber-800 font-semibold text-sm">Advertencia en análisis de documentos</p>
-              <p className="text-amber-700 text-xs mt-1">{aiProgress.generationError.message}</p>
+              <p className="text-amber-700 text-xs mt-1">{sanitizeProviderName(aiProgress.generationError.message)}</p>
             </div>
           </div>
         )}
@@ -2493,7 +2493,7 @@ export default function AIRecommendationsModal({
         {activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
             <div className="flex items-center"><svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg><span className="text-yellow-700 font-medium">⚠️ Modo offline: Recomendaciones generadas localmente</span></div>
-              <p className="text-yellow-600 text-sm mt-1">Para obtener recomendaciones personalizadas con IA, verifica tu cuenta de Gemini.</p>
+              <p className="text-yellow-600 text-sm mt-1">Para obtener recomendaciones personalizadas con IA, verifica tu cuenta del servicio de IA.</p>
           </div>
         )}
 
@@ -3238,7 +3238,7 @@ export default function AIRecommendationsModal({
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
-                          <span>Gemini está procesando los ingredientes del nuevo plan...</span>
+                          <span>La IA está procesando los ingredientes del nuevo plan...</span>
                         </div>
                       )}
 

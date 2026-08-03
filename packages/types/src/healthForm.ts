@@ -357,7 +357,7 @@ export interface Transcription {
   sessionNumber: number;
   /** Contenido de texto completo de la transcripción (encriptado) */
   fullText: string;
-  /** Resumen de puntos clave generado por DeepSeek (encriptado) */
+  /** Resumen de puntos clave generado por IA (encriptado) */
   summary: string;
   /** Acuerdos y cambios en objetivos extraídos (encriptado) */
   agreements: string;

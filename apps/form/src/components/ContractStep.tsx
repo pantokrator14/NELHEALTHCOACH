@@ -83,6 +83,21 @@ const ContractStep: React.FC<ContractStepProps> = ({ onAccept, onReject }) => {
               </div>
             </div>
 
+            {/* Aviso de privacidad — datos de salud procesados con IA (SEC-14) */}
+            <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 mb-6">
+              <h2 className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-2">
+                {t('form.contract.privacyTitle')}
+              </h2>
+              <p className="text-sm text-amber-900 mb-2">{t('form.contract.privacyIntro')}</p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-amber-900 ml-4">
+                {[1, 2, 3].map((i) => {
+                  const item = t(`form.contract.privacyItem${i}`, { defaultValue: '' });
+                  return item ? <li key={i}>{item}</li> : null;
+                })}
+              </ul>
+              <p className="text-xs text-amber-700 italic mt-2">{t('form.contract.privacyConsent')}</p>
+            </div>
+
             <div className="text-center mb-6">
               <p className="text-sm text-gray-600">{t('form.contract.acceptInfo')}</p>
             </div>

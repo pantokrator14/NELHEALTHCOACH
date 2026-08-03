@@ -567,7 +567,7 @@ async function postHandler(
       }];
 
       const generationError = aiInput.failedDocumentAnalyses.length > 0 ? {
-        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error de Gemini (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
+        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error del servicio de IA (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
         timestamp: new Date(),
       } : null;
 

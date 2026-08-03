@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api';
 import { generateClientPDF } from '@/lib/pdfGenerator';
 import Image from 'next/image'
 import AIRecommendationsModal from '../../../components/dashboard/AIRecommendationsModal';
+import { sanitizeProviderText } from '@/lib/aiVisibleText';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../../../components/ui/Toast';
 import {
@@ -282,10 +283,10 @@ export default function ClientProfile() {
         // ¿Error de generación reportado por Inngest?
         if (genError?.message) {
           setAiGenerationStatus('ready')
-          setAiError(genError.message)
+          setAiError(sanitizeProviderText(genError.message))
           setIsGeneratingAI(false)
           clearInterval(pollInterval)
-          showToast(`❌ Error generando recomendaciones: ${genError.message}`, 'error')
+          showToast(`❌ Error generando recomendaciones: ${sanitizeProviderText(genError.message)}`, 'error')
           return
         }
 
