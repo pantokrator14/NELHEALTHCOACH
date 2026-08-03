@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
+import { clearAuthToken } from '@/lib/authSession';
 import Layout from '@/components/dashboard/Layout';
 import PasswordInput from '@/components/PasswordInput';
 import { useRouter } from 'next/router';
@@ -310,7 +311,7 @@ export default function ProfilePage() {
 
     try {
       await apiClient.deleteAccount(acctPassword);
-      localStorage.removeItem('token');
+      clearAuthToken();
       setAcctStep('done');
       setAcctMessage('Tu cuenta y todos tus datos han sido eliminados exitosamente.');
     } catch (err: unknown) {
