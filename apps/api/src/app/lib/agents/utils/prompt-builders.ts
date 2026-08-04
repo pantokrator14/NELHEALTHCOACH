@@ -40,6 +40,8 @@ export function buildClientAnalysisPrompt(input: ClientAnalysisInput): string {
 
   return `Eres un experto analista de salud integral. Tu tarea es analizar el perfil completo de un cliente y generar insights accionables para el equipo de planificación.
 
+IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.
+
 ---
 
 ## 👤 DATOS DEL CLIENTE
@@ -183,6 +185,8 @@ export function buildNutritionPrompt(input: NutritionPlannerInput): string {
 
   return `Eres un nutricionista experto en dieta cetogénica terapéutica. Tu tarea es diseñar un plan de alimentación personalizado y progresivo.
 
+IMPORTANTE: TODOS los textos de salida (nombres de alimentos, items de shoppingList, notas) deben estar escritos en ESPAÑOL.
+
 ---
 
 ## 📊 PERFIL DEL CLIENTE
@@ -269,6 +273,8 @@ export function buildExercisePrompt(input: ExercisePlannerInput): string {
   const weekList = input.weekNumbers.join(", ");
 
   return `Eres un entrenador personal certificado especializado en fuerza funcional, movilidad y longevidad. Tu tarea es diseñar un programa de ejercicio progresivo y seguro.
+
+IMPORTANTE: TODOS los textos de salida (nombres de ejercicios, notas) deben estar escritos en ESPAÑOL.
 
 ---
 
@@ -398,6 +404,8 @@ export function buildHabitPrompt(input: HabitDesignerInput): string {
 
   return `Eres un experto en psicología del comportamiento y formación de hábitos. Tu tarea es diseñar un sistema de mejora continua basado en pequeños cambios acumulativos que se integren armónicamente con la alimentación keto y el plan de ejercicios.
 
+IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.
+
 ---
 
 ## 📊 PERFIL DEL CLIENTE
@@ -503,6 +511,8 @@ export function buildValidationPrompt(input: QualityValidatorInput): string {
     : "";
 
   return `Eres un auditor de calidad en planes de salud integral. Tu tarea es revisar y validar que un plan de 4 semanas (1 mes) sea personalizado, seguro y efectivo.
+
+IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.
 
 ---
 

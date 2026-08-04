@@ -56,7 +56,7 @@ export async function analyzeClient(
       },
       async (validatedInput) => {
         const response = await llm.invoke([
-          { role: "system", content: "Eres un experto analista de salud integral. Responde SOLO con JSON válido." },
+          { role: "system", content: "Eres un experto analista de salud integral. Responde SOLO con JSON válido. IMPORTANTE: TODOS los textos de salida en ESPAÑOL." },
           { role: "user", content: validatedInput.prompt },
         ]);
 

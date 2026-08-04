@@ -211,6 +211,8 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       const prompt = `Eres un asistente especializado en resumir sesiones de coaching de salud. 
 Analiza la siguiente transcripción de una videollamada entre un coach de salud y su cliente.
 
+IMPORTANTE: El resumen y todos los textos de salida DEBEN estar escritos en ESPAÑOL (aunque la transcripción esté en otro idioma, resume en español).
+
 Extrae y devuelve ÚNICAMENTE un JSON válido con esta estructura:
 {
   "summary": "Resumen de 2-3 párrafos de los temas principales tratados en la sesión",

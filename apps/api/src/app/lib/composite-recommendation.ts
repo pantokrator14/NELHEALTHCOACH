@@ -235,7 +235,7 @@ function buildMedicalPrompt(
   const hasDocuments = input.processedDocuments && input.processedDocuments.length > 0;
 
   return {
-    system: "ERES UN ANALISTA CLÍNICO. TU RESPUESTA DEBE SER UN JSON VÁLIDO. Esta es tu ÚNICA tarea: extraer biomarcadores de documentos médicos y generar suplementación. NO generes planes de nutrición ni ejercicios.",
+    system: "ERES UN ANALISTA CLÍNICO. TU RESPUESTA DEBE SER UN JSON VÁLIDO. Esta es tu ÚNICA tarea: extraer biomarcadores de documentos médicos y generar suplementación. NO generes planes de nutrición ni ejercicios. IMPORTANTE: TODOS los textos de salida (resúmenes, nombres, análisis, suplementos) DEBEN estar escritos en ESPAÑOL.",
     human: `Eres un analista médico experto. Tu ÚNICA tarea es analizar los documentos clínicos del cliente y generar una estructura JSON con los campos: medicalSummary, medicalComparativeAnalysis, labResults, y structuredMedicalAnalysis.
 
 ## DATOS MÉDICOS DEL CLIENTE
@@ -310,7 +310,7 @@ function buildLifestylePrompt(
     : '## NO SE DETECTARON DOCUMENTOS MÉDICOS — Diseña el plan basándote únicamente en los datos de estilo de vida del cliente.';
 
   return {
-    system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado.",
+    system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado. IMPORTANTE: TODOS los textos de salida (summary, vision, títulos de recetas, items de shoppingList, notas, hábitos) DEBEN estar escritos en ESPAÑOL. Si una receta o ejercicio de la base de datos tiene título en otro idioma, tradúcelo al español.",
     human: `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante 4 semanas (1 mes) para este cliente.
 
 ${medicalContext}
@@ -402,8 +402,9 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 
 IMPORTANTE:
 - USA SOLO recetas y ejercicios de las listas proporcionadas
-- Copia los títulos/nombres EXACTAMENTE como aparecen
+- Copia los títulos/nombres EXACTAMENTE como aparecen (pero tradúcelos al ESPAÑOL si están en otro idioma)
 - vision DEBE ser tan extensa y detallada como summary
+- ⚠️ IDIOMA: TODOS los textos de salida en ESPAÑOL (summary, vision, títulos, items de shoppingList, notas, hábitos)
 - Responde SOLO con el JSON, sin texto adicional`
   };
 }
@@ -434,7 +435,7 @@ function buildShoppingListPrompt(
   }
 
   return {
-    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y los ingredientes de cada receta. Extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes similares y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. Si un ingrediente aparece en varias recetas, consolídalo en una sola línea con la cantidad total. PROHIBIDO devolver un array vacío.",
+    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y los ingredientes de cada receta. Extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes similares y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. Si un ingrediente aparece en varias recetas, consolídalo en una sola línea con la cantidad total. PROHIBIDO devolver un array vacío. IMPORTANTE: TODOS los items de la shoppingList DEBEN estar escritos en ESPAÑOL (ej. 'Pechuga de pollo', 'Aguacates', 'Aceite de oliva'). Si el ingrediente original está en inglés, tradúcelo al español.",
     human: humanContent,
   };
 }

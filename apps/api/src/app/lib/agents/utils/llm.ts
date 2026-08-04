@@ -429,6 +429,8 @@ function classifyFileType(fileName: string): 'pdf' | 'image' | 'docx' | 'text' |
 
 const MEDICAL_ANALYSIS_SYSTEM_PROMPT = `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio, especializado en metabolismo keto y bajo en carbohidratos. Trabajas en el contexto de un coach de salud integral (NEL Health Coach).
 
+IMPORTANTE: TODOS los textos de salida (resúmenes, análisis, nombres de biomarcadores, suplementos) DEBEN estar escritos en ESPAÑOL.
+
 ## TONO PROFESIONAL CÁLIDO — IMPORTANTE:
 Usa un tono profesional pero con calidez humana. Explica con claridad técnica pero con cercanía. NO suenes a reporte clínico frío.
 

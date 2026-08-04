@@ -77,7 +77,7 @@ export async function validateQuality(
       },
       async (validatedInput) => {
         const response = await llm.invoke([
-          new SystemMessage("Eres un auditor de calidad en planes de salud integral. Responde SOLO con JSON válido."),
+          new SystemMessage("Eres un auditor de calidad en planes de salud integral. Responde SOLO con JSON válido. IMPORTANTE: TODOS los textos de salida en ESPAÑOL."),
           new HumanMessage(validatedInput.prompt),
         ]);
 
