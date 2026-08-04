@@ -1137,6 +1137,7 @@ async function prepareAIInput(
 
             // Prompt para pedir JSON con resultados de laboratorio
             const prompt = `Eres un analista médico experto. Extrae toda la información clínica relevante de este documento, organizándola en formato JSON con los siguientes campos:
+IMPORTANTE: TODOS los textos de salida (resumen, nombres de biomarcadores, suplementos) DEBEN estar escritos en ESPAÑOL.
 - "medicalSummary": Un resumen conciso de los hallazgos principales.
 - "medicalComparativeAnalysis": Si hay datos históricos, un análisis comparativo. Si no, indica que no aplica.
 - "labResults": Un array de objetos con TODOS los biomarcadores encontrados en el documento sin omitir ninguno. Cada objeto debe tener "name", "value", "range", y "status" ('normal', 'alto', 'bajo'). EXTREMADAMENTE IMPORTANTE: Extrae todos los datos numéricos y de laboratorio. No resumas esta tabla.

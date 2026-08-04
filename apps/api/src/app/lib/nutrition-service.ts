@@ -140,6 +140,8 @@ export class NutritionService {
     
     return `Eres un nutricionista experto en dieta keto y análisis de alimentos.
 
+IMPORTANTE: TODOS los textos de salida (nombres de ingredientes, notas) DEBEN estar escritos en ESPAÑOL. Si un ingrediente está en otro idioma, tradúcelo al español.
+
 INSTRUCCIONES:
 1. Analiza CADA ingrediente por separado
 2. Calcula valores nutricionales por 100g de cada ingrediente
@@ -202,7 +204,7 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
     */
    private static async callGeminiForNutrition(prompt: string): Promise<string> {
      const result = await callGeminiAPI({
-       systemPrompt: 'Eres un nutricionista especializado en análisis de alimentos y dieta keto. Devuelve siempre JSON válido con cálculos precisos.',
+       systemPrompt: 'Eres un nutricionista especializado en análisis de alimentos y dieta keto. Devuelve siempre JSON válido con cálculos precisos. IMPORTANTE: TODOS los textos de salida en ESPAÑOL.',
        userPrompt: prompt,
        temperature: 0.3,
        maxOutputTokens: 4000,

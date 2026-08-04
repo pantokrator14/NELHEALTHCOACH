@@ -53,7 +53,7 @@ export async function analyzeClient(
       { prompt, personalData: state.personalData, medicalData: state.medicalData },
       async (validatedInput) => {
         const response = await llm.invoke([
-          new SystemMessage("Eres un experto analista de salud integral. Responde SOLO con JSON válido."),
+          new SystemMessage("Eres un experto analista de salud integral. Responde SOLO con JSON válido. IMPORTANTE: TODOS los textos de salida en ESPAÑOL."),
           new HumanMessage(validatedInput.prompt),
         ]);
 
@@ -313,6 +313,8 @@ function buildNutritionSystemPrompt(
   const level = state.clientInsights?.experienceLevel ?? "principiante";
 
   return `Eres un nutricionista experto en dieta cetogénica terapéutica. Tu tarea es diseñar un plan de alimentación KETO personalizado.
+
+IMPORTANTE: TODOS los textos de salida (nombres de alimentos, items de shoppingList, notas) deben estar escritos en ESPAÑOL.
 
 ## REGLAS CETOGÉNICAS:
 1. CERO: azúcar, alcohol, gluten, almidones, procesados
