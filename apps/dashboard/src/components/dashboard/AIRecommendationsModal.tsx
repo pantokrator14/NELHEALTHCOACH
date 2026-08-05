@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { sanitizeProviderName } from '@/lib/aiVisibleText';
 import { ChecklistItem, VideoSession, TranscriptStatus } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 
 // ===== TIPOS Y INTERFACES =====
 interface RecipeWithDetails extends Recipe {
@@ -564,7 +564,7 @@ export default function AIRecommendationsModal({
     if (!aiProgress?.sessions) return [];
     return aiProgress.sessions.map((session, index) => ({
       sessionId: session.sessionId,
-      label: `Sesión ${index + 1}`,
+      label: t('ai.sessionLabel', { number: index + 1, date: '' }).replace(' • ', ''),
       sessionNumber: index + 1,
       monthNumber: session.monthNumber,
       totalWeeks: session.totalWeeks || 4,
@@ -750,7 +750,7 @@ export default function AIRecommendationsModal({
             setTranscriptStatus('completed');
             setTranscriptPolling(false);
             clearInterval(pollInterval);
-            showToast('Transcripción completada. Ya puedes generar nuevas recomendaciones.', 'success');
+            showToast(t('ai.toastTranscriptComplete'), 'success');
             return;
           }
 
@@ -759,7 +759,7 @@ export default function AIRecommendationsModal({
             setTranscriptError(latestCompleted.transcriptError || 'Error en la transcripción');
             setTranscriptPolling(false);
             clearInterval(pollInterval);
-            showToast('La transcripción falló. Puedes reintentarla.', 'error');
+            showToast(t('ai.toastTranscriptFailed'), 'error');
             return;
           }
         }
@@ -770,7 +770,7 @@ export default function AIRecommendationsModal({
       if (pollCount >= MAX_POLLS) {
         setTranscriptPolling(false);
         clearInterval(pollInterval);
-        showToast('La transcripción está tomando más tiempo del esperado. Verifica más tarde.', 'warning');
+        showToast(t('ai.toastTranscriptSlow'), 'warning');
       }
     }, 10000);
 
@@ -1100,7 +1100,7 @@ export default function AIRecommendationsModal({
               }
             : prev
         );
-        showToast('Plan actualizado y lista de compras regenerada', 'success');
+        showToast(t('ai.toastPlanUpdated'), 'success');
       } else {
         throw new Error(response.message || 'Error al actualizar el plan semanal');
       }
@@ -1402,7 +1402,7 @@ export default function AIRecommendationsModal({
   const handleRegenerate = useCallback(async () => {
     if (!activeSession) return;
     setLoading(true);
-    const notes = prompt('Notas para la regeneración (opcional):', '');
+    const notes = prompt(t('ai.regenerationPrompt'), '');
     try {
       await apiClient.regenerateAISession(clientId, activeSession.sessionId, notes || '');
       await loadAIProgress();
@@ -1417,7 +1417,7 @@ export default function AIRecommendationsModal({
     try {
       await apiClient.sendAISessionToClient(clientId, sessionId);
       await loadAIProgress();
-      showToast('Correo reenviado exitosamente', 'success');
+      showToast(t('ai.toastEmailResent'), 'success');
     } catch (e) {
       showToast((e as Error).message || 'Error', 'error');
     } finally {
@@ -1548,7 +1548,7 @@ export default function AIRecommendationsModal({
     loadAIProgress();
     loadVideoSessions();
     // Iniciar polling para detectar transcripción completada
-    showToast('Procesando transcripción de la videollamada...', 'info');
+    showToast(t('ai.toastProcessingTranscript'), 'info');
     setTranscriptPolling(true);
   }, [loadAIProgress, loadVideoSessions]);
 
@@ -1604,9 +1604,9 @@ export default function AIRecommendationsModal({
     if (clientSessionLink) {
       try {
         await navigator.clipboard.writeText(clientSessionLink);
-        showToast('Enlace copiado al portapapeles. Pégalo en un email para el cliente.', 'success');
+        showToast(t('ai.toastLinkCopied'), 'success');
       } catch {
-        showToast('No se pudo copiar el enlace. Copia manualmente:\n' + clientSessionLink, 'error');
+        showToast(t('ai.toastLinkCopyFailed') + clientSessionLink, 'error');
       }
     }
   }, [clientSessionLink]);
@@ -1652,7 +1652,7 @@ export default function AIRecommendationsModal({
         } catch (extractionError: unknown) {
           console.error('Error en extracción de texto:', extractionError);
           const errorMessage = extractionError instanceof Error ? extractionError.message : String(extractionError);
-          throw new Error(`No se pudo extraer texto del archivo ${file.name}. Asegúrate de que sea un documento válido. Detalles: ${errorMessage}`);
+          throw new Error(t('ai.extractError', { name: file.name, error: errorMessage }));
         }
       } else {
         // Para .txt y .json, usar file.text()
@@ -1847,17 +1847,17 @@ export default function AIRecommendationsModal({
                 className="text-sm text-green-600 hover:text-green-800 flex items-center mb-1"
               >
                 {isRecipeExpanded ? (
-                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>Ocultar receta</>
+                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>{t('ai.hideRecipe')}</>
                 ) : (
-                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>Ver receta completa</>
+                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>{t('ai.viewFullRecipe')}</>
                 )}
               </button>
               {isRecipeExpanded && (
                 <div className="mt-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <h5 className="font-medium text-yellow-700 mb-2">📝 Receta:</h5>
+                  <h5 className="font-medium text-yellow-700 mb-2">{t('ai.recipe')}</h5>
                   {item.details.recipe.ingredients && (
                     <div className="mb-3">
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">Ingredientes:</h6>
+                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.ingredients')}</h6>
                       <ul className="space-y-1">
                         {item.details.recipe.ingredients.map((ingredient, idx) => (
                           <li key={idx} className="text-sm text-gray-600 break-words">
@@ -1870,22 +1870,22 @@ export default function AIRecommendationsModal({
                   )}
                   {item.details.recipe.preparation && (
                     <div className="mb-3">
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">Preparación:</h6>
+                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.preparation')}</h6>
                       <p className="text-sm text-gray-600 whitespace-pre-line break-words text-justify">{item.details.recipe.preparation}</p>
                     </div>
                   )}
                   {item.details.recipe.tips && (
                     <div>
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">💡 Consejo:</h6>
+                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.tip')}</h6>
                       <p className="text-sm text-gray-600 break-words text-justify">{item.details.recipe.tips}</p>
                     </div>
                   )}
                   {(item.details.macros || item.details.calories || item.details.metabolicPurpose) && (
                     <div className="mt-3 pt-3 border-t border-yellow-300">
-                      <h6 className="text-sm font-medium text-gray-700 mb-2">📊 Información Nutricional:</h6>
+                      <h6 className="text-sm font-medium text-gray-700 mb-2">{t('ai.nutritionInfo')}</h6>
                       {item.details.macros && (
                         <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">Macros:</span>
+                          <span className="text-sm font-medium text-gray-700">{t('ai.macros')}</span>
                           <div className="grid grid-cols-2 gap-1 mt-1">
                             {item.details.macros.protein && <span className="text-sm text-gray-600">Proteína: {item.details.macros.protein}</span>}
                             {item.details.macros.fat && <span className="text-sm text-gray-600">Grasas: {item.details.macros.fat}</span>}
@@ -1896,13 +1896,13 @@ export default function AIRecommendationsModal({
                       )}
                       {item.details.calories && (
                         <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">Calorías:</span>
+                          <span className="text-sm font-medium text-gray-700">{t('ai.calories')}</span>
                           <span className="text-sm text-gray-600 ml-2">{item.details.calories} kcal</span>
                         </div>
                       )}
                       {item.details.metabolicPurpose && (
                         <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">Propósito metabólico:</span>
+                          <span className="text-sm font-medium text-gray-700">{t('ai.metabolicPurpose')}</span>
                           <p className="text-sm text-gray-600 mt-1">{item.details.metabolicPurpose}</p>
                         </div>
                       )}
@@ -1926,41 +1926,41 @@ export default function AIRecommendationsModal({
                   <div className="space-y-3">
                     {item.details.frequency && (
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">🕒</span> Frecuencia:</span>
+                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">🕒</span> {t('ai.frequency')}</span>
                         <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.frequency}</span>
                       </div>
                     )}
                     {item.details.duration && (
                       <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">⏱️</span> Duración:</span>
+                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">⏱️</span> {t('ai.duration')}</span>
                         <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.duration}</span>
                       </div>
                     )}
                     {(item.details.sets || item.details.repetitions || item.details.timeUnderTension || item.details.progression) && (
                       <div className="text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🏋️</span> Detalles de ejercicio:</span>
+                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🏋️</span> {t('ai.exerciseDetails')}</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-6 sm:ml-8">
                           {item.details.sets && (
                             <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">Series</span>
+                              <span className="text-xs font-medium text-gray-600">{t('ai.sets')}</span>
                               <span className="text-sm text-gray-800">{item.details.sets}</span>
                             </div>
                           )}
                           {item.details.repetitions && (
                             <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">Repeticiones</span>
+                              <span className="text-xs font-medium text-gray-600">{t('ai.repetitions')}</span>
                               <span className="text-sm text-gray-800">{item.details.repetitions}</span>
                             </div>
                           )}
                           {item.details.timeUnderTension && (
                             <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">Tiempo bajo tensión</span>
+                              <span className="text-xs font-medium text-gray-600">{t('ai.timeUnderTension')}</span>
                               <span className="text-sm text-gray-800">{item.details.timeUnderTension}</span>
                             </div>
                           )}
                           {item.details.progression && (
                             <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">Progresión</span>
+                              <span className="text-xs font-medium text-gray-600">{t('ai.progression')}</span>
                               <span className="text-sm text-gray-800">{item.details.progression}</span>
                             </div>
                           )}
@@ -1969,7 +1969,7 @@ export default function AIRecommendationsModal({
                     )}
                     {item.details.equipment && item.details.equipment.length > 0 && (
                       <div className="text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🎽</span> Equipo necesario:</span>
+                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🎽</span> {t('ai.equipmentNeeded')}</span>
                         <div className="flex flex-wrap gap-2 ml-6 sm:ml-8">
                           {item.details.equipment.map((equipment, idx) => (
                             <span key={idx} className="px-3 py-1.5 bg-white rounded-full text-xs sm:text-sm border border-blue-200 shadow-sm break-words">
@@ -2074,11 +2074,11 @@ export default function AIRecommendationsModal({
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="bg-red-100">
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Marcador</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor Actual</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Valor Previo</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Interpretación</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">Tendencia</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.marker')}</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.currentValue')}</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.previousValue')}</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.interpretation')}</th>
+                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.trend')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2141,8 +2141,8 @@ export default function AIRecommendationsModal({
                         </span>
                         {item.details?.supplementInfo && (
                           <div className="mt-1 ml-4 pl-2 border-l-2 border-amber-200">
-                            <p className="text-xs text-gray-600"><span className="font-medium">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-medium">Momento:</span> {item.details.supplementInfo.timing}</p>
-                            <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Justificación:</span> {item.details.supplementInfo.rationale}</p>
+                            <p className="text-xs text-gray-600"><span className="font-medium">{t('ai.dose')}</span> {item.details.supplementInfo.dosage} | <span className="font-medium">{t('ai.timing')}</span> {item.details.supplementInfo.timing}</p>
+                            <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">{t('ai.reason')}</span> {item.details.supplementInfo.rationale}</p>
                             {item.details.supplementInfo.contraindications && (
                               <p className="text-xs text-red-500 mt-0.5">⚠️ {item.details.supplementInfo.contraindications}</p>
                             )}
@@ -2274,8 +2274,8 @@ export default function AIRecommendationsModal({
                         autoFocus
                       />
                       <div className="flex justify-end space-x-2">
-                        <button onClick={handleCancelEdit} className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs">Cancelar</button>
-                        <button onClick={handleSaveEdit} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">Guardar</button>
+                        <button onClick={handleCancelEdit} className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs">{t('ai.cancel')}</button>
+                        <button onClick={handleSaveEdit} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">{t('ai.save')}</button>
                       </div>
                     </div>
                   ) : (
@@ -2285,7 +2285,7 @@ export default function AIRecommendationsModal({
                         <button
                           onClick={() => handleStartEdit(session.sessionId, 'exerciseIntro', week.exercise.intro || '', undefined, weekIndex)}
                           className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors ml-2 flex-shrink-0"
-                          title="Editar introducción"
+                          title={t('ai.editIntro')}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2339,11 +2339,11 @@ export default function AIRecommendationsModal({
               )}
               {week.habits.motivationTip && (
                 <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                  <p className="text-sm text-purple-700 text-justify"><span className="font-medium">💡 Consejo motivacional:</span> {week.habits.motivationTip}</p>
+                  <p className="text-sm text-purple-700 text-justify"><span className="font-medium">💡 {t('ai.motivationTip')}</span> {week.habits.motivationTip}</p>
                 </div>
               )}
               {week.habits.trackingMethod && (
-                 <p className="text-xs text-gray-700 mt-2">📋 <span className="font-medium">Método de seguimiento:</span> {week.habits.trackingMethod}</p>
+                 <p className="text-xs text-gray-700 mt-2">📋 <span className="font-medium">{t('ai.trackingMethod')}</span> {week.habits.trackingMethod}</p>
               )}
             </div>
           </div>
@@ -2356,7 +2356,7 @@ export default function AIRecommendationsModal({
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl p-8"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div><p className="mt-4 text-gray-600">Cargando recomendaciones...</p></div>
+        <div className="bg-white rounded-xl p-8"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div><p className="mt-4 text-gray-600">{t('ai.loadingRecommendations')}</p></div>
       </div>
     );
   }
@@ -2393,7 +2393,7 @@ export default function AIRecommendationsModal({
             <div className="flex-1 pr-4">
               <div className="flex items-center mb-2">
                 <svg className="w-6 h-6 md:w-8 md:h-8 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                <div className="flex-1"><h2 className="text-xl md:text-2xl font-bold">Recomendaciones de IA</h2></div>
+                <div className="flex-1"><h2 className="text-xl md:text-2xl font-bold">{t('ai.modalTitle')}</h2></div>
               </div>
             </div>
             <div className="hidden md:flex items-center">
@@ -2419,9 +2419,9 @@ export default function AIRecommendationsModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-blue-700 font-medium">Generando recomendaciones personalizadas con IA... Esto puede tomar hasta 2 minutos.</span>
+              <span className="text-blue-700 font-medium">{t('ai.generatingLong')}</span>
             </div>
-            <p className="text-blue-500 text-sm mt-1 ml-8">La IA está analizando los datos del cliente, documentos médicos, y planificando nutrición, ejercicio, hábitos y análisis de laboratorio. No cierres esta ventana.</p>
+            <p className="text-blue-500 text-sm mt-1 ml-8">{t('ai.generatingDetail')}</p>
           </div>
         )}
 
@@ -2432,7 +2432,7 @@ export default function AIRecommendationsModal({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div className="flex-1">
-                <p className="text-red-700 font-medium">Error al generar recomendaciones</p>
+                <p className="text-red-700 font-medium">{t('ai.generationErrorTitle')}</p>
                 <p className="text-red-600 text-sm mt-1">
                   {displayError.includes('GEMINI_API_KEY')
                     ? '⚠️ API Key de IA no configurada. Agrega la API Key del servicio de IA en las variables de entorno.'
@@ -2448,7 +2448,7 @@ export default function AIRecommendationsModal({
                 </p>
                 {displayError.length > 200 && (
                   <details className="mt-2">
-                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">Ver error completo</summary>
+                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">{t('ai.viewFullError')}</summary>
                     <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-x-auto whitespace-pre-wrap max-h-40">{sanitizeProviderName(displayError)}</pre>
                   </details>
                 )}
@@ -2487,7 +2487,7 @@ export default function AIRecommendationsModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
             <div className="flex-1">
-              <p className="text-amber-800 font-semibold text-sm">Advertencia en análisis de documentos</p>
+              <p className="text-amber-800 font-semibold text-sm">{t('ai.docAnalysisWarning')}</p>
               <p className="text-amber-700 text-xs mt-1">{sanitizeProviderName(aiProgress.generationError.message)}</p>
             </div>
           </div>
@@ -2495,8 +2495,8 @@ export default function AIRecommendationsModal({
 
         {activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-            <div className="flex items-center"><svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg><span className="text-yellow-700 font-medium">⚠️ Modo offline: Recomendaciones generadas localmente</span></div>
-              <p className="text-yellow-600 text-sm mt-1">Para obtener recomendaciones personalizadas con IA, verifica tu cuenta del servicio de IA.</p>
+            <div className="flex items-center"><svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg><span className="text-yellow-700 font-medium">{t('ai.offlineMode')}</span></div>
+              <p className="text-yellow-600 text-sm mt-1">{t('ai.offlineModeDesc')}</p>
           </div>
         )}
 
@@ -2528,10 +2528,10 @@ export default function AIRecommendationsModal({
           {!aiProgress || aiProgress.sessions.length === 0 ? (
             <div className="text-center py-12">
               <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-              <h3 className="text-xl font-bold text-gray-700 mb-2">No hay recomendaciones generadas</h3>
-              <p className="text-gray-600 mb-6">Comienza generando las primeras recomendaciones para este cliente</p>
+              <h3 className="text-xl font-bold text-gray-700 mb-2">{t('ai.noRecommendations')}</h3>
+              <p className="text-gray-600 mb-6">{t('ai.noRecommendationsDesc')}</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">Generar Primera Evaluación</button>
+                <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">{t('ai.generateFirst')}</button>
                 <button onClick={triggerFileInput} disabled={uploadingFile} className="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed">
                   {uploadingFile ? 'Subiendo...' : 'Subir Archivo de Recomendaciones'}
                 </button>
@@ -2541,10 +2541,10 @@ export default function AIRecommendationsModal({
                   <p className="text-red-700 text-sm">Error: {uploadError}</p>
                 </div>
               )}
-                <p className="text-gray-700 text-sm mt-4">Formatos aceptados: .txt (texto plano), .json (estructura de sesión AI), .doc/.docx (documento Word) o .pdf (documento PDF)</p>
+                <p className="text-gray-700 text-sm mt-4">{t('ai.acceptedFormats')}</p>
             </div>
           ) : !activeSession ? (
-             <div className="text-center py-12"><p className="text-gray-600">No se encontró la sesión seleccionada</p></div>
+             <div className="text-center py-12"><p className="text-gray-600">{t('ai.sessionNotFound')}</p></div>
           ) : (
             <div className="space-y-6">
 
@@ -2585,13 +2585,13 @@ export default function AIRecommendationsModal({
                               onClick={handleCancelEdit}
                               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                             >
-                              Cancelar
+                              {t('ai.cancel')}
                             </button>
                             <button
                               onClick={handleSaveEdit}
                               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                             >
-                              Guardar
+                              {t('ai.save')}
                             </button>
                           </div>
                         </div>
@@ -2613,7 +2613,7 @@ export default function AIRecommendationsModal({
                         <button
                           onClick={() => handleStartEdit(activeSession.sessionId, 'vision', activeSession.vision)}
                           className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
-                          title="Editar visión"
+                          title={t('ai.editVision')}
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2636,13 +2636,13 @@ export default function AIRecommendationsModal({
                               onClick={handleCancelEdit}
                               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                             >
-                              Cancelar
+                              {t('ai.cancel')}
                             </button>
                             <button
                               onClick={handleSaveEdit}
                               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                             >
-                              Guardar
+                              {t('ai.save')}
                             </button>
                           </div>
                         </div>
@@ -2689,7 +2689,7 @@ export default function AIRecommendationsModal({
                                   <button
                                     onClick={() => handleStartEdit(activeSession.sessionId, 'medicalIntro', exam.intro, undefined, undefined, undefined, examIdx)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2 flex-shrink-0"
-                                    title="Editar introducción"
+                                    title={t('ai.editIntro')}
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2711,13 +2711,13 @@ export default function AIRecommendationsModal({
                                       onClick={handleCancelEdit}
                                       className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs"
                                     >
-                                      Cancelar
+                                      {t('ai.cancel')}
                                     </button>
                                     <button
                                       onClick={handleSaveEdit}
                                       className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
                                     >
-                                      Guardar
+                                      {t('ai.save')}
                                     </button>
                                   </div>
                                 </div>
@@ -2730,10 +2730,10 @@ export default function AIRecommendationsModal({
                                 <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
                                   <thead>
                                     <tr className="bg-red-600 text-white">
-                                      <th className="text-left p-3 font-semibold border border-red-300">Biomarcador</th>
-                                      <th className="text-left p-3 font-semibold border border-red-300">Valor</th>
-                                      <th className="text-left p-3 font-semibold border border-red-300">Rango Normal</th>
-                                      <th className="text-left p-3 font-semibold border border-red-300">Estado</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">{t('ai.biomarker')}</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">{t('ai.value')}</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">{t('ai.normalRange')}</th>
+                                      <th className="text-left p-3 font-semibold border border-red-300">{t('ai.status')}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -2769,7 +2769,7 @@ export default function AIRecommendationsModal({
                                   <button
                                     onClick={() => handleStartEdit(activeSession.sessionId, 'medicalAnalysis', exam.analysis, undefined, undefined, undefined, examIdx)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors flex-shrink-0"
-                                    title="Editar análisis clínico"
+                                    title={t('ai.editAnalysis')}
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2791,13 +2791,13 @@ export default function AIRecommendationsModal({
                                       onClick={handleCancelEdit}
                                       className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs"
                                     >
-                                      Cancelar
+                                      {t('ai.cancel')}
                                     </button>
                                     <button
                                       onClick={handleSaveEdit}
                                       className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
                                     >
-                                      Guardar
+                                      {t('ai.save')}
                                     </button>
                                   </div>
                                 </div>
@@ -2828,8 +2828,8 @@ export default function AIRecommendationsModal({
                                   <div className="flex-1 min-w-0">
                                     <span className="text-sm text-gray-900 font-medium">{supp.name}</span>
                                     <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
-                                      <p><span className="font-semibold">Dosis:</span> {supp.dosage} | <span className="font-semibold">Momento:</span> {supp.timing}</p>
-                                      <p className="text-gray-500"><span className="font-semibold">Razón:</span> {supp.rationale}</p>
+                                      <p><span className="font-semibold">{t('ai.dose')}</span> {supp.dosage} | <span className="font-semibold">{t('ai.timing')}</span> {supp.timing}</p>
+                                      <p className="text-gray-500"><span className="font-semibold">{t('ai.reason')}</span> {supp.rationale}</p>
                                       {supp.contraindications && (
                                         <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {supp.contraindications}</p>
                                       )}
@@ -2842,10 +2842,10 @@ export default function AIRecommendationsModal({
                         ) : (
                           <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
                             <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
-                              <span>🥗</span> Optimización Nutricional sin Suplementos
+                              <span>🥗</span> {t('ai.noSupplementsTitle')}
                             </h5>
                             <p className="text-sm text-gray-700 leading-relaxed">
-                              Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
+                              <Trans i18nKey="ai.noSupplementsNeeded" values={{ weeks: '3 a 4 semanas' }} components={{ strong: <strong /> }} />
                             </p>
                           </div>
                         )}
@@ -2877,10 +2877,10 @@ export default function AIRecommendationsModal({
                               return (
                                 <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
                                   <h4 className="font-semibold text-sky-800 mb-2 flex items-center gap-2">
-                                    <span>📋</span> Resumen del Análisis de Laboratorio
+                                    <span>📋</span> {t('ai.labReportTitle')}
                                   </h4>
                                   <p className="text-sm text-slate-600">
-                                    El cliente no subió ningún documento médico (exámenes de laboratorio) para análisis. Sube sus documentos para obtener un resumen detallado de sus biomarcadores.
+                                    {t('ai.noMedicalDocsMsg')}
                                   </p>
                                 </div>
                               );
@@ -2889,10 +2889,10 @@ export default function AIRecommendationsModal({
                             return (
                               <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                                 <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-                                  <span>📋</span> Resumen del Análisis de Laboratorio
+                                  <span>📋</span> {t('ai.labReportTitle')}
                                 </h4>
                                 <p className="text-sm text-gray-600 italic">
-                                  No se pudieron verificar los documentos médicos en este momento. Por favor, intenta de nuevo más tarde.
+                                  {t('ai.medicalDocsErrorMsg')}
                                 </p>
                               </div>
                             );
@@ -2901,7 +2901,7 @@ export default function AIRecommendationsModal({
                           return (
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                               <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
-                                <span>📋</span> Resumen del Análisis de Laboratorio
+                                <span>📋</span> {t('ai.labReportTitle')}
                               </h4>
                               <p className="text-sm text-gray-700 whitespace-pre-line">{medSummary}</p>
                             </div>
@@ -2914,10 +2914,10 @@ export default function AIRecommendationsModal({
                             <table className="w-full text-xs md:text-sm border-collapse border border-red-300 rounded-lg overflow-hidden shadow-sm">
                               <thead>
                                 <tr className="bg-red-600 text-white">
-                                  <th className="text-left p-3 font-semibold border border-red-300">Biomarcador / Examen</th>
-                                  <th className="text-left p-3 font-semibold border border-red-300">Valor Encontrado</th>
-                                  <th className="text-left p-3 font-semibold border border-red-300">Rango de Referencia</th>
-                                  <th className="text-left p-3 font-semibold border border-red-300">Estado / Alerta</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">{t('ai.biomarkerExam')}</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">{t('ai.foundValue')}</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">{t('ai.referenceRange')}</th>
+                                  <th className="text-left p-3 font-semibold border border-red-300">{t('ai.statusAlert')}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2964,8 +2964,8 @@ export default function AIRecommendationsModal({
                                     </span>
                                     {item.details?.supplementInfo ? (
                                       <div className="mt-1 ml-2 pl-2 border-l-2 border-amber-300 text-xs text-gray-600 space-y-1">
-                                        <p><span className="font-semibold">Dosis:</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">Momento:</span> {item.details.supplementInfo.timing}</p>
-                                        <p className="text-gray-500"><span className="font-semibold">Razón científica:</span> {item.details.supplementInfo.rationale}</p>
+                                        <p><span className="font-semibold">{t('ai.dose')}</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">{t('ai.timing')}</span> {item.details.supplementInfo.timing}</p>
+                                        <p className="text-gray-500"><span className="font-semibold">{t('ai.scientificReason')}</span> {item.details.supplementInfo.rationale}</p>
                                         {item.details.supplementInfo.contraindications && (
                                           <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {item.details.supplementInfo.contraindications}</p>
                                         )}
@@ -2981,10 +2981,14 @@ export default function AIRecommendationsModal({
                         ) : (
                           <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 mt-4 shadow-sm">
                             <h5 className="font-semibold text-emerald-800 mb-2 text-sm flex items-center gap-2">
-                              <span>🥗</span> Optimización Nutricional sin Suplementos
+                              <span>🥗</span> {t('ai.noSupplementsTitle')}
                             </h5>
                             <p className="text-sm text-gray-700 leading-relaxed">
-                              Actualmente no se requiere suplementación adicional exógena. Con el plan alimenticio recomendado en la sección de <strong>Nutrición</strong>, diseñado específicamente para tus necesidades metabólicas, estimamos que podrás regular y mejorar de forma natural tus biomarcadores (como glucemia, perfil lipídico y marcadores inflamatorios) en un promedio de <strong>5 a 10 puntos</strong> al cabo de <strong>3 a 4 semanas</strong> de adherencia constante.
+                              <Trans
+                                i18nKey="ai.noSupplementsNeededDetailed"
+                                values={{ points: '5 a 10 puntos', weeks: '3 a 4 semanas' }}
+                                components={{ strong: <strong /> }}
+                              />
                             </p>
                           </div>
                         )}
@@ -2998,8 +3002,8 @@ export default function AIRecommendationsModal({
                             : (activeSession.labResults && activeSession.labResults.length > 0) ||
                               (activeSession.structuredMedicalAnalysis?.exams && activeSession.structuredMedicalAnalysis.exams.length > 0)) && (
                           <div className="text-center py-6 text-gray-500">
-                            <p className="text-sm">No hay datos de análisis médico aún.</p>
-                            <p className="text-xs mt-1">Sube documentos de laboratorio del cliente para obtener un análisis detallado de sus marcadores de salud.</p>
+                            <p className="text-sm">{t('ai.noMedicalData')}</p>
+                            <p className="text-xs mt-1">{t('ai.noMedicalDataDesc')}</p>
                           </div>
                           )
                         )}
@@ -3159,7 +3163,7 @@ export default function AIRecommendationsModal({
                                         <p className="text-[10px] font-semibold text-gray-500 mb-1">
                                           {mealIcons[mealType]} {mealLabels[mealType]}
                                         </p>
-                                        <span className="text-[10px] text-gray-400 italic">Vacío</span>
+                                        <span className="text-[10px] text-gray-400 italic">{t('ai.empty')}</span>
                                         {activeSession.status === 'draft' && (
                                           <button
                                             onClick={() => { setSearchDay(day); setSearchMeal(mealType); setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
@@ -3180,8 +3184,8 @@ export default function AIRecommendationsModal({
 
                     {/* Alternativas sugeridas */}
                     <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                      <h4 className="font-semibold text-amber-800 text-sm mb-1">💡 Alternativas sugeridas</h4>
-                      <p className="text-xs text-amber-600 mb-3">Para variar el plan, puedes reemplazar cualquier receta por una alternativa con perfil nutricional similar.</p>
+                      <h4 className="font-semibold text-amber-800 text-sm mb-1">{t('ai.suggestedAlternatives')}</h4>
+                      <p className="text-xs text-amber-600 mb-3">{t('ai.alternativesDesc')}</p>
                       <div className="flex flex-wrap gap-3">
                         {activeSession.checklist
                           .filter(item => item.category === 'nutrition' && item.isRecurring)
@@ -3236,11 +3240,11 @@ export default function AIRecommendationsModal({
                             className="h-[120px] w-36 rounded-lg border-2 border-dashed border-amber-300 p-2 text-xs flex flex-col items-center justify-center gap-1 text-amber-600 hover:text-amber-800 hover:border-amber-400 hover:bg-amber-100/50 transition-colors"
                           >
                             <span className="text-lg leading-none">+</span>
-                            <span>Agregar</span>
+                            <span>{t('ai.add')}</span>
                           </button>
                         )}
                         {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && activeSession.status !== 'draft' && (
-                          <p className="text-xs text-amber-500 italic">Sin alternativas generadas aún.</p>
+                          <p className="text-xs text-amber-500 italic">{t('ai.noAlternatives')}</p>
                         )}
                       </div>
                     </div>
@@ -3275,12 +3279,12 @@ export default function AIRecommendationsModal({
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
-                          <span>La IA está procesando los ingredientes del nuevo plan...</span>
+                          <span>{t('ai.processingIngredients')}</span>
                         </div>
                       )}
 
                       {flatShoppingList.length === 0 && !loadingWeeklyPlan && (
-                        <p className="text-sm text-green-700 italic">Presiona &quot;Actualizar&quot; para generar la lista de compras basada en el plan actual.</p>
+                        <p className="text-sm text-green-700 italic">{t('ai.pressUpdate')}</p>
                       )}
 
                       {/* Grid único de items */}
@@ -3297,7 +3301,7 @@ export default function AIRecommendationsModal({
                   </div>
                 )}
                 {expandedMonths.includes('accordion-nutrition') && activeSession.weeks.length === 0 && (
-                    <div className="p-6 text-center text-gray-700">Sin datos de nutrición para esta sesión.</div>
+                    <div className="p-6 text-center text-gray-700">{t('ai.noNutritionData')}</div>
                 )}
               </div>
 
@@ -3499,7 +3503,7 @@ export default function AIRecommendationsModal({
                     </div>
                     {/* Recommendations box — usa las notas generadas por IA */}
                     <div className="mt-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                      <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 Recomendaciones personalizadas</h4>
+                      <h4 className="font-semibold text-blue-900 text-sm mb-2">{t('ai.personalizedRecommendations')}</h4>
                       {activeSession.weeks.map((week, wi) => {
                         const focus = week.exercise?.focus || '';
                         return focus ? (
@@ -3508,10 +3512,10 @@ export default function AIRecommendationsModal({
                       })}
                       {!activeSession.weeks.some(w => w.exercise?.focus) && (
                         <ul className="space-y-1 text-sm text-blue-800">
-                          <li>• Mejor horario: mañana (6-9 AM) o tarde (4-6 PM).</li>
-                          <li>• Aumenta peso cuando completes todas las series con buena técnica.</li>
-                          <li>• Descansa 48h entre sesiones del mismo grupo muscular.</li>
-                          <li>• 5-10 min de calentamiento antes de cada sesión.</li>
+                          <li>{t('ai.tipBestTime')}</li>
+                          <li>{t('ai.tipIncreaseWeight')}</li>
+                          <li>{t('ai.tipRest48h')}</li>
+                          <li>{t('ai.tipWarmup')}</li>
                         </ul>
                       )}
                     </div>
@@ -3555,7 +3559,7 @@ export default function AIRecommendationsModal({
                             {/* A ADOPTAR */}
                             <div className="bg-white rounded-lg p-3 border border-purple-200">
                               <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-semibold text-purple-800">✅ A adoptar</p>
+                                <p className="text-sm font-semibold text-purple-800">{t('ai.toAdopt')}</p>
                               </div>
                               <div className="space-y-1.5">
                                 {adoptItems.length > 0 ? adoptItems.map((item, hi) => (
@@ -3568,17 +3572,17 @@ export default function AIRecommendationsModal({
                                       <button
                                         onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
                                         className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title="Editar hábito"
+                                        title={t('ai.editHabit')}
                                       >✏️</button>
                                       <button
                                         onClick={() => handleDeleteItem(item.id)}
                                         className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title="Eliminar hábito"
+                                        title={t('ai.deleteHabit')}
                                       >✕</button>
                                     </div>
                                   </div>
                                 )) : (
-                                  <p className="text-xs text-gray-600 italic py-2">Sin hábitos a adoptar</p>
+                                  <p className="text-xs text-gray-600 italic py-2">{t('ai.noHabitsToAdopt')}</p>
                                 )}
                                 {/* Add item at end of list */}
                                 {activeSession.status === 'draft' && (
@@ -3595,7 +3599,7 @@ export default function AIRecommendationsModal({
                             {/* A ELIMINAR */}
                             <div className="bg-white rounded-lg p-3 border border-red-200">
                               <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-semibold text-red-800">❌ A eliminar</p>
+                                <p className="text-sm font-semibold text-red-800">{t('ai.toEliminate')}</p>
                               </div>
                               <div className="space-y-1.5">
                                 {eliminateItems.length > 0 ? eliminateItems.map((item, hi) => (
@@ -3608,17 +3612,17 @@ export default function AIRecommendationsModal({
                                       <button
                                         onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
                                         className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title="Editar hábito"
+                                        title={t('ai.editHabit')}
                                       >✏️</button>
                                       <button
                                         onClick={() => handleDeleteItem(item.id)}
                                         className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title="Eliminar hábito"
+                                        title={t('ai.deleteHabit')}
                                       >✕</button>
                                     </div>
                                   </div>
                                 )) : (
-                                  <p className="text-xs text-gray-600 italic py-2">Sin hábitos a eliminar</p>
+                                  <p className="text-xs text-gray-600 italic py-2">{t('ai.noHabitsToEliminate')}</p>
                                 )}
                                 {/* Add item at end of list */}
                                 {activeSession.status === 'draft' && (
@@ -3636,7 +3640,7 @@ export default function AIRecommendationsModal({
                           {/* Recommendations box */}
                           {(week.habits.trackingMethod || week.habits.motivationTip) && (
                             <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-lg p-3 border border-purple-200">
-                              <h5 className="font-semibold text-purple-900 text-xs mb-2">💡 Recomendaciones de hábitos</h5>
+                              <h5 className="font-semibold text-purple-900 text-xs mb-2">{t('ai.habitsRecommendations')}</h5>
                               <ul className="space-y-1 text-xs text-purple-800">
                                 {week.habits.trackingMethod && (
                                   <li>📊 Seguimiento: {week.habits.trackingMethod}</li>
@@ -3659,11 +3663,11 @@ export default function AIRecommendationsModal({
 
           {showNewEvaluationForm && (
             <div className="bg-white rounded-xl p-6 border border-green-200 shadow-sm mt-6">
-               <h3 className="text-xl font-bold text-green-700 mb-4">Nueva Evaluación - Sesión {aiProgress ? aiProgress.sessions.length + 1 : 1}</h3>
+               <h3 className="text-xl font-bold text-green-700 mb-4">{t('ai.newEvaluationTitle', { number: aiProgress ? aiProgress.sessions.length + 1 : 1 })}</h3>
               <div className="space-y-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Notas para la IA (opcional)</label><textarea value={coachNotes} onChange={(e) => setCoachNotes(e.target.value)} rows={3} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Agrega observaciones específicas..." /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">{t('ai.aiNotes')}</label><textarea value={coachNotes} onChange={(e) => setCoachNotes(e.target.value)} rows={3} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder={t('ai.aiNotesPlaceholder')} /></div>
                 <div className="flex flex-col-reverse sm:flex-row justify-end sm:space-x-3 gap-3 pt-4 border-t border-gray-200">
-                  <button onClick={() => { setShowNewEvaluationForm(false); setCoachNotes(''); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg sm:border-0 w-full sm:w-auto text-center">Cancelar</button>
+                  <button onClick={() => { setShowNewEvaluationForm(false); setCoachNotes(''); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg sm:border-0 w-full sm:w-auto text-center">{t('ai.cancel')}</button>
                   <button onClick={() => handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1)} disabled={generating} className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 w-full sm:w-auto text-center">{generating ? 'Generando...' : 'Generar Nuevas Recomendaciones'}</button>
                 </div>
               </div>
@@ -3676,12 +3680,12 @@ export default function AIRecommendationsModal({
             <div className="w-full md:w-auto flex items-center justify-between md:justify-start">
               {activeSession ? (
                 <div className="flex flex-col md:flex-row md:items-center">
-                  <div className="flex items-center"><span className="text-sm text-gray-700">Estado: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <div className="flex items-center"><span className="text-sm text-gray-700">{t('ai.status')}: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                     {activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
                   </span></div>
                    <span className="text-sm text-gray-700 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
                 </div>
-              ) : <span className="text-sm text-gray-700">Sin sesiones activas</span>}
+              ) : <span className="text-sm text-gray-700">{t('ai.noActiveSessions')}</span>}
               <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">
                 <svg className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
               </button>
@@ -3690,7 +3694,7 @@ export default function AIRecommendationsModal({
               {!showNewEvaluationForm && (
                 <>
                   {canGenerateNewEvaluation ? (
-                    <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">Nueva Evaluación</button>
+                    <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">{t('ai.newEvaluation')}</button>
                   ) : hasExistingSessions && transcriptStatus === 'pending' ? (
                     <button disabled className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-amber-400 text-white rounded-lg font-medium text-sm md:text-base flex items-center justify-center gap-2 cursor-not-allowed opacity-80">
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -3704,7 +3708,7 @@ export default function AIRecommendationsModal({
                       <button
                         onClick={() => handleRetryTranscription(latestCompletedVideoSession.sessionId)}
                         className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm md:text-base flex items-center justify-center gap-1"
-                        title="Reintentar transcripción manualmente"
+                        title={t('ai.retryTranscription')}
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3737,13 +3741,13 @@ export default function AIRecommendationsModal({
                 <>
                   <button onClick={handleRegenerate} disabled={loading || activeSession.status !== 'draft'} className="w-full md:w-auto flex items-center justify-center gap-1 px-3 py-2 md:px-4 md:py-2.5 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base" title={activeSession.status !== 'draft' ? 'Solo se pueden regenerar en estado "Borrador"' : ''}>
                     {loading ? <svg className="h-3 w-3 md:h-4 md:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="4" stroke="currentColor" strokeOpacity="0.25"></circle><path d="M22 12a10 10 0 00-10-10" strokeWidth="4" stroke="currentColor" strokeLinecap="round"></path></svg> : <svg className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 12a8 8 0 10-8 8" /><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M20 4v6h-6" /></svg>}
-                    <span className="md:ml-1">Regenerar</span>
+                    <span className="md:ml-1">{t('ai.regenerate')}</span>
                   </button>
                   {activeSession.status === 'draft' && (
-                    <button onClick={() => handleApproveSession(activeSession.sessionId)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">Aprobar</button>
+                    <button onClick={() => handleApproveSession(activeSession.sessionId)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">{t('ai.approve')}</button>
                   )}
                   {activeSession.status === 'approved' && (
-                    <button onClick={() => handleSendToClient(activeSession.sessionId)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base">Enviar al Cliente</button>
+                    <button onClick={() => handleSendToClient(activeSession.sessionId)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm md:text-base">{t('ai.sendToClient')}</button>
                   )}
                   {activeSession.status === 'sent' && (
                     <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
@@ -3761,7 +3765,7 @@ export default function AIRecommendationsModal({
                         ) : (
                           <svg className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                         )}
-                        <span>Reenviar correo</span>
+                        <span>{t('ai.resendEmail')}</span>
                       </button>
                       {!videoRoomName ? (
                         <button
@@ -3833,10 +3837,10 @@ export default function AIRecommendationsModal({
                   },
                 });
               } else {
-                showToast('Error al cargar la receta', 'error');
+                showToast(t('ai.toastRecipeLoadError'), 'error');
               }
             } catch {
-              showToast('Error al cargar la receta', 'error');
+              showToast(t('ai.toastRecipeLoadError'), 'error');
             }
           }}
           onClose={() => setShowRecipeSearch(false)}
@@ -3962,7 +3966,7 @@ export default function AIRecommendationsModal({
       {joinNowOffer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Sesión agendada</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{t('ai.sessionScheduled')}</h3>
             <p className="text-gray-600 mb-6">
               La sesión de videollamada está disponible ahora. ¿Deseas unirte?
             </p>
