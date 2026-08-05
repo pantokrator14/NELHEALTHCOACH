@@ -160,9 +160,13 @@ export function createDeepSeekLLM(options: LLMOptions = {}): BaseChatModel {
 /**
  * Crea un LLM con fallback (Gemini → DeepSeek real).
  * Es async porque internamente usa createLLMWithFallback.
+ * @param options.maxTokens Presupuesto de salida de ESTA llamada. Cada fase del
+ *        pipeline puede pasar su propio valor (el modelo deepseek razona y el
+ *        razonamiento consume del maxTokens — ver FASE 2/3 cortadas con
+ *        finish_reason='length').
  */
-export async function createDeepSeekJSONLLM(): Promise<BaseChatModel> {
-  const llm = await createLLMWithFallback({ temperature: 0.3, maxTokens: 16000 });
+export async function createDeepSeekJSONLLM(options: { maxTokens?: number } = {}): Promise<BaseChatModel> {
+  const llm = await createLLMWithFallback({ temperature: 0.3, maxTokens: options.maxTokens ?? 16000 });
   return llm as unknown as BaseChatModel;
 }
 
@@ -428,8 +432,6 @@ function classifyFileType(fileName: string): 'pdf' | 'image' | 'docx' | 'text' |
 // ─────────────────────────────────────────────
 
 const MEDICAL_ANALYSIS_SYSTEM_PROMPT = `Eres un analista médico experto en interpretación de documentos clínicos y resultados de laboratorio, especializado en metabolismo keto y bajo en carbohidratos. Trabajas en el contexto de un coach de salud integral (NEL Health Coach).
-
-IMPORTANTE: TODOS los textos de salida (resúmenes, análisis, nombres de biomarcadores, suplementos) DEBEN estar escritos en ESPAÑOL.
 
 ## TONO PROFESIONAL CÁLIDO — IMPORTANTE:
 Usa un tono profesional pero con calidez humana. Explica con claridad técnica pero con cercanía. NO suenes a reporte clínico frío.

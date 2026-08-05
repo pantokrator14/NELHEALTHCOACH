@@ -154,6 +154,7 @@ interface AIRecommendationSession {
   vision: string;
   medicalSummary?: string;
   medicalComparativeAnalysis?: string;
+  documentCount?: number;
   labResults?: Array<{
     name: string;
     value: string;
@@ -204,6 +205,7 @@ interface ApiAIProgressData {
     vision?: string;
     medicalSummary?: string;
     medicalComparativeAnalysis?: string;
+    documentCount?: number;
     labResults?: Array<{
       name: string;
       value: string;
@@ -506,6 +508,7 @@ export default function AIRecommendationsModal({
          vision: session.vision || '',
           medicalSummary: (session as { medicalSummary?: string }).medicalSummary,
           medicalComparativeAnalysis: (session as { medicalComparativeAnalysis?: string }).medicalComparativeAnalysis,
+          documentCount: (session as { documentCount?: number }).documentCount,
           labResults: (session as { labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }> }).labResults,
           structuredMedicalAnalysis: (session as { structuredMedicalAnalysis?: StructuredMedicalAnalysis }).structuredMedicalAnalysis,
           baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
@@ -2853,10 +2856,36 @@ export default function AIRecommendationsModal({
                         {/* Resumen del análisis médico */}
                         {(() => {
                           const medSummary = activeSession.medicalSummary || '';
-                          const isEncrypted = medSummary.startsWith('U2FsdGVkX1');
+                          const isEncrypted = medSummary.startsWith('U2FsdGVkX1') || medSummary.startsWith('v2:');
                           const isEmpty = !medSummary || medSummary.trim() === '';
 
                           if (isEmpty || isEncrypted) {
+                            // Distinguir: cliente SIN documentos médicos (informativo)
+                            // vs. error real al procesar documentos existentes.
+                            const noMedicalDocuments =
+                              // Sesiones nuevas: documentCount === 0 → sin documentos
+                              (typeof activeSession.documentCount === 'number' && activeSession.documentCount === 0) ||
+                              // Sesiones viejas (sin documentCount): si no hay ni
+                              // medicalSummary, ni labResults, ni structuredMedicalAnalysis
+                              // con exams, la FASE 1 devolvió vacío → no había documentos
+                              // (el backend aborta el guardado si hay docs y exams=0).
+                              (typeof activeSession.documentCount !== 'number' &&
+                               (!activeSession.labResults || activeSession.labResults.length === 0) &&
+                               (!activeSession.structuredMedicalAnalysis?.exams || activeSession.structuredMedicalAnalysis.exams.length === 0));
+
+                            if (noMedicalDocuments) {
+                              return (
+                                <div className="p-4 bg-sky-50 rounded-lg border border-sky-200">
+                                  <h4 className="font-semibold text-sky-800 mb-2 flex items-center gap-2">
+                                    <span>📋</span> Resumen del Análisis de Laboratorio
+                                  </h4>
+                                  <p className="text-sm text-slate-600">
+                                    El cliente no subió ningún documento médico (exámenes de laboratorio) para análisis. Sube sus documentos para obtener un resumen detallado de sus biomarcadores.
+                                  </p>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                                 <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2">
@@ -2961,10 +2990,18 @@ export default function AIRecommendationsModal({
                         )}
 
                         {!activeSession.medicalSummary && (!activeSession.labResults || activeSession.labResults.length === 0) && activeSession.checklist.filter(i => i.category === 'medical' || i.category === 'supplement').length === 0 && (
+                          // Solo cuando había documentos pero el análisis falló/está vacío:
+                          // si el cliente no subió documentos, el mensaje informativo
+                          // (sky) de arriba ya lo explica y no debe duplicarse.
+                          (typeof activeSession.documentCount === 'number'
+                            ? activeSession.documentCount > 0
+                            : (activeSession.labResults && activeSession.labResults.length > 0) ||
+                              (activeSession.structuredMedicalAnalysis?.exams && activeSession.structuredMedicalAnalysis.exams.length > 0)) && (
                           <div className="text-center py-6 text-gray-500">
                             <p className="text-sm">No hay datos de análisis médico aún.</p>
                             <p className="text-xs mt-1">Sube documentos de laboratorio del cliente para obtener un análisis detallado de sus marcadores de salud.</p>
                           </div>
+                          )
                         )}
                       </>
                     )}

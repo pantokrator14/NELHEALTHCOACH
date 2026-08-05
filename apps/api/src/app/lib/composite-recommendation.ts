@@ -235,7 +235,7 @@ function buildMedicalPrompt(
   const hasDocuments = input.processedDocuments && input.processedDocuments.length > 0;
 
   return {
-    system: "ERES UN ANALISTA CLÍNICO. TU RESPUESTA DEBE SER UN JSON VÁLIDO. Esta es tu ÚNICA tarea: extraer biomarcadores de documentos médicos y generar suplementación. NO generes planes de nutrición ni ejercicios. IMPORTANTE: TODOS los textos de salida (resúmenes, nombres, análisis, suplementos) DEBEN estar escritos en ESPAÑOL.",
+    system: "ERES UN ANALISTA CLÍNICO. TU RESPUESTA DEBE SER UN JSON VÁLIDO. Esta es tu ÚNICA tarea: extraer biomarcadores de documentos médicos y generar suplementación. NO generes planes de nutrición ni ejercicios.",
     human: `Eres un analista médico experto. Tu ÚNICA tarea es analizar los documentos clínicos del cliente y generar una estructura JSON con los campos: medicalSummary, medicalComparativeAnalysis, labResults, y structuredMedicalAnalysis.
 
 ## DATOS MÉDICOS DEL CLIENTE
@@ -310,7 +310,7 @@ function buildLifestylePrompt(
     : '## NO SE DETECTARON DOCUMENTOS MÉDICOS — Diseña el plan basándote únicamente en los datos de estilo de vida del cliente.';
 
   return {
-    system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado. IMPORTANTE: TODOS los textos de salida (summary, vision, títulos de recetas, items de shoppingList, notas, hábitos) DEBEN estar escritos en ESPAÑOL. Si una receta o ejercicio de la base de datos tiene título en otro idioma, tradúcelo al español.",
+    system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado.",
     human: `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante 4 semanas (1 mes) para este cliente.
 
 ${medicalContext}
@@ -402,9 +402,8 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 
 IMPORTANTE:
 - USA SOLO recetas y ejercicios de las listas proporcionadas
-- Copia los títulos/nombres EXACTAMENTE como aparecen (pero tradúcelos al ESPAÑOL si están en otro idioma)
+- Copia los títulos/nombres EXACTAMENTE como aparecen
 - vision DEBE ser tan extensa y detallada como summary
-- ⚠️ IDIOMA: TODOS los textos de salida en ESPAÑOL (summary, vision, títulos, items de shoppingList, notas, hábitos)
 - Responde SOLO con el JSON, sin texto adicional`
   };
 }
@@ -435,7 +434,7 @@ function buildShoppingListPrompt(
   }
 
   return {
-    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y los ingredientes de cada receta. Extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes similares y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. Si un ingrediente aparece en varias recetas, consolídalo en una sola línea con la cantidad total. PROHIBIDO devolver un array vacío. IMPORTANTE: TODOS los items de la shoppingList DEBEN estar escritos en ESPAÑOL (ej. 'Pechuga de pollo', 'Aguacates', 'Aceite de oliva'). Si el ingrediente original está en inglés, tradúcelo al español.",
+    system: "Eres un asistente nutricional logístico. Lee el plan de comidas de 7 días adjunto y los ingredientes de cada receta. Extrae una lista de compras consolidada y exacta para la semana. Agrupa los ingredientes similares y suma las cantidades lógicas. Tu única tarea es devolver el JSON con la 'shoppingList'. Si un ingrediente aparece en varias recetas, consolídalo en una sola línea con la cantidad total. PROHIBIDO devolver un array vacío.",
     human: humanContent,
   };
 }
@@ -449,13 +448,49 @@ export async function generateShoppingListFromWeeklyPlan(
   weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>,
   recipeIngredients?: Record<string, string[]>
 ): Promise<ShoppingListOutput> {
-  logger.info("AI", "🛒 FASE 3 (standalone): Extrayendo lista de compras del plan semanal...");
+  logger.info("AI", "🛒 FASE 3 (standalone): Extrayendo lista de compras del plan semanal...", {
+    planDays: weeklyPlan?.length ?? 0,
+    recipeTitlesInPlan: Array.from(
+      new Set((weeklyPlan ?? []).flatMap((d) => [d.breakfast, d.lunch, d.dinner].filter(Boolean))
+    )).length,
+    ingredientsMapEntries: recipeIngredients ? Object.keys(recipeIngredients).length : 0,
+    ingredientsMapTotalItems: recipeIngredients
+      ? Object.values(recipeIngredients).reduce((acc, list) => acc + (list?.length ?? 0), 0)
+      : 0,
+  });
 
   // Safety delay para evitar rate limiting de Gemini
   await new Promise(resolve => setTimeout(resolve, 8000));
 
+  // ── Verificar que los títulos del plan existen en el mapa de ingredientes ──
+  // Si FASE 2 generó títulos que NO coinciden exactamente con las recetas de la DB,
+  // el modelo no tiene ingredientes reales y podría razonar/inventar de más.
+  const planTitles = Array.from(
+    new Set((weeklyPlan ?? []).flatMap((d) => [d.breakfast, d.lunch, d.dinner].filter(Boolean)))
+  );
+  const matchedTitles = planTitles.filter((t) => recipeIngredients?.[t] !== undefined);
+  const unmatchedTitles = planTitles.filter((t) => recipeIngredients?.[t] === undefined);
+  logger.info("AI", "FASE 3 (standalone): match títulos del plan vs recetas de la DB", {
+    planTitlesCount: planTitles.length,
+    matchedCount: matchedTitles.length,
+    unmatchedCount: unmatchedTitles.length,
+    unmatchedTitles: unmatchedTitles.slice(0, 10),
+  });
+
   const prompt = buildShoppingListPrompt(weeklyPlan, recipeIngredients);
-  const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)");
+  logger.info("AI", "FASE 3 (standalone): prompt construido", {
+    systemChars: prompt.system.length,
+    humanChars: prompt.human.length,
+    humanPreview: prompt.human.substring(0, 400),
+  });
+
+  const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)", 32000);
+
+  // Log del contenido crudo tal cual lo devolvió el LLM, ANTES de intentar parsear
+  logger.info("AI", "FASE 3 (standalone): contenido crudo recibido del LLM", {
+    chars: content.length,
+    preview: content.substring(0, 400),
+  });
 
   let result: ShoppingListOutput;
   try {
@@ -465,15 +500,22 @@ export async function generateShoppingListFromWeeklyPlan(
     throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (error?.message || ""));
   }
 
-  // Sanitizar items: asegurar que todos tengan item, quantity y priority con valores válidos
+  // Sanitizar items: asegurar que todos tengan item, quantity y priority con valores válidos.
+  // El modelo a veces devuelve claves en español (ingrediente/cantidad/prioridad) y otras
+  // en inglés (item/quantity/priority) — aceptamos AMBOS idiomas sin tocar los prompts.
   if (Array.isArray(result.shoppingList)) {
+    const originalCount = result.shoppingList.length;
     result.shoppingList = result.shoppingList
-      .filter((item: any) => item && (item.item || item.name || item.ingredient))
+      .filter((item: any) => item && (item.item || item.name || item.ingredient || item.ingrediente))
       .map((item: any) => ({
-        item: String(item.item ?? item.name ?? item.ingredient ?? ''),
+        item: String(item.item ?? item.name ?? item.ingredient ?? item.ingrediente ?? ''),
         quantity: String(item.quantity ?? item.amount ?? item.cantidad ?? ''),
         priority: (['high', 'medium', 'low'].includes(item.priority) ? item.priority : 'medium') as 'high' | 'medium' | 'low',
       }));
+    logger.info("AI", "FASE 3 (standalone): items sanitizados", {
+      originalCount,
+      sanitizedCount: result.shoppingList.length,
+    });
   }
 
   // Guardia Fail-Fast: lista de compras debe ser un array con al menos 1 elemento
@@ -494,19 +536,103 @@ export async function generateShoppingListFromWeeklyPlan(
 async function invokeLLM(
   systemMsg: string,
   humanMsg: string,
-  phaseLabel: string
+  phaseLabel: string,
+  maxTokens?: number
 ): Promise<string> {
-  const llm = await createDeepSeekJSONLLM();
-  const response = await llm.invoke([
-    new SystemMessage(systemMsg),
-    new HumanMessage(humanMsg),
-  ]);
-  const content = typeof response.content === "string" ? response.content : "";
+  const startedMs = Date.now();
+  const startedAt = new Date().toISOString();
+  const logCtx = logger.withContext({ phase: phaseLabel });
+
+  logCtx.info("AI", `${phaseLabel}: Iniciando llamada LLM`, {
+    startedAt,
+    maxTokens: maxTokens ?? 16000,
+    systemChars: systemMsg.length,
+    humanChars: humanMsg.length,
+    totalChars: systemMsg.length + humanMsg.length,
+  });
+
+  const llm = await createDeepSeekJSONLLM({ maxTokens });
+  // Modelo real de la instancia creada (no el env de Gemini)
+  const modelUsed =
+    (llm as any)?.modelName || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+
+  let response: any;
+  try {
+    response = await llm.invoke([
+      new SystemMessage(systemMsg),
+      new HumanMessage(humanMsg),
+    ]);
+  } catch (error: any) {
+    const elapsedMs = Date.now() - startedMs;
+    logCtx.error("AI", `${phaseLabel}: llm.invoke LANZÓ ERROR`, error, {
+      startedAt,
+      elapsedMs,
+      modelUsed,
+      errorName: error?.name,
+      errorCode: error?.code,
+      errorStatus: error?.status,
+      errorType: error?.error?.type,
+      errorMessage: error?.message?.substring(0, 500),
+    });
+    throw error;
+  }
+
+  const elapsedMs = Date.now() - startedMs;
+  const content = typeof response?.content === "string" ? response.content : "";
+  const metadata = {
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    elapsedMs,
+    modelUsed,
+    finishReason:
+      response?.response_metadata?.finishReason ??
+      response?.response_metadata?.finish_reason ??
+      null,
+    usage:
+      response?.usage_metadata ??
+      response?.response_metadata?.usage ??
+      null,
+    // Detalle de tokens: cuántos fueron de RAZONAMIENTO vs respuesta visible
+    outputTokenDetails:
+      response?.usage_metadata?.output_token_details ??
+      response?.response_metadata?.usage?.output_token_details ??
+      null,
+    inputTokenDetails:
+      response?.usage_metadata?.input_token_details ??
+      response?.response_metadata?.usage?.input_token_details ??
+      null,
+    // El proveedor a veces reporta el modelo REAL usado (puede diferir del pedido)
+    reportedModel:
+      response?.response_metadata?.model ??
+      response?.response_metadata?.model_name ??
+      null,
+    // DeepSeek reasoner devuelve el razonamiento en additional_kwargs.reasoning_content
+    additionalKwargsPreview: response?.additional_kwargs
+      ? JSON.stringify(response.additional_kwargs)?.substring(0, 600)
+      : null,
+    responseMetadataFull: response?.response_metadata
+      ? JSON.stringify(response.response_metadata)?.substring(0, 600)
+      : null,
+    responseContentType: typeof response?.content,
+    responseKeys: response ? Object.keys(response) : [],
+  };
+
   if (content.length > 0) {
-    logger.info("AI", `${phaseLabel}: LLM respondió con ${content.length} caracteres`);
+    logCtx.info("AI", `${phaseLabel}: LLM respondió con ${content.length} caracteres`, {
+      ...metadata,
+      contentPreview: content.substring(0, 120),
+    });
   } else {
-    logger.warn("AI", `${phaseLabel}: LLM respondió con contenido vacío`, {
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    logCtx.warn("AI", `${phaseLabel}: LLM respondió con contenido VACÍO (0 chars)`, {
+      ...metadata,
+      // Si content no es string, mostrar qué contiene realmente
+      contentNonStringPreview:
+        typeof response?.content !== "string"
+          ? JSON.stringify(response?.content)?.substring(0, 300)
+          : null,
+      // Volcar la respuesta cruda completa (truncada) para ver si el contenido
+      // llegó en otro campo (p.ej. reasoning_content)
+      rawResponsePreview: JSON.stringify(response)?.substring(0, 1200),
     });
   }
   return content;
@@ -558,7 +684,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
 
   logger.info("AI", "🔬 FASE 1: Iniciando análisis médico...");
   const medicalPrompt = buildMedicalPrompt(input);
-  const medicalContent = await invokeLLM(medicalPrompt.system, medicalPrompt.human, "FASE 1");
+  const medicalContent = await invokeLLM(medicalPrompt.system, medicalPrompt.human, "FASE 1", 4000);
 
   let medicalResult: MedicalOutput;
   try {
@@ -592,7 +718,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
 
   logger.info("AI", "🏋️ FASE 2: Iniciando plan de estilo de vida...");
   const lifestylePrompt = buildLifestylePrompt(input, dbRecipes, dbExercises, medicalResult);
-  const lifestyleContent = await invokeLLM(lifestylePrompt.system, lifestylePrompt.human, "FASE 2");
+  const lifestyleContent = await invokeLLM(lifestylePrompt.system, lifestylePrompt.human, "FASE 2", 32000);
 
   let lifestyleResult: LifestyleOutput;
   try {
@@ -602,8 +728,17 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     throw new Error("Fase 2 fallida: El LLM no devolvió un JSON parseable para el plan de estilo de vida. " + (error?.message || ""));
   }
 
+  // Validación FAIL-FAST de estructura: el weeklyPlan es REQUERIDO para la Fase 3.
+  // Si el LLM se cortó (finish_reason='length') el JSON puede parsear pero venir
+  // incompleto — fallar con mensaje claro en vez de un TypeError `reading 'weeklyPlan'`.
+  const weeklyPlan = lifestyleResult?.nutritionPlan?.weeklyPlan;
+  if (!weeklyPlan || !Array.isArray(weeklyPlan) || weeklyPlan.length === 0) {
+    logger.error("AI", "❌ Fase 2 fallida: weeklyPlan ausente o vacío (¿JSON truncado por finish_reason='length'?)", new Error("Missing or empty weeklyPlan"));
+    throw new Error("Fase 2 fallida: El plan de nutrición semanal está vacío o incompleto. Reintenta la generación.");
+  }
+
   logger.info("AI", "✅ Fase 2 (Plan de Estilo de Vida) completada exitosamente.", {
-    nutritionDays: lifestyleResult.nutritionPlan?.weeklyPlan?.length ?? 0,
+    nutritionDays: weeklyPlan.length,
     exerciseDays: lifestyleResult.exercisePlan?.weeklyRoutine?.length ?? 0,
     habitCount: lifestyleResult.habitPlan?.toAdopt?.length ?? 0,
   });
@@ -617,6 +752,11 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   for (const rec of dbRecipes) {
     recipeIngredients[rec.title] = rec.ingredients;
   }
+  logger.info("AI", "FASE 3: mapa título→ingredientes construido", {
+    recipesInMap: Object.keys(recipeIngredients).length,
+    sampleTitles: Object.keys(recipeIngredients).slice(0, 5),
+    sampleIngredients: Object.values(recipeIngredients).slice(0, 2),
+  });
 
   const shoppingListResult = await generateShoppingListFromWeeklyPlan(
     lifestyleResult.nutritionPlan.weeklyPlan,
