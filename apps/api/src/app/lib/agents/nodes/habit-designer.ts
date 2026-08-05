@@ -63,7 +63,7 @@ export async function planHabits(
       { prompt, clientData: state },
       async (validatedInput) => {
         const response = await llm.invoke([
-          new SystemMessage("Eres un experto en psicología del comportamiento y formación de hábitos. Responde SOLO con JSON válido (array de objetos). IMPORTANTE: TODOS los textos de salida en ESPAÑOL."),
+          new SystemMessage("Eres un experto en psicología del comportamiento y formación de hábitos. Responde SOLO con JSON válido (array de objetos)."),
           new HumanMessage(validatedInput.prompt),
         ]);
 

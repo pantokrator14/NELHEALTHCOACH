@@ -57,7 +57,11 @@ function decryptV2(payload: string): string {
   }
   const iv = Buffer.from(body.slice(0, separatorIndex), 'base64');
   const combined = Buffer.from(body.slice(separatorIndex + 1), 'base64');
-  if (iv.length !== IV_LENGTH || combined.length < TAG_LENGTH + 1) {
+  // combined = ciphertext + tag GCM (16 bytes). Se permite combined.length === TAG_LENGTH
+  // porque un texto plano VACÍO encriptado produce exactamente 16 bytes (solo el tag).
+  // Antes se exigía TAG_LENGTH + 1, lo que hacía fallar la desencriptación de textos
+  // vacíos (encrypt('')) y devolvía el prefijo "v2:..." crudo a la UI.
+  if (iv.length !== IV_LENGTH || combined.length < TAG_LENGTH) {
     throw new Error('Formato v2 inválido');
   }
   const encrypted = combined.subarray(0, combined.length - TAG_LENGTH);

@@ -169,8 +169,6 @@ function buildExerciseSystemPrompt(
 
   return `Eres un entrenador personal certificado especializado en fuerza funcional, movilidad y longevidad. Tu tarea es diseñar un plan de ejercicio personalizado.
 
-IMPORTANTE: TODOS los textos de salida (nombres de ejercicios, notas) deben estar escritos en ESPAÑOL.
-
 ## ESTRUCTURA SEMANAL:
 - Días de entrenamiento: miércoles, sábado, domingo
 - Duración: 30-45 minutos por sesión

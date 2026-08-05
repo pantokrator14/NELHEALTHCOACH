@@ -1108,7 +1108,7 @@ ${responseSchema}
 
         const body = {
           systemInstruction: {
-            parts: [{ text: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada. IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.' }],
+            parts: [{ text: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.' }],
           },
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -1268,7 +1268,7 @@ ${responseSchema}
           messages: [
             {
               role: 'system',
-              content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada. IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.',
+              content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.',
             },
             { role: 'user', content: prompt },
           ],
@@ -1379,7 +1379,7 @@ ${responseSchema}
 
       const body = {
         systemInstruction: {
-          parts: [{ text: 'Eres un asistente médico especializado en nutrición keto. Devuelve SOLO JSON válido. IMPORTANTE: TODOS los textos de salida deben estar escritos en ESPAÑOL.' }],
+          parts: [{ text: 'Eres un asistente médico especializado en nutrición keto. Devuelve SOLO JSON válido.' }],
         },
         contents: [{ parts: [{ text: prompt.substring(0, 3000) }] }],
         generationConfig: {
@@ -2371,7 +2371,6 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   - Redondea las cantidades a unidades de compra típicas (por ejemplo, si necesitas 350g de harina, escribe "1 kg"; si necesitas 3 cucharadas de mantequilla, escribe "1 barra (200-250g)"; si necesitas 6 huevos, escribe "6 unidades" o "media docena" según el contexto).
   - Si un ingrediente no tiene cantidad (ej. "sal al gusto"), simplemente inclúyelo sin cantidad (ej. "Sal").
   - Prioriza los productos en alta/media/baja según su importancia para las recetas (los básicos son alta prioridad, los complementarios media, los opcionales baja).
-  - IMPORTANTE: TODOS los nombres de productos (item) DEBEN estar escritos en ESPAÑOL. Si un ingrediente viene en inglés, tradúcelo al español (ej. "chicken breast" → "pechuga de pollo").
 
   Devuelve SOLO un array JSON con la siguiente estructura:
   [
@@ -2391,10 +2390,10 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       const parsed = JSON.parse(jsonString);
       if (Array.isArray(parsed)) {
         return parsed.map(p => ({
-          item: p.item || '',
-          quantity: p.quantity || '',
-          priority: p.priority || 'medium'
-        }));
+          item: p.item || p.name || p.ingrediente || '',
+          quantity: p.quantity || p.amount || p.cantidad || '',
+          priority: p.priority || p.prioridad || 'medium'
+        })).filter(p => p.item);
       }
       throw new Error('Respuesta no es un array');
     } catch (error) {
