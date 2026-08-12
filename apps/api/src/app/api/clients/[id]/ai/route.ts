@@ -19,10 +19,13 @@ import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
 
-// El pipeline de generación de IA toma ~60-120s con DeepSeek + delays de 8s entre fases.
-// 600s: red de seguridad para picos de razonamiento de FASE 2 (la única llamada LLM
-// que queda — FASE 3 es 100% código cuando los títulos matchean la DB).
-export const maxDuration = 600;
+// El pipeline de generación de IA toma ~60-240s con DeepSeek (medido en E2E
+// reales: 170s generate, 239s regen). El POST/PUT ya NO ejecuta el pipeline:
+// solo encola y responde 202; el worker-on-poll corre en el GET con reintentos
+// (lease 6 min, máx 3 intentos) si un request muere.
+// 300s: MÁXIMO permitido por Vercel en el plan Hobby (1-300). Valores > 300
+// hacen FALLAR el build ("Builder returned invalid maxDuration").
+export const maxDuration = 300;
 
 /** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
 async function authorizeCoachForClient(request: NextRequest, clientId: string) {
