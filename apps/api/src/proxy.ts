@@ -1,5 +1,6 @@
-// apps/api/src/middleware.ts
-// Middleware unificado — Edge Runtime
+// apps/api/src/proxy.ts
+// Proxy unificado — Edge Runtime (Next.js 16: la convención "middleware" se
+// deprecó en favor de "proxy").
 // Pipeline: Shield → Bot Detection → CORS → Logging
 // Rate limiting y prompt injection van en los route handlers (Node.js)
 
@@ -167,9 +168,9 @@ function createBlockedResponse(
   );
 }
 
-// ─── Middleware principal ───
+// ─── Proxy principal ───
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.pathname;
   const origin = request.headers.get('origin');
 

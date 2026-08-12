@@ -15,6 +15,7 @@ import { sanitizeProviderName } from '@/lib/aiVisibleText';
 import { ChecklistItem, VideoSession, TranscriptStatus } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation, Trans } from 'react-i18next';
+import i18n from '@/lib/i18n';
 
 // ===== TIPOS Y INTERFACES =====
 interface RecipeWithDetails extends Recipe {
@@ -173,6 +174,11 @@ interface AIRecommendationSession {
   regenerationHistory?: RegenerationHistoryItem[];
   lastCoachNotes?: string;
   regeneratedAt?: Date;
+  /** Traducción dinámica: idioma original del contenido y idioma del cliente */
+  translation?: {
+    sourceLang: string;
+    targetLang: string;
+  };
   emailSent?: boolean;
   emailError?: string;
 }
@@ -229,6 +235,7 @@ interface ApiAIProgressData {
     weeks?: unknown[];
     checklist?: ChecklistItem[];
     status?: 'draft' | 'approved' | 'sent';
+    translation?: { sourceLang: string; targetLang: string };
     createdAt?: string | Date;
     updatedAt?: string | Date;
   }>;
@@ -343,6 +350,28 @@ export default function AIRecommendationsModal({
   // Error mostrado dentro del modal (se limpia al cerrar o al iniciar nueva generación)
   const [displayError, setDisplayError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
+
+  // Banner de traducción dinámica (descartable con X, recordado por sesión)
+  const [dismissedTranslationBanner, setDismissedTranslationBanner] = useState<boolean>(false);
+  const translationBannerDismissedKey = useMemo(
+    () => `nel_ai_translation_banner_dismissed_${activeSessionId || 'none'}`,
+    [activeSessionId]
+  );
+  useEffect(() => {
+    if (!activeSessionId) return;
+    try {
+      setDismissedTranslationBanner(
+        localStorage.getItem(translationBannerDismissedKey) === '1'
+      );
+    } catch { /* localStorage no disponible */ }
+  }, [translationBannerDismissedKey, activeSessionId]);
+
+  const dismissTranslationBanner = () => {
+    setDismissedTranslationBanner(true);
+    try {
+      localStorage.setItem(translationBannerDismissedKey, '1');
+    } catch { /* localStorage no disponible */ }
+  };
 
   // ===== ESTADOS DE NAVEGACIÓN =====
 
@@ -514,6 +543,7 @@ export default function AIRecommendationsModal({
           baselineMetrics: { currentLifestyle: [], targetLifestyle: [] },
          weeks,
          checklist: session.checklist || [],
+         translation: session.translation,
          emailSent: false
        };
     });
@@ -544,6 +574,22 @@ export default function AIRecommendationsModal({
     }
     return aiProgress.sessions.find(s => s.sessionId === activeSessionId) || null;
   }, [aiProgress, activeSessionId]);
+
+  // Nombres de idioma en el idioma del coach (nativo del navegador, sin strings hardcodeados)
+  const displayLangName = useCallback((code: string | undefined): string => {
+    if (!code) return '';
+    try {
+      const uiLang = i18n.language?.split('-')[0] || 'es';
+      return new Intl.DisplayNames([uiLang], { type: 'language' }).of(code) || code;
+    } catch {
+      return code;
+    }
+  }, [i18n.language]);
+
+  const showTranslationBanner =
+    !dismissedTranslationBanner &&
+    !!activeSession?.translation &&
+    activeSession.translation.targetLang !== activeSession.translation.sourceLang;
 
   // Lista de compras plana (fusionada de todas las semanas, sin duplicados)
   const flatShoppingList = useMemo(() => {
@@ -1403,14 +1449,54 @@ export default function AIRecommendationsModal({
     if (!activeSession) return;
     setLoading(true);
     const notes = prompt(t('ai.regenerationPrompt'), '');
+    const oldSessionId = activeSession.sessionId;
     try {
-      await apiClient.regenerateAISession(clientId, activeSession.sessionId, notes || '');
-      await loadAIProgress();
+      const response = await apiClient.regenerateAISession(clientId, oldSessionId, notes || '');
+      const data = response.data as { status?: string; jobId?: string } | undefined;
+
+      if (data?.status === 'queued') {
+        // La regeneración quedó encolada (cola propia en Mongo, worker-on-poll):
+        // el worker ejecuta el pipeline en el próximo GET y reemplaza la sesión
+        // con un sessionId NUEVO. Poll-eamos hasta ver el cambio (o un error).
+        const MAX_REGEN_POLLS = 30; // 30 × 10s = 5 min
+        for (let i = 0; i < MAX_REGEN_POLLS; i++) {
+          await new Promise((r) => setTimeout(r, 10000));
+          try {
+            const poll = await apiClient.getAIProgress(clientId);
+            const pollData = poll.data as {
+              aiProgress?: { currentSessionId?: string; generationError?: { message?: string } | null };
+              generationError?: { message?: string } | null;
+            };
+            const genErr = pollData?.aiProgress?.generationError?.message
+              || pollData?.generationError?.message;
+            if (genErr) {
+              showToast(`❌ ${genErr}`, 'error');
+              setLoading(false);
+              return;
+            }
+            const currentId = pollData?.aiProgress?.currentSessionId;
+            if (currentId && currentId !== oldSessionId) {
+              // Regeneración completada: la sesión nueva ya está en la DB
+              await loadAIProgress();
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // Poll intermedio fallido: seguir esperando
+          }
+        }
+        showToast(t('ai.errorRegenerateTimeout'), 'warning');
+        setLoading(false);
+      } else {
+        // Respuesta síncrona (fallback sin cola) → datos ya actualizados
+        await loadAIProgress();
+        setLoading(false);
+      }
     } catch (e) {
       showToast((e as Error).message || 'Error', 'error');
       setLoading(false);
     }
-  }, [activeSession, clientId, loadAIProgress]);
+  }, [activeSession, clientId, loadAIProgress, showToast, t]);
 
   const handleSendToClient = useCallback(async (sessionId: string) => {
     setLoading(true);
@@ -2478,6 +2564,31 @@ export default function AIRecommendationsModal({
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {showTranslationBanner && (
+          <div className="bg-indigo-50 border-b border-indigo-200 px-6 py-3 flex items-start gap-3">
+            <svg className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+            </svg>
+            <div className="flex-1 text-sm text-indigo-800">
+              <p>
+                {t('ai.translationBanner', {
+                  sourceLang: displayLangName(activeSession.translation?.sourceLang),
+                  targetLang: displayLangName(activeSession.translation?.targetLang),
+                })}
+              </p>
+              <p className="text-indigo-600 text-xs mt-0.5">{t('ai.translationBannerPdf')}</p>
+            </div>
+            <button
+              onClick={dismissTranslationBanner}
+              className="text-indigo-400 hover:text-indigo-700 p-1 rounded hover:bg-indigo-100 transition-colors flex-shrink-0"
+              title={t('common.close') || 'Cerrar'}
+              aria-label="Cerrar banner de traducción"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
         )}
 

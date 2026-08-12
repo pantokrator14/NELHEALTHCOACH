@@ -2,7 +2,7 @@
 // Servicio de registro de auditoría — persiste eventos de seguridad en MongoDB
 // y los loguea en consola con colores para facilitar la revisión.
 //
-// ⚠️ Este archivo NO debe importarse desde middleware.ts (Edge Runtime).
+// ⚠️ Este archivo NO debe importarse desde proxy.ts (Edge Runtime).
 //    Usar auditLogger.edge.ts para auditoría Edge-safe (solo console.log).
 //    La persistencia a MongoDB solo funciona en Node.js runtime.
 

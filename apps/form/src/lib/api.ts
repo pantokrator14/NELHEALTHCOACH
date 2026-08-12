@@ -24,6 +24,7 @@ function getBaseHeaders(): Record<string, string> {
 // Minimal types for the form payload used by submitForm!
 type PersonalData = {
   profilePhoto?: File | null;
+  language?: string;
   [key: string]: unknown;
 };
 

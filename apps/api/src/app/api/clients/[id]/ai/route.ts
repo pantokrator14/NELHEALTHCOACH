@@ -9,14 +9,20 @@ import { AIService } from '@/app/lib/ai-service';
 import { ChecklistItem, AIRecommendationSession, ClientAIProgress, GenerationError } from '../../../../../../../../packages/types/src/healthForm';
 import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
+import { translateSessionContent, detectLanguage, normalizeClientLang, encryptSessionFields, defaultLLM, SUPPORTED_LANGS, LANG_LABELS, SupportedLang } from '@/app/lib/recommendation-translator';
+import { enqueueAIJob, claimAIJob, completeAIJob, failAIJob, requeueAIJob, MAX_ATTEMPTS } from '@/app/lib/ai-job-queue';
 import { sendTextToGemini } from '@/app/lib/agents/utils/llm';
 import { extractTextFromBuffer } from '@/app/lib/document-extractor';
 import { getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import Coach from '@/app/models/Coach';
+import Recipe from '@/app/models/Recipe';
+import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
 
-// El pipeline de generación de IA toma ~60-120s con DeepSeek + delays de 8s entre fases
-export const maxDuration = 300;
+// El pipeline de generación de IA toma ~60-120s con DeepSeek + delays de 8s entre fases.
+// 600s: red de seguridad para picos de razonamiento de FASE 2 (la única llamada LLM
+// que queda — FASE 3 es 100% código cuando los títulos matchean la DB).
+export const maxDuration = 600;
 
 /** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
 async function authorizeCoachForClient(request: NextRequest, clientId: string) {
@@ -178,7 +184,7 @@ async function getHandler(
       const auth = await authorizeCoachForClient(request, id);
 
       const healthForms = await getHealthFormsCollection();
-      const client = await healthForms.findOne({ _id: new ObjectId(id) });
+      let client = await healthForms.findOne({ _id: new ObjectId(id) });
 
       if (!client) {
         loggerWithContext.warn('AI', 'Cliente no encontrado');
@@ -186,6 +192,66 @@ async function getHandler(
           { success: false, message: 'Cliente no encontrado' },
           { status: 404 }
         );
+      }
+
+      // ── Worker-on-poll (cola propia en Mongo, sin Inngest) ──────────
+      // El POST encola y responde 202; el polling del frontend (este GET)
+      // reclama el job ATOMICAMENTE y ejecuta el pipeline completo aquí.
+      // Si el request muere (timeout de Vercel), el lease caduca y otro
+      // poll reintenta (hasta MAX_ATTEMPTS). El frontend poll-ea cada 10s
+      // viendo `aiProgress.sessions` hasta que aparezcan o haya error.
+      const claimedJob = await claimAIJob(id);
+      if (claimedJob) {
+        loggerWithContext.info('AI', '🚀 Worker: job reclamado, ejecutando generación', {
+          jobId: claimedJob._id?.toString(),
+          type: claimedJob.type,
+          attempts: claimedJob.attempts,
+        });
+        try {
+          let workerResult: { sessionId: string; generationError: any } | undefined;
+          if (claimedJob.type === 'regen') {
+            // Regeneración: la sesión vieja se reemplaza por una nueva
+            // (regenerateSession lanza si la sesión no está en 'draft').
+            const ok = await regenerateSession(
+              id,
+              claimedJob.sessionId || '',
+              claimedJob.coachNotes,
+              requestId
+            );
+            if (!ok) throw new Error('La regeneración no pudo completarse');
+            workerResult = { sessionId: claimedJob.sessionId || '', generationError: null };
+          } else {
+            workerResult = await executeGenerationForClient(
+              client,
+              { monthNumber: claimedJob.monthNumber, coachNotes: claimedJob.coachNotes },
+              requestId
+            );
+          }
+          await completeAIJob(claimedJob._id!);
+          loggerWithContext.info('AI', '✅ Worker: generación completada', {
+            sessionId: workerResult?.sessionId,
+            type: claimedJob.type,
+            hadGenerationError: !!workerResult?.generationError,
+          });
+        } catch (genError: any) {
+          const errMsg = genError?.message || 'Error desconocido generando recomendaciones';
+          loggerWithContext.error('AI', '❌ Worker: generación falló', genError);
+          if (claimedJob.attempts! >= MAX_ATTEMPTS) {
+            await failAIJob(claimedJob._id!, errMsg);
+            // Persistir el error para que el polling del frontend lo muestre
+            // (el GET ya devuelve aiProgress.generationError si existe).
+            await healthForms.updateOne(
+              { _id: new ObjectId(id) },
+              { $set: { 'aiProgress.generationError': { message: errMsg, timestamp: new Date() } } }
+            );
+          } else {
+            // Reintento inmediato en el próximo poll (sin esperar el lease)
+            await requeueAIJob(claimedJob._id!);
+          }
+        }
+        // Releer: la generación pudo crear aiProgress/sesiones
+        const fresh = await healthForms.findOne({ _id: new ObjectId(id) });
+        if (fresh) client = fresh;
       }
 
       loggerWithContext.debug('AI', 'Cliente encontrado', {
@@ -347,15 +413,81 @@ async function postHandler(
         );
       }
 
-      loggerWithContext.debug('AI', 'Cliente encontrado para IA', {
-        hasPersonalData: !!client.personalData,
-        hasMedicalData: !!client.medicalData,
-        documentCount: client.medicalData?.documents?.length || 0,
-        existingSessions: client.aiProgress?.sessions?.length || 0
+      // ── COLA PROPIA (sin Inngest): encolar y responder 202 ──────────
+      // El pipeline completo (prepareAIInput → composite → FASE 4 → cifrar)
+      // lo ejecuta el worker-on-poll del GET al reclamar este job.
+      // El frontend ya maneja { status: 'queued', jobId } → activa polling.
+      const job = await enqueueAIJob({ clientId: id, monthNumber, coachNotes });
+
+      loggerWithContext.info('AI', 'Generación encolada', {
+        jobId: job._id?.toString(),
+        monthNumber,
       });
 
+      return NextResponse.json({
+        success: true,
+        data: {
+          status: 'queued',
+          jobId: job._id?.toString(),
+          clientId: id,
+          requestId,
+          monthNumber,
+        },
+      }, { status: 202 });
+    } catch (error: any) {
+      // Si es un error estructurado (auth/ownership), devolver su status específico
+      if (error?.status) {
+        return NextResponse.json(
+          { success: false, message: error.message || 'Error' },
+          { status: error.status }
+        );
+      }
+
+      const errorObj = error instanceof Error ? error : new Error('Unknown error');
+      loggerWithContext.error('AI', 'Error generando recomendaciones IA', errorObj);
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Error generando recomendaciones',
+          requestId,
+          ...(process.env.NODE_ENV === 'development' && {
+            error: errorObj.message
+          })
+        },
+        { status: 500 }
+      );
+    }
+  });
+}
+
+export const POST = apiHandler(postHandler);
+
+/**
+ * EJECUTA el pipeline completo de generación (prepareAIInput → composite →
+ * checklist/weeks → FASE 4 traducción → cifrado → persistir aiProgress).
+ * Lo usa el worker-on-poll del GET cuando reclama un job de la cola propia.
+ * Lanza error si la generación falla (el caller decide fail o requeue).
+ */
+async function executeGenerationForClient(
+  client: any,
+  params: { monthNumber: number; coachNotes: string },
+  requestId: string
+): Promise<{ sessionId: string; generationError: any }> {
+  const clientId = client._id.toString();
+  const loggerWithContext = logger.withContext({
+    requestId,
+    clientId,
+    endpoint: '/api/clients/[id]/ai (queue-worker)',
+    method: 'EXECUTE',
+  });
+
+  const { monthNumber, coachNotes } = params;
+
+  const healthForms = await getHealthFormsCollection();
+
       // 1. Preparar datos para la IA
-      const aiInput = await prepareAIInput(client, requestId, id);
+      const aiInput = await prepareAIInput(client, requestId, clientId);
 
       // 2. Agregar notas del coach si las hay
       if (coachNotes) {
@@ -540,29 +672,27 @@ async function postHandler(
         }
       }
 
-      // Construir weeks[] con los datos desencriptados
+      // Construir weeks[] con los datos desencriptados (EN PLANO; se cifran tras la FASE 4)
       const shopList = Array.isArray(compositeResult.nutritionPlan?.shoppingList)
         ? compositeResult.nutritionPlan!.shoppingList
         : [];
-      const exerciseRoutine = compositeResult.exercisePlan?.weeklyRoutine || [];
-
       const weeks = [{
         weekNumber: 1,
         nutrition: {
-          focus: encrypt(`Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`),
+          focus: `Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`,
           shoppingList: shopList.filter((item: { item?: string; quantity?: string }) => item?.item && item?.quantity).map((item: { item?: string; quantity?: string; priority?: string }) => ({
-            item: encrypt(item.item!),
-            quantity: encrypt(item.quantity!),
+            item: item.item!,
+            quantity: item.quantity!,
             priority: item.priority || 'medium',
           })),
         },
         exercise: {
-          focus: encrypt(compositeResult.exercisePlan?.notes || 'Rutina semanal'),
-          equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => encrypt(eq || '')),
+          focus: compositeResult.exercisePlan?.notes || 'Rutina semanal',
+          equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => eq || ''),
         },
         habits: {
-          trackingMethod: compositeResult.habitPlan?.trackingMethod ? encrypt(compositeResult.habitPlan.trackingMethod) : undefined,
-          motivationTip: compositeResult.habitPlan?.motivationTip ? encrypt(compositeResult.habitPlan.motivationTip) : undefined,
+          trackingMethod: compositeResult.habitPlan?.trackingMethod || undefined,
+          motivationTip: compositeResult.habitPlan?.motivationTip || undefined,
         },
       }];
 
@@ -591,7 +721,9 @@ async function postHandler(
         removedDuplicates: checklistItems.length - uniqueChecklist.length,
       });
 
-      const encryptedSession = {
+      // Sesión en PLANO (sin cifrar). La FASE 4 la traduce al idioma del
+      // cliente si hace falta, y encryptSessionFields() cifra después.
+      const sessionPlain = {
         sessionId,
         monthNumber,
         totalWeeks: 4,
@@ -602,10 +734,10 @@ async function postHandler(
         // > 0 = había documentos al generar (permite diferenciar "sin documentos"
         // de "error al procesar" en el frontend).
         documentCount: (processedDocuments || []).length,
-        summary: encrypt(compositeResult.clientInsights?.summary || ''),
-        vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
-        medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || aiInput.extractedMedicalSummary || ''),
-        medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
+        summary: compositeResult.clientInsights?.summary || '',
+        vision: compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || '',
+        medicalSummary: compositeResult.clientInsights?.medicalSummary || aiInput.extractedMedicalSummary || '',
+        medicalComparativeAnalysis: compositeResult.clientInsights?.medicalComparativeAnalysis || '',
         labResults: aiInput.allLabResults && aiInput.allLabResults.length > 0 
           ? aiInput.allLabResults 
           : (compositeResult.clientInsights?.labResults || []),
@@ -620,11 +752,40 @@ async function postHandler(
         regenerationHistory: [],
       };
 
+      // ── FASE 4: TRADUCCIÓN DINÁMICA al idioma del cliente ──
+      // El pipeline genera SIEMPRE en español (los títulos del plan deben
+      // matchear la DB). Si el cliente habla otro idioma, traducimos TODO el
+      // contenido visible de la sesión: resúmenes, análisis médico, semanas,
+      // lista de compras, hábitos y checklist (las recetas/exercicios de la DB
+      // se traducen aparte, en el PDF, según su idioma real de origen).
+      const targetLang = normalizeClientLang(aiInput.personalData?.language);
+      let translationMeta: { targetLang: SupportedLang; sourceLang: SupportedLang } | undefined;
+      let sessionToEncrypt = sessionPlain;
+
+      if (targetLang !== 'es') {
+        const usedRecipeIds = Array.from(new Set(Object.values(recipeIds).filter(Boolean))) as string[];
+        const usedExerciseIds = Array.from(new Set(Object.values(exerciseIds).filter(Boolean))) as string[];
+        const sourceLang = await detectSessionSourceLang(usedRecipeIds, usedExerciseIds, loggerWithContext);
+        translationMeta = { targetLang, sourceLang };
+        loggerWithContext.info('AI', '🌍 FASE 4: traduciendo recomendaciones al idioma del cliente', {
+          targetLang,
+          sourceLang: `${sourceLang} (${LANG_LABELS[sourceLang]})`,
+        });
+        sessionToEncrypt = await translateSessionContent(
+          sessionPlain,
+          targetLang,
+          LANG_LABELS[sourceLang],
+          defaultLLM
+        );
+      }
+
+      const encryptedSession = encryptSessionFields(sessionToEncrypt, translationMeta);
+
       const updateData: Record<string, unknown> = {
         $set: {
           updatedAt: new Date(),
           'aiProgress': {
-            clientId: id,
+            clientId: clientId,
             currentSessionId: sessionId,
             sessions: [encryptedSession],
             overallProgress: 0,
@@ -641,7 +802,7 @@ async function postHandler(
       };
 
       await healthForms.updateOne(
-        { _id: new ObjectId(id) },
+        { _id: new ObjectId(clientId) },
         updateData
       );
 
@@ -649,48 +810,57 @@ async function postHandler(
         sessionId,
         hasGenerationError: !!generationError,
       });
+  return { sessionId, generationError };
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          sessionId,
-          monthNumber,
-          status: 'completed',
-          message: 'Recomendaciones generadas exitosamente.',
-          clientId: id,
-          requestId,
-          generationError,
-        },
-      });
-
-    } catch (error: any) {
-      // Si es un error estructurado (auth/ownership), devolver su status específico
-      if (error?.status) {
-        return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
-        );
-      }
-
-      const errorObj = error instanceof Error ? error : new Error('Unknown error');
-      loggerWithContext.error('AI', 'Error generando recomendaciones IA', errorObj);
-
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Error generando recomendaciones',
-          requestId,
-          ...(process.env.NODE_ENV === 'development' && {
-            error: errorObj.message
-          })
-        },
-        { status: 500 }
-      );
-    }
-  });
 }
 
-export const POST = apiHandler(postHandler);
+/**
+ * Detecta el idioma de origen del contenido usado en el plan (recetas y
+ * ejercicios de la DB). Las recetas pueden haber sido subidas por coaches en
+ * CUALQUIER idioma; esto alimenta el banner informativo y el hint del LLM.
+ * Sin contenido en DB (plan generado por LLM) → 'es' (idioma del pipeline).
+ */
+async function detectSessionSourceLang(
+  recipeIds: string[],
+  exerciseIds: string[],
+  logCtx: ReturnType<typeof logger.withContext>
+): Promise<SupportedLang> {
+  const texts: string[] = [];
+
+  if (recipeIds.length > 0) {
+    try {
+      const found = await Recipe.find({ _id: { $in: recipeIds.map((r) => new ObjectId(r)) } }).lean();
+      for (const r of found as any[]) {
+        texts.push(safeDecrypt(r.title) || r.title || '');
+        for (const ing of r.ingredients || []) {
+          texts.push(safeDecrypt(ing) || ing || '');
+        }
+      }
+      logCtx.debug('AI', 'Recetas cargadas para detectar idioma de origen', {
+        count: found.length,
+      });
+    } catch (err) {
+      logCtx.warn('AI', 'Error cargando recetas para detección de idioma', err as Error);
+    }
+  }
+
+  if (exerciseIds.length > 0) {
+    try {
+      const found = await Exercise.find({ _id: { $in: exerciseIds.map((e) => new ObjectId(e)) } }).lean();
+      for (const ex of found as any[]) {
+        texts.push(safeDecrypt(ex.name) || ex.name || '');
+        if (ex.description) texts.push(safeDecrypt(ex.description) || ex.description || '');
+      }
+    } catch (err) {
+      logCtx.warn('AI', 'Error cargando ejercicios para detección de idioma', err as Error);
+    }
+  }
+
+  if (texts.filter((t) => t.trim().length > 0).length === 0) {
+    return 'es';
+  }
+  return detectLanguage(texts);
+}
 
 /**
  * Helper function to save and return recommendations (used as fallback).
@@ -889,15 +1059,52 @@ async function putHandler(
           message = 'Recomendaciones enviadas al cliente';
           break;
 
-        case 'regenerate_session':
+        case 'regenerate_session': {
           console.log('🔄 REGENERATE_SESSION: Iniciando...', {
             sessionId,
             hasCoachNotes: !!data?.coachNotes,
             notesLength: data?.coachNotes?.length || 0
           });
-          operationResult = await regenerateSession(id, sessionId, data?.coachNotes || '', requestId);
-          message = 'Sesión regenerada';
-          break;
+
+          // Validación fail-fast: la sesión debe existir y estar en 'draft'
+          const targetSession = (client.aiProgress.sessions || []).find(
+            (s: any) => s.sessionId === sessionId
+          );
+          if (!targetSession) {
+            return NextResponse.json(
+              { success: false, message: 'Sesión no encontrada' },
+              { status: 404 }
+            );
+          }
+          if (targetSession.status !== 'draft') {
+            return NextResponse.json(
+              { success: false, message: `Solo se pueden regenerar sesiones en estado 'draft'. Estado actual: '${targetSession.status}'` },
+              { status: 400 }
+            );
+          }
+
+          // ── COLA PROPIA: encolar la regeneración y responder 202 ──
+          // El worker-on-poll del GET ejecuta regenerateSession y reemplaza
+          // la sesión; el frontend detecta el cambio de currentSessionId.
+          const regenJob = await enqueueAIJob({
+            clientId: id,
+            type: 'regen',
+            sessionId,
+            monthNumber: targetSession.monthNumber || 1,
+            coachNotes: data?.coachNotes || '',
+          });
+          console.log('🔁 Regeneración encolada:', regenJob._id?.toString());
+          return NextResponse.json({
+            success: true,
+            data: {
+              status: 'queued',
+              jobId: regenJob._id?.toString(),
+              clientId: id,
+              sessionId,
+              requestId,
+            },
+          }, { status: 202 });
+        }
 
         case 'generate_shopping_list':
           console.log('🛒 GENERATE_SHOPPING_LIST: Iniciando...', { sessionId, weekNumber: data?.weekNumber });
@@ -2110,42 +2317,42 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       }
     }
 
-    // Construir weeks[] con datos encriptados
+    // Construir weeks[] con datos en PLANO (se cifran tras la FASE 4)
     const shopList = Array.isArray(compositeResult.nutritionPlan?.shoppingList)
       ? compositeResult.nutritionPlan!.shoppingList
       : [];
     const newWeeks = [{
       weekNumber: 1 as const,
       nutrition: {
-        focus: encrypt(`Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`),
+        focus: `Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`,
         shoppingList: shopList.filter((item: any) => item?.item && item?.quantity).map((item: any) => ({
-          item: encrypt(item.item!),
-          quantity: encrypt(item.quantity!),
+          item: item.item!,
+          quantity: item.quantity!,
           priority: item.priority || 'medium',
         })),
       },
       exercise: {
-        focus: encrypt(compositeResult.exercisePlan?.notes || 'Rutina de ejercicios'),
-        equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => encrypt(eq || '')),
+        focus: compositeResult.exercisePlan?.notes || 'Rutina de ejercicios',
+        equipment: (compositeResult.exercisePlan?.equipment || []).map((eq: string) => eq || ''),
       },
       habits: {
-        trackingMethod: compositeResult.habitPlan?.trackingMethod ? encrypt(compositeResult.habitPlan.trackingMethod) : undefined,
-        motivationTip: compositeResult.habitPlan?.motivationTip ? encrypt(compositeResult.habitPlan.motivationTip) : undefined,
+        trackingMethod: compositeResult.habitPlan?.trackingMethod || undefined,
+        motivationTip: compositeResult.habitPlan?.motivationTip || undefined,
       },
     }];
 
-    // Construir objeto de sesión completo (mismo formato que POST handler)
-    const newSession: AIRecommendationSession = {
+    // Sesión en PLANO (sin cifrar)
+    const newSessionPlain: AIRecommendationSession = {
       sessionId: newSessionId,
       monthNumber: existingSession.monthNumber,
       totalWeeks: 4,
       createdAt: existingSession.createdAt,
       updatedAt: new Date(),
       status: 'draft',
-      summary: encrypt(compositeResult.clientInsights?.summary || ''),
-      vision: encrypt(compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || ''),
-      medicalSummary: encrypt(compositeResult.clientInsights?.medicalSummary || ''),
-      medicalComparativeAnalysis: encrypt(compositeResult.clientInsights?.medicalComparativeAnalysis || ''),
+      summary: compositeResult.clientInsights?.summary || '',
+      vision: compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || '',
+      medicalSummary: compositeResult.clientInsights?.medicalSummary || '',
+      medicalComparativeAnalysis: compositeResult.clientInsights?.medicalComparativeAnalysis || '',
       labResults: compositeResult.clientInsights?.labResults || [],
       baselineMetrics: {
         currentLifestyle: compositeResult.clientInsights?.keyRisks || [],
@@ -2167,6 +2374,30 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       ],
       regeneratedAt: new Date(),
     };
+
+    // ── FASE 4: traducción dinámica (mismo patrón que el POST) ──
+    const regenTargetLang = normalizeClientLang(aiInput.personalData?.language);
+    let regenTranslationMeta: { targetLang: SupportedLang; sourceLang: SupportedLang } | undefined;
+    let regenSessionToEncrypt = newSessionPlain;
+
+    if (regenTargetLang !== 'es') {
+      const usedRecipeIds = Array.from(new Set(Object.values(recipeIds).filter(Boolean))) as string[];
+      const usedExerciseIds = Array.from(new Set(Object.values(exerciseIds).filter(Boolean))) as string[];
+      const sourceLang = await detectSessionSourceLang(usedRecipeIds, usedExerciseIds, loggerWithContext);
+      regenTranslationMeta = { targetLang: regenTargetLang, sourceLang };
+      loggerWithContext.info('AI_REGEN', '🌍 FASE 4 (regeneración): traduciendo al idioma del cliente', {
+        targetLang: regenTargetLang,
+        sourceLang: `${sourceLang} (${LANG_LABELS[sourceLang]})`,
+      });
+      regenSessionToEncrypt = await translateSessionContent(
+        newSessionPlain,
+        regenTargetLang,
+        LANG_LABELS[sourceLang],
+        defaultLLM
+      );
+    }
+
+    const newSession = encryptSessionFields(regenSessionToEncrypt, regenTranslationMeta);
 
     loggerWithContext.info('AI_REGEN', '✅ Nueva sesión construida y guardando en BD', {
       newSessionId,

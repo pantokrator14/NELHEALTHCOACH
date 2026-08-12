@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { medicalDataSchema, MedicalDataFormValues } from '../lib/validation';
+import { lifestyleContextStepSchema, LifestyleContextFormValues, MedicalDataFormValues } from '../lib/validation';
 import Image from 'next/image';
 
 interface LifestyleContextStepProps {
@@ -12,9 +12,9 @@ interface LifestyleContextStepProps {
 }
 
 const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSubmit, onBack }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm<MedicalDataFormValues>({
+  const { register, handleSubmit, formState: { errors } } = useForm<LifestyleContextFormValues>({
     defaultValues: data,
-    resolver: yupResolver(medicalDataSchema),
+    resolver: yupResolver(lifestyleContextStepSchema),
   });
 
   // Log errores de validación al desarrollador (consola)
@@ -24,7 +24,7 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
     }
   }, [errors]);
 
-  const onValidSubmit = (formData: MedicalDataFormValues) => {
+  const onValidSubmit = (formData: LifestyleContextFormValues) => {
     console.log('✅ Estilo de Vida - datos válidos:', Object.keys(formData).length, 'campos');
     onSubmit(formData);
   };

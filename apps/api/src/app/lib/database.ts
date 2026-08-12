@@ -218,3 +218,9 @@ export async function getMedicalDocumentCacheCollection() {
   const { db } = await connectToDatabase();
   return db.collection('medical_document_cache');
 }
+
+/** Cola de trabajos de IA (generación de recomendaciones). Ver ai-job-queue.ts. */
+export async function getAIJobsCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection<import('./ai-job-queue').AIJobDoc>('ai_jobs');
+}
