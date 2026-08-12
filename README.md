@@ -20,7 +20,7 @@
 
 - [✨ Características Principales](#-características-principales)
 - [🤖 Sistema de Agentes de IA](#-sistema-de-agentes-de-ia)
-- [🔄 Flujos Asíncronos (Inngest)](#-flujos-asíncronos-inngest)
+- [🔄 Flujos Asíncronos (Cola Propia)](#-flujos-asíncronos-cola-propia)
 - [🏗️ Arquitectura del Proyecto](#️-arquitectura-del-proyecto)
 - [🚀 Aplicaciones](#-aplicaciones)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
@@ -56,12 +56,25 @@
 - **Diseño de hábitos** progresivos y sostenibles
 - **Generación de lista de compras** con deduplicación por ítem y orden por prioridad
 - **Validación de calidad** con loop de revisión automático
-- **Análisis de documentos PDF** (laboratorios, estudios) directamente con Gemini
+- **Procesamiento de documentos**: extracción LOCAL de texto (PDF con pdf-parse, DOCX con mammoth, imágenes con OCR) + Gemini como secundario (analiza el texto extraído para biomarcadores y resúmenes)
 
-### 🔄 **Flujos Asíncronos**
-- **Inngest** para procesamiento de tareas en background
+### 🌍 **Traducción Dinámica Multi-Idioma (FASE 4)**
+- El pipeline genera SIEMPRE el plan en español (los títulos de recetas deben matchear la DB) y después traduce todo el contenido visible al **idioma del cliente** (`language` en `personalData`: es/en/fr/it/pt/de)
+- **Detección heurística de idioma de origen** de recetas/ejercicios (stopwords, sin LLM)
+- **Traducción por lotes JSON** con DeepSeek: resúmenes, análisis médico, semanas, lista de compras, hábitos y checklist — conservando estructura, IDs, enums y unidades intactos
+- **Paralelización con concurrencia limitada** (2) + `maxTokens` dinámico para acortar FASE 4 sin provocar 503
+- **Traducción de recetas/ejercicios para el PDF** según su idioma real de origen
+- **Resiliencia**: si la traducción falla, se devuelve el texto ORIGINAL (nunca se rompe la generación ni el PDF)
+- **Banner informativo** en el dashboard cuando la sesión está traducida
+
+### 🔄 **Flujos Asíncronos (Cola Propia sobre MongoDB)**
+- **Cola de trabajos 100% propia** sobre MongoDB (patrón *worker-on-poll*, sin servicios externos):
+  - `POST/PUT /api/clients/[id]/ai` → **encola y responde 202** `{status:'queued', jobId}` en <1s (antes: request síncrono de 60-240s con riesgo de timeout)
+  - El **polling del frontend** (GET) reclama el job ATOMICAMENTE y ejecuta el pipeline completo como worker
+  - **Lease de 6 min + reintentos (máx 3)**: si el worker muere por timeout, el job se re-ejecuta; tras agotar intentos, error visible en la UI
+  - **Idempotencia**: dobles clics reutilizan el mismo job (índice único en Mongo)
+  - **Regeneración de sesiones** también encolada (PUT `regenerate_session` → 202)
 - **Transcripción de sesiones** con Deepgram
-- **Generación de recomendaciones** como proceso asíncrono
 - **Reintento automático** ante fallos
 
 ### 📹 **Videollamadas con LiveKit**
@@ -171,27 +184,29 @@ Todos los agentes reciben **TODO** los datos del cliente mediante `formatFullCli
 - `medicalData` — condiciones médicas, laboratorios, suplementos actuales
 - `healthAssessment` — evaluación de salud del formulario
 - `mentalHealth` — evaluación de salud mental
-- `processedDocuments` — documentos PDF analizados por Gemini (laboratorios, estudios)
+- `processedDocuments` — texto extraído localmente (pdf-parse/mammoth/OCR) y analizado por Gemini (laboratorios, estudios)
 - `previousSessions` — sesiones anteriores de recomendaciones
 - `coachNotes` — notas del coach
 
-### LLM: Google Gemini
+### LLM: Google Gemini + DeepSeek
 
-La plataforma utiliza **Google Gemini** como único modelo de lenguaje:
-- **OpenAI Compatible API** (`/v1beta/openai/`) para generación de texto
-- **Native REST API** (`/v1beta`) para análisis de PDFs con `inlineData`
-- Manejo robusto de errores: SAFETY, MAX_TOKENS, RECITATION
-- Sin dependencias de DeepSeek ni AWS Textract
+La plataforma usa **dos modelos de lenguaje** con roles distintos:
+- **Google Gemini** — análisis del texto médico extraído LOCALMENTE (nunca recibe el archivo; el path de visión `inlineData` fue eliminado); manejo robusto de errores: SAFETY, MAX_TOKENS, RECITATION
+- **DeepSeek V4 Flash** — generación del plan compuesto (pipeline secuencial 3 fases) y **traducción dinámica FASE 4** (lotes JSON) vía OpenAI Compatible API (`@langchain/openai`) con `temperature: 0.3`
 
-## 🔄 Flujos Asíncronos (Inngest)
+## 🔄 Flujos Asíncronos (Cola Propia)
 
-La plataforma usa **Inngest** para manejar tareas pesadas en background:
+La plataforma usa una **cola de trabajos propia sobre MongoDB** (patrón *worker-on-poll*) para las tareas pesadas de IA — sin servicios de cola externos (no requiere Inngest Cloud, BullMQ ni QStash):
 
-| Función | Descripción |
+| Componente | Descripción |
 |---|---|
-| `generate-recommendations` | Genera recomendaciones de IA para un cliente (grafo LangGraph + análisis PDF con Gemini) |
-| `process-transcription` | Procesa transcripciones de sesiones de coaching |
-| `transcribe-session` | Transcribe audio de sesiones usando Deepgram |
+| `ai-job-queue.ts` | Cola con estados `pending → running → done/failed`, claim atómico, lease de 6 min, reintentos (máx 3), abandono de jobs zombie |
+| `POST /api/clients/[id]/ai` | Encola la generación y responde **202 queued** en <1s |
+| `GET /api/clients/[id]/ai` | Actúa de **worker-on-poll**: reclama el job y ejecuta el pipeline completo (hasta el límite de 300s de Vercel Hobby) |
+| `PUT regenerate_session` | Regeneración encolada con validación fail-fast (sesión en `draft`) |
+| `process-transcription` | Procesa transcripciones de sesiones de coaching (Deepgram) |
+
+**Por qué**: en Vercel Hobby no hay procesos persistentes ni workers — la cola propia sobre MongoDB (ya en producción) resuelve los timeouts de generación (antes 60-240s síncronos → 504) con cero dependencias nuevas y el frontend ya soportaba el patrón `queued` + polling.
 
 ## 🏗️ Arquitectura del Proyecto
 
@@ -251,7 +266,7 @@ NELHEALTHCOACH/
 
 ### 4. **🔌 API Backend** (`apps/api`)
 - **Propósito**: Servicios backend, lógica de negocio y agentes de IA
-- **Tecnologías**: Next.js API Routes, MongoDB, AWS S3/SES, Google Gemini, LangGraph, Inngest, LiveKit Server SDK
+- **Tecnologías**: Next.js API Routes, MongoDB (incl. cola propia), AWS S3/SES, Google Gemini + DeepSeek, LangGraph (referencia), LiveKit Server SDK
 - **Características**:
   - Autenticación JWT con roles (coach, admin)
   - CRUD de pacientes, coaches y usuarios
@@ -261,7 +276,7 @@ NELHEALTHCOACH/
   - Generación de enlaces de formulario personalizados por coach
   - **Agentes de IA con LangGraph** (6 nodos especializados)
   - **Análisis de PDFs con Gemini** (laboratorios, estudios médicos)
-  - **Flujos asíncronos con Inngest** (recomendaciones, transcripciones)
+  - **Flujos asíncronos con cola propia** (generación y regeneración encoladas, worker-on-poll) y Deepgram para transcripciones
   - **Transcripción de audio con Deepgram**
   - **Videollamadas con LiveKit**: creación de salas, tokens JWT, webhooks, grabación
   - Envío de emails con Resend + AWS SES (fallback)
@@ -302,7 +317,7 @@ NELHEALTHCOACH/
 ### **IA y Agentes**
 - **🤖 Google Gemini** - Modelo de lenguaje principal (texto + análisis de PDFs)
 - **🕸️ LangGraph 1.2.8** - Orquestación de agentes multi-experto
-- **🔄 Inngest 4.2.1** - Flujos de trabajo asíncronos
+- **🔄 Cola propia sobre MongoDB** - Flujos de trabajo asíncronos (worker-on-poll, sin servicios externos)
 - **🎙️ Deepgram SDK 5.0.0** - Transcripción de audio
 
 ### **Infraestructura Cloud**
@@ -347,7 +362,7 @@ NELHEALTHCOACH/
 │   │   │   │   │   │   └── 📂 utils/   # Utilidades (LLM, prompts, audit)
 │   │   │   │   │   ├── 📂 security/    # Bot detection, rate limiter, guardrails, shield
 │   │   │   │   │   └── 📄 ...          # Servicios: video-service, email-service, etc.
-│   │   │   │   └── 📂 inngest/         # Funciones asíncronas (Inngest)
+│   │   │   │   └── 📂 inngest/         # Funciones de referencia (deprecadas; la cola propia es la vía activa)
 │   │   │   └── 📂 models/          # Modelos de MongoDB
 │   │   └── 📂 middleware/        # Middleware de autenticación
 │   ├── 📂 dashboard/            # Panel de control del coach
@@ -434,9 +449,9 @@ EMAIL_ENABLED=true
 GEMINI_API_KEY=tu_api_key_gemini
 GEMINI_MODEL=gemini-2.5-flash
 
-# ── Inngest (flujos asíncronos) ──
-INNGEST_EVENT_KEY=tu_inngest_event_key
-INNGEST_SIGNING_KEY=tu_inngest_signing_key
+# ── Inngest (opcional — solo Dev Server local; la cola propia NO lo requiere) ──
+# INNGEST_EVENT_KEY=tu_inngest_event_key
+# INNGEST_SIGNING_KEY=tu_inngest_signing_key
 INNGEST_DEV=true
 
 # ── Deepgram (transcripción de audio) ──
@@ -513,6 +528,35 @@ cd apps/[app-name]
 npm run lint
 ```
 
+## 🧪 Testing (TDD)
+
+La plataforma cuenta con una **suite de tests de integración exhaustiva** con perfiles desechables (se crean al iniciar y se borran SIEMPRE al terminar, incluso si el test falla):
+
+```bash
+# Desde apps/api — suite rápida (192 checks, ~1 min, sin LLM real)
+npm test
+
+# Suite completa (259 checks, incluye LLM real, ~10 min)
+npm run test:e2e
+
+# Gate de seguridad OWASP (estático)
+npm run test:security
+```
+
+**Cobertura** (detalle en `apps/api/tests/README.md`):
+- **Security gate OWASP** — 401 en todos los routes con auth, sin `eval()`, sin fugas de `error.message` (A10), bcrypt/argon2 (A04), output de LLM validado (LLM05), ownership (A01)
+- **Auth** (13) — registro/login/me/change-password, validación zod, rate limit 429, anti-enumeración de cuentas
+- **Clients** (17) — CRUD, ownership (403/404), cifrado campo a campo, gate de pago 402
+- **Content** (30) — recetas + ejercicios CRUD, cifrado, roles admin/coach con propuestas de edición, moderación
+- **Notifications** (16) — CRUD, ownership por coach, markAllRead, health, stats
+- **Cola propia** (32) — enqueue/claim/lease/reintentos/jobs zombie
+- **Traducción** (72) — estructura JSON, enums, IDs intactos (mock LLM)
+- **PDF route real** (5) — generación, headers, marca %PDF
+- **E2E con LLM real** (67) — traducción, cola (POST→202→worker), regeneración
+- **db-clean** — verifica que la DB queda SIN datos de prueba al final
+
+**Flujo obligatorio**: cada cambio de código → ejecutar el test del módulo tocado → si falla, corregir el código (no el test) → `npm test` completo + `tsc --noEmit` en las 3 apps.
+
 ## 🌐 Despliegue
 
 ### **Vercel (Recomendado)**
@@ -531,6 +575,8 @@ El proyecto está configurado para despliegue en Vercel:
   "framework": "nextjs"
 }
 ```
+
+> **⚠️ Importante (plan Hobby)**: `maxDuration` de las Serverless Functions debe estar entre **1 y 300 segundos**. Valores mayores hacen FALLAR el build con *"Builder returned invalid maxDuration value"*. Valores actuales: `ai/route.ts` = 300, `pdf/route.ts` = 300, `upload` = 120, `inngest` = 120. La cola propia está diseñada para que el worker complete en < 300s (medido: 170-239s) con reintentos automáticos si un request muere.
 
 ### **Despliegue Manual**
 ```bash

@@ -106,7 +106,9 @@ async function getHandler(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    if ((error as Error).message?.includes('Token')) {
+    // SEC: requireCoachAuth lanza error estructurado { status: 401 }
+    const structured = error as { status?: number; message?: string };
+    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error obteniendo perfil', error instanceof Error ? error : new Error(String(error)));
@@ -173,7 +175,10 @@ async function postHandler(request: NextRequest) {
         return NextResponse.json({ success: false, message: `Acción desconocida: ${action}` }, { status: 400 });
     }
   } catch (error: unknown) {
-    if ((error as Error).message?.includes('Token')) {
+    // SEC: requireCoachAuth lanza error estructurado { status: 401 } — reconocer
+    // ambos patrones (estructurado y legacy con 'Token' en el mensaje)
+    const structured = error as { status?: number; message?: string };
+    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('ACCOUNT', 'Error en gestión de cuenta', error instanceof Error ? error : new Error(String(error)));
@@ -257,7 +262,10 @@ async function putHandler(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    if ((error as Error).message?.includes('Token')) {
+    // SEC: requireCoachAuth lanza error estructurado { status: 401 } — reconocer
+    // ambos patrones (estructurado y legacy con 'Token' en el mensaje)
+    const structured = error as { status?: number; message?: string };
+    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado' }, { status: 401 });
     }
     logger.error('AUTH', 'Error actualizando perfil', error instanceof Error ? error : new Error(String(error)));

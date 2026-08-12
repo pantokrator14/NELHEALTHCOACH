@@ -44,11 +44,9 @@ La landing page de NELHEALTHCOACH es la cara pública del negocio, diseñada par
 - **Framework**: Next.js 15.5 (Pages Router)
 - **Lenguaje**: TypeScript 5.8.3
 - **Estilos**: Tailwind CSS
-- **Animaciones**: Framer Motion
-- **Formularios**: React Hook Form + Zod
+- **Formulario de contacto**: useState + fetch nativo (POST a `/api/leads` con visitorId de FingerprintJS)
 - **i18n**: React i18next con **6 idiomas** (es, en, fr, it, pt, de) + detección automática del navegador
-- **Seguridad**: FingerprintJS
-- **Analytics**: Google Analytics + Vercel Analytics
+- **Seguridad**: FingerprintJS (anti-bots en el formulario de leads)
 - **Hosting**: Vercel
 
 ### 3.2 Estructura de Directorios
@@ -297,5 +295,6 @@ Visitante → Hero (30s) → Servicios (45s) → Método (30s)
 ---
 
 *Documento actualizado: Junio 2026*
-*Versión: 2.1*
+*Versión: 2.2*
+*Última actualización: 2026-08-12 — stack corregido (sin Framer Motion, sin React Hook Form/Zod; contacto con fetch nativo + FingerprintJS)*
 *Propietario: Equipo Marketing NELHEALTHCOACH*

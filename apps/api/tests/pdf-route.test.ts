@@ -4,6 +4,9 @@
  * - Coach inexistente (evita S3)
  * - Sesión FASE 4 en inglés con translation meta
  * Valida: match por ID, traducción es→en (LLM real), PDF generation real.
+ *
+ * LIMPIEZA GARANTIZADA: todos los datos de prueba se registran en el registro
+ * global de limpieza y se borran en `finally` — aunque el test falle a mitad.
  */
 import 'dotenv/config';
 import { MongoClient, ObjectId } from 'mongodb';
@@ -11,8 +14,8 @@ import { NextRequest } from 'next/server';
 import { encrypt } from '../src/app/lib/encryption';
 import { encryptSessionFields } from '../src/app/lib/recommendation-translator';
 import { GET } from '../src/app/api/clients/[id]/ai/[sessionId]/pdf/route';
+import { connectDB, registerCleanup, registerClientWithJobs, runCleanup } from './helpers';
 
-const URI = process.env.MONGODB_URI!;
 let failures = 0, passes = 0;
 function check(name: string, cond: boolean, detail?: string) {
   if (cond) { passes++; console.log(`  ✅ ${name}`); }
@@ -20,9 +23,7 @@ function check(name: string, cond: boolean, detail?: string) {
 }
 
 async function main() {
-  const client = new MongoClient(URI);
-  await client.connect();
-  const db = client.db();
+  const { db } = await connectDB();
 
   // ── Receta y ejercicio de PRUEBA (español, sin imágenes) ──
   const testRecipe = {
@@ -48,6 +49,8 @@ async function main() {
   };
   const rec = await db.collection('recipes').insertOne(testRecipe as any);
   const ex = await db.collection('exercises').insertOne(testExercise as any);
+  registerCleanup('recipes', rec.insertedId);
+  registerCleanup('exercises', ex.insertedId);
   const recipeId = rec.insertedId.toString();
   const exerciseId = ex.insertedId.toString();
   console.log('Receta/ejercicio de prueba creados (sin imágenes):', recipeId, exerciseId);
@@ -83,6 +86,7 @@ async function main() {
     aiProgress: { currentSessionId: 'e2e_pdf_test_session', sessions: [encryptedSession] },
   };
   await db.collection('healthforms').insertOne(testClient as any);
+  registerClientWithJobs(testClient._id.toString());
   console.log('Healthform creado:', testClient._id.toString());
 
   // ── Invocar GET (route real) ──
@@ -99,14 +103,12 @@ async function main() {
   const buffer = await response.arrayBuffer();
   check(`PDF generado (${(buffer.byteLength / 1024).toFixed(0)} KB)`, buffer.byteLength > 1000, `${buffer.byteLength} bytes`);
   check('marca %PDF', new TextDecoder().decode(buffer.slice(0, 5)) === '%PDF-');
-
-  // ── Limpieza ──
-  await db.collection('healthforms').deleteOne({ _id: testClient._id });
-  await db.collection('recipes').deleteOne({ _id: rec.insertedId });
-  await db.collection('exercises').deleteOne({ _id: ex.insertedId });
-  await client.close();
-  console.log('\nDatos de prueba eliminados.');
-  console.log(`\n${failures === 0 ? '🎉 PDF ROUTE REAL: TODOS OK' : `❌ ${failures} fallos`} (${passes} checks)`);
-  process.exit(failures === 0 ? 0 : 1);
 }
-main();
+
+main()
+  .catch((e) => { console.error('💥 PDF ROUTE REAL falló:', e); failures++; })
+  .finally(async () => {
+    await runCleanup(); // SIEMPRE limpia, incluso en fallo
+    console.log(`\n${failures === 0 ? '🎉 PDF ROUTE REAL: TODOS OK' : `❌ ${failures} fallos`} (${passes} checks)`);
+    process.exit(failures === 0 ? 0 : 1);
+  });

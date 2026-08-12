@@ -1,10 +1,10 @@
 # Documento de Requisitos del Producto (PRD)
 ## NELHEALTHCOACH - Plataforma Integral de Coaching de Salud
 
-**Versión:** 1.1.0  
-**Fecha:** 18 de junio de 2026  
+**Versión:** 1.2.0  
+**Fecha:** 12 de agosto de 2026  
 **Autor:** Equipo de Desarrollo NELHEALTHCOACH  
-**Estado:** En desarrollo activo
+**Estado:** En desarrollo activo (desplegado en producción — Vercel Hobby)
 
 ---
 
@@ -38,7 +38,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 
 ### 1.3 Diferenciadores Clave
 1. **Arquitectura Monorepo:** Desarrollo unificado con aplicaciones independientes pero integradas.
-2. **Procesamiento Inteligente:** Uso de AWS Textract para extracción automática de datos de documentos médicos.
+2. **Procesamiento Inteligente:** Extracción LOCAL de documentos médicos con dependencias propias (pdf-parse, mammoth, OCR) + análisis con Gemini como secundario — sin coste por página ni servicios externos de OCR.
 3. **Seguridad de Nivel Médico:** Cifrado de datos sensibles y cumplimiento con estándares de privacidad.
 4. **Experiencia Omnicanal:** Aplicaciones específicas para diferentes roles y necesidades.
 
@@ -172,7 +172,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 - **Características:**
   - Autenticación JWT
   - CRUD completo de pacientes y usuarios
-  - Procesamiento de documentos con AWS Textract
+  - Procesamiento de documentos con extracción local (pdf-parse/mammoth/OCR) + Gemini secundario
   - Integración con servicios de email
 
 ### 4.3 Base de Datos
@@ -222,7 +222,7 @@ Patient {
     name: String
     s3Key: String
     uploadedAt: Date
-    processedData: Object // Extraído por Textract
+    processedData: Object // Extraído localmente (pdf-parse/mammoth/OCR), analizado por Gemini
   }]
   createdAt: Date
   updatedAt: Date
@@ -355,16 +355,16 @@ AssessmentForm {
   4. Categorización de documentos
   5. Vista previa de documentos
 
-#### **RF-010: Procesamiento con AWS Textract**
+#### **RF-010: Procesamiento de Documentos (Extracción Local + Gemini Secundario)**
 - **ID:** RF-010
 - **Prioridad:** Media
-- **Descripción:** Extracción automática de datos de documentos
+- **Descripción:** Extracción automática de texto de documentos médicos con dependencias propias
 - **Criterios de Aceptación:**
-  1. Detección de texto en documentos escaneados
-  2. Extracción de datos estructurados (tablas)
-  3. Mapeo a campos del sistema
-  4. Revisión y corrección manual
-  5. Almacenamiento de metadatos extraídos
+  1. Detección de texto en PDF (pdf-parse v1), DOCX (mammoth) e imágenes (tesseract.js + PaddleOCR)
+  2. Análisis del texto extraído con Gemini (biomarcadores, resúmenes) — el modelo nunca recibe el archivo
+  3. Caché de análisis (`medical_document_cache`) para no re-procesar documentos
+  4. Revisión y corrección manual por el coach
+  5. Almacenamiento de metadatos extraídos (encriptados)
 
 #### **RF-011: Organización de Documentos**
 - **ID:** RF-011
@@ -495,6 +495,8 @@ AssessmentForm {
   - Balanceo de carga entre instancias
   - Failover automático
   - Recuperación de datos corruptos
+  - **Cola de trabajos con reintentos**: la generación/regeneración de IA es asíncrona (cola propia sobre MongoDB). Si el worker muere por timeout de Vercel (300s), el **lease de 6 min** permite re-ejecutar el job en el siguiente polling (hasta 3 intentos). Tras agotarlos, el error se persiste en `aiProgress.generationError` y la UI lo muestra
+  - **Generación dentro del límite de Vercel Hobby**: POST/PUT responden 202 en <1s (nunca timeout); el worker mide 170-239s (límite: 300s)
 
 ### 6.4 Usabilidad
 
@@ -521,6 +523,10 @@ AssessmentForm {
   - Fácil adición de nuevos idiomas extendiendo el objeto de traducciones
   - Formato de fechas y números localizado
   - RTL support para idiomas árabes (futuro)
+  - **Traducción dinámica del CONTENIDO generado por IA (FASE 4)**: el plan se genera en español y se traduce al idioma del cliente (`personalData.language`) — resúmenes, análisis médico, semanas, lista de compras, hábitos, checklist y PDF
+  - **Detección heurística de idioma de origen** de recetas/ejercicios (stopwords, sin LLM) para traducirlos correctamente en el PDF
+  - **Banner informativo** en el dashboard cuando la sesión fue traducida (idioma origen → destino)
+  - **Resiliencia**: si la traducción falla, se muestra el texto original (nunca se rompe la generación)
 
 ### 6.5 Mantenibilidad
 
@@ -529,7 +535,8 @@ AssessmentForm {
 - **Categoría:** Mantenibilidad
 - **Descripción:** Código debe ser mantenible y documentado
 - **Requisitos:**
-  - Cobertura de tests > 80%
+  - **Suite de tests de integración TDD** con perfiles desechables (limpieza garantizada en `finally`): 192 checks en suite rápida, 259 con E2E de LLM real (`apps/api/tests/`)
+  - **Security gate OWASP automatizado** al inicio y fin de cada run: 401 en routes con auth, sin fugas de `error.message` (A10), bcrypt (A04), ownership (A01), output de LLM validado (LLM05)
   - Documentación de API completa
   - Guías de desarrollo y despliegue
   - Monitoreo de deuda técnica
@@ -570,7 +577,7 @@ graph TD
     B --> C[Completa formulario inicial]
     C --> D[Sistema valida respuestas]
     D --> E[Sube documentos médicos]
-    E --> F[AWS Textract procesa documentos]
+    E --> F[Extracción local + análisis Gemini]
     F --> G[Coach revisa información]
     G --> H[Coach crea plan de tratamiento]
     H --> I[Paciente recibe feedback]
@@ -598,7 +605,7 @@ graph TD
 - **UI Library:** React 19.1.0
 - **Estilos:** Tailwind CSS 4.0 + PostCSS
 - **Formularios:** React Hook Form + Yup
-- **Gráficos:** Recharts o Chart.js
+- **Gráficos:** Barras con divs/SVG nativos (sin librería de charts; las finanzas usan barras CSS)
 - **Estado:** React Context + Zustand (si necesario)
 
 ### 8.2 Backend
@@ -729,7 +736,7 @@ graph TD
 - **Coach de Salud:** Profesional certificado que provee coaching de salud
 - **Paciente:** Individuo que recibe servicios de coaching
 - **Formulario de Evaluación:** Cuestionario estructurado para evaluar salud
-- **AWS Textract:** Servicio de AWS para extracción de texto de documentos
+- **Extracción local de documentos:** Proceso con dependencias propias (pdf-parse para PDF, mammoth para DOCX, tesseract.js/PaddleOCR para imágenes) — sin AWS Textract
 - **JWT:** JSON Web Token para autenticación
 
 ### 13.2 Referencias
@@ -742,6 +749,7 @@ graph TD
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
+| 1.2.0   | 2026-08-12  | Equipo Desarrollo   | Traducción dinámica del contenido IA (FASE 4, 6 idiomas + PDF), cola propia de trabajos sobre MongoDB (worker-on-poll, 202 queued, lease/reintentos), regeneración encolada, suite de tests TDD con perfiles desechables (259 checks + security gate OWASP), despliegue en producción (Vercel Hobby, maxDuration 300), extracción de documentos con dependencias propias (pdf-parse/mammoth/OCR) + Gemini secundario (sin AWS Textract), stacks de dashboard/landing/form corregidos contra la implementación real |
 | 1.1.0   | 2026-06-18  | Equipo Desarrollo   | Dashboard i18n completo (6 idiomas, namespaces coaches/recipes/exercises), gestión de coaches, documentación actualizada |
 | 1.0.0   | 2026-04-04  | Equipo Desarrollo   | Documento inicial completo    |
 | 0.9.0   | 2026-03-28  | Product Manager     | Revisión de requisitos        |

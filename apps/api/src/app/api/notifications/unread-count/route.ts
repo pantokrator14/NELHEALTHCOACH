@@ -17,7 +17,15 @@ async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
-    const auth = requireCoachAuth(request);
+    let auth;
+    try {
+      auth = requireCoachAuth(request);
+    } catch {
+      return NextResponse.json(
+        { success: false, message: 'No autorizado' },
+        { status: 401 }
+      );
+    }
 
     const count = await Notification.countDocuments({
       coachId: auth.coachId,

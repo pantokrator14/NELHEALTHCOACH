@@ -553,7 +553,9 @@ async function putHandler(
       const updateData = {
         personalData: encryptedPersonalData,
         medicalData: encryptedMedicalData,
-        contractAccepted: encrypt(data.contractAccepted.toString()),
+        // SEC-ROBUSTEZ: default false si el body no trae contractAccepted
+        // (antes: data.contractAccepted.toString() lanzaba TypeError → 500)
+        contractAccepted: encrypt((data.contractAccepted ?? false).toString()),
         // Registrar versión y fecha de aceptación del contrato si se reacepta
         ...(data.contractVersion && { contractVersion: data.contractVersion }),
         ...(data.contractAccepted && { contractAcceptedAt: new Date() }),

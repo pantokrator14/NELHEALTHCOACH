@@ -52,13 +52,18 @@ export function requireAuth(token?: string): void {
 /**
  * Verifica el token JWT y devuelve los datos del coach autenticado.
  * Usar en rutas que necesiten coachId + role.
+ *
+ * SEC: lanza un error ESTRUCTURADO con `.status = 401` (patrón
+ * `throw { status, message }`). Los handlers que hacen
+ * `if (apiError?.status) return ... status` devuelven 401 correctamente;
+ * antes lanzaba un Error plano y esos handlers caían al 500 genérico.
  */
 export function requireCoachAuth(request: NextRequest): CoachJwtPayload {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
 
   if (!token) {
     logger.warn('AUTH', 'Intento de acceso no autorizado - Token no proporcionado');
-    throw new Error('Token de autorización requerido');
+    throw { status: 401, message: 'No autorizado', detail: 'Token de autorización requerido' };
   }
 
   try {
@@ -67,7 +72,7 @@ export function requireCoachAuth(request: NextRequest): CoachJwtPayload {
     return decoded;
   } catch (error) {
     logger.error('AUTH', 'Autenticación fallida', error as Error);
-    throw new Error('Token inválido o expirado');
+    throw { status: 401, message: 'No autorizado', detail: 'Token inválido o expirado' };
   }
 }
 

@@ -45,7 +45,8 @@ export type AuditEventType =
   | 'PAYMENT_FAILED'
   | 'SUBSCRIPTION_CHANGED'
   // Admin
-  | 'ADMIN_ACTION';
+  | 'ADMIN_ACTION'
+  | 'UNAUTHORIZED_ACCESS';
 
 export interface IAuditLog extends Document {
   eventType: AuditEventType;

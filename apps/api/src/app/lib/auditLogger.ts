@@ -88,6 +88,8 @@ const AUDIT_ICONS: Record<AuditEventType, string> = {
   ADMIN_ACTION: '⚙️',
   // Verificaciones
   VERIFICATION_FAILURE: '❌',
+  UNAUTHORIZED_ACCESS: '🚫',
+
   TRIAL_CARD_VERIFIED: '💳✅',
 };
 
