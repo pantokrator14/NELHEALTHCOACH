@@ -67,6 +67,9 @@ const FIELD_TO_STEP: Record<string, number> = {
   mentalHealthFailureReaction: 6, mentalHealthSelfConnection: 6,
   mentalHealthSelfRelationship: 6, mentalHealthLimitingBeliefs: 6,
   mentalHealthIdealBalance: 6,
+  // Contexto y Estilo de Vida (step 7)
+  typicalWeekday: 7, typicalWeekend: 7, whoCooks: 7,
+  currentActivityLevel: 7, physicalLimitations: 7,
 };
 
 const convertPersonalDataForApi = (data: PersonalDataFormValues): FormPayload['personalData'] => {
@@ -365,7 +368,10 @@ const FormPage: React.FC = () => {
     const requiredMedicalFields = [
       'mainComplaint', 'medications', 'supplements', 'currentPastConditions',
       'additionalMedicalHistory', 'employmentHistory', 'hobbies', 'allergies',
-      'surgeries', 'housingHistory', 'appetiteChanges', 'mainComplaintIntensity', 'gymAccess'
+      'surgeries', 'housingHistory', 'appetiteChanges', 'mainComplaintIntensity', 'gymAccess',
+      // Contexto y Estilo de Vida — obligatorias (schema del paso 7 + validación final)
+      'typicalWeekday', 'typicalWeekend', 'whoCooks',
+      'currentActivityLevel', 'physicalLimitations',
     ] as const;
 
     for (const field of requiredMedicalFields) {

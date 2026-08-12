@@ -439,6 +439,352 @@ function buildShoppingListPrompt(
   };
 }
 
+// ── FASE 3 EN CÓDIGO (sin LLM) ──────────────────────────────
+// La consolidación de la lista de compras es una tarea determinista:
+// el plan semanal referencia recetas de la DB y cada receta tiene sus
+// ingredientes. El LLM (deepseek) razona de forma masiva e impredecible
+// en esta fase (hasta 26k tokens de razonamiento → timeout de 300s en
+// Vercel). Generarla en código elimina el timeout de raíz y es más barato.
+
+/** Unidades de medida que pueden aparecer tras la cantidad (singularizadas). */
+const MEASURE_UNITS = new Set([
+  "taza", "cucharada", "cucharadita", "cuchara", "g", "gr", "kg", "ml", "l",
+  "litro", "diente", "hoja", "ramita", "rama", "pizca", "puñado", "vaso",
+  "filete", "lata", "loncha", "rebanada", "unidad", "barra", "docena",
+  "manojo", "cabeza", "sobre", "lata", "bolsa", "frasco", "tarro",
+]);
+
+/** Adjetivos de preparación que NO cambian el producto (se quitan para agrupar). */
+const PREP_ADJECTIVES = [
+  "en tiras", "en dados", "en cubos", "en virutas", "en juliana", "en escamas",
+  "en rodajas", "en láminas", "en trozos", "en trocitos", "en bastones",
+  "en bastoncitos", "en cuartos", "en gajos", "en mitades", "en aros",
+  "en filetes", "al gusto", "sin hueso", "sin piel", "sin espinas",
+  "para servir", "para guiso", "para cocinar", "mínima cantidad",
+  "picado", "picada", "picados", "picadas", "rallado", "rallada", "rallados",
+  "ralladas", "cortado", "cortada", "cortados", "cortadas", "molido",
+  "molidos", "molida", "partido", "partida", "tostado", "tostada", "triturado",
+  "triturada", "natural", "fresco", "fresca", "frescos", "frescas", "grande",
+  "grandes", "pequeño", "pequeña", "pequeños", "pequeñas", "mediano",
+  "mediana", "medianos", "medianas", "maduro", "madura", "maduros", "maduras",
+  "duro", "dura", "duros", "duras", "escurrido", "escurrida", "ahumado",
+  "ahumada", "ahumados", "entero", "entera", "enteros", "enteras", "crudo",
+  "cruda", "cocido", "cocida", "cocidos", "cocidas", "asado", "asada",
+  "seco", "seca", "secos", "secas", "laminado", "laminada", "congelado",
+  "congelada", "descongelado", "descongelada", "rústico", "rústica",
+  "recién", "opcional", "ecológico", "ecológica", "integral",
+  "separado", "separada", "separados", "separadas", // "huevos separados"
+  "en agua", "en aceite", // "atún en agua"
+  "casero", "casera", "caseros", "caseras", // "mayonesa casera"
+  "en lascas", "en polvo", // "queso parmesano en lascas"
+  "verde", "verdes", "triguero", "trigueros", // "espárragos verdes/trigueros"
+  "al horno", "a la plancha", "a la parrilla", "a la brasa", "salteado",
+  "salteada", "hervido", "hervida", "pochado", "pochada", "escalfado",
+  "escalfada", "macerado", "macerada", "marinado", "marinada", "carameliado",
+  "caramelizada", "glasado", "glasada", "glaseado", "glaseada",
+  "troceado", "troceada", "troceados", "troceadas", "partido", "partida",
+  "fino", "fina", "finos", "finas", "grueso", "gruesa", "gruesos", "gruesas",
+];
+
+/** Ingredientes de despensa/básicos → prioridad baja. */
+const LOW_PRIORITY_KEYWORDS = [
+  "sal", "pimienta", "oregano", "comino", "pimenton", "canela", "laurel",
+  "tomillo", "romero", "albahaca", "perejil", "hierba", "especia", "vinagre",
+  "mostaza", "endulzante", "stevia", "levadura", "ajo en polvo", "curry",
+];
+
+/** Frescos/proteínas → prioridad alta. */
+const HIGH_PRIORITY_KEYWORDS = [
+  "carne", "pollo", "ternera", "cerdo", "pavo", "cordero", "pescado",
+  "salmon", "atun", "sardina", "boqueron", "anchoa", "marisco", "gamba",
+  "pulpo", "sepioneta", "calamar", "mejillon", "almeja", "cazon", "merluza",
+  "dorada", "rodaballo", "lubina", "lenguado", "bacalao", "trucha", "sepia",
+  "langostino", "cangrejo", "vieira", "huevo", "leche",
+  "yogur", "queso", "feta", "halloumi", "ricotta", "mozzarella", "espinaca",
+  "lechuga", "tomate", "pepino", "pimiento", "calabacin", "aguacate",
+  "brocoli", "champinon", "manzana", "naranja", "platano", "limon", "lima",
+  "fresa", "arandano", "frambuesa", "mora", "fruta", "kiwi", "pina",
+  "mango", "pera", "uva", "zanahoria", "cebolla", "ajo", "calabaza",
+  "berenjena", "coliflor", "brotes", "rúcula", "rucula", "canonigos",
+];
+
+interface ParsedIngredient {
+  /** Cantidad numérica sumable (null si el texto no empieza con número). */
+  quantity: number | null;
+  /** Unidad de medida singularizada (null si no es una unidad conocida). */
+  unit: string | null;
+  /** Nombre limpio para mostrar (sin cantidad/unidad, con adjetivos). */
+  displayName: string;
+  /** Clave normalizada para agrupar ingredientes equivalentes. */
+  groupKey: string;
+  /** Texto original de la cantidad tal cual ("al gusto", "c/n", "1/4"...). */
+  quantityText: string;
+  alGusto: boolean;
+}
+
+/** Quita acentos y pasa a minúsculas. */
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Singulariza un sustantivo en español de forma simplificada. */
+function singularize(word: string): string {
+  if (word.length <= 3) return word;
+  if (word.endsWith("es") && word.length > 4) {
+    const base = word.slice(0, -2);
+    // "nueces" → "nuez", "peces" → "pez", "raíces" → "raiz"
+    if (/[c]$/.test(base)) return base + "z";
+    // "dientes" → "diente", "guantes" → "guante", "clientes" → "cliente"
+    if (word.endsWith("tes")) return word.slice(0, -1);
+    // "flores" → "flor", "leones" → "leon": quitar "es"
+    return base;
+  }
+  if (word.endsWith("s")) return word.slice(0, -1);
+  return word;
+}
+
+/**
+ * Convierte "1/4", "2 1/2", "2-3" o "0.75" a número.
+ * Los rangos toman el máximo (para no quedarse corto en la compra).
+ */
+function parseQuantity(raw: string): number | null {
+  const t = raw.trim();
+  const simple = /^(\d+(?:[.,]\d+)?)$/.exec(t);
+  if (simple) return parseFloat(simple[1].replace(",", "."));
+  const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(t);
+  if (mixed) return parseInt(mixed[1]) + parseInt(mixed[2]) / parseInt(mixed[3]);
+  const frac = /^(\d+)\/(\d+)$/.exec(t);
+  if (frac && parseInt(frac[2]) !== 0) return parseInt(frac[1]) / parseInt(frac[2]);
+  const range = /^(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)$/.exec(t);
+  if (range) return Math.max(parseFloat(range[1]), parseFloat(range[2]));
+  return null;
+}
+
+/** Formatea un número como fracción bonita cuando aplica (0.25 → "1/4"). */
+function formatQuantity(q: number): string {
+  const EPS = 0.001;
+  const whole = Math.floor(q + EPS);
+  const frac = q - whole;
+  if (Math.abs(frac) < EPS) return String(whole);
+  const nice: Array<[number, string]> = [
+    [1 / 4, "1/4"], [1 / 3, "1/3"], [1 / 2, "1/2"],
+    [2 / 3, "2/3"], [3 / 4, "3/4"],
+  ];
+  for (const [v, s] of nice) {
+    if (Math.abs(frac - v) < 0.05) return whole > 0 ? `${whole} ${s}` : s;
+  }
+  return (Math.round(q * 100) / 100).toString();
+}
+
+/** Pluraliza la unidad según la cantidad ("cucharada" → "cucharadas"). */
+function pluralizeUnit(unit: string, q: number): string {
+  if (q <= 1) return unit;
+  if (["g", "gr", "kg", "ml", "l", "cl", "dl"].includes(unit)) return unit;
+  return unit.endsWith("s") ? unit : unit + "s";
+}
+
+/** Prioridad heurística por tipo de ingrediente. */
+function priorityForIngredient(displayName: string): "high" | "medium" | "low" {
+  const n = normalizeText(displayName);
+  if (HIGH_PRIORITY_KEYWORDS.some((k) => n.includes(k))) return "high";
+  if (LOW_PRIORITY_KEYWORDS.some((k) => n.includes(k))) return "low";
+  return "medium";
+}
+
+/** Parsea un string de ingrediente de la DB ("3 huevos grandes", "1/4 taza de X"). */
+function parseIngredientString(raw: string): ParsedIngredient {
+  const text = raw.trim();
+
+  // ── Extraer cantidad inicial (número, fracción o rango) ──
+  // OJO: la fracción mixta ("1 1/2") y la fracción ("1/4") deben evaluarse
+  // ANTES que el número simple ("1"), si no "1 1/2 aguacate" se parsea como
+  // cantidad 1 con el "1/2" pegado al nombre.
+  const qtyMatch = /^((?:\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?))\s+(.+)$/.exec(text);
+  let quantity: number | null = null;
+  let quantityText = "";
+  let rest = text;
+  if (qtyMatch) {
+    quantity = parseQuantity(qtyMatch[1]);
+    quantityText = qtyMatch[1];
+    rest = qtyMatch[2];
+  }
+  const alGusto = /al gusto|a gusto|c\/n/i.test(text);
+  if (alGusto && quantity === null) quantityText = "al gusto";
+
+  // Quitar sufijos "al gusto"/"c/n" del final (con o sin paréntesis),
+  // tanto si la cantidad vino del número como si no:
+  //   "aceite c/n" → "aceite" · "aceite (al gusto)" → "aceite"
+  rest = rest.replace(/[,;]?\s*\(?\s*(al gusto|a gusto|c\/n)\s*\)?\s*$/i, "");
+
+  // ── Quitar contexto entre paréntesis que NO es parte del producto ──
+  // ("limón (jugo y rodajas)", "atún en agua (140 g escurrido)", "(150 g c/u)")
+  rest = rest.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+
+  // ── Quitar prefijos de porción "c/u" (cada unidad) ──
+  rest = rest.replace(/^(?:c\/u|cada uno)\s*/i, "").trim();
+
+  // ── Quitar unidad de medida si es conocida (singularizada) ──
+  let unit: string | null = null;
+  const unitMatch = /^([a-záéíóúüñ]+)\s+(?:de\s+)?(.+)$/i.exec(rest);
+  if (unitMatch) {
+    const candidate = singularize(normalizeText(unitMatch[1]));
+    if (MEASURE_UNITS.has(candidate)) {
+      unit = candidate;
+      rest = unitMatch[2];
+    }
+  }
+
+  // ── Limpiar preposiciones/artículos iniciales ──
+  rest = rest.replace(/^(de|del|la|el|los|las|un|una|unos|unas)\s+/i, "");
+
+  // ── Quitar puntuación final (".", ",") que ensucia el nombre ──
+  rest = rest.replace(/[.,;]+$/g, "").trim();
+
+  // ── Alternativas "A o B" → quedarse con la primera opción ──
+  // ("queso parmesano o mozzarella", "corvina o lenguado")
+  rest = rest.replace(/\s+o\s+[a-záéíóúüñ][a-záéíóúüñ\s]*$/i, "").trim();
+
+  // ── Display: texto limpio (sin cantidad, sin unidad) con su forma original ──
+  const displayName = rest.trim().replace(/\s+/g, " ");
+  const normDisplay = normalizeText(displayName);
+
+  // ── Key de agrupación: sin adjetivos de preparación, singularizada ──
+  let key = normDisplay;
+  for (const adj of PREP_ADJECTIVES) {
+    // normalizeText porque la key ya está sin tildes y la adj puede tenerlas
+    // ("pequeña", "rústica", "ecológica") — si no, el regex nunca matchea.
+    key = key.replace(new RegExp(`\\b${normalizeText(adj).replace(/ /g, "\\s+")}\\b`, "g"), " ");
+  }
+  key = key.replace(/\s+/g, " ").trim();
+  // Converger variantes de orden: "virgen extra" ↔ "extra virgen"
+  key = key.replace(/\bextra virgen\b/g, "virgen extra");
+  const keyWords = key.split(" ").filter(Boolean).map(singularize).join(" ");
+
+  return {
+    quantity,
+    unit,
+    displayName: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+    groupKey: `${keyWords}||${unit ?? ""}`,
+    quantityText,
+    alGusto,
+  };
+}
+
+/**
+ * Parsea un ingrediente que puede ser COMPUESTO con sub-receta embebida:
+ *   "Salsa: 100 g de yogur griego, menta, ajo (c/n)"
+ *   "Para la marinada: aceite, limón, ajo, pimentón, comino (c/n)"
+ * Expande la sub-receta en sus componentes (cada uno como ingrediente propio).
+ */
+function parseIngredientStringList(raw: string): ParsedIngredient[] {
+  const colonIdx = raw.indexOf(":");
+  if (colonIdx !== -1) {
+    const components = raw
+      .slice(colonIdx + 1)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (components.length > 1) {
+      // "Salsa: 100 g de yogur griego, menta, ajo" → ["100 g de yogur griego", "menta", "ajo"]
+      return components.map((c) => parseIngredientString(c));
+    }
+  }
+  return [parseIngredientString(raw)];
+}
+
+/**
+ * Consolida ingredientes YA parseados en la lista de compras final
+ * (agrupa por clave normalizada y serializa la cantidad total).
+ */
+function consolidateParsedIngredients(parsed: ParsedIngredient[]): ShoppingListOutput["shoppingList"] {
+  // ── Consolidar por clave normalizada ──
+  const groups = new Map<
+    string,
+    { displayName: string; unit: string | null; quantities: number[]; quantityTexts: string[] }
+  >();
+  for (const p of parsed) {
+    const g = groups.get(p.groupKey);
+    if (g) {
+      if (p.quantity !== null) g.quantities.push(p.quantity);
+      if (p.quantityText) g.quantityTexts.push(p.quantityText);
+    } else {
+      groups.set(p.groupKey, {
+        displayName: p.displayName,
+        unit: p.unit,
+        quantities: p.quantity !== null ? [p.quantity] : [],
+        quantityTexts: p.quantityText ? [p.quantityText] : [],
+      });
+    }
+  }
+
+  // ── Serializar la lista (orden alfabético, determinista) ──
+  const shoppingList: Array<{ item: string; quantity: string; priority: "high" | "medium" | "low" }> = [];
+  const sortedGroups = Array.from(groups.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  for (const g of sortedGroups) {
+    let quantity: string;
+    if (g.quantities.length > 0) {
+      const total = g.quantities.reduce((a, b) => a + b, 0);
+      quantity = g.unit ? `${formatQuantity(total)} ${pluralizeUnit(g.unit, total)}` : formatQuantity(total);
+    } else {
+      // Sin cantidad numérica: "c/n" (cantidad necesaria) = "al gusto".
+      // Se muestra como "al gusto" para que el usuario no vea abreviaturas crípticas.
+      quantity = "al gusto";
+    }
+    shoppingList.push({
+      item: g.displayName,
+      quantity,
+      priority: priorityForIngredient(g.displayName),
+    });
+  }
+
+  return shoppingList;
+}
+
+/**
+ * Re-consolida items CRUDOS (p.ej. los que devuelve el LLM en el fallback):
+ * "Mayonesa casera." + "Mayonesa (2 cucharadas)" → una sola línea.
+ * Reconstruye el texto "cantidad + nombre" y lo pasa por el mismo parser
+ * determinista del modo código.
+ */
+export function consolidateRawShoppingItems(
+  rawItems: Array<{ item: string; quantity: string }>
+): ShoppingListOutput["shoppingList"] {
+  const parsed: ParsedIngredient[] = [];
+  for (const r of rawItems) {
+    const item = String(r.item ?? "").trim();
+    const qty = String(r.quantity ?? "").trim();
+    if (!item) continue;
+    const text = qty && !/^(c\/n|al gusto|a gusto)$/i.test(qty) ? `${qty} ${item}` : item;
+    parsed.push(...parseIngredientStringList(text));
+  }
+  return consolidateParsedIngredients(parsed);
+}
+
+/**
+ * Construye la lista de compras consolidada EN CÓDIGO (sin LLM).
+ * Requiere que todos los títulos del plan matcheen el mapa de ingredientes.
+ */
+export function buildShoppingListProgrammatically(
+  weeklyPlan: Array<{ day: string; breakfast: string; lunch: string; dinner: string }>,
+  recipeIngredients: Record<string, string[]>
+): ShoppingListOutput {
+  // ── 1. Recolectar ingredientes de todas las recetas del plan ──
+  const parsed: ParsedIngredient[] = [];
+  for (const day of weeklyPlan) {
+    for (const meal of [day.breakfast, day.lunch, day.dinner]) {
+      if (!meal) continue;
+      const ingredients = recipeIngredients[meal];
+      if (!ingredients) continue;
+      for (const ing of ingredients) parsed.push(...parseIngredientStringList(ing));
+    }
+  }
+
+  return { shoppingList: consolidateParsedIngredients(parsed) };
+}
+
 /**
  * Ejecuta la Fase 3 (Asistente Logístico) de forma independiente.
  * Toma un weeklyPlan y devuelve una shoppingList consolidada.
@@ -459,9 +805,6 @@ export async function generateShoppingListFromWeeklyPlan(
       : 0,
   });
 
-  // Safety delay para evitar rate limiting de Gemini
-  await new Promise(resolve => setTimeout(resolve, 8000));
-
   // ── Verificar que los títulos del plan existen en el mapa de ingredientes ──
   // Si FASE 2 generó títulos que NO coinciden exactamente con las recetas de la DB,
   // el modelo no tiene ingredientes reales y podría razonar/inventar de más.
@@ -477,6 +820,32 @@ export async function generateShoppingListFromWeeklyPlan(
     unmatchedTitles: unmatchedTitles.slice(0, 10),
   });
 
+  // ── MODO CÓDIGO (sin LLM): si TODOS los títulos matchean, la lista de
+  // compras se consolida determinísticamente. El LLM razona de forma masiva
+  // y no determinista en esta fase (hasta 26k tokens de razonamiento), lo que
+  // excede los 300s de Vercel → timeout 504. El código lo elimina de raíz.
+  if (unmatchedTitles.length === 0) {
+    logger.info("AI", "FASE 3 (standalone): 100% de títulos matcheados → generando lista en código (sin LLM)", {
+      planTitlesCount: planTitles.length,
+      ingredientTotal: planTitles.reduce((acc, t) => acc + (recipeIngredients?.[t]?.length ?? 0), 0),
+    });
+    const result = buildShoppingListProgrammatically(weeklyPlan, recipeIngredients ?? {});
+    logger.info("AI", "✅ Fase 3 (standalone) completada exitosamente (modo código, sin LLM).", {
+      shoppingListItemCount: result.shoppingList.length,
+      sampleItems: result.shoppingList.slice(0, 5),
+    });
+    return result;
+  }
+
+  // ── FALLBACK LLM (solo si hay títulos sin match): presupuesto ACOTADO a
+  // 4000 tokens para limitar el razonamiento al mínimo posible. ──
+  logger.info("AI", "FASE 3 (standalone): hay títulos sin match → usando LLM con maxTokens acotado (4000)", {
+    unmatchedCount: unmatchedTitles.length,
+  });
+
+  // Safety delay para evitar rate limiting de Gemini
+  await new Promise(resolve => setTimeout(resolve, 8000));
+
   const prompt = buildShoppingListPrompt(weeklyPlan, recipeIngredients);
   logger.info("AI", "FASE 3 (standalone): prompt construido", {
     systemChars: prompt.system.length,
@@ -484,7 +853,10 @@ export async function generateShoppingListFromWeeklyPlan(
     humanPreview: prompt.human.substring(0, 400),
   });
 
-  const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)", 32000);
+  // maxTokens ACOTADO: el razonamiento de deepseek escala con el presupuesto;
+  // 32000 tokens de razonamiento ≈ 9-15 min → timeout. Con 4000, el modelo
+  // solo puede razonar unos segundos antes de responder.
+  const content = await invokeLLM(prompt.system, prompt.human, "FASE 3 (standalone)", 4000);
 
   // Log del contenido crudo tal cual lo devolvió el LLM, ANTES de intentar parsear
   logger.info("AI", "FASE 3 (standalone): contenido crudo recibido del LLM", {
@@ -516,6 +888,22 @@ export async function generateShoppingListFromWeeklyPlan(
       originalCount,
       sanitizedCount: result.shoppingList.length,
     });
+
+    // ── POST-PROCESO DETERMINISTA ──
+    // El LLM con maxTokens acotado (4000) tiende a copiar los ingredientes
+    // literalmente: duplicados ("Mayonesa" + "Mayonesa casera."), cantidades
+    // "c/n" sin interpretar, sub-recetas embebidas ("Salsa: 100 g de yogur
+    // griego, menta, ajo (c/n)"), puntuación sucia, etc. Se re-consolida con
+    // el MISMO parser determinista del modo código → lista limpia y sumada.
+    const rawForConsolidation = result.shoppingList.map((i) => ({ item: i.item, quantity: i.quantity }));
+    const consolidated = consolidateRawShoppingItems(rawForConsolidation);
+    logger.info("AI", "FASE 3 (standalone): items re-consolidados en código", {
+      before: result.shoppingList.length,
+      after: consolidated.length,
+      removedDuplicates: result.shoppingList.length - consolidated.length,
+      sampleItems: consolidated.slice(0, 5),
+    });
+    result.shoppingList = consolidated;
   }
 
   // Guardia Fail-Fast: lista de compras debe ser un array con al menos 1 elemento

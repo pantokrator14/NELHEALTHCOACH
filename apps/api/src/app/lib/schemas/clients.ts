@@ -82,6 +82,9 @@ const personalDataSchema = z.object({
   education: z.string().max(200).default(''),
   occupation: z.string().max(200).default(''),
   profilePhoto: z.unknown().optional(),
+  // Idioma del cliente: recomendar/traducir contenido en su idioma.
+  // Default 'es' — los clientes existentes (sin el campo) quedan en español.
+  language: z.enum(['es', 'en', 'it', 'pt', 'fr', 'de']).default('es'),
 });
 
 export type PersonalDataInput = z.infer<typeof personalDataSchema>;

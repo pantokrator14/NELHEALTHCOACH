@@ -6,7 +6,13 @@
     "build": "next build",
     "start": "next start -p 3001",
     "dev:auto": "PORT=${PORT:-3001} next dev",
-    "start:auto": "PORT=${PORT:-3001} next start"
+    "start:auto": "PORT=${PORT:-3001} next start",
+    "test:translate": "tsx tests/translate.test.ts",
+    "test:translate-e2e": "tsx tests/translate-e2e.test.ts",
+    "test:queue": "tsx tests/queue.test.ts",
+    "test:queue-e2e": "tsx tests/queue-e2e.test.ts",
+    "test:regen-e2e": "tsx tests/regen-e2e.test.ts",
+    "test:pdf": "tsx tests/pdf-route.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.927.0",

@@ -1,7 +1,7 @@
 // apps/api/src/app/lib/auditLogger.edge.ts
 // Versión Edge-safe del auditLogger — solo loguea a consola.
 // ⚠️ NO importa mongoose ni ningún modelo de MongoDB.
-//    Esto es deliberado: este archivo se importa desde middleware.ts (Edge Runtime)
+//    Esto es deliberado: este archivo se importa desde proxy.ts (Edge Runtime)
 //    y cualquier referencia a mongoose rompe la compilación.
 //    Para persistencia a MongoDB, usar auditLogger.ts desde route handlers (Node.js).
 

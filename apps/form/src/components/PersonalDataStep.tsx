@@ -193,6 +193,26 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label className="block text-sm font-medium text-blue-500 mb-2">
+                  {t('form.language')} *
+                </label>
+                <select
+                  {...register('language')}
+                  className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                >
+                  <option value="es">{t('form.langSpanish')}</option>
+                  <option value="en">{t('form.langEnglish')}</option>
+                  <option value="it">{t('form.langItalian')}</option>
+                  <option value="pt">{t('form.langPortuguese')}</option>
+                  <option value="fr">{t('form.langFrench')}</option>
+                  <option value="de">{t('form.langGerman')}</option>
+                </select>
+                {errors.language?.message && (
+                  <p className="text-red-500 text-sm mt-1">{String(errors.language?.message)}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-500 mb-2">
                   Edad *
                 </label>
                 <input

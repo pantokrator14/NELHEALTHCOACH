@@ -13,6 +13,7 @@ import { logger } from '@/app/lib/logger';
 import { decrypt, safeDecrypt, decryptFileObject } from '@/app/lib/encryption';
 import { generateRecommendationPDF } from '@/app/lib/recommendation-pdf';
 import type { PDFRecommendationData, PDFRecipeData, PDFExerciseData } from '@/app/lib/recommendation-pdf';
+import { translatePDFContent, translateSessionContent, detectLanguage, normalizeClientLang, defaultLLM, LANG_LABELS, SupportedLang } from '@/app/lib/recommendation-translator';
 import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
@@ -311,13 +312,20 @@ async function getHandler(
     }
 
     // ── 5. Recopilar datos de ejercicios ──
+    // La sesión puede estar TRADUCIDA al idioma del cliente: la descripción
+    // ("Lunes: Press banca") ya no matchea el nombre original en la DB.
+    // Por eso matcheamos por ID (item.recipeId = exerciseId) cuando existe,
+    // y solo caemos al match por nombre para sesiones viejas sin ID.
     const exerciseNameSet = new Set<string>();
+    const exerciseIdSet = new Set<string>();
     for (const item of checklist) {
       if (item.category === 'exercise') {
+        if (item.recipeId) exerciseIdSet.add(item.recipeId);
         exerciseNameSet.add(item.description);
       }
     }
     const exerciseNames = Array.from(exerciseNameSet);
+    const exerciseIds = Array.from(exerciseIdSet);
 
     const exercises: Record<string, PDFExerciseData> = {};
     const allExercises = await Exercise.find({}).lean();
@@ -327,9 +335,18 @@ async function getHandler(
       _description: safeDecrypt(ex.description) || ex.description,
     }));
 
+    const findExerciseById = (id: string) =>
+      decryptedExercises.find((ex: any) => ex._id?.toString() === id);
+
     for (const exName of exerciseNames) {
       try {
-        const exMatch = decryptedExercises.find((ex: any) =>
+        const idMatch = findExerciseById(exName) ||
+          (() => {
+            // fallback: buscar por ID dentro de los items del checklist
+            const item = checklist.find((i: any) => i.description === exName && i.category === 'exercise');
+            return item?.recipeId ? findExerciseById(item.recipeId) : undefined;
+          })();
+        const exMatch = idMatch || decryptedExercises.find((ex: any) =>
           ex._name.toLowerCase().includes(exName.toLowerCase()) ||
           exName.toLowerCase().includes(ex._name.toLowerCase())
         );
@@ -360,7 +377,115 @@ async function getHandler(
       } catch (err) {}
     }
 
-    // ── 6. Datos del coach ──
+    // ── 6. FASE DE TRADUCCIÓN: el PDF sale SIEMPRE en el idioma del cliente ──
+    // Las recetas/ejercicios de la DB pueden estar en CUALQUIER idioma (los
+    // sube cada coach en el suyo). Detectamos el idioma real del contenido y
+    // traducimos al idioma del cliente solo si difieren. La sesión generada
+    // con FASE 4 ya viene traducida (session.translation.targetLang); las
+    // sesiones anteriores (sin translation) se traducen aquí al vuelo.
+    const clientLang = safeDecrypt((client.personalData as any)?.language) ||
+      (client.personalData as any)?.language ||
+      'es';
+    const targetLang = normalizeClientLang(clientLang);
+    const sessionAlreadyTranslated =
+      (session.translation as any)?.targetLang === targetLang &&
+      targetLang !== 'es';
+
+    let summaryOut = summary;
+    let visionOut = vision;
+    let medicalSummaryOut = medicalSummary;
+    let medicalComparativeAnalysisOut = medicalComparativeAnalysis;
+    let labResultsOut = labResults;
+    let weeksOut = weeks;
+    let checklistOut = checklist;
+    let structuredMedicalAnalysisOut = session.structuredMedicalAnalysis ? {
+      ...session.structuredMedicalAnalysis,
+      exams: (session.structuredMedicalAnalysis.exams || []).map((exam: any) => ({
+        ...exam,
+        intro: safeDecrypt(exam.intro) || '',
+        analysis: safeDecrypt(exam.analysis) || '',
+        table: (exam.table || []).map((row: any) => ({
+          biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
+          valor: safeDecrypt(row.valor) || row.valor,
+          rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
+          estado: safeDecrypt(row.estado) || row.estado,
+        })),
+      })),
+      supplements: (session.structuredMedicalAnalysis.supplements || []).map((supp: any) => ({
+        name: safeDecrypt(supp.name) || supp.name,
+        dosage: safeDecrypt(supp.dosage) || supp.dosage,
+        timing: safeDecrypt(supp.timing) || supp.timing,
+        rationale: safeDecrypt(supp.rationale) || supp.rationale,
+        contraindications: safeDecrypt(supp.contraindications) || supp.contraindications,
+      })),
+    } : undefined;
+
+    if (targetLang !== 'es' && !sessionAlreadyTranslated) {
+      loggerWithContext.info('PDF', '🌍 Traduciendo sesión (generación anterior) al idioma del cliente', {
+        targetLang,
+      });
+      const translatedSession = await translateSessionContent(
+        {
+          summary: summaryOut,
+          vision: visionOut,
+          medicalSummary: medicalSummaryOut,
+          medicalComparativeAnalysis: medicalComparativeAnalysisOut,
+          structuredMedicalAnalysis: structuredMedicalAnalysisOut,
+          weeks: weeksOut,
+          checklist: checklistOut,
+          labResults: labResultsOut,
+        },
+        targetLang,
+        LANG_LABELS.es, // la sesión de generación anterior está en español
+        defaultLLM
+      );
+      summaryOut = translatedSession.summary ?? summaryOut;
+      visionOut = translatedSession.vision ?? visionOut;
+      medicalSummaryOut = translatedSession.medicalSummary ?? medicalSummaryOut;
+      medicalComparativeAnalysisOut = translatedSession.medicalComparativeAnalysis ?? medicalComparativeAnalysisOut;
+      structuredMedicalAnalysisOut = translatedSession.structuredMedicalAnalysis ?? structuredMedicalAnalysisOut;
+      weeksOut = translatedSession.weeks ?? weeksOut;
+      checklistOut = translatedSession.checklist ?? checklistOut;
+      labResultsOut = translatedSession.labResults ?? labResultsOut;
+    }
+
+    // Recetas y ejercicios: detectar idioma REAL de origen y traducir si difiere
+    const contentTexts: string[] = [];
+    for (const rid of Object.keys(recipes)) {
+      const r = recipes[rid];
+      contentTexts.push(r.title || '');
+      (r.ingredients || []).forEach((ing: any) => {
+        if (typeof ing === 'string') contentTexts.push(ing);
+        else contentTexts.push(ing?.name || '');
+      });
+      (r.instructions || []).forEach((inst: string) => contentTexts.push(inst));
+    }
+    for (const exKey of Object.keys(exercises)) {
+      const ex = exercises[exKey];
+      contentTexts.push(ex.name || '', ex.description || '');
+      (ex.instructions || []).forEach((inst: string) => contentTexts.push(inst));
+    }
+    const contentLang = detectLanguage(contentTexts);
+
+    if (contentLang !== targetLang && Object.keys(recipes).length + Object.keys(exercises).length > 0) {
+      loggerWithContext.info('PDF', '🌍 Traduciendo recetas/ejercicios al idioma del cliente', {
+        contentLang: `${contentLang} (${LANG_LABELS[contentLang]})`,
+        targetLang,
+        recipeCount: Object.keys(recipes).length,
+        exerciseCount: Object.keys(exercises).length,
+      });
+      const translatedContent = await translatePDFContent(
+        recipes,
+        exercises,
+        targetLang,
+        LANG_LABELS[contentLang],
+        defaultLLM
+      );
+      Object.assign(recipes, translatedContent.recipes);
+      Object.assign(exercises, translatedContent.exercises);
+    }
+
+    // ── 7. Datos del coach ──
     let coachName = 'Tu asesor';
     let coachEmail = '';
     let coachPhone = '';
@@ -386,16 +511,16 @@ async function getHandler(
 
     // ── 7. Recopilar tips ──
     const tips: string[] = [];
-    for (const item of checklist) {
+    for (const item of checklistOut) {
       if (item.details?.recipe?.tips && !tips.includes(item.details.recipe.tips)) {
         tips.push(item.details.recipe.tips);
       }
     }
 
-    const toAdopt = checklist.filter((item: any) => item.category === 'habit' && (!item.type || item.type === 'toAdopt')).map((item: any) => item.description);
-    const toEliminate = checklist.filter((item: any) => item.category === 'habit' && item.type === 'toEliminate').map((item: any) => item.description);
-    const motivationTip = weeks.find((w: any) => w.habits.motivationTip)?.habits.motivationTip;
-    const trackingMethod = weeks.find((w: any) => w.habits.trackingMethod)?.habits.trackingMethod;
+    const toAdopt = checklistOut.filter((item: any) => item.category === 'habit' && (!item.type || item.type === 'toAdopt')).map((item: any) => item.description);
+    const toEliminate = checklistOut.filter((item: any) => item.category === 'habit' && item.type === 'toEliminate').map((item: any) => item.description);
+    const motivationTip = weeksOut.find((w: any) => w.habits.motivationTip)?.habits.motivationTip;
+    const trackingMethod = weeksOut.find((w: any) => w.habits.trackingMethod)?.habits.trackingMethod;
 
     const sessions = client.aiProgress.sessions || [];
     const sessionIndex = sessions.findIndex((s: any) => s.sessionId === sessionId);
@@ -403,33 +528,11 @@ async function getHandler(
     // ── 8. Construir JSON y generar PDF ──
     const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
 
-    const structuredMedicalAnalysis = session.structuredMedicalAnalysis ? {
-      ...session.structuredMedicalAnalysis,
-      exams: (session.structuredMedicalAnalysis.exams || []).map((exam: any) => ({
-        ...exam,
-        intro: safeDecrypt(exam.intro) || '',
-        analysis: safeDecrypt(exam.analysis) || '',
-        table: (exam.table || []).map((row: any) => ({
-          biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
-          valor: safeDecrypt(row.valor) || row.valor,
-          rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
-          estado: safeDecrypt(row.estado) || row.estado,
-        })),
-      })),
-      supplements: (session.structuredMedicalAnalysis.supplements || []).map((supp: any) => ({
-        name: safeDecrypt(supp.name) || supp.name,
-        dosage: safeDecrypt(supp.dosage) || supp.dosage,
-        timing: safeDecrypt(supp.timing) || supp.timing,
-        rationale: safeDecrypt(supp.rationale) || supp.rationale,
-        contraindications: safeDecrypt(supp.contraindications) || supp.contraindications,
-      })),
-    } : undefined;
-
     const pdfData: PDFRecommendationData = {
       client: { name: clientName, photoBuffer: clientPhotoBuffer, sex: clientSex, age: clientAge, weight: clientWeight, height: clientHeight },
-      session: { summary, vision, medicalSummary, medicalComparativeAnalysis, labResults, structuredMedicalAnalysis, index: sessionIndex },
-      checklist,
-      weeks,
+      session: { summary: summaryOut, vision: visionOut, medicalSummary: medicalSummaryOut, medicalComparativeAnalysis: medicalComparativeAnalysisOut, labResults: labResultsOut, structuredMedicalAnalysis: structuredMedicalAnalysisOut, index: sessionIndex },
+      checklist: checklistOut,
+      weeks: weeksOut,
       recipes,
       exercises,
       habitData: { toAdopt, toEliminate, trackingMethod, motivationTip, tips },
@@ -455,5 +558,7 @@ async function getHandler(
     return NextResponse.json({ error: 'Error generando PDF', message: error.message }, { status: 500 });
   }
 }
+
+export const maxDuration = 300;
 
 export const GET = apiHandler(getHandler);

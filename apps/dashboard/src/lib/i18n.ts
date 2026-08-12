@@ -144,6 +144,8 @@ const en = {
     generatingDetail: 'The AI is analyzing client data, medical documents, and planning nutrition, exercise, habits and lab analysis. Do not close this window.',
     generationErrorTitle: 'Error generating recommendations',
     viewFullError: 'View full error',
+    translationBanner: 'These recipes and exercises were created in {{sourceLang}} and have been dynamically translated to {{targetLang}} for this client.',
+    translationBannerPdf: 'The generated PDF will be translated to the client\'s language.',
     docAnalysisWarning: 'Warning in document analysis',
     offlineMode: '⚠️ Offline mode: Recommendations generated locally',
     offlineModeDesc: 'To get personalized AI recommendations, verify your AI service account.',
@@ -243,7 +245,8 @@ const en = {
     extractError: 'Could not extract text from the file {{name}}. Make sure it is a valid document. Details: {{error}}',
     motivationTip: 'Motivational tip:',
     trackingMethod: 'Tracking method:',
-    regenerationPrompt: 'Notes for regeneration (optional):'
+    regenerationPrompt: 'Notes for regeneration (optional):',
+    errorRegenerateTimeout: 'The regeneration is taking longer than expected. Please try again.'
   },
   recipes: {
     title: 'Recipes',
@@ -1141,6 +1144,8 @@ const es = {
     generatingDetail: 'La IA está analizando los datos del cliente, documentos médicos, y planificando nutrición, ejercicio, hábitos y análisis de laboratorio. No cierres esta ventana.',
     generationErrorTitle: 'Error al generar recomendaciones',
     viewFullError: 'Ver error completo',
+    translationBanner: 'Estas recetas y ejercicios fueron creados en {{sourceLang}} y fueron traducidos dinámicamente al {{targetLang}} para este cliente.',
+    translationBannerPdf: 'El PDF generado estará traducido al idioma del cliente.',
     docAnalysisWarning: 'Advertencia en análisis de documentos',
     offlineMode: '⚠️ Modo offline: Recomendaciones generadas localmente',
     offlineModeDesc: 'Para obtener recomendaciones personalizadas con IA, verifica tu cuenta del servicio de IA.',
@@ -1240,7 +1245,8 @@ const es = {
     extractError: 'No se pudo extraer texto del archivo {{name}}. Asegúrate de que sea un documento válido. Detalles: {{error}}',
     motivationTip: 'Consejo motivacional:',
     trackingMethod: 'Método de seguimiento:',
-    regenerationPrompt: 'Notas para la regeneración (opcional):'
+    regenerationPrompt: 'Notas para la regeneración (opcional):',
+    errorRegenerateTimeout: 'La regeneración está tardando más de lo esperado. Inténtalo de nuevo.'
   },
   recipes: {
     title: 'Recetas',
@@ -2123,6 +2129,8 @@ const fr = {
     generatingDetail: 'L\'IA analyse les données du client, les documents médicaux, et planifie nutrition, exercice, habitudes et analyse de laboratoire. Ne fermez pas cette fenêtre.',
     generationErrorTitle: 'Erreur lors de la génération des recommandations',
     viewFullError: 'Voir l\'erreur complète',
+    translationBanner: 'Ces recettes et exercices ont été créés en {{sourceLang}} et ont été traduits dynamiquement en {{targetLang}} pour ce client.',
+    translationBannerPdf: 'Le PDF généré sera traduit dans la langue du client.',
     docAnalysisWarning: 'Avertissement dans l\'analyse des documents',
     offlineMode: '⚠️ Mode hors ligne : recommandations générées localement',
     offlineModeDesc: 'Pour obtenir des recommandations personnalisées par IA, vérifiez votre compte du service IA.',
@@ -2225,7 +2233,8 @@ const fr = {
     sessionImported: 'Session importée avec succès. Vous pouvez maintenant réviser et éditer les recommandations.',
     sessionImportError: 'Erreur : {{error}}',
     shoppingListError: 'Impossible de générer automatiquement la liste de courses',
-    regenerationPrompt: 'Notes pour la régénération (facultatif) :'
+    regenerationPrompt: 'Notes pour la régénération (facultatif) :',
+    errorRegenerateTimeout: 'La régénération prend plus de temps que prévu. Veuillez réessayer.'
   },
   recipes: {
     title: 'Recettes',
@@ -3108,6 +3117,8 @@ const it = {
     generatingDetail: 'L\'IA sta analizzando i dati del cliente, i documenti medici e pianificando nutrizione, esercizio, abitudini e analisi di laboratorio. Non chiudere questa finestra.',
     generationErrorTitle: 'Errore nella generazione delle raccomandazioni',
     viewFullError: 'Visualizza errore completo',
+    translationBanner: 'Queste ricette ed esercizi sono stati creati in {{sourceLang}} e sono stati tradotti dinamicamente in {{targetLang}} per questo cliente.',
+    translationBannerPdf: 'Il PDF generato sarà tradotto nella lingua del cliente.',
     docAnalysisWarning: 'Avviso nell\'analisi dei documenti',
     offlineMode: '⚠️ Modalità offline: raccomandazioni generate localmente',
     offlineModeDesc: 'Per ottenere raccomandazioni personalizzate con IA, verifica il tuo account del servizio IA.',
@@ -3210,7 +3221,8 @@ const it = {
     sessionImported: 'Sessione importata con successo. Ora puoi rivedere e modificare le raccomandazioni.',
     sessionImportError: 'Errore: {{error}}',
     shoppingListError: 'Impossibile generare automaticamente la lista della spesa',
-    regenerationPrompt: 'Note per la rigenerazione (facoltativo):'
+    regenerationPrompt: 'Note per la rigenerazione (facoltativo):',
+    errorRegenerateTimeout: 'La rigenerazione sta richiedendo più tempo del previsto. Riprova.'
   },
   recipes: {
     title: 'Ricette',
@@ -4093,6 +4105,8 @@ const pt = {
     generatingDetail: 'A IA está analisando os dados do cliente, documentos médicos e planejando nutrição, exercícios, hábitos e análise laboratorial. Não feche esta janela.',
     generationErrorTitle: 'Erro ao gerar recomendações',
     viewFullError: 'Ver erro completo',
+    translationBanner: 'Estas receitas e exercícios foram criados em {{sourceLang}} e foram traduzidos dinamicamente para {{targetLang}} para este cliente.',
+    translationBannerPdf: 'O PDF gerado será traduzido para o idioma do cliente.',
     docAnalysisWarning: 'Aviso na análise de documentos',
     offlineMode: '⚠️ Modo offline: recomendações geradas localmente',
     offlineModeDesc: 'Para obter recomendações personalizadas com IA, verifique sua conta do serviço de IA.',
@@ -4195,7 +4209,8 @@ const pt = {
     sessionImported: 'Sessão importada com sucesso. Agora você pode revisar e editar as recomendações.',
     sessionImportError: 'Erro: {{error}}',
     shoppingListError: 'Não foi possível gerar a lista de compras automaticamente',
-    regenerationPrompt: 'Notas para a regeneração (opcional):'
+    regenerationPrompt: 'Notas para a regeneração (opcional):',
+    errorRegenerateTimeout: 'A regeneração está demorando mais do que o esperado. Tente novamente.'
   },
   recipes: {
     title: 'Receitas',
@@ -5078,6 +5093,8 @@ const de = {
     generatingDetail: 'Die KI analysiert Kundendaten und medizinische Dokumente und plant Ernährung, Bewegung, Gewohnheiten und Laboranalyse. Schließen Sie dieses Fenster nicht.',
     generationErrorTitle: 'Fehler beim Generieren der Empfehlungen',
     viewFullError: 'Vollständigen Fehler anzeigen',
+    translationBanner: 'Diese Rezepte und Übungen wurden in {{sourceLang}} erstellt und für diesen Kunden dynamisch in {{targetLang}} übersetzt.',
+    translationBannerPdf: 'Das generierte PDF wird in die Sprache des Kunden übersetzt.',
     docAnalysisWarning: 'Warnung bei der Dokumentenanalyse',
     offlineMode: '⚠️ Offline-Modus: Empfehlungen lokal generiert',
     offlineModeDesc: 'Um personalisierte KI-Empfehlungen zu erhalten, verifizieren Sie Ihr KI-Dienstkonto.',
@@ -5180,7 +5197,8 @@ const de = {
     sessionImported: 'Sitzung erfolgreich importiert. Sie können die Empfehlungen jetzt überprüfen und bearbeiten.',
     sessionImportError: 'Fehler: {{error}}',
     shoppingListError: 'Einkaufsliste konnte nicht automatisch generiert werden',
-    regenerationPrompt: 'Notizen für die Neugenerierung (optional):'
+    regenerationPrompt: 'Notizen für die Neugenerierung (optional):',
+    errorRegenerateTimeout: 'Die Neugenerierung dauert länger als erwartet. Bitte erneut versuchen.'
   },
   recipes: {
     title: 'Rezepte',

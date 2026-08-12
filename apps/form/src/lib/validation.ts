@@ -48,6 +48,9 @@ export const personalDataSchema = yup.object({
   education: yup.string().required('La educación es requerida'),
   occupation: yup.string().required('La ocupación es requerida'),
   profilePhoto: imageFileSchema,
+  // Idioma del cliente: usado para traducir dinámicamente las recomendaciones
+  // (plan + PDF) al generarlas. Default 'es' para clientes existentes.
+  language: yup.string().oneOf(['es', 'en', 'it', 'pt', 'fr', 'de']).default('es'),
   // Nuevos campos
   bodyFatPercentage: yup.string().optional(),
   weightVariation: yup.string().oneOf(['estable', 'bajo', 'subido'], 'Selecciona una opción').required('Selecciona una opción'),
@@ -108,11 +111,15 @@ export const medicalDataSchema = yup.object({
   targetDate: yup.string().optional(),
 
   // NUEVOS CAMPOS - PASO 5 (Contexto)
-  typicalWeekday: yup.string().optional(),
-  typicalWeekend: yup.string().optional(),
-  whoCooks: yup.string().optional(),
-  currentActivityLevel: yup.string().optional(),
-  physicalLimitations: yup.string().optional(),
+// IMPORTANTE: opcionales en el schema BASE a propósito — los pasos anteriores
+// (HealthEvaluations, MentalHealth) validan con medicalDataSchema y bloquearían
+// el avance si estos campos fueran required aquí. La obligatoriedad se aplica
+// SOLO en el schema del paso 5 (lifestyleContextStepSchema en LifestyleContextStep).
+typicalWeekday: yup.string().optional(),
+typicalWeekend: yup.string().optional(),
+whoCooks: yup.string().optional(),
+currentActivityLevel: yup.string().optional(),
+physicalLimitations: yup.string().optional(),
   // Nuevos campos para acceso a equipos de ejercicio
   gymAccess: yup.string().oneOf(['si-gimnasio', 'si-parque', 'no-acceso', 'equipos-casa', 'peso-corporal']).optional(),
   gymAccessDetails: yup.string().optional(),
@@ -126,6 +133,26 @@ export const medicalDataSchema = yup.object({
 export const contractSchema = yup.object({
   contractAccepted: yup.boolean().oneOf([true], 'Debe aceptar los términos y condiciones'),
 });
+
+// ─── Schema PROPIO del paso Contexto y Estilo de Vida ────────────────────────
+// Las 5 preguntas de estilo de vida son OBLIGATORIAS aquí (required).
+// IMPORTANTE: NO ponerlas required en medicalDataSchema (base) — los pasos
+// anteriores (HealthEvaluations, MentalHealth) validan contra ese schema y
+// bloquearían el avance del form antes de llegar a este paso (bug histórico
+// "no pasa de sección" resuelto exigiendo por paso, no en el base).
+// OJO: relajar mainComplaint (required en el base, pero es del paso 4) —
+// MISMO patrón que mentalHealthStepSchema: cada paso derivado relaja los
+// required de los OTROS pasos para ser autocontenido.
+export const lifestyleContextStepSchema = medicalDataSchema.shape({
+  mainComplaint: yup.string().optional(),
+  typicalWeekday: yup.string().required('Describe tu día típico entre semana'),
+  typicalWeekend: yup.string().required('Describe tu día típico de fin de semana'),
+  whoCooks: yup.string().required('Indica quién cocina en casa'),
+  currentActivityLevel: yup.string().required('Indica tu nivel de actividad física actual'),
+  physicalLimitations: yup.string().required('Indica si tienes lesiones o limitaciones físicas'),
+});
+
+export type LifestyleContextFormValues = yup.InferType<typeof lifestyleContextStepSchema>;
 
 export const documentsSchema = yup.object({
   documents: yup.array().of(documentFileSchema),
