@@ -555,7 +555,13 @@ async function getHandler(
     });
   } catch (error: any) {
     loggerWithContext.error('PDF', `❌ Error generando PDF: ${error.message}`, error);
-    return NextResponse.json({ error: 'Error generando PDF', message: error.message }, { status: 500 });
+    // SEC (A10): no exponer error.message en producción (podría revelar rutas
+    // internas, detalles de LLM/S3). Solo detalle en desarrollo.
+    return NextResponse.json({
+      error: 'Error generando PDF',
+      message: 'No se pudo generar el PDF. Inténtalo de nuevo.',
+      ...(process.env.NODE_ENV === 'development' && { detail: error.message }),
+    }, { status: 500 });
   }
 }
 

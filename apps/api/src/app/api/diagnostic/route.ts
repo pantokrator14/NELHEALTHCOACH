@@ -71,10 +71,13 @@ async function getHandler(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        // SEC (A10): detalles internos solo en desarrollo
+        ...(process.env.NODE_ENV === 'development' && {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          stack: error.stack,
+        }),
       },
       environment: {
         MONGODB_URI: process.env.MONGODB_URI ? '✅ Definida' : '❌ Faltante',

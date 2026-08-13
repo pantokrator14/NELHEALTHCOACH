@@ -18,7 +18,15 @@ async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
-    const auth = requireCoachAuth(request);
+    let auth;
+    try {
+      auth = requireCoachAuth(request);
+    } catch {
+      return NextResponse.json(
+        { success: false, message: 'No autorizado' },
+        { status: 401 }
+      );
+    }
 
     const { searchParams } = request.nextUrl;
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
@@ -69,7 +77,15 @@ async function postHandler(request: NextRequest) {
   try {
     await connectMongoose();
 
-    const auth = requireCoachAuth(request);
+    let auth;
+    try {
+      auth = requireCoachAuth(request);
+    } catch {
+      return NextResponse.json(
+        { success: false, message: 'No autorizado' },
+        { status: 401 }
+      );
+    }
 
     const body = await request.json();
     const { action } = body as { action?: string };

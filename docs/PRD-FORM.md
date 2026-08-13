@@ -58,7 +58,7 @@ apps/form/
 │   ├── components/
 │   │   └── [StepComponents]  # Componentes por paso
 │   ├── lib/
-│   │   ├── validation.ts     # Esquemas Zod
+│   │   ├── validation.ts     # Esquemas Yup
 │   │   └── store.ts          # Estado global
 │   ├── pages/
 │   │   └── index.tsx         # Formulario principal
@@ -75,6 +75,7 @@ apps/form/
 - **Demográficos**: Género, altura, peso actual, peso objetivo
 - **Medidas corporales**: Circunferencias (opcional)
 - **Fotos progreso**: Upload opcional (antes/después motivación)
+- **Idioma del cliente** (`language`): es/en/it/pt/fr/de (default 'es') — dispara la **traducción dinámica FASE 4** de las recomendaciones de IA al idioma del cliente
 - **Validación**: Email válido, rangos peso/altura realistas
 
 ### 4.2 Paso 2: Contexto de Estilo de Vida
@@ -205,7 +206,7 @@ apps/form/
 
 ### 7.2 Servicios Externos
 - **AWS S3**: Almacenamiento seguro documentos
-- **AWS Textract**: OCR para documentos médicos
+- **Extracción local (sin servicio externo)**: pdf-parse (PDF), mammoth (DOCX), tesseract.js/PaddleOCR (imágenes) — el análisis lo hace Gemini (secundario) sobre el texto extraído
 - **Resend**: Email confirmación al usuario
 - **Analytics**: Tracking eventos (completado, abandonos, etc.)
 
@@ -220,7 +221,7 @@ apps/form/
 ## 8. Validación y Calidad de Datos
 
 ### 8.1 Validación Cliente-side
-- **Zod schemas**: Tipado estricto TypeScript
+- **Yup schemas**: Tipado estricto TypeScript (React Hook Form + Yup)
 - **Range validation**: Valores médicos realistas
 - **Consistency checks**: Peso vs altura, objetivos vs timeline
 - **Required fields**: Mínimo para procesamiento IA
@@ -337,7 +338,7 @@ apps/form/
 ### 13.1 Costos Operativos
 - **Hosting**: Vercel Pro ($20/mes)
 - **Storage**: AWS S3 ($10-50/mes según uso)
-- **Processing**: AWS Textract ($1-5/1000 páginas)
+- **Processing**: Extracción local gratuita (dependencias propias); Gemini solo analiza texto extraído
 - **Email**: Resend ($20/mes)
 
 ### 13.2 Recursos Humanos
@@ -349,5 +350,7 @@ apps/form/
 ---
 
 *Documento actualizado: Junio 2026*
-*Versión: 2.1*
+*Versión: 2.3*
+*Última actualización: 2026-08-12 — stack corregido (Yup, no Zod); extracción de documentos local (pdf-parse/mammoth/OCR) + Gemini secundario (sin Textract)*
+*Última actualización: 2026-08-12 — campo `language` del cliente documentado (dispara la traducción FASE 4 de las recomendaciones IA)*
 *Propietario: Equipo UX/Producto NELHEALTHCOACH*

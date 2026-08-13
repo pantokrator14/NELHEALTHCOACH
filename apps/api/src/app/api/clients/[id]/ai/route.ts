@@ -1785,7 +1785,8 @@ async function updateChecklist(
     loggerWithContext.error('AI', '💥 Error actualizando checklist', error);
     return {
       success: false,
-      message: error.message
+      // SEC (A10): mensaje genérico, detalle solo en logs
+      message: 'Error actualizando el checklist'
     };
   }
 }
@@ -2573,7 +2574,8 @@ async function updateSessionFields(
     loggerWithContext.error('AI', 'Error actualizando campos de sesión', error);
     return {
       success: false,
-      message: error.message
+      // SEC (A10): mensaje genérico, detalle solo en logs
+      message: 'Error actualizando los campos de la sesión'
     };
   }
 }
@@ -2945,7 +2947,8 @@ async function updateWeeklyPlanAndShoppingList(
     loggerWithContext.error('AI', '💥 Error en updateWeeklyPlanAndShoppingList', error);
     return {
       success: false,
-      message: error.message || 'Error al actualizar el plan semanal y regenerar la lista de compras',
+      // SEC (A10): mensaje genérico, detalle solo en logs
+      message: 'Error al actualizar el plan semanal y regenerar la lista de compras',
     };
   }
 }
@@ -3014,6 +3017,7 @@ async function generateShoppingList(
     return { success: true, shoppingList };
   } catch (error: any) {
     loggerWithContext.error('AI', 'Error generando lista de compras', error);
-    return { success: false, message: error.message };
+    // SEC (A10): mensaje genérico, detalle solo en logs
+    return { success: false, message: 'Error generando la lista de compras' };
   }
 }

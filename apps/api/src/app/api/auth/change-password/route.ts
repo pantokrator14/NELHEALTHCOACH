@@ -13,7 +13,31 @@ import { createNotification } from '@/app/lib/create-notification';
 
 async function changePasswordHandler(request: NextRequest) {
   await connectMongoose();
-  const auth = requireCoachAuth(request);
+
+  // SEC: requireCoachAuth lanza Error sin status → capturar y responder 401
+  // (antes: apiHandler lo convertía en 500 genérico, revelando "Error interno")
+  let auth;
+  try {
+    auth = requireCoachAuth(request);
+  } catch (authError) {
+    logAuditEvent({
+      eventType: 'UNAUTHORIZED_ACCESS',
+      severity: 'warning',
+      message: `Cambio de contraseña sin token válido: ${(authError as Error).message}`,
+      actorEmail: undefined,
+      ip: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+      requestId: request.headers.get('x-request-id') || undefined,
+      path: '/api/auth/change-password',
+      method: 'POST',
+      statusCode: 401,
+    });
+    return NextResponse.json(
+      { success: false, message: 'No autorizado' },
+      { status: 401 },
+    );
+  }
+
   const body = await request.json();
   const { currentPassword, newPassword } = body;
 

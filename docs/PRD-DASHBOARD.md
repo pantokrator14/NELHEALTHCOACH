@@ -45,11 +45,12 @@ El Dashboard de NELHEALTHCOACH es la herramienta principal para coaches, permiti
 - **Lenguaje**: TypeScript 5.8.3
 - **Estilos**: Tailwind CSS
 - **Estado**: React Context + Local Storage
-- **Gráficos**: Chart.js / react-chartjs-2
+- **PDF en cliente**: jsPDF + jspdf-autotable (exportación del perfil del cliente)
 - **Internacionalización**: react-i18next + i18next-browser-languagedetector
-- **Formularios**: React Hook Form + Zod
+- **Formularios**: React Hook Form + Yup
 - **Autenticación**: JWT
 - **Audio/Videollamadas**: LiveKit
+- **Seguridad**: FingerprintJS
 
 ### 3.2 Estructura de Directorios
 ```
@@ -135,6 +136,7 @@ No se usan keys genéricas `common.*` en las secciones específicas — cada una
 - **Evaluación de salud**: Datos del formulario completo
 - **Documentos**: Archivos subidos, consentimientos
 - **Historial de sesiones**: Notas, planes, progreso
+- **Exportar perfil en PDF** (`lib/pdfGenerator.ts` — jsPDF + jspdf-autotable): genera un PDF en cliente con todos los datos del perfil (formulario completo, evaluaciones, salud mental, documentos)
 
 ### 4.3 Planes y Recomendaciones (Modal AIRecommendationsModal)
 
@@ -172,6 +174,19 @@ El modal de recomendaciones IA fue completamente rediseñado con un sistema de *
 - **Navegación por teclado**: ESC para cerrar, flechas para navegar entre documentos
 - **Recarga automática**: Al cerrar/reabrir el modal se obtienen datos frescos de MongoDB
 - **Persistencia**: Todos los cambios (add/edit/delete/drag-drop) se guardan vía `updateSessionItems` → MongoDB
+
+#### 4.3.5 Generación Asíncrona (Cola Propia + Polling)
+- Al generar o regenerar recomendaciones, el backend responde **202 `{status:'queued', jobId}`** en <1s
+- El modal notifica al padre (`onRecommendationsGenerated({status:'queued'})`) que activa **polling cada 10s** (máx 30 intentos = 5 min) a `GET /api/clients/[id]/ai`
+- El polling actúa de **worker**: reclama el job y ejecuta el pipeline; cuando la sesión aparece en `aiProgress.sessions`, el frontend pasa a `ready` y refresca los datos
+- **Regeneración**: `handleRegenerate` poll-ea hasta que `currentSessionId` cambia (la sesión regenerada tiene ID nuevo); timeout con toast `errorRegenerateTimeout` (6 idiomas)
+- **Errores**: si el worker falla (tras 3 intentos), `aiProgress.generationError` se muestra con toast y el modal sale del estado de carga
+- **Spinner continuo**: el modal mantiene "Generando..." durante el polling vía la prop `generationStatus` ('idle' | 'queued' | 'ready')
+
+#### 4.3.6 Banner de Traducción (FASE 4)
+- Cuando la sesión fue traducida al idioma del cliente (campo `translation: {targetLang, sourceLang}`), el modal muestra un **banner informativo** (`ai.translationBanner`): "Traducido del español al inglés" (texto en 6 idiomas)
+- En el PDF compartido también se muestra el banner (`ai.translationBannerPdf`)
+- Si el idioma de origen es el mismo que el del cliente, no se muestra banner
 
 ### 4.4 Sistema de Notas y Seguimiento
 - **Notas de sesión**: Fecha, contenido, objetivos discutidos
@@ -344,6 +359,8 @@ Dashboard → Click "Generar Recomendaciones" → POST /api/clients/[id]/ai → 
   - Namespace `exercises`: biblioteca de ejercicios con CRUD completo vía modal
   - Sin dependencia de keys `common.*` genéricas — cada sección tiene su propio namespace
 - [x] **Gestión de coaches** — tabla con búsqueda, filtros, paginación y modal de detalle
+- [x] **Generación asíncrona (cola propia)** — 202 queued + polling cada 10s, regeneración con detección de `currentSessionId`, errores visibles vía `generationError`
+- [x] **Banner de traducción (FASE 4)** — aviso cuando la sesión está traducida al idioma del cliente (`translationBanner`/`translationBannerPdf` en 6 idiomas)
 
 ### Fase 2 (En progreso)
 - [ ] Reportes avanzados con exportación
@@ -408,5 +425,6 @@ Dashboard → Click "Generar Recomendaciones" → POST /api/clients/[id]/ai → 
 ---
 
 *Documento actualizado: Junio 2026*
-*Versión: 3.1*
+*Versión: 3.3*
+*Última actualización: 2026-08-12 — generación asíncrona con cola propia (202 queued + polling), banner de traducción FASE 4 (6 idiomas), regeneración con detección de currentSessionId, exportación de perfil en PDF (jsPDF), stack corregido (Yup, sin Chart.js)*
 *Propietario: Equipo Producto NELHEALTHCOACH*
