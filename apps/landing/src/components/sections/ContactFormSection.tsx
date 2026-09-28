@@ -1,5 +1,6 @@
 // apps/landing/src/components/sections/ContactFormSection.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
 import { getVisitorId } from '../../lib/fingerprint';
@@ -26,6 +27,7 @@ const objectives = [
 
 const ContactFormSection: React.FC = () => {
   const { t } = useTranslation();
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -36,6 +38,14 @@ const ContactFormSection: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Disponibilidad de sesiones gratuitas (cupo limitado)
+  const [sessionInfo, setSessionInfo] = useState<{ available: boolean; remaining: number } | null>(null);
+  // Lista de espera (misma lista unificada del libro, origen 'sessions')
+  const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistWebsite, setWaitlistWebsite] = useState('');
+  const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const sessionsFull = sessionInfo?.available === false;
 
   // Cerrar con Escape
   useEffect(() => {
@@ -45,6 +55,78 @@ const ContactFormSection: React.FC = () => {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  // Disponibilidad de la sesión gratuita (el coach la abre/cierra desde el dashboard).
+  // Se refresca sola: al cargar, cada 30 s, al volver a la pestaña y tras enviar
+  // un lead, de modo que el cupo se actualiza sin recargar la página.
+  const refreshAvailability = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/free-sessions/availability`, { cache: 'no-store' });
+      const data = (await res.json()) as { success?: boolean; data?: { available: boolean; remaining: number } };
+      if (data?.success && data.data) {
+        setSessionInfo({ available: data.data.available, remaining: data.data.remaining });
+      }
+    } catch {
+      // Sin datos de disponibilidad: no bloqueamos el formulario
+    }
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve(); // frontera async (react-hooks/set-state-in-effect)
+      await refreshAvailability();
+    })();
+    const intervalId = window.setInterval(() => {
+      void refreshAvailability();
+    }, 30000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshAvailability();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [refreshAvailability]);
+
+  // Deep link desde el blog (/blog → /?sesion=1#contacto): abre el formulario
+  // de la sesión gratuita (o la lista de espera si no hay cupos).
+  useEffect(() => {
+    if (router.isReady && router.query.sesion === '1') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link externo: abrir una sola vez al llegar
+      if (sessionsFull) setIsWaitlistOpen(true);
+      else setIsModalOpen(true);
+      void router.replace('/#contacto', undefined, { shallow: true });
+    }
+  }, [router, router.isReady, router.query.sesion, sessionsFull]);
+
+  // Si la disponibilidad llega tarde y ya no hay cupos, cambiar al modal de espera
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve(); // frontera async (react-hooks/set-state-in-effect)
+      if (sessionsFull && isModalOpen) {
+        setIsModalOpen(false);
+        setIsWaitlistOpen(true);
+      }
+    })();
+  }, [sessionsFull, isModalOpen]);
+
+  const handleWaitlistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setWaitlistStatus('sending');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail, source: 'sessions', website: waitlistWebsite }),
+      });
+      if (!res.ok) throw new Error('request failed');
+      setWaitlistStatus('sent');
+      setWaitlistEmail('');
+    } catch {
+      setWaitlistStatus('error');
+    }
+  };
 
   const openCalendly = () => {
     window.open(
@@ -73,6 +155,8 @@ const ContactFormSection: React.FC = () => {
       email: formData.email,
       phone: formData.phone,
       objective: finalObjective,
+      // Consume un cupo de sesión gratuita (el API lo descuenta y cierra al llenarse)
+      source: 'free-session',
     };
 
     try {
@@ -95,16 +179,24 @@ const ContactFormSection: React.FC = () => {
       let data;
       try {
         data = JSON.parse(text);
-      } catch (parseError) {
+      } catch {
         console.error('❌ No se pudo parsear JSON. Respuesta:', text);
         throw new Error('La respuesta del servidor no es válida');
       }
 
       if (!response.ok) {
+        // Cupos agotados (defensa server-side): pasar a la lista de espera
+        if (response.status === 409) {
+          await refreshAvailability();
+          setIsModalOpen(false);
+          setIsWaitlistOpen(true);
+          return;
+        }
         throw new Error(data.message || 'Error al enviar');
       }
 
-      // Éxito: cerrar modal y abrir Calendly
+      // Éxito: el cupo se consumió → refrescar disponibilidad y abrir Calendly
+      void refreshAvailability();
       setIsModalOpen(false);
       openCalendly();
     } catch (err: unknown) {
@@ -167,13 +259,35 @@ const ContactFormSection: React.FC = () => {
                 {t('landing.contact.scheduleSubtitle')}
               </p>
 
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
-              >
-                <span className="text-2xl">📅</span>
-                <span>{t('landing.contact.viewSchedule')}</span>
-              </button>
+              {sessionsFull ? (
+                <>
+                  <div className="w-full rounded-xl bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 text-sm font-semibold text-center mb-4">
+                    {t('landing.contact.sessionsFull')}
+                  </div>
+                  <button
+                    onClick={() => setIsWaitlistOpen(true)}
+                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    <span className="text-2xl">⏳</span>
+                    <span>{t('landing.contact.waitlistButton')}</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    <span className="text-2xl">📅</span>
+                    <span>{t('landing.contact.viewSchedule')}</span>
+                  </button>
+                  {sessionInfo && sessionInfo.remaining > 0 && sessionInfo.remaining <= 3 && (
+                    <p className="mt-4 text-sm font-semibold text-emerald-600 text-center">
+                      ✨ {t('landing.contact.fewLeft')}
+                    </p>
+                  )}
+                </>
+              )}
 
               <div className="mt-8 space-y-4">
                 <p className="text-gray-500 text-sm text-center flex items-center justify-center">
@@ -291,6 +405,65 @@ const ContactFormSection: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de lista de espera (sin cupos) */}
+      {isWaitlistOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setIsWaitlistOpen(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              aria-label={t('common.close')}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <h3 className="text-2xl font-bold text-blue-800 mb-4">{t('landing.contact.waitlistTitle')}</h3>
+            <p className="text-gray-600 mb-6">{t('landing.contact.waitlistText')}</p>
+
+            {waitlistStatus === 'sent' ? (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3.5 text-emerald-700 text-sm">
+                {t('landing.contact.waitlistSuccess')}
+              </div>
+            ) : (
+              <form onSubmit={(e) => void handleWaitlistSubmit(e)} className="space-y-4">
+                {/* Honeypot anti-spam */}
+                <div className="absolute -left-[9999px]" aria-hidden="true">
+                  <label htmlFor="sessions-waitlist-website">Website</label>
+                  <input
+                    id="sessions-waitlist-website"
+                    type="text"
+                    value={waitlistWebsite}
+                    onChange={(e) => setWaitlistWebsite(e.target.value)}
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={waitlistEmail}
+                  onChange={(e) => setWaitlistEmail(e.target.value)}
+                  placeholder={t('landing.contact.waitlistPlaceholder')}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                />
+                {waitlistStatus === 'error' && (
+                  <p className="text-red-600 text-sm">{t('landing.contact.waitlistError')}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={waitlistStatus === 'sending'}
+                  className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {waitlistStatus === 'sending' ? t('common.loading') : t('landing.contact.waitlistSubmit')}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

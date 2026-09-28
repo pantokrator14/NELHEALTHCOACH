@@ -25,13 +25,14 @@ export default function ExerciseDetailModal({
   hasNext,
   onSelectExercise,
 }: ExerciseDetailModalProps) {
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  // Confirmación ligada al id del ejercicio: al navegar a otro ejercicio
+  // la confirmación se desactiva sola (derivado, sin efecto)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Scroll al tope cada vez que cambia el ejercicio
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' });
-    setShowConfirmDelete(false);
   }, [exercise.id]);
 
   useEffect(() => {
@@ -285,14 +286,14 @@ export default function ExerciseDetailModal({
         {/* Footer */}
         <div className="flex justify-between items-center p-3 sm:p-4 md:p-5 border-t border-gray-200 bg-gray-50">
           <div>
-            {showConfirmDelete ? (
+            {confirmDeleteId === exercise.id ? (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-red-600 font-medium">¿Eliminar?</span>
                 <button onClick={onDelete} className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition">Sí, eliminar</button>
-                <button onClick={() => setShowConfirmDelete(false)} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition">Cancelar</button>
+                <button onClick={() => setConfirmDeleteId(null)} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition">Cancelar</button>
               </div>
             ) : (
-              <button onClick={() => setShowConfirmDelete(true)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-medium">🗑️ Eliminar</button>
+              <button onClick={() => setConfirmDeleteId(exercise.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-medium">🗑️ Eliminar</button>
             )}
           </div>
           <div className="flex gap-2">

@@ -43,3 +43,25 @@ export {
 export type {
   RecipeInput,
 } from './recipes';
+
+export {
+  blogPostSchema,
+  blogPostUpdateSchema,
+  authorProfileSchema,
+  blogViewSchema,
+  blogCommentSchema,
+  blogCommentModerationSchema,
+  imageFileSchema,
+  SLUG_REGEX,
+} from './blog';
+export type {
+  BlogPostInput,
+  BlogPostUpdateInput,
+  AuthorProfileInput,
+  BlogViewInput,
+  BlogCommentInput,
+  BlogCommentModerationInput,
+} from './blog';
+
+export { waitlistSchema, freeSessionsSchema, WAITLIST_SOURCES } from './waitlist';
+export type { WaitlistInput, FreeSessionsInput } from './waitlist';

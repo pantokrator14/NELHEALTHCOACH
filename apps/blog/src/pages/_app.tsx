@@ -1,0 +1,50 @@
+import '@/styles/globals.css';
+import Head from 'next/head';
+import type { AppProps } from 'next/app';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+// i18n — se inicializa en SSR con español (LanguageDetector no funciona en servidor).
+// En useEffect se fuerza la detección del idioma real del navegador.
+import i18n from '@/lib/i18n';
+import { initFingerprint } from '@/lib/fingerprint';
+
+const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
+
+export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+
+  // Fingerprint una sola vez (no depende del idioma)
+  useEffect(() => {
+    initFingerprint().catch((err) => {
+      console.warn('FingerprintJS init failed (non-blocking):', err);
+    });
+  }, []);
+
+  // Idioma de la URL (?lang=XX) tiene prioridad; si no, se detecta del navegador.
+  // Así cada URL localizada (SEO hreflang) renderiza en su idioma.
+  useEffect(() => {
+    const queryLang = typeof router.query.lang === 'string' ? router.query.lang : null;
+    if (queryLang && SUPPORTED_LANGS.includes(queryLang)) {
+      if (queryLang !== i18n.language) void i18n.changeLanguage(queryLang);
+      return;
+    }
+    if (typeof navigator !== 'undefined') {
+      const browserLang = navigator.language?.split('-')[0];
+      if (browserLang && SUPPORTED_LANGS.includes(browserLang) && browserLang !== i18n.language) {
+        void i18n.changeLanguage(browserLang);
+      }
+    }
+  }, [router.query.lang]);
+
+  return (
+    <>
+      <Head>
+        <title>Blog | NELHEALTHCOACH</title>
+        <meta name="description" content="Blog de salud y bienestar de NELHEALTHCOACH" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/images/favicon.ico" />
+      </Head>
+      <Component {...pageProps} />
+    </>
+  );
+}

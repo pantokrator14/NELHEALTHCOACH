@@ -17,6 +17,12 @@ interface ClientSessionSchedulerProps {
   onCancel: () => void;
 }
 
+/**
+ * Fecha mínima seleccionable (mañana). Se calcula a nivel de módulo para no
+ * llamar a Date.now() durante el render (regla react-hooks/purity).
+ */
+const MIN_SESSION_DATE = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+
 const ClientSessionScheduler: React.FC<ClientSessionSchedulerProps> = ({
   onSchedule,
   onCancel,
@@ -73,7 +79,7 @@ const ClientSessionScheduler: React.FC<ClientSessionSchedulerProps> = ({
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            min={new Date(Date.now() + 86400000).toISOString().slice(0, 16)}
+            min={MIN_SESSION_DATE}
           />
           <p className="text-xs text-gray-500 mt-1">{formattedDate}</p>
         </div>

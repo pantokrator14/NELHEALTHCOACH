@@ -25,6 +25,16 @@ const PATH_CONFIGS: Readonly<Record<string, Readonly<RateLimitConfig>>> = {
   '/api/health': { windowSeconds: 10, maxRequests: 20 },
   '/api/exercises': { windowSeconds: 10, maxRequests: 10 },
   '/api/recipes': { windowSeconds: 10, maxRequests: 10 },
+  // Blog: lecturas públicas descifran documentos y pueden disparar traducción
+  // LLM (coste real) → límite por IP + ruta, suficiente para navegar normal.
+  // Lista de espera (libro + sesiones): escritura pública poco frecuente
+  '/api/waitlist': { windowSeconds: 60, maxRequests: 5 },
+  // Sesiones gratuitas: disponibilidad pública + control del coach
+  '/api/free-sessions': { windowSeconds: 60, maxRequests: 60 },
+  // IMPORTANTE: el orden importa (la primera coincidencia gana), por eso el
+  // prefijo más específico de comentarios va ANTES que '/api/blog'.
+  '/api/blog/comments': { windowSeconds: 60, maxRequests: 10 },
+  '/api/blog': { windowSeconds: 60, maxRequests: 60 },
 };
 
 // ─── Rutas con fail-closed (seguridad > disponibilidad) ───

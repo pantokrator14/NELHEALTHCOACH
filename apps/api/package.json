@@ -20,6 +20,7 @@
     "test:content": "tsx tests/content.test.ts",
     "test:notifications": "tsx tests/notifications.test.ts",
     "test:auth": "tsx tests/auth.test.ts",
+    "test:blog": "tsx tests/blog.test.ts",
     "test:error-cleanup": "tsx tests/error-cleanup.test.ts"
   },
   "dependencies": {

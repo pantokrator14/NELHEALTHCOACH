@@ -24,7 +24,7 @@ export class S3Service {
     fileName: string, 
     fileType: string, 
     fileSize: number,
-    fileCategory: 'profile' | 'document' | 'recipe' | 'exercise' = 'document'
+    fileCategory: 'profile' | 'document' | 'recipe' | 'exercise' | 'blog' = 'document'
   ): Promise<{ uploadURL: string; fileKey: string }> {
     console.log('🔧 Generando URL de upload para:', {
       fileName,

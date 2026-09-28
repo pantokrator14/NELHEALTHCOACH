@@ -107,8 +107,14 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast, ToastComponent } = useToast();
 
-  // Inicializar con datos de receta existente
-  useEffect(() => {
+  // Inicializar con datos de receta existente: ajuste de estado durante el
+  // render (patrón oficial) comparando una clave con el valor anterior.
+  const [initializedKey, setInitializedKey] = useState<string | null>(null);
+  const initKey = recipe
+    ? `recipe:${recipe.id}|${existingCategories.join(',')}|${existingTags.join(',')}`
+    : `new|${existingCategories.join(',')}|${existingTags.join(',')}`;
+  if (initializedKey !== initKey) {
+    setInitializedKey(initKey);
     if (recipe) {
       setFormData({
         title: recipe.title,
@@ -121,11 +127,11 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         difficulty: recipe.difficulty,
         tags: recipe.tags,
       });
-      
+
       if (recipe.image && recipe.image.url) {
         setImagePreview(recipe.image.url);
       }
-      
+
       // Actualizar listas disponibles con las de esta receta
       const allCategories = [...new Set([...existingCategories, ...recipe.category])];
       const allTags = [...new Set([...existingTags, ...recipe.tags])];
@@ -136,7 +142,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setAvailableCategories(existingCategories);
       setAvailableTags(existingTags);
     }
-  }, [recipe, existingCategories, existingTags]);
+  }
 
   // Cerrar modal con tecla Esc (si no está enviando o subiendo)
   useEffect(() => {

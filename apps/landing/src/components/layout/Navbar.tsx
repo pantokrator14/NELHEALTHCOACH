@@ -5,20 +5,9 @@ import '../../lib/i18n';
 
 const Navbar: React.FC = () => {
   const { t } = useTranslation();
-  const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isOverHero, setIsOverHero] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
-
-  // Efecto para detectar scroll y cambiar estilo de sombra
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Efecto para detectar cuándo estamos sobre la sección hero (carrusel)
   useEffect(() => {
@@ -50,6 +39,8 @@ const Navbar: React.FC = () => {
     { id: 'inicio', labelKey: 'landing.nav.inicio' },
     { id: 'metodo', labelKey: 'landing.nav.metodo' },
     { id: 'sobre-mi', labelKey: 'landing.nav.sobreMi' },
+    // Blog antes que el libro (el lanzamiento del libro será después)
+    { id: 'blog', labelKey: 'landing.nav.blog' },
     { id: 'libro', labelKey: 'landing.nav.libro' },
     // { id: 'testimonios', labelKey: 'landing.nav.testimonios' },
     { id: 'contacto', labelKey: 'landing.nav.contacto' },

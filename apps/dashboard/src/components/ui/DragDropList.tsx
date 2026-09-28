@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface DragDropListProps<T> {
   items: T[];
@@ -21,10 +21,13 @@ function DragDropList<T>({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [localItems, setLocalItems] = useState<T[]>(items);
 
-  // Sincronizar items cuando cambian externamente
-  useEffect(() => {
+  // Sincronizar items cuando cambian externamente (patrón oficial: ajustar
+  // estado durante el render comparando con el valor anterior — sin efectos)
+  const [prevItems, setPrevItems] = useState<T[]>(items);
+  if (prevItems !== items) {
+    setPrevItems(items);
     setLocalItems(items);
-  }, [items]);
+  }
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
     if (disabled) return;

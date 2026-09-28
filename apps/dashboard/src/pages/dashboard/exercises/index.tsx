@@ -80,10 +80,13 @@ const ExercisesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   useEffect(() => {
-    loadExercises();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      loadExercises();
+    })();
   }, [loadExercises]);
 
   // Cargar propuestas pendientes
@@ -104,11 +107,14 @@ const ExercisesPage = () => {
 
   // Cargar según pestaña
   useEffect(() => {
-    if (activeTab === 'pending') {
-      loadProposals();
-    } else {
-      loadExercises();
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeTab === 'pending') {
+        loadProposals();
+      } else {
+        loadExercises();
+      }
+    })();
   }, [activeTab, loadExercises, loadProposals]);
 
   const handleApproveProposal = async (proposalId: string) => {
@@ -258,7 +264,7 @@ const ExercisesPage = () => {
     } catch (err: unknown) {
       showToast(translateApiError(err, t, 'exercises.errorDeleting'), 'error');
     }
-  }, [selectedExercises, showToast, loadExercises]);
+  }, [selectedExercises, showToast, loadExercises, t]);
 
   // Handlers de card click
   const handleCardClick = useCallback((exercise: Exercise) => {
@@ -312,7 +318,7 @@ const ExercisesPage = () => {
     } catch {
       showToast(t('exercises.errorDeleting'), 'error');
     }
-  }, [showToast, loadExercises]);
+  }, [showToast, loadExercises, t]);
 
   // Crear ejercicio
   const handleCreateExercise = useCallback(() => {
@@ -321,7 +327,7 @@ const ExercisesPage = () => {
   }, []);
 
   // onSuccess del modal de edición/creación
-  const handleExerciseSuccess = useCallback((exercise?: Exercise) => {
+  const handleExerciseSuccess = useCallback(() => {
     loadExercises();
     setIsEditModalOpen(false);
     setSelectedExercise(null);

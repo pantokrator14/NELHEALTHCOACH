@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Recipe {
@@ -139,9 +140,9 @@ const RecipeSearchModal: React.FC<RecipeSearchModalProps> = ({ onSelect, onClose
                     }`}
                   >
                     {/* Image / Placeholder */}
-                    <div className="w-full h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                    <div className="relative w-full h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                       {recipe.image?.url ? (
-                        <img src={recipe.image.url} alt={recipe.title} className="w-full h-full object-cover" />
+                        <Image src={recipe.image.url} alt={recipe.title} fill unoptimized sizes="200px" className="object-cover" />
                       ) : (
                         <span className="text-3xl text-green-300">🍳</span>
                       )}

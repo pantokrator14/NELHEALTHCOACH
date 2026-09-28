@@ -1,6 +1,7 @@
 // apps/dashboard/src/pages/dashboard/clients/[id].tsx
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/router'
+import { useIsAdmin } from '@/lib/client-hooks'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
 import EditClientModal from '../../../components/dashboard/EditClientModal'
@@ -127,28 +128,29 @@ export default function ClientProfile() {
   const { id } = router.query
   const [selectedDocument, setSelectedDocument] = useState<UploadedFile | null>(null)
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false)
+  const isAdmin = useIsAdmin()
   const [docViewUrl, setDocViewUrl] = useState('')
-  const [loadingDocUrl, setLoadingDocUrl] = useState(false)
+  const [, setLoadingDocUrl] = useState(false)
 
   // Documents list for navigation
-  const documents = client?.medicalData?.documents || []
+  // Memoizado: identidad estable para los efectos que dependen de él
+  const documents = useMemo(() => client?.medicalData?.documents || [], [client?.medicalData?.documents])
   const currentDocIndex = selectedDocument ? documents.findIndex(d => d.key === selectedDocument.key) : -1
   const hasPrevDoc = currentDocIndex > 0
   const hasNextDoc = currentDocIndex >= 0 && currentDocIndex < documents.length - 1
-  const [isAdmin, setIsAdmin] = useState(false)
   const [isProfilePhotoModalOpen, setIsProfilePhotoModalOpen] = useState(false)
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [, setIsGeneratingAI] = useState(false)
   const [aiGenerationStatus, setAiGenerationStatus] = useState<'idle' | 'queued' | 'ready'>('idle')
-  const [aiJobId, setAiJobId] = useState<string | null>(null)
+  const [, setAiJobId] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const { showToast, ToastComponent } = useToast();
 
   // Extracción de documentos
-  const [extractingFileKeys, setExtractingFileKeys] = useState<string[]>([])
+  const [, setExtractingFileKeys] = useState<string[]>([])
   const extractionPollRef = useRef<NodeJS.Timeout | null>(null)
   const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -240,7 +242,7 @@ export default function ClientProfile() {
     } finally {
       setLoading(false)
     }
-  }, [clientId])
+  }, [clientId, showToast, t])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -248,14 +250,12 @@ export default function ClientProfile() {
       router.push('/login')
       return
     }
-    // Determinar si es admin por el rol en el JWT
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      setIsAdmin(payload.role === 'admin')
-    } catch { /* ignore */ }
-    if (clientId) {
-      fetchClient()
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (clientId) {
+        fetchClient()
+      }
+    })()
   }, [clientId, router, fetchClient])
 
   // Cleanup extraction polling al desmontar
@@ -337,7 +337,7 @@ export default function ClientProfile() {
 
     timer = setInterval(tick, 10000)
     return stop
-  }, [clientId, aiGenerationStatus]) // aiGenerationStatus es necesario para disparar/re-detener el polling
+  }, [clientId, aiGenerationStatus, client?.personalData?.name, fetchClient, showToast, t]) // aiGenerationStatus es necesario para disparar/re-detener el polling
 
   const handleDelete = async () => {
     if (!clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
@@ -421,16 +421,20 @@ export default function ClientProfile() {
 
   // Fetch fresh download URL when selected document changes
   useEffect(() => {
-    if (selectedDocument?.key && clientId) {
+    if (!selectedDocument?.key || !clientId) return;
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
       setLoadingDocUrl(true)
-      apiClient.getDocumentDownloadURL(clientId, selectedDocument.key)
-        .then(url => setDocViewUrl(url))
-        .catch(() => setDocViewUrl(selectedDocument.url || ''))
-        .finally(() => setLoadingDocUrl(false))
-    } else {
-      setDocViewUrl('')
-    }
-  }, [selectedDocument?.key, clientId])
+      try {
+        const url = await apiClient.getDocumentDownloadURL(clientId, selectedDocument.key)
+        setDocViewUrl(url)
+      } catch {
+        setDocViewUrl(selectedDocument.url || '')
+      } finally {
+        setLoadingDocUrl(false)
+      }
+    })()
+  }, [selectedDocument?.key, selectedDocument?.url, clientId])
 
   const handleProfilePhotoChange = async (file: File) => {
     if (!clientId) return

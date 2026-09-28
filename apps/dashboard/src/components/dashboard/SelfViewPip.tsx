@@ -20,10 +20,7 @@ export default function SelfViewPip() {
 
   // ── Obtener el video track cuando se publique ──
   useEffect(() => {
-    if (!localParticipant) {
-      setVideoTrack(null);
-      return;
-    }
+    if (!localParticipant) return;
 
     const checkTrack = () => {
       const pub = localParticipant.getTrackPublication(Track.Source.Camera);
@@ -32,8 +29,12 @@ export default function SelfViewPip() {
       }
     };
 
-    // 1. Verificar si ya existe (cámara ya publicada)
-    checkTrack();
+    // 1. Verificar si ya existe (cámara ya publicada) — en microtask para no
+    //    hacer setState síncrono en el cuerpo del effect (react-hooks v7)
+    void (async () => {
+      await Promise.resolve();
+      checkTrack();
+    })();
 
     // 2. Escuchar cuando se publique un track local
     //    (la cámara puede publicarse después del mount)

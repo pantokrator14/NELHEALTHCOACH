@@ -22,7 +22,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   label,
   description,
   previewUrl,
-  existingFile = false
+  existingFile: _existingFile = false
 }) => {
   const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);

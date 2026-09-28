@@ -26,6 +26,11 @@ async function main() {
   results['recetas de test'] = testRecipes;
   results['ejercicios de test'] = testExercises;
 
+  // Las entradas del blog guardan los textos CIFRADOS; el slug sí va en plano
+  // y lleva el marcador del test → se audita por slug.
+  const testBlogPosts = await db.collection('entries').countDocuments({ slug: /test|prueba|duplicado/i });
+  results['entradas de blog de test'] = testBlogPosts;
+
   const orphanJobs = await db.collection('ai_jobs').countDocuments({});
   results['jobs en ai_jobs (todos)'] = orphanJobs;
 

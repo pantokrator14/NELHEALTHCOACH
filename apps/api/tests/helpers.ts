@@ -198,6 +198,24 @@ export function authedRequest(
     headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       'content-type': 'application/json',
+      // IP única por request: aísla los tests del rate limiter (keyea por IP)
+      // para que las suites sean repetibles sin chocar con el límite real.
+      'x-forwarded-for': `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+/** IP fija para tests que SÍ verifican el rate limiting a propósito. */
+export const RATE_TEST_IP = 'test-rate-limit-fixed';
+
+/** NextRequest anónimo (sin auth) con IP única por request. */
+export function anonRequest(url: string, method = 'GET', body?: unknown): NextRequest {
+  return new NextRequest(url, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      'x-forwarded-for': `test-anon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });

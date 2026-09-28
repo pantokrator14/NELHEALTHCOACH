@@ -19,11 +19,11 @@ interface DocumentFile {
   id: string;
 }
 
-const DocumentsStep: React.FC<DocumentsStepProps> = ({ data, onSubmit, onBack, loading = false }) => {
+const DocumentsStep: React.FC<DocumentsStepProps> = ({ onSubmit, onBack, loading = false }) => {
   const { t } = useTranslation();
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
 
-  const { handleSubmit, formState: { errors } } = useForm({
+  const { formState: { errors } } = useForm({
     defaultValues: { documents: [] },
     resolver: yupResolver(documentsSchema),
   });

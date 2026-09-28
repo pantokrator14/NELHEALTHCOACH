@@ -10,8 +10,8 @@ export default function VerifyEmail() {
   const router = useRouter();
   const { token } = router.query;
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-  const [status, setStatus] = useState<VerifyStatus>('idle');
-  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState<VerifyStatus>('verifying');
+  const [message, setMessage] = useState('Verificando tu email...');
 
   // Si la página se carga dentro de un iframe (vista previa del email),
   // forzar navegación al top-level. Con try-catch por si es cross-origin.
@@ -27,9 +27,6 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     if (!router.isReady || !token) return;
-
-    setStatus('verifying');
-    setMessage('Verificando tu email...');
 
     fetch(`${API_BASE_URL}/api/auth/verify-email?token=${token}`)
       .then(r => r.json())

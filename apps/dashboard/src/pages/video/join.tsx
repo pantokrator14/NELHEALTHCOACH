@@ -44,22 +44,23 @@ export default function ClientVideoJoinPage() {
   const { token } = router.query as { token?: string };
   const [state, setState] = useState<PageState>({ status: 'loading' });
 
+  // Enlace sin token → error derivado (sin setState síncrono en el effect)
+  const missingToken = router.isReady && !token;
+  const shownState: PageState = missingToken
+    ? { status: 'error', message: 'Enlace inválido: falta el token de acceso.' }
+    : state;
+
   // ── Validar token y obtener información de la sala ──
 
   useEffect(() => {
     if (!router.isReady) return;
 
-    if (!token) {
-      setState({ status: 'error', message: 'Enlace inválido: falta el token de acceso.' });
-      return;
-    }
+    if (!token) return;
 
     const sessionTokenValue = token; // TypeScript: capture after type narrowing
 
     async function validateAndJoin(): Promise<void> {
       try {
-        setState({ status: 'validating' });
-
         const response = await fetch(`${API_BASE_URL}/api/video/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -111,7 +112,7 @@ export default function ClientVideoJoinPage() {
       }
     }
 
-    validateAndJoin();
+    void validateAndJoin();
   }, [router.isReady, token]);
 
   // ── Callback al salir de la videollamada ──
@@ -130,26 +131,26 @@ export default function ClientVideoJoinPage() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
 
-      {state.status === 'loading' || state.status === 'validating' ? (
+      {shownState.status === 'loading' || shownState.status === 'validating' ? (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mx-auto mb-4" />
             <p className="text-lg font-medium text-gray-700">
-              {state.status === 'loading' ? 'Cargando...' : 'Validando acceso...'}
+              {shownState.status === 'loading' ? 'Cargando...' : 'Validando acceso...'}
             </p>
             <p className="text-sm text-gray-500 mt-2">
               Verificando tu sesión de videollamada
             </p>
           </div>
         </div>
-      ) : state.status === 'ready' ? (
+      ) : shownState.status === 'ready' ? (
         <VideoCallRoom
-          roomName={state.roomName}
+          roomName={shownState.roomName}
           role="client"
-          sessionToken={state.sessionToken}
+          sessionToken={shownState.sessionToken}
           onLeave={handleLeave}
         />
-      ) : state.status === 'ended' ? (
+      ) : shownState.status === 'ended' ? (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
             <div className="text-green-500 text-6xl mb-4">✓</div>
@@ -168,7 +169,7 @@ export default function ClientVideoJoinPage() {
           <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">No se pudo acceder</h1>
-            <p className="text-gray-600 mb-6">{state.message}</p>
+            <p className="text-gray-600 mb-6">{shownState.message}</p>
             <p className="text-sm text-gray-400">
               Si crees que esto es un error, contacta a tu coach para obtener un nuevo enlace.
             </p>

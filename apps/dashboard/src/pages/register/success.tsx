@@ -2,11 +2,10 @@
 // Página que aparece después del pago exitoso en Stripe
 // El coach completa sus datos aquí
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import PasswordInput from '@/components/PasswordInput';
 import { useToast } from '@/components/ui/Toast';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +16,7 @@ export default function RegisterSuccess() {
   const router = useRouter();
   const { showToast, ToastComponent } = useToast();
   const { t } = useTranslation();
-  const { token, session_id } = router.query;
+  const { token } = router.query;
 
   const [form, setForm] = useState({
     firstName: '',
@@ -32,7 +31,7 @@ export default function RegisterSuccess() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(true);
+  const [verifying] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,19 +60,10 @@ export default function RegisterSuccess() {
     reader.readAsDataURL(file);
   };
 
-  // Verificar el token al montar
-  useEffect(() => {
-    if (!router.isReady) return;
-
-    if (!token || typeof token !== 'string') {
-      setError('Token de registro inválido. Vuelve a registrarte.');
-      setVerifying(false);
-      return;
-    }
-
-    // Verificar que el pending exista (opcional, podemos hacerlo al submit)
-    setVerifying(false);
-  }, [router.isReady, token]);
+  // Token inválido: derivado del estado del router (sin efecto)
+  const tokenInvalid = router.isReady && (typeof token !== 'string' || token === '');
+  const effectiveVerifying = verifying && !tokenInvalid;
+  const shownError = tokenInvalid ? 'Token de registro inválido. Vuelve a registrarte.' : error;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.id]: e.target.value });
@@ -133,7 +123,7 @@ export default function RegisterSuccess() {
     }
   };
 
-  if (verifying) {
+  if (effectiveVerifying) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -166,7 +156,7 @@ export default function RegisterSuccess() {
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
-                {error}
+                {shownError}
               </div>
             )}
 
@@ -192,12 +182,15 @@ export default function RegisterSuccess() {
                     disabled={loading}
                     className="relative group cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
-                    <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden transition group-hover:border-blue-400 group-hover:bg-blue-50">
+                    <div className="relative w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden transition group-hover:border-blue-400 group-hover:bg-blue-50">
                       {profilePhotoPreview ? (
-                        <img
+                        <Image
                           src={profilePhotoPreview}
                           alt="Foto de perfil"
-                          className="w-full h-full object-cover"
+                          fill
+                          unoptimized
+                          sizes="96px"
+                          className="object-cover"
                         />
                       ) : (
                         <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

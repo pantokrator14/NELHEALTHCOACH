@@ -4,7 +4,15 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: true,
   images: {
-    remotePatterns: [], // Para imágenes externas
+    remotePatterns: [
+      // Imágenes destacadas del blog servidas desde S3
+      {
+        protocol: 'https',
+        hostname: 'nelhealthcoach-bucket.s3.us-west-1.amazonaws.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },

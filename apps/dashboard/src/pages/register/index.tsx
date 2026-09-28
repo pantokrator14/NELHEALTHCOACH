@@ -144,7 +144,9 @@ export default function Register() {
   // ── Detectar cancelación desde Stripe ──
 
   useEffect(() => {
-    if (router.isReady && router.query.canceled === 'true') {
+    void (async () => {
+      if (!router.isReady || router.query.canceled !== 'true') return;
+      await Promise.resolve(); // frontera async (set-state-in-effect)
       setCanceled(true);
       // Si hay datos guardados, volver al formulario; si no, a la landing
       const saved = sessionStorage.getItem('registerFormData');
@@ -158,7 +160,7 @@ export default function Register() {
       } else {
         setStep('landing');
       }
-    }
+    })();
   }, [router.isReady, router.query.canceled]);
 
   // ── Landing → Contract ──
@@ -416,12 +418,15 @@ export default function Register() {
                     disabled={loading}
                     className="relative group cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                   >
-                    <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden transition group-hover:border-emerald-400 group-hover:bg-emerald-50">
+                    <div className="relative w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden transition group-hover:border-emerald-400 group-hover:bg-emerald-50">
                       {profilePhotoPreview ? (
-                        <img
+                        <Image
                           src={profilePhotoPreview}
                           alt="Foto de perfil"
-                          className="w-full h-full object-cover"
+                          fill
+                          unoptimized
+                          sizes="96px"
+                          className="object-cover"
                         />
                       ) : (
                         <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

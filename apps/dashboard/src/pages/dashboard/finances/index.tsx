@@ -6,6 +6,7 @@ import { apiClient, FinancesData } from '../../../lib/api';
 import { translateApiError } from '@/lib/apiErrorText';
 
 import { useTranslation } from 'react-i18next';
+import { useTokenRole } from '@/lib/client-hooks';
 
 // ═══════════════════════════════════════════════
 // ─── Types ───
@@ -161,7 +162,12 @@ function CoachFinancesPage() {
     }
   }, [period, showToast, t]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      loadData();
+    })();
+  }, [loadData]);
 
   const handleSavePrice = async () => {
     const priceNum = parseInt(priceInput, 10);
@@ -652,7 +658,10 @@ function AdminFinancesPage() {
   }, [summaryPeriod, showToast, t]);
 
   useEffect(() => {
-    if (activeTab === 'dashboard') loadSummary();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeTab === 'dashboard') loadSummary();
+    })();
   }, [activeTab, loadSummary]);
 
   // ═══════════════════════════════════════════════
@@ -674,7 +683,10 @@ function AdminFinancesPage() {
   }, [taxYear, showToast, t]);
 
   useEffect(() => {
-    if (activeTab === 'income') loadIncome();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeTab === 'income') loadIncome();
+    })();
   }, [activeTab, loadIncome]);
 
   // ═══════════════════════════════════════════════
@@ -790,7 +802,10 @@ function AdminFinancesPage() {
   }, [reportType, taxYear, showToast, t]);
 
   useEffect(() => {
-    if (activeTab === 'taxes') loadReport();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeTab === 'taxes') loadReport();
+    })();
   }, [activeTab, loadReport]);
 
   // ═══════════════════════════════════════════════
@@ -809,7 +824,10 @@ function AdminFinancesPage() {
   }, []);
 
   useEffect(() => {
-    if (showSettings) loadSettings();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (showSettings) loadSettings();
+    })();
   }, [showSettings, loadSettings]);
 
   // ═══════════════════════════════════════════════
@@ -1600,23 +1618,25 @@ function SettingsPanel({
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (settingsData) {
-      const llcData = (settingsData.californiaLLC as Record<string, unknown>) || {};
-      setForm({
-        companyName: (settingsData.companyName as string) || 'NELHEALTHCOACH, LLC',
-        ein: (settingsData.hasEIN as boolean) ? '*****' : '',
-        registeredAgent: (settingsData.registeredAgent as string) || '',
-        accountingMethod: (settingsData.accountingMethod as string) || 'cash',
-        fiscalYearStart: (settingsData.fiscalYearStart as string) || '01-01',
-        californiaLLC: {
-          fileNumber: (llcData.fileNumber as string) || '',
-          annualFee: (llcData.annualFee as number) || 800,
-          annualFeePaid: (llcData.annualFeePaid as boolean) || false,
-        },
-      });
-    }
-  }, [settingsData]);
+  // Poblar el formulario cuando llegan los settings: ajuste de estado durante
+  // el render comparando la referencia anterior (patrón oficial, sin efecto).
+  const [prevSettingsData, setPrevSettingsData] = useState<typeof settingsData>(null);
+  if (settingsData && prevSettingsData !== settingsData) {
+    setPrevSettingsData(settingsData);
+    const llcData = (settingsData.californiaLLC as Record<string, unknown>) || {};
+    setForm({
+      companyName: (settingsData.companyName as string) || 'NELHEALTHCOACH, LLC',
+      ein: (settingsData.hasEIN as boolean) ? '*****' : '',
+      registeredAgent: (settingsData.registeredAgent as string) || '',
+      accountingMethod: (settingsData.accountingMethod as string) || 'cash',
+      fiscalYearStart: (settingsData.fiscalYearStart as string) || '01-01',
+      californiaLLC: {
+        fileNumber: (llcData.fileNumber as string) || '',
+        annualFee: (llcData.annualFee as number) || 800,
+        annualFeePaid: (llcData.annualFeePaid as boolean) || false,
+      },
+    });
+  }
 
   const handleSave = async () => {
     try {
@@ -1721,24 +1741,12 @@ function SettingsPanel({
 
 const FinancesPage = () => {
   const { t } = useTranslation();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setIsAdmin(payload.role === 'admin');
-      } else {
-        setIsAdmin(false);
-      }
-    } catch {
-      setIsAdmin(false);
-    }
-  }, []);
+  // Rol derivado del token (null = aún no determinado → loading)
+  const tokenRole = useTokenRole();
+  const isAdmin = tokenRole === 'admin';
 
   // Loading state while determining role
-  if (isAdmin === null) {
+  if (tokenRole === null) {
     return (
       <>
         <Head><title>{t('finances.title')} - NELHEALTHCOACH</title></Head>

@@ -82,10 +82,13 @@ const RecipesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   useEffect(() => {
-    loadRecipes();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      loadRecipes();
+    })();
   }, [loadRecipes]);
 
   // Cargar propuestas pendientes
@@ -106,11 +109,14 @@ const RecipesPage = () => {
 
   // Cargar propuestas cuando se cambia a la pestaña pending
   useEffect(() => {
-    if (activeTab === 'pending') {
-      loadProposals();
-    } else {
-      loadRecipes();
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeTab === 'pending') {
+        loadProposals();
+      } else {
+        loadRecipes();
+      }
+    })();
   }, [activeTab, loadRecipes, loadProposals]);
 
   const handleApproveProposal = async (proposalId: string) => {

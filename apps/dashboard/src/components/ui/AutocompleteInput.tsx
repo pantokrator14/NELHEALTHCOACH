@@ -27,46 +27,30 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   onItemCreate,
   separator = 'comma', // Por defecto coma
 }) => {
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number>(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Determinar qué separadores usar
   const separators = separator === 'both' ? [',', ' '] : [separator === 'comma' ? ',' : ' '];
 
-  // Filtrar sugerencias basadas en el valor actual
-  useEffect(() => {
-    if (value.trim() === '') {
-      // Mostrar sugerencias recientes o populares cuando no hay texto
-      const recentSuggestions = suggestions
-        .filter(s => s.trim() !== '')
-        .slice(0, maxSuggestions);
-      setFilteredSuggestions(recentSuggestions);
-    } else {
-      const filtered = suggestions
-        .filter(suggestion =>
-          suggestion.toLowerCase().includes(value.toLowerCase())
-        )
-        .slice(0, maxSuggestions);
-      setFilteredSuggestions(filtered);
-    }
-    setActiveSuggestionIndex(-1);
-    
-    // Detectar si el usuario está escribiendo algo nuevo que no está en las sugerencias
-    if (allowCreate && value.trim()) {
-      const normalizedValue = value.trim().toLowerCase();
-      const existsInSuggestions = suggestions.some(s => 
-        s.toLowerCase() === normalizedValue
-      );
-      setIsCreatingNew(!existsInSuggestions && !value.includes(','));
-    } else {
-      setIsCreatingNew(false);
-    }
-  }, [value, suggestions, maxSuggestions, allowCreate]);
+  // Sugerencias derivadas del valor actual (sin estado ni efecto)
+  const trimmedValue = value.trim();
+  const filteredSuggestions = (trimmedValue === ''
+    ? suggestions.filter(s => s.trim() !== '')
+    : suggestions.filter(suggestion =>
+        suggestion.toLowerCase().includes(value.toLowerCase())
+      )
+  ).slice(0, maxSuggestions);
+
+  const normalizedValue = trimmedValue.toLowerCase();
+  const isCreatingNew =
+    allowCreate &&
+    trimmedValue !== '' &&
+    !suggestions.some(s => s.toLowerCase() === normalizedValue) &&
+    !value.includes(',');
 
   // Cerrar sugerencias al hacer clic fuera
   useEffect(() => {
@@ -109,6 +93,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     const newValue = e.target.value;
     onChange(newValue);
     setShowSuggestions(true);
+    setActiveSuggestionIndex(-1);
 
     // Si allowCreate está activado y se detecta un separador, crear los items
     if (allowCreate && onItemCreate && separators.some(sep => newValue.includes(sep))) {

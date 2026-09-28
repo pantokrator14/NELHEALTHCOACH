@@ -1,6 +1,7 @@
 // apps/api/src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeadsCollection } from '@/app/lib/database';
+import { incrementFreeSessionUsage } from '@/app/lib/free-sessions';
 import { secureRoute } from '@/app/lib/security/index';
 import { leadSchema } from '@/app/lib/schemas';
 import { Resend } from 'resend';
@@ -73,7 +74,20 @@ async function postHandler(request: NextRequest) {
       );
     }
 
-    const { name, email, phone, objective } = parsed.data;
+    const { name, email, phone, objective, source } = parsed.data;
+
+    // Cupo de sesiones gratuitas: si está lleno/cerrado, rechazar el lead
+    if (source === 'free-session') {
+      const { computeFreeSessionsAvailability, getFreeSessionsConfig } = await import('@/app/lib/free-sessions');
+      const config = await getFreeSessionsConfig();
+      const { available } = computeFreeSessionsAvailability(config);
+      if (!available) {
+        return NextResponse.json(
+          { success: false, message: 'Los cupos de sesión gratuita están agotados por ahora', code: 'FREE_SESSIONS_FULL' },
+          { status: 409 },
+        );
+      }
+    }
 
     // Guardar en base de datos
     logger.info('LEAD', 'Intentando conectar a MongoDB...');
@@ -84,9 +98,16 @@ async function postHandler(request: NextRequest) {
       email,
       phone,
       objective,
+      source,
       createdAt: new Date(),
     });
     logger.info('LEAD', 'Documento insertado correctamente');
+
+    // Cupo de sesiones gratuitas: se descuenta al registrar el lead
+    if (source === 'free-session') {
+      await incrementFreeSessionUsage();
+      logger.info('LEAD', 'Cupo de sesión gratuita descontado');
+    }
 
     // Plantilla base para ambos correos (con logo incrustado)
     const baseHtml = (content: string) => `

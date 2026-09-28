@@ -133,6 +133,90 @@ async function main() {
   check('clients/[id] verifica ownership (coachId)', /coachId/.test(clientsRoute) && /403/.test(clientsRoute));
   const notificationsRoute = fs.readFileSync(path.join(API_DIR, 'notifications/[id]/route.ts'), 'utf-8');
   check('notifications/[id] filtra por coachId', /coachId: auth\.coachId/.test(notificationsRoute));
+
+  // ═══ 7. BLOG: rate limit + admin estricto + CORS con allowlist ═══
+  section('7. Blog (OWASP A01/A06/A10 + LLM10)');
+  const blogRoutes = walk(path.join(API_DIR, 'blog')).filter((f) => f.endsWith('route.ts'));
+
+  // 7a. A06/LLM10: TODAS las rutas del blog pasan por rate limiting
+  // (lecturas públicas incluidas: evita abuso de descifrado y de traducción LLM).
+  const withoutRateLimit = blogRoutes.filter((f) => {
+    const code = fs.readFileSync(f, 'utf-8');
+    return !/requireRateLimit|secureRoute/.test(code);
+  });
+  check(
+    'blog: todas las rutas con rate limiting',
+    withoutRateLimit.length === 0,
+    withoutRateLimit.map((f) => path.relative(API_DIR, f)).join(', '),
+  );
+
+  // 7b. A01: toda mutación verifica rol admin explícito (no basta con coach).
+  // Excepción documentada: el contador de visitas es una escritura PÚBLICA por
+  // diseño (analytics sin cookies) — protegida con rate limit + shield + Zod,
+  // y solo cuenta entradas publicadas existentes.
+  const PUBLIC_WRITE_ALLOWLIST = ['blog/views/route.ts'];
+  const mutating = blogRoutes.filter((f) => /export const (POST|PUT|DELETE)/.test(fs.readFileSync(f, 'utf-8')));
+  const withoutAdmin = mutating.filter((f) => {
+    const rel = path.relative(API_DIR, f).split(path.sep).join('/');
+    if (PUBLIC_WRITE_ALLOWLIST.some((allowed) => rel.endsWith(allowed))) return false;
+    return !/role !== 'admin'/.test(fs.readFileSync(f, 'utf-8'));
+  });
+  check(
+    'blog: mutaciones exigen rol admin (salvo allowlist pública documentada)',
+    withoutAdmin.length === 0,
+    withoutAdmin.map((f) => path.relative(API_DIR, f)).join(', '),
+  );
+
+  // 7c. A02: sin CORS comodín en route handlers — el proxy aplica allowlist.
+  const wildcardCors = blogRoutes.filter((f) =>
+    fs.readFileSync(f, 'utf-8').includes("'Access-Control-Allow-Origin': '*'"),
+  );
+  check(
+    'blog: sin CORS comodín en handlers',
+    wildcardCors.length === 0,
+    wildcardCors.map((f) => path.relative(API_DIR, f)).join(', '),
+  );
+
+  // 7d. Uploads: validan tipo permitido y tamaño máximo antes de firmar la URL S3.
+  const uploadRoutes = blogRoutes.filter((f) => f.endsWith('upload/route.ts'));
+  const uploadsOk = uploadRoutes.filter((f) => {
+    const code = fs.readFileSync(f, 'utf-8');
+    return /ALLOWED_IMAGE_TYPES/.test(code) && /MAX_SIZE/.test(code) && /fileSize > MAX_SIZE/.test(code);
+  });
+  check(
+    'blog: uploads validan tipo y tamaño',
+    uploadRoutes.length >= 2 && uploadsOk.length === uploadRoutes.length,
+    `${uploadsOk.length}/${uploadRoutes.length} uploads`,
+  );
+
+  // 7e. LLM10: la traducción solo acepta idiomas de la allowlist (sin idiomas arbitrarios).
+  const blogTranslation = fs.readFileSync(path.join(LIB_DIR, 'blog-translation.ts'), 'utf-8');
+  check('blog: traducción limitada a SUPPORTED_LANGS', /SUPPORTED_LANGS/.test(blogTranslation));
+
+  // 7f. Comentarios: honeypot anti-spam + moderación solo admin.
+  const commentsRoute = fs.readFileSync(path.join(API_DIR, 'blog/comments/route.ts'), 'utf-8');
+  check('blog: comentarios con honeypot anti-spam', /website/.test(commentsRoute) && /honeypot/i.test(commentsRoute));
+  check('blog: comentarios protegidos (rate limit + shield)', /requireRateLimit/.test(commentsRoute) && /secureRoute/.test(commentsRoute));
+  const moderationRoute = fs.readFileSync(path.join(API_DIR, 'blog/comments/[id]/route.ts'), 'utf-8');
+  check(
+    'blog: moderación de comentarios solo admin',
+    /role !== 'admin'/.test(moderationRoute) && /BLOG_COMMENT_MODERATED/.test(moderationRoute),
+  );
+
+  // ═══ 8. Lista de espera + sesiones gratuitas ═══
+  section('8. Lista de espera y sesiones gratuitas');
+  const waitlistRoute = fs.readFileSync(path.join(API_DIR, 'waitlist/route.ts'), 'utf-8');
+  check('waitlist: honeypot anti-spam', /website/.test(waitlistRoute) && /honeypot/i.test(waitlistRoute));
+  check('waitlist: protegida (rate limit + shield vía secureRoute)', /secureRoute/.test(waitlistRoute));
+  check('waitlist: email cifrado en reposo', /encrypt\(/.test(waitlistRoute) && /hashEmail/.test(waitlistRoute));
+  const freeSessionsRoute = fs.readFileSync(path.join(API_DIR, 'free-sessions/route.ts'), 'utf-8');
+  check(
+    'sesiones gratuitas: control solo admin (GET y PUT)',
+    (freeSessionsRoute.match(/role !== 'admin'/g) ?? []).length >= 1 && (freeSessionsRoute.match(/requireAdmin\(request\)/g) ?? []).length >= 2,
+  );
+  check('sesiones gratuitas: mutación con rate limit + shield', /secureRoute\(/.test(freeSessionsRoute));
+  const leadRoute = fs.readFileSync(path.join(API_DIR, 'leads/route.ts'), 'utf-8');
+  check('lead free-session descuenta cupo', /incrementFreeSessionUsage/.test(leadRoute));
 }
 
 main()

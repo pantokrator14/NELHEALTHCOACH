@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 import Head from 'next/head';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -12,16 +13,15 @@ export default function TrialVerifyCard() {
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState(t('trial.verifyCard.verifyingMessage'));
 
+  // Sesión faltante → error derivado (sin setState síncrono en el effect)
+  const sessionId = typeof router.query.session_id === 'string' ? router.query.session_id : null;
+  const coachIdParam = typeof router.query.coachId === 'string' ? router.query.coachId : '';
+  const missingSession = router.isReady && !sessionId;
+  const shownStatus: 'verifying' | 'success' | 'error' = missingSession ? 'error' : status;
+  const shownMessage = missingSession ? t('trial.verifyCard.errorMessage') : message;
+
   useEffect(() => {
-    if (!router.isReady) return;
-
-    const { session_id, coachId } = router.query;
-
-    if (!session_id) {
-      setStatus('error');
-      setMessage(t('trial.verifyCard.errorMessage'));
-      return;
-    }
+    if (!router.isReady || !sessionId) return;
 
     // Confirmar la verificación de tarjeta contra la API
     // (esto activa la cuenta del coach sin depender solo del webhook de Stripe)
@@ -31,8 +31,8 @@ export default function TrialVerifyCard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            coachId: coachId || '',
-            sessionId: session_id,
+            coachId: coachIdParam,
+            sessionId,
           }),
         });
 
@@ -57,9 +57,9 @@ export default function TrialVerifyCard() {
       }
     };
 
-    confirmVerification();
+    void confirmVerification();
     // ⚠️ NO redirigir al dashboard — el usuario debe verificar su email primero
-  }, [router.isReady, router.query, t]);
+  }, [router.isReady, sessionId, coachIdParam, t]);
 
   return (
     <>
@@ -69,17 +69,17 @@ export default function TrialVerifyCard() {
       <div className="min-h-screen bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
           <div className="relative w-48 h-16 mx-auto mb-6">
-            <img src="/logo2.png" alt="NELHEALTHCOACH Logo" style={{ maxWidth: '100%', height: 'auto' }} />
+            <Image src="/logo2.png" alt="NELHEALTHCOACH Logo" fill sizes="192px" className="object-contain" />
           </div>
 
-          {status === 'verifying' && (
+          {shownStatus === 'verifying' && (
             <>
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600 mx-auto mb-4" />
               <h1 className="text-xl font-bold text-emerald-700 mb-2">
                 {t('trial.verifyCard.verifying')}
               </h1>
               <p className="text-gray-600 text-sm mb-4">
-                {message}
+                {shownMessage}
               </p>
               <p className="text-xs text-gray-400">
                 {t('trial.verifyCard.refundNote')}
@@ -87,7 +87,7 @@ export default function TrialVerifyCard() {
             </>
           )}
 
-          {status === 'success' && (
+          {shownStatus === 'success' && (
             <>
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +98,7 @@ export default function TrialVerifyCard() {
                 {t('trial.verifyCard.success')}
               </h1>
               <p className="text-gray-600 text-sm mb-4">
-                {message}
+                {shownMessage}
               </p>
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-left">
@@ -123,7 +123,7 @@ export default function TrialVerifyCard() {
             </>
           )}
 
-          {status === 'error' && (
+          {shownStatus === 'error' && (
             <>
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +134,7 @@ export default function TrialVerifyCard() {
                 {t('trial.verifyCard.error')}
               </h1>
               <p className="text-gray-600 text-sm mb-6">
-                {message}
+                {shownMessage}
               </p>
               <Link
                 href="/register"

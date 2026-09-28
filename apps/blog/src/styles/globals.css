@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Tipografía del proyecto (Inter): las variables --font-geist-* no existen
+   (no se cargan esas fuentes) y mapearlas rompía font-sans/font-mono. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* El blog es SIEMPRE claro (sin modo oscuro): el coach lo pide explícito.
+   El landing se ve blanco porque sus secciones fijan bg-white explícito. */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+/* Tipografía del contenido de las entradas (markdown renderizado) */
+.blog-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #1d4ed8; /* blue-700, acento del proyecto */
+}
+
+.blog-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.blog-content p {
+  margin-bottom: 1rem;
+  line-height: 1.75;
+}
+
+.blog-content ul,
+.blog-content ol {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.blog-content ul {
+  list-style-type: disc;
+}
+
+.blog-content ol {
+  list-style-type: decimal;
+}
+
+.blog-content li {
+  margin-bottom: 0.5rem;
+}
+
+.blog-content a {
+  color: #2563eb; /* blue-600 */
+  text-decoration: underline;
+}
+
+.blog-content blockquote {
+  border-left: 4px solid #bfdbfe; /* blue-200 */
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #4b5563; /* gray-600 */
+  font-style: italic;
+}
+
+.blog-content code {
+  background: #f3f4f6; /* gray-100 */
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.blog-content pre {
+  background: #1f2937; /* gray-800 */
+  color: #f9fafb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.blog-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.blog-content img {
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.blog-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.blog-content th,
+.blog-content td {
+  border: 1px solid #e5e7eb; /* gray-200 */
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}

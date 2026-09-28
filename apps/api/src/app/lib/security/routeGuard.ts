@@ -44,6 +44,26 @@ export async function requireServiceAvailable(): Promise<NextResponse | null> {
 }
 
 /**
+ * Convierte un SecurityCheckResult bloqueado en la respuesta HTTP estándar
+ * de la API ({ success:false, message, code }) con status y Retry-After.
+ * Uso: const check = await requireRateLimit(request); if (!check.passed) return securityBlockResponse(check);
+ */
+export function securityBlockResponse(result: SecurityCheckResult): NextResponse {
+  const headers: Record<string, string> = {};
+  if (result.retryAfter !== undefined) {
+    headers['Retry-After'] = String(result.retryAfter);
+  }
+  return NextResponse.json(
+    {
+      success: false,
+      message: result.message ?? 'Solicitud bloqueada por medidas de seguridad',
+      code: result.reason ?? 'BLOCKED',
+    },
+    { status: result.statusCode ?? 403, headers },
+  );
+}
+
+/**
  * Verifica rate limiting contra el request actual.
  * La key combina IP + visitorId (si está presente): el visitorId de FingerprintJS
  * agrega granularidad por dispositivo, pero la IP nunca puede ser reemplazada,

@@ -28,7 +28,6 @@ const ControlBar = dynamic(
 //    cuando se renderizan DENTRO de LiveKitRoom, que es dynamic ssr:false) ──
 
 import {
-  useRemoteParticipants,
   useTracks,
   useDataChannel,
   useConnectionState,
@@ -94,8 +93,10 @@ function LiveRoomUI({
   onEnded: () => void;
 }) {
   const connectionState = useConnectionState();
-  const [connected, setConnected] = useState(false);
   const wasConnectedRef = useRef(false);
+  const endedRef = useRef(false);
+  // Derivado: connected ⇔ la conexión LiveKit está establecida
+  const connected = connectionState === 'connected';
 
   // Detectar desconexión inesperada
   // Solo se considera "desconexión real" si antes hubo conexión exitosa.
@@ -103,13 +104,11 @@ function LiveRoomUI({
   // dispare un falso "sesión terminada".
   useEffect(() => {
     if (connectionState === 'connected') {
-      setConnected(true);
       wasConnectedRef.current = true;
     } else if (
       connectionState === 'disconnected' &&
       wasConnectedRef.current
     ) {
-      setConnected(false);
       // Esperar 10 segundos por si es una reconexión breve
       // (ej. Strict Mode de React en desarrollo monta/desmonta componentes)
       const timer = setTimeout(() => {
@@ -124,7 +123,6 @@ function LiveRoomUI({
   }, [connectionState]);
 
   // ── Data channel: fin de sesión ──
-  const endedRef = useRef(false);
   const { send: sendData } = useDataChannel('session', (msg) => {
     const text = new TextDecoder().decode(msg.payload);
     if (text === 'session_ended' && role === 'client' && !endedRef.current) {
@@ -261,16 +259,15 @@ export default function TestVideoPage() {
   const [hydrated, setHydrated] = useState(false);
 
   // ── Inicializar room name (post-hidratación) ──
-  useEffect(() => {
-    if (!router.isReady) return;
+  // Patrón oficial: ajustar estado durante el render una sola vez cuando el
+  // router queda listo (sin efecto ni desajuste de hidratación).
+  const [roomInitialized, setRoomInitialized] = useState(false);
+  if (router.isReady && !roomInitialized) {
+    setRoomInitialized(true);
     const roomParam = router.query.room as string | undefined;
-    if (roomParam && roomParam.trim()) {
-      setRoomName(roomParam.trim());
-    } else {
-      setRoomName(generateRoomName());
-    }
+    setRoomName(roomParam && roomParam.trim() ? roomParam.trim() : generateRoomName());
     setHydrated(true);
-  }, [router.isReady, router.query.room]);
+  }
 
   // ── Copiar enlace de sala ──
   function copyRoomLink() {

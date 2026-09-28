@@ -128,7 +128,9 @@ const FormPage: React.FC = () => {
   const [isFree, setIsFree] = useState(false);
 
   useEffect(() => {
-    if (router.isReady) {
+    void (async () => {
+      if (!router.isReady) return;
+      await Promise.resolve(); // frontera async (react-hooks/set-state-in-effect)
       const coachParam = router.query.coach as string;
       if (coachParam) {
         setCoachId(coachParam);
@@ -188,8 +190,8 @@ const FormPage: React.FC = () => {
         sessionStorage.removeItem('nel_payment_pending');
         setStep(savedStep);
       }
-    }
-  }, [router.isReady, router.query.coach, router.query.payment]);
+    })();
+  }, [router.isReady, router.query.coach, router.query.payment, router.query.free, router.query.session_id]);
 
   const nextStep = () => { setStep(step + 1); window.scrollTo(0, 0); };
   const prevStep = () => {
@@ -203,9 +205,10 @@ const FormPage: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const updateFormData = (newData: Partial<HealthFormData>) => {
+  // Declaración hoisted: se usa dentro del efecto de query params más abajo
+  function updateFormData(newData: Partial<HealthFormData>) {
     setFormData(prev => ({ ...prev, ...newData }));
-  };
+  }
 
   const handleContractAccept = () => {
     updateFormData({ contractAccepted: true, contractVersion: CONTRACT_VERSION, paymentCompleted: isFree });

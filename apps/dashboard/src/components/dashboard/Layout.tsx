@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import { useIsAdmin } from '@/lib/client-hooks'
 import Image from 'next/image'
 import { apiClient } from '@/lib/api'
 import { clearAuthToken } from '@/lib/authSession'
@@ -21,20 +22,15 @@ interface CoachData {
 export default function Layout({ children }: LayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [coachData, setCoachData] = useState<CoachData | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
+  // Rol derivado del token (snapshot de localStorage, sin estado ni efecto)
+  const isAdmin = useIsAdmin()
 
   // Cargar datos completos del coach
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) return
-
-    // Extraer rol del token inmediatamente (para mostrar coaches)
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      setIsAdmin(payload.role === 'admin')
-    } catch { /* ignore */ }
 
     // Fetch completo del perfil (nombre, foto)
     apiClient.getProfile().then(res => {

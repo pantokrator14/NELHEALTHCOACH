@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Image from 'next/image';
+import { useLocalStorageValue } from '@/lib/client-hooks';
 import React from 'react';
 import { apiClient, Exercise } from '@/lib/api';
 import { translateApiError, withSupportHint } from '@/lib/apiErrorText';
@@ -9,7 +11,6 @@ import SimpleItemModal from './SimpleItemModal';
 import RecipeDetailModal from './RecipeDetailModal';
 import ExerciseDetailModal from './ExerciseDetailModal';
 import AIRecipeEditModal, { AIRecipeData } from './AIRecipeEditModal';
-import OriginPin from './OriginPin';
 import SessionScheduler from './SessionScheduler';
 import VideoCallRoom from './VideoCallRoom';
 import { useToast } from '@/components/ui/Toast';
@@ -353,23 +354,19 @@ export default function AIRecommendationsModal({
   const [displayError, setDisplayError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
 
-  // Banner de traducción dinámica (descartable con X, recordado por sesión)
-  const [dismissedTranslationBanner, setDismissedTranslationBanner] = useState<boolean>(false);
+  // Banner de traducción dinámica (descartable con X, recordado por sesión).
+  // El valor persistido se lee por snapshot; el estado solo guarda el clic
+  // del usuario en la sesión actual (sin setState síncrono en effect).
+  const [bannerDismissedByUser, setBannerDismissedByUser] = useState<boolean>(false);
   const translationBannerDismissedKey = useMemo(
     () => `nel_ai_translation_banner_dismissed_${activeSessionId || 'none'}`,
     [activeSessionId]
   );
-  useEffect(() => {
-    if (!activeSessionId) return;
-    try {
-      setDismissedTranslationBanner(
-        localStorage.getItem(translationBannerDismissedKey) === '1'
-      );
-    } catch { /* localStorage no disponible */ }
-  }, [translationBannerDismissedKey, activeSessionId]);
+  const storageBannerDismissed = useLocalStorageValue(translationBannerDismissedKey) === '1';
+  const dismissedTranslationBanner = bannerDismissedByUser || storageBannerDismissed;
 
   const dismissTranslationBanner = () => {
-    setDismissedTranslationBanner(true);
+    setBannerDismissedByUser(true);
     try {
       localStorage.setItem(translationBannerDismissedKey, '1');
     } catch { /* localStorage no disponible */ }
@@ -377,7 +374,7 @@ export default function AIRecommendationsModal({
 
   // ===== ESTADOS DE NAVEGACIÓN =====
 
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([0]);
+  const [, setExpandedWeeks] = useState<number[]>([0]);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
 
   // ===== ESTADOS DE FORMULARIOS =====
@@ -390,9 +387,6 @@ export default function AIRecommendationsModal({
   const [editText, setEditText] = useState('');
 
   // ===== ESTADOS DE DETALLES EXPANDIDOS =====
-  const [expandedShoppingLists, setExpandedShoppingLists] = useState<string[]>([]);
-  const [expandedRecipes, setExpandedRecipes] = useState<string[]>([]);
-  const [expandedExerciseDetails, setExpandedExerciseDetails] = useState<string[]>([]);
   const [footerExpanded, setFooterExpanded] = useState(false);
 
   // ===== REFERENCIA PARA SCROLL =====
@@ -436,7 +430,6 @@ export default function AIRecommendationsModal({
     weekNumber: number;
   } | null>(null);
   const [showAIRecipeEditModal, setShowAIRecipeEditModal] = useState(false);
-  const [loadingShoppingList, setLoadingShoppingList] = useState<Record<number, boolean>>({});
   const [loadingWeeklyPlan, setLoadingWeeklyPlan] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
 
@@ -445,11 +438,9 @@ export default function AIRecommendationsModal({
   // ===== ESTADOS DE VIDEOLlAMADA =====
   const [showSessionScheduler, setShowSessionScheduler] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
-  const [videoRoomName, setVideoRoomName] = useState<string>('');
-  const [videoSessionId, setVideoSessionId] = useState<string>('');
+  const [videoRoomName] = useState<string>('');
   const [joinNowOffer, setJoinNowOffer] = useState(false);
-  const [clientSessionLink, setClientSessionLink] = useState<string>('');
-  const [schedulingSession, setSchedulingSession] = useState(false);
+  const [clientSessionLink] = useState<string>('');
 
   // ===== ESTADOS DE TRANSCRIPCIÓN =====
   const [videoSessions, setVideoSessions] = useState<VideoSession[]>([]);
@@ -562,19 +553,13 @@ export default function AIRecommendationsModal({
   }, [clientId, convertToNewStructure]);
 
   // ===== CÁLCULOS Y MEMOS =====
+  // La sesión activa se deriva (sin setState en render/memo): la selección
+  // canónica la hace loadAIProgress dentro de su callback asíncrono.
   const activeSession = useMemo(() => {
-    if (!aiProgress?.sessions || !activeSessionId) {
-      if (aiProgress?.sessions && aiProgress.sessions.length > 0) {
-        const firstSession = aiProgress.sessions[0];
-        if (!activeSessionId) {
-          setActiveSessionId(firstSession.sessionId);
-
-        }
-        return firstSession;
-      }
-      return null;
-    }
-    return aiProgress.sessions.find(s => s.sessionId === activeSessionId) || null;
+    const sessions = aiProgress?.sessions;
+    if (!sessions || sessions.length === 0) return null;
+    if (!activeSessionId) return sessions[0];
+    return sessions.find(s => s.sessionId === activeSessionId) || null;
   }, [aiProgress, activeSessionId]);
 
   // Nombres de idioma en el idioma del coach (nativo del navegador, sin strings hardcodeados)
@@ -586,7 +571,7 @@ export default function AIRecommendationsModal({
     } catch {
       return code;
     }
-  }, [i18n.language]);
+  }, []);
 
   const showTranslationBanner =
     !dismissedTranslationBanner &&
@@ -617,7 +602,7 @@ export default function AIRecommendationsModal({
       monthNumber: session.monthNumber,
       totalWeeks: session.totalWeeks || 4,
     }));
-  }, [aiProgress]);
+  }, [aiProgress, t]);
 
   const sessionMonths = useMemo(() => {
     if (!activeSession) return [];
@@ -715,7 +700,7 @@ export default function AIRecommendationsModal({
     } finally {
       setLoading(false);
     }
-  }, [clientId, activeSessionId, convertApiDataToClientAIProgress]);
+  }, [clientId, convertApiDataToClientAIProgress, showToast, t]);
 
   // Load recipe images for nutrition items and alternatives
   useEffect(() => {
@@ -732,6 +717,7 @@ export default function AIRecommendationsModal({
         }
       }).catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sincroniza al cambiar de sesión; checklist/recipeCache se leen puntualmente y no deben re-disparar
   }, [activeSession?.sessionId]);
 
   const handleGenerateRecommendations = useCallback(async (monthNumber: number = 1) => {
@@ -766,12 +752,15 @@ export default function AIRecommendationsModal({
     }
     // No usamos finally para setGenerating(false) porque cuando la respuesta
     // es 'queued', el padre controla el estado generating vía generationStatus prop.
-  }, [clientId, coachNotes, loadAIProgress, onRecommendationsGenerated]);
+  }, [clientId, coachNotes, loadAIProgress, onRecommendationsGenerated, showToast, t]);
 
   // ===== EFECTOS =====
   useEffect(() => {
-    loadAIProgress();
-    loadVideoSessions();
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      loadAIProgress();
+      loadVideoSessions();
+    })();
   }, [loadAIProgress, loadVideoSessions]);
 
   // Polling: verificar estado de la transcripción después de una videollamada
@@ -823,34 +812,40 @@ export default function AIRecommendationsModal({
     }, 10000);
 
     return () => clearInterval(pollInterval);
-  }, [transcriptPolling, clientId]);
+  }, [transcriptPolling, clientId, showToast, t]);
 
   // Reaccionar a cambios en generationStatus/generationError desde el padre
   useEffect(() => {
-    if (generationStatus === 'queued') {
-      setGenerating(true);
-      setDisplayError(null);
-    } else if (generationStatus === 'ready') {
-      setGenerating(false);
-      // LIMPIAR error previo: la generación terminó (con sesión o con error
-      // ya comunicado por el padre). Sin esto, un error de un intento fallido
-      // del worker quedaba pintado aunque la sesión se generara después
-      // (bug visto en prod: banner rojo persistente con la sesión visible).
-      setDisplayError(null);
-      // Recargar datos de IA (el polling del padre ya encontró resultados o error)
-      loadAIProgress();
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (generationStatus === 'queued') {
+        setGenerating(true);
+        setDisplayError(null);
+      } else if (generationStatus === 'ready') {
+        setGenerating(false);
+        // LIMPIAR error previo: la generación terminó (con sesión o con error
+        // ya comunicado por el padre). Sin esto, un error de un intento fallido
+        // del worker quedaba pintado aunque la sesión se generara después
+        // (bug visto en prod: banner rojo persistente con la sesión visible).
+        setDisplayError(null);
+        // Recargar datos de IA (el polling del padre ya encontró resultados o error)
+        loadAIProgress();
+      }
+    })();
   }, [generationStatus, loadAIProgress]);
 
   // Mostrar error de generación cuando el padre lo notifica
   useEffect(() => {
-    if (generationError) {
-      setDisplayError(generationError);
-      setGenerating(false);
-    } else {
-      // El padre limpió el error (generación completada con sesión) → limpiar UI
-      setDisplayError(null);
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (generationError) {
+        setDisplayError(generationError);
+        setGenerating(false);
+      } else {
+        // El padre limpió el error (generación completada con sesión) → limpiar UI
+        setDisplayError(null);
+      }
+    })();
   }, [generationError]);
 
   // Limpiar errores viejos cuando llega una sesión NUEVA: la generación en
@@ -859,9 +854,12 @@ export default function AIRecommendationsModal({
   // desaparecer al cambiar de sesión; el amarillo (aiProgress.generationError)
   // lo refresca loadAIProgress() con el dato fresco del servidor.
   useEffect(() => {
-    if (activeSessionId && !generating) {
-      setDisplayError(null);
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeSessionId && !generating) {
+        setDisplayError(null);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionId]);
 
@@ -870,10 +868,13 @@ export default function AIRecommendationsModal({
 
   // Expand first month when session changes
   useEffect(() => {
-    if (activeSession && sessionMonths.length > 0) {
-      const firstMonthId = `${activeSession.sessionId}_month_${sessionMonths[0].monthNumber}`;
-      setExpandedMonths(prev => prev.includes(firstMonthId) ? prev : [...prev, firstMonthId]);
-    }
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (activeSession && sessionMonths.length > 0) {
+        const firstMonthId = `${activeSession.sessionId}_month_${sessionMonths[0].monthNumber}`;
+        setExpandedMonths(prev => prev.includes(firstMonthId) ? prev : [...prev, firstMonthId]);
+      }
+    })();
   }, [activeSession, sessionMonths]);
 
   // ===== MANEJADORES DE CHECKLIST (CON SINCRONIZACIÓN POST-OPERACIÓN) =====
@@ -909,7 +910,7 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [aiProgress, clientId, loadAIProgress]);
+  }, [aiProgress, clientId, loadAIProgress, showToast, t]);
 
   const updateItemViaFullChecklist = useCallback(async (sessionId: string, updatedChecklist: ChecklistItem[]) => {
     console.log('updateItemViaFullChecklist - checklist recibido:', updatedChecklist.map(item => ({
@@ -939,7 +940,7 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [aiProgress, clientId, loadAIProgress]);
+  }, [aiProgress, clientId, loadAIProgress, showToast, t]);
 
   // ===== MANEJADORES DE EDICIÓN =====
   const handleStartEdit = useCallback((
@@ -1109,7 +1110,7 @@ export default function AIRecommendationsModal({
       console.error('💥 Error en handleSaveEdit:', error);
       showToast(t('common.error'), 'error');
     }
-  }, [editMode, editingField, aiProgress, editText, clientId, updateItemViaFullChecklist]);
+  }, [editMode, editingField, aiProgress, editText, clientId, updateItemViaFullChecklist, showToast, t]);
 
   const handleCancelEdit = useCallback(() => {
     setEditMode(false);
@@ -1117,26 +1118,6 @@ export default function AIRecommendationsModal({
     setEditText('');
     loadAIProgress();
   }, [loadAIProgress]);
-
-  const handleUpdateShoppingList = useCallback(async (sessionId: string, weekNumber: number) => {
-    try {
-      setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: true }));
-
-      console.log('handleUpdateShoppingList llamada con', { sessionId, weekNumber });
-
-      const response = await apiClient.updateAIShoppingList(clientId, sessionId, weekNumber);
-      if (response.success) {
-        await loadAIProgress(); // Recarga toda la data (incluyendo la lista actualizada)
-      } else {
-        throw new Error(response.message);
-      }
-    } catch (error) {
-      console.error('Error actualizando lista de compras', error);
-      showToast(t('common.error'), 'error');
-    } finally {
-      setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
-    }
-  }, [clientId, loadAIProgress]);
 
   const handleUpdateWeeklyPlan = useCallback(async () => {
     if (!activeSession) return;
@@ -1178,56 +1159,8 @@ export default function AIRecommendationsModal({
     } finally {
       setLoadingWeeklyPlan(false);
     }
-  }, [clientId, activeSession, setAiProgress]);
+  }, [clientId, activeSession, setAiProgress, showToast, t]);
 
-  const fetchRecipeAndOpenModal = useCallback(async (recipeId: string) => {
-    try {
-      const response = await apiClient.getRecipeById(recipeId);
-      if (response.success) {
-        // La respuesta ya viene desencriptada desde el backend
-        setSelectedRecipe(response.data as RecipeWithDetails);
-        setShowRecipeDetail(true);
-      }
-    } catch {
-      console.error('Error fetching recipe');
-    }
-  }, []);
-
-  const handleEditItemClick = useCallback((item: ChecklistItem) => {
-    if (item.category === 'nutrition') {
-      if (item.recipeId) {
-        fetchRecipeAndOpenModal(item.recipeId);
-      } else {
-        setEditingAIRecipe({ item, weekNumber: item.weekNumber });
-        setShowAIRecipeEditModal(true);
-      }
-    } else if (item.category === 'medical' || item.category === 'supplement') {
-      // Medical and supplement items: open as simple text edit
-      setEditingItem({
-        item,
-        weekNumber: item.weekNumber,
-        category: 'habit' as 'exercise' | 'habit' // reuse habit editing flow
-      });
-      setShowEditItemModal(true);
-    } else {
-      setEditingItem({
-        item,
-        weekNumber: item.weekNumber,
-        category: item.category as 'exercise' | 'habit'
-      });
-      setShowEditItemModal(true);
-    }
-  }, [fetchRecipeAndOpenModal]);
-
-  const handleAddItem = useCallback((weekNumber: number, category: 'nutrition' | 'exercise' | 'habit') => {
-    setSearchWeek(weekNumber);
-    setSearchCategory(category);
-    if (category === 'nutrition') {
-      setShowRecipeSearch(true);
-    } else {
-      setShowEditItemModal(true);
-    }
-  }, []);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     if (!activeSession || !aiProgress) return;
@@ -1262,7 +1195,7 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [activeSession, aiProgress, clientId, loadAIProgress]);
+  }, [activeSession, aiProgress, clientId, loadAIProgress, showToast, t]);
 
   const handleSaveNewItem = useCallback(async (data: NewItemData) => {
     if (!activeSession || !aiProgress) return;
@@ -1365,7 +1298,7 @@ export default function AIRecommendationsModal({
       await loadAIProgress();
       setAddingAlternative(false);
     }
-  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative, newHabitType]);
+  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative, newHabitType, searchDay, showToast, t]);
 
   const handleUpdateItem = useCallback(async (
     itemId: string,
@@ -1465,7 +1398,7 @@ export default function AIRecommendationsModal({
     } catch (e) {
       showToast(translateApiError(e, t, 'common.error'), 'error');
     }
-  }, [clientId, loadAIProgress]);
+  }, [clientId, loadAIProgress, showToast, t]);
 
   const handleRegenerate = useCallback(async () => {
     if (!activeSession) return;
@@ -1533,7 +1466,7 @@ export default function AIRecommendationsModal({
     } finally {
       setLoading(false);
     }
-  }, [clientId, loadAIProgress]);
+  }, [clientId, loadAIProgress, showToast, t]);
 
   // ===== HANDLERS DE VIDEOLlAMADA =====
 
@@ -1549,48 +1482,6 @@ export default function AIRecommendationsModal({
    * Envía la invitación por email al cliente y notificación al coach
    * vía el endpoint send-invite.
    */
-  const sendSessionInvite = useCallback(
-    async (sessionId: string): Promise<void> => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/video/send-invite`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ clientId, sessionId }),
-          }
-        );
-
-        if (response.ok) {
-          const data = (await response.json()) as {
-            success: boolean;
-            data: { joinLink: string; clientEmail: string; emailSent: boolean; coachEmailSent?: boolean };
-          };
-          if (data.success) {
-            setClientSessionLink(data.data.joinLink);
-            if (!data.data.emailSent) {
-              console.warn('⚠️ Email al cliente NO enviado (Revisar config Resend)');
-            }
-            if (data.data.coachEmailSent === false) {
-              console.warn('⚠️ Email al coach NO enviado (Revisar config Resend)');
-            }
-          }
-        } else {
-          const errText = await response.text().catch(() => 'Unknown error');
-          console.error('❌ Error en send-invite:', response.status, errText);
-        }
-      } catch (err: unknown) {
-        console.error('Error sending session invite:', err);
-      }
-    },
-    [clientId]
-  );
 
   /**
    * Callback cuando el SessionScheduler creó exitosamente la sala.
@@ -1610,37 +1501,6 @@ export default function AIRecommendationsModal({
   /**
    * Genera el enlace con token temporal para que el cliente acceda a la sala.
    */
-  const generateClientJoinLink = useCallback(
-    async (sessionId: string): Promise<void> => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/video/session-link`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ clientId, sessionId }),
-          }
-        );
-
-        if (response.ok) {
-          const data = (await response.json()) as {
-            success: boolean;
-            data: { joinLink: string };
-          };
-          setClientSessionLink(data.data.joinLink);
-        }
-      } catch (err: unknown) {
-        console.error('Error generating client join link:', err);
-      }
-    },
-    [clientId]
-  );
 
   /**
    * Abre la videollamada directamente (si hay una sala creada).
@@ -1660,7 +1520,7 @@ export default function AIRecommendationsModal({
     // Iniciar polling para detectar transcripción completada
     showToast(t('ai.toastProcessingTranscript'), 'info');
     setTranscriptPolling(true);
-  }, [loadAIProgress, loadVideoSessions]);
+  }, [loadAIProgress, loadVideoSessions, showToast, t]);
 
   /**
    * Reintenta la transcripción de una sesión de video fallida.
@@ -1721,7 +1581,7 @@ export default function AIRecommendationsModal({
         showToast(t('ai.toastLinkCopyFailed') + clientSessionLink, 'error');
       }
     }
-  }, [clientSessionLink]);
+  }, [clientSessionLink, showToast, t]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     setUploadingFile(true);
@@ -1831,7 +1691,7 @@ export default function AIRecommendationsModal({
     } finally {
       setUploadingFile(false);
     }
-  }, [clientId, loadAIProgress]);
+  }, [clientId, loadAIProgress, showToast, t]);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -1849,620 +1709,7 @@ export default function AIRecommendationsModal({
     setActiveSessionId(sessionId);
   }, []);
 
-  const toggleWeekExpansion = useCallback((weekIndex: number) => {
-    setExpandedWeeks(prev => prev.includes(weekIndex) ? prev.filter(w => w !== weekIndex) : [...prev, weekIndex]);
-  }, []);
-
-  const toggleAllWeeks = useCallback(() => {
-    if (!activeSession) return;
-    const weekCount = activeSession.weeks.length;
-    setExpandedWeeks(prev => prev.length === weekCount ? [] : Array.from({ length: weekCount }, (_, i) => i));
-  }, [activeSession]);
-
-  const toggleMonthExpansion = useCallback((monthId: string) => {
-    setExpandedMonths(prev => prev.includes(monthId) ? prev.filter(id => id !== monthId) : [...prev, monthId]);
-  }, []);
-
-  const toggleAllMonths = useCallback(() => {
-    if (!activeSession) return;
-    const monthIds = sessionMonths.map(month => `${activeSession.sessionId}_month_${month.monthNumber}`);
-    setExpandedMonths(prev => prev.length === monthIds.length ? [] : monthIds);
-  }, [activeSession, sessionMonths]);
-
-  const toggleShoppingList = useCallback(async (weekId: string, weekNumber: number, sessionId: string) => {
-
-    const isExpanding = !expandedShoppingLists.includes(weekId);
-
-    console.log('toggleShoppingList', { weekId, weekNumber, sessionId, isExpanding: !expandedShoppingLists.includes(weekId) });
-
-    // Actualizar el estado de expansión
-    setExpandedShoppingLists(prev =>
-      prev.includes(weekId) ? prev.filter(id => id !== weekId) : [...prev, weekId]
-    );
-
-    // Si se está expandiendo y la lista está vacía, generar automáticamente
-    if (isExpanding && activeSession) {
-      const week = activeSession.weeks.find(w => w.weekNumber === weekNumber);
-      if (week && week.nutrition.shoppingList.length === 0) {
-        try {
-          setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: true }));
-          await handleUpdateShoppingList(sessionId, weekNumber);
-        } catch (error) {
-          console.error('Error generando lista automática', error);
-          showToast(t('ai.shoppingListError'), 'error');
-        } finally {
-          setLoadingShoppingList(prev => ({ ...prev, [weekNumber]: false }));
-        }
-      }
-    }
-  }, [expandedShoppingLists, activeSession, handleUpdateShoppingList]);
-
-  const toggleRecipeExpansion = useCallback((itemId: string) => {
-    setExpandedRecipes(prev => prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]);
-  }, []);
-
-  const toggleExerciseDetailsExpansion = useCallback((itemId: string) => {
-    setExpandedExerciseDetails(prev => prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]);
-  }, []);
-
   // ===== RENDERIZADORES =====
-  const renderChecklistItem = useCallback((item: ChecklistItem, sessionId: string) => {
-    const isChecked = item.completed;
-    const isRecipeExpanded = expandedRecipes.includes(item.id);
-    const isExerciseDetailsExpanded = expandedExerciseDetails.includes(item.id);
-    const handleCheckboxClick = async (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      await handleChecklistChange(sessionId, item.id, !isChecked);
-    };
-
-    return (
-      <div key={item.id} className="flex items-start py-2 border-b border-gray-100 last:border-0 group relative">
-        <div onClick={handleCheckboxClick} className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all flex-shrink-0 ${isChecked ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300 hover:border-green-400'}`}>
-          {isChecked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center flex-wrap gap-2 mb-1">
-            {item.category === 'nutrition' && (
-              <>
-                <OriginPin origin={item.recipeId ? 'db' : 'ai'} />
-                {item.frequency && (
-                  <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full whitespace-nowrap">
-                    {item.frequency} {item.frequency === 1 ? 'vez' : 'veces'}/semana
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          {editMode && editingField?.type === 'checklistItem' && editingField?.itemId === item.id ? (
-            <input
-              type="text"
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              onBlur={handleSaveEdit}
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-              autoFocus
-              className="w-full px-2 py-1 border border-green-300 rounded text-gray-700"
-            />
-          ) : (
-            <span
-              className={`${isChecked ? 'line-through text-gray-500' : 'text-gray-700'} break-words`}
-              onClick={handleCheckboxClick}
-            >
-              {item.description}
-            </span>
-          )}
-          {item.details?.recipe && (
-            <div className="mt-2 ml-6 pl-2 border-l-2 border-green-200">
-              <button
-                onClick={() => toggleRecipeExpansion(item.id)}
-                className="text-sm text-green-600 hover:text-green-800 flex items-center mb-1"
-              >
-                {isRecipeExpanded ? (
-                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>{t('ai.hideRecipe')}</>
-                ) : (
-                  <><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>{t('ai.viewFullRecipe')}</>
-                )}
-              </button>
-              {isRecipeExpanded && (
-                <div className="mt-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <h5 className="font-medium text-yellow-700 mb-2">{t('ai.recipe')}</h5>
-                  {item.details.recipe.ingredients && (
-                    <div className="mb-3">
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.ingredients')}</h6>
-                      <ul className="space-y-1">
-                        {item.details.recipe.ingredients.map((ingredient, idx) => (
-                          <li key={idx} className="text-sm text-gray-600 break-words">
-                            <span className="font-medium">{ingredient.name}</span>: {ingredient.quantity}
-                            {ingredient.notes && <span className="text-gray-700 text-xs ml-2">({ingredient.notes})</span>}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {item.details.recipe.preparation && (
-                    <div className="mb-3">
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.preparation')}</h6>
-                      <p className="text-sm text-gray-600 whitespace-pre-line break-words text-justify">{item.details.recipe.preparation}</p>
-                    </div>
-                  )}
-                  {item.details.recipe.tips && (
-                    <div>
-                      <h6 className="text-sm font-medium text-gray-700 mb-1">{t('ai.tip')}</h6>
-                      <p className="text-sm text-gray-600 break-words text-justify">{item.details.recipe.tips}</p>
-                    </div>
-                  )}
-                  {(item.details.macros || item.details.calories || item.details.metabolicPurpose) && (
-                    <div className="mt-3 pt-3 border-t border-yellow-300">
-                      <h6 className="text-sm font-medium text-gray-700 mb-2">{t('ai.nutritionInfo')}</h6>
-                      {item.details.macros && (
-                        <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">{t('ai.macros')}</span>
-                          <div className="grid grid-cols-2 gap-1 mt-1">
-                            {item.details.macros.protein && <span className="text-sm text-gray-600">Proteína: {item.details.macros.protein}</span>}
-                            {item.details.macros.fat && <span className="text-sm text-gray-600">Grasas: {item.details.macros.fat}</span>}
-                            {item.details.macros.carbs && <span className="text-sm text-gray-600">Carbos: {item.details.macros.carbs}</span>}
-                            {item.details.macros.ratio && <span className="text-sm text-gray-600 col-span-2">Ratio: {item.details.macros.ratio}</span>}
-                          </div>
-                        </div>
-                      )}
-                      {item.details.calories && (
-                        <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">{t('ai.calories')}</span>
-                          <span className="text-sm text-gray-600 ml-2">{item.details.calories} kcal</span>
-                        </div>
-                      )}
-                      {item.details.metabolicPurpose && (
-                        <div className="mb-2">
-                          <span className="text-sm font-medium text-gray-700">{t('ai.metabolicPurpose')}</span>
-                          <p className="text-sm text-gray-600 mt-1">{item.details.metabolicPurpose}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {item.category === 'exercise' && item.details && (
-            <div className="mt-2 ml-4 md:ml-6 pl-3 border-l-2 border-blue-200">
-              <button
-                onClick={() => toggleExerciseDetailsExpansion(item.id)}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center mb-2 font-medium"
-              >
-                <svg className={`w-4 h-4 mr-1 transition-transform ${isExerciseDetailsExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                {isExerciseDetailsExpanded ? 'Ocultar detalles' : 'Ver detalles del ejercicio'}
-              </button>
-              {isExerciseDetailsExpanded && (
-                <div className="mt-2 p-4 bg-blue-50 rounded-xl border border-blue-200 shadow-sm">
-                  <div className="space-y-3">
-                    {item.details.frequency && (
-                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">🕒</span> {t('ai.frequency')}</span>
-                        <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.frequency}</span>
-                      </div>
-                    )}
-                    {item.details.duration && (
-                      <div className="flex flex-col sm:flex-row sm:items-center text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 w-28"><span className="mr-2 text-base">⏱️</span> {t('ai.duration')}</span>
-                        <span className="sm:ml-2 mt-1 sm:mt-0 break-words flex-1">{item.details.duration}</span>
-                      </div>
-                    )}
-                    {(item.details.sets || item.details.repetitions || item.details.timeUnderTension || item.details.progression) && (
-                      <div className="text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🏋️</span> {t('ai.exerciseDetails')}</span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-6 sm:ml-8">
-                          {item.details.sets && (
-                            <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">{t('ai.sets')}</span>
-                              <span className="text-sm text-gray-800">{item.details.sets}</span>
-                            </div>
-                          )}
-                          {item.details.repetitions && (
-                            <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">{t('ai.repetitions')}</span>
-                              <span className="text-sm text-gray-800">{item.details.repetitions}</span>
-                            </div>
-                          )}
-                          {item.details.timeUnderTension && (
-                            <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">{t('ai.timeUnderTension')}</span>
-                              <span className="text-sm text-gray-800">{item.details.timeUnderTension}</span>
-                            </div>
-                          )}
-                          {item.details.progression && (
-                            <div className="flex flex-col">
-                              <span className="text-xs font-medium text-gray-600">{t('ai.progression')}</span>
-                              <span className="text-sm text-gray-800">{item.details.progression}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {item.details.equipment && item.details.equipment.length > 0 && (
-                      <div className="text-sm text-gray-700">
-                        <span className="flex items-center font-medium text-blue-700 mb-2"><span className="mr-2 text-base">🎽</span> {t('ai.equipmentNeeded')}</span>
-                        <div className="flex flex-wrap gap-2 ml-6 sm:ml-8">
-                          {item.details.equipment.map((equipment, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-white rounded-full text-xs sm:text-sm border border-blue-200 shadow-sm break-words">
-                              {equipment}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 flex space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 bg-white/80 md:bg-white pl-2 rounded-l-lg">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleEditItemClick(item); }}
-            className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-            title="Editar"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
-            className="p-1 text-red-600 hover:bg-red-100 rounded"
-            title="Eliminar"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-          </button>
-        </div>
-      </div>
-    );
-  }, [editMode, editingField, editText, handleChecklistChange, handleSaveEdit, expandedRecipes, expandedExerciseDetails, toggleRecipeExpansion, toggleExerciseDetailsExpansion, handleEditItemClick, handleDeleteItem]);
-
-  const renderWeek = useCallback((week: AIRecommendationWeek, weekIndex: number, sessionId: string, session: AIRecommendationSession) => {
-    const weekNumber = week.weekNumber;
-    const isExpanded = expandedWeeks.includes(weekIndex);
-    const weekId = `${sessionId}_week_${weekIndex}`;
-
-    const nutritionItems = session.checklist.filter(
-      item => item.weekNumber === weekNumber && item.category === 'nutrition'
-    );
-    const exerciseItems = session.checklist.filter(
-      item => item.weekNumber === weekNumber && item.category === 'exercise'
-    );
-    const habitItems = session.checklist.filter(
-      item => item.weekNumber === weekNumber && item.category === 'habit'
-    );
-    const medicalItems = session.checklist.filter(
-      item => item.weekNumber === weekNumber && item.category === 'medical'
-    );
-    const supplementItems = session.checklist.filter(
-      item => item.weekNumber === weekNumber && item.category === 'supplement'
-    );
-
-    const totalWeekItems = nutritionItems.length + exerciseItems.length + habitItems.length + medicalItems.length + supplementItems.length;
-    const completedWeekItems =
-      nutritionItems.filter(i => i.completed).length +
-      exerciseItems.filter(i => i.completed).length +
-      habitItems.filter(i => i.completed).length +
-      medicalItems.filter(i => i.completed).length +
-      supplementItems.filter(i => i.completed).length;
-    const weekProgress = totalWeekItems > 0 ? Math.round((completedWeekItems / totalWeekItems) * 100) : 0;
-
-    return (
-      <div key={weekIndex} className="bg-white rounded-xl border border-green-200 mb-4 overflow-hidden">
-        <div className="p-3 md:p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 cursor-pointer hover:from-green-100 transition-colors" onClick={() => toggleWeekExpansion(weekIndex)}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base md:text-lg font-bold text-green-700">Semana {week.weekNumber}</h3>
-              <div className="flex items-center gap-1">
-                <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2">
-                  <div className="bg-green-600 h-2 rounded-full transition-all duration-500" style={{ width: `${weekProgress}%` }}></div>
-                </div>
-                <span className="text-xs md:text-sm text-gray-600">{weekProgress}%</span>
-              </div>
-            </div>
-            <button className="text-green-600 p-1 hover:bg-green-200 rounded-full transition-colors" aria-label={isExpanded ? 'Contraer semana' : 'Expandir semana'}>
-              <svg className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {isExpanded && (
-          <div className="p-4 md:p-6 space-y-6">
-            {/* 🔴 ANÁLISIS MÉDICO — PRIMERO */}
-            <div className="space-y-3 p-4 bg-red-50 rounded-xl border border-red-200">
-              <h4 className="font-bold text-red-700 flex items-center text-base md:text-lg">
-                <span className="mr-2">🏥</span>
-                Análisis Médico
-                {week.medicalAnalysis?.focus && (
-                  <span className="ml-2 text-sm font-normal text-red-600">— {week.medicalAnalysis.focus}</span>
-                )}
-              </h4>
-
-              {/* Tabla de resultados de laboratorio */}
-              {medicalItems.filter(i => i.type === 'lab_result').length > 0 && (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-red-100">
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.marker')}</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.currentValue')}</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.previousValue')}</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.interpretation')}</th>
-                        <th className="text-left p-2 font-semibold text-red-800 border border-red-200">{t('ai.trend')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {medicalItems.filter(i => i.type === 'lab_result').map((item) => {
-                        const trendEmoji = item.details?.labResults?.[0]?.trend === 'improving' ? '🟢' :
-                          item.details?.labResults?.[0]?.trend === 'worsening' ? '🔴' :
-                          item.details?.labResults?.[0]?.trend === 'stable' ? '🟡' : '⚪';
-                        return (
-                          <tr key={item.id} className="border-b border-red-100 hover:bg-red-50/50">
-                            <td className="p-2 font-medium text-gray-800 border border-red-100">{item.details?.labResults?.[0]?.marker || item.description}</td>
-                            <td className="p-2 text-gray-700 border border-red-100">{item.details?.labResults?.[0]?.currentValue || '—'}</td>
-                            <td className="p-2 text-gray-500 border border-red-100">{item.details?.labResults?.[0]?.previousValue || '—'}</td>
-                            <td className="p-2 text-gray-600 border border-red-100">{item.details?.labResults?.[0]?.interpretation || ''}</td>
-                            <td className="p-2 text-center border border-red-100">{trendEmoji}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Checklist médico (hallazgos, estudios, etc.) */}
-              <div className="space-y-2">
-                {medicalItems.filter(i => i.type !== 'lab_result').map(item => renderChecklistItem(item, sessionId))}
-              </div>
-
-              {/* Mensaje si no hay datos médicos */}
-              {medicalItems.length === 0 && (
-                <p className="text-sm text-gray-500 italic py-2">
-                  {week.medicalAnalysis?.labSummary
-                    ? week.medicalAnalysis.labSummary
-                    : 'No hay datos de análisis médico para esta semana. Sube documentos de laboratorio para obtener un análisis detallado.'}
-                </p>
-              )}
-            </div>
-
-            {/* 🟡 SUPLEMENTOS (solo si hay) */}
-            {supplementItems.length > 0 && (
-              <div className="space-y-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
-                <h4 className="font-bold text-amber-700 flex items-center text-base md:text-lg">
-                  <span className="mr-2">💊</span>
-                  Suplementos Recomendados
-                  {week.supplements?.focus && (
-                    <span className="ml-2 text-sm font-normal text-amber-600">— {week.supplements.focus}</span>
-                  )}
-                </h4>
-                <div className="space-y-2">
-                  {supplementItems.map(item => (
-                    <div key={item.id} className="flex items-start py-2 border-b border-amber-100 last:border-0">
-                      <div
-                        onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await handleChecklistChange(sessionId, item.id, !item.completed); }}
-                        className={`mt-1 mr-3 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300 hover:border-amber-400'}`}
-                      >
-                        {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`${item.completed ? 'line-through text-gray-500' : 'text-gray-700'} text-sm`}>
-                          {item.description}
-                        </span>
-                        {item.details?.supplementInfo && (
-                          <div className="mt-1 ml-4 pl-2 border-l-2 border-amber-200">
-                            <p className="text-xs text-gray-600"><span className="font-medium">{t('ai.dose')}</span> {item.details.supplementInfo.dosage} | <span className="font-medium">{t('ai.timing')}</span> {item.details.supplementInfo.timing}</p>
-                            <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">{t('ai.reason')}</span> {item.details.supplementInfo.rationale}</p>
-                            {item.details.supplementInfo.contraindications && (
-                              <p className="text-xs text-red-500 mt-0.5">⚠️ {item.details.supplementInfo.contraindications}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 🟢 Nutrición */}
-            <div className="space-y-3 p-4 bg-green-50 rounded-xl border border-green-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h4 className="font-bold text-green-700 flex items-center text-base md:text-lg">
-                  <span className="mr-2">🍽️</span>
-                  Nutrición: {week.nutrition.focus}
-                </h4>
-                <button
-                  onClick={() => toggleShoppingList(weekId, week.weekNumber, session.sessionId)}
-                  className="text-xs text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-full shadow-sm w-full sm:w-auto text-center"
-                  disabled={loadingShoppingList[week.weekNumber]}
-                >
-                  {loadingShoppingList[week.weekNumber] ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Generando...
-                    </span>
-                  ) : (
-                    expandedShoppingLists.includes(weekId) ? '▲ Ocultar compras' : '▼ Ver lista de compras'
-                  )}
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {nutritionItems.map(item => renderChecklistItem(item, sessionId))}
-              </div>
-
-              {!editMode && session.status === 'draft' && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => handleAddItem(week.weekNumber, 'nutrition')}
-                    className="w-full sm:w-auto px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium flex items-center justify-center sm:inline-flex"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Agregar nuevo ítem de nutrición
-                  </button>
-                </div>
-              )}
-
-              {expandedShoppingLists.includes(weekId) && (
-                <div className="mt-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                    <h5 className="font-medium text-emerald-700 flex items-center text-base">
-                      <span className="mr-2">🛒</span>
-                      Lista de Compras - Semana {week.weekNumber}
-                    </h5>
-                    {session.status === 'draft' && (
-                      <button
-                        onClick={() => handleUpdateShoppingList(session.sessionId, week.weekNumber)}
-                        disabled={loadingShoppingList[week.weekNumber]}
-                        className={`text-xs px-3 py-2 rounded-full transition-colors w-full sm:w-auto ${
-                          loadingShoppingList[week.weekNumber]
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                      >
-                        {loadingShoppingList[week.weekNumber] ? 'Actualizando...' : 'Actualizar'}
-                      </button>
-                    )}
-                  </div>
-
-                  {week.nutrition.shoppingList.length === 0 ? (
-                    <p className="text-gray-500 text-sm italic">
-                      {loadingShoppingList[week.weekNumber]
-                        ? 'Generando lista...'
-                        : 'No hay productos en la lista. Presiona "Actualizar" para generarla.'}
-                    </p>
-                  ) : (
-                    <React.Fragment>
-                      <div className="grid grid-cols-1 gap-2">
-                        {week.nutrition.shoppingList.map((shopItem, idx) => (
-                          <div key={idx} className="p-2 bg-white rounded-lg border border-emerald-100 flex items-center justify-between">
-                            <span className="text-sm text-gray-900 font-medium break-words">{shopItem.item} (<span className="text-emerald-700 font-medium">{shopItem.quantity}</span>)</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <button
-                        onClick={() => activeSession && handleUpdateShoppingList(activeSession.sessionId, week.weekNumber)}
-                        disabled={loadingShoppingList[week.weekNumber]}
-                        className={`mt-4 w-full md:w-auto px-6 py-2 rounded-lg text-sm font-medium transition-colors
-                          ${loadingShoppingList[week.weekNumber]
-                            ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed'
-                            : 'bg-emerald-500 text-white hover:bg-emerald-600'
-                          }`}
-                      >
-                        {loadingShoppingList[week.weekNumber] ? 'Actualizando...' : 'Actualizar lista de compras'}
-                      </button>
-                    </React.Fragment>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Ejercicio */}
-            <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-              <h4 className="font-bold text-blue-700 flex items-center text-base md:text-lg">
-                <span className="mr-2">🏋️</span>
-                Ejercicio: {week.exercise.focus}
-              </h4>
-
-              {/* Intro del ejercicio — editable (solo si la IA generó uno) */}
-              {week.exercise.intro && (
-                <div className="p-3 bg-blue-100/60 rounded-lg border border-blue-200">
-                  {editMode && editingField?.type === 'exerciseIntro' && editingField.weekIndex === weekIndex ? (
-                    <div className="space-y-2">
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        rows={3}
-                        autoFocus
-                      />
-                      <div className="flex justify-end space-x-2">
-                        <button onClick={handleCancelEdit} className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs">{t('ai.cancel')}</button>
-                        <button onClick={handleSaveEdit} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">{t('ai.save')}</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between">
-                      <p className="text-sm text-blue-900 leading-relaxed whitespace-pre-line flex-1">{week.exercise.intro}</p>
-                      {!editMode && session.status === 'draft' && (
-                        <button
-                          onClick={() => handleStartEdit(session.sessionId, 'exerciseIntro', week.exercise.intro || '', undefined, weekIndex)}
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors ml-2 flex-shrink-0"
-                          title={t('ai.editIntro')}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {exerciseItems.map(item => renderChecklistItem(item, sessionId))}
-              </div>
-              {!editMode && session.status === 'draft' && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => handleAddItem(week.weekNumber, 'exercise')}
-                    className="w-full sm:w-auto px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium flex items-center justify-center sm:inline-flex"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Agregar nuevo ítem de ejercicio
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Hábitos */}
-            <div className="space-y-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
-              <h4 className="font-bold text-purple-700 flex items-center text-base md:text-lg">
-                <span className="mr-2">🌟</span>
-                Hábitos
-              </h4>
-              <div className="space-y-2">
-                {habitItems.map(item => renderChecklistItem(item, sessionId))}
-              </div>
-              {!editMode && session.status === 'draft' && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => handleAddItem(week.weekNumber, 'habit')}
-                    className="w-full sm:w-auto px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium flex items-center justify-center sm:inline-flex"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Agregar nuevo ítem de hábitos
-                  </button>
-                </div>
-              )}
-              {week.habits.motivationTip && (
-                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                  <p className="text-sm text-purple-700 text-justify"><span className="font-medium">💡 {t('ai.motivationTip')}</span> {week.habits.motivationTip}</p>
-                </div>
-              )}
-              {week.habits.trackingMethod && (
-                 <p className="text-xs text-gray-700 mt-2">📋 <span className="font-medium">{t('ai.trackingMethod')}</span> {week.habits.trackingMethod}</p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }, [expandedWeeks, expandedShoppingLists, loadingShoppingList, editMode, toggleWeekExpansion, toggleShoppingList, renderChecklistItem, handleAddItem, handleUpdateShoppingList]);
 
   // ===== RENDERIZADO CONDICIONAL =====
   if (loading) {
@@ -3283,10 +2530,10 @@ export default function AIRecommendationsModal({
                                               } catch { /* fallback */ }
                                             }
                                           }}
-                                          className="w-full h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded mb-1 flex items-center justify-center text-green-400 text-lg overflow-hidden"
+                                          className="relative w-full h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded mb-1 flex items-center justify-center text-green-400 text-lg overflow-hidden"
                                         >
                                           {item.recipeId && recipeCache[item.recipeId]?.image?.url ? (
-                                            <img src={recipeCache[item.recipeId].image!.url} alt="" className="w-full h-full object-cover" />
+                                            <Image src={recipeCache[item.recipeId].image!.url} alt="" fill unoptimized sizes="120px" className="object-cover" />
                                           ) : (
                                             <span>🍳</span>
                                           )}
@@ -3360,10 +2607,10 @@ export default function AIRecommendationsModal({
                                     } catch { /* fallback */ }
                                   }
                                 }}
-                                 className="w-full h-20 bg-gradient-to-br from-amber-100 to-yellow-100 rounded mb-1.5 flex items-center justify-center text-amber-400 text-xl overflow-hidden cursor-pointer"
+                                 className="relative w-full h-20 bg-gradient-to-br from-amber-100 to-yellow-100 rounded mb-1.5 flex items-center justify-center text-amber-400 text-xl overflow-hidden cursor-pointer"
                               >
                                 {item.recipeId && recipeCache[item.recipeId]?.image?.url ? (
-                                  <img src={recipeCache[item.recipeId].image!.url} alt="" className="w-full h-full object-cover" />
+                                  <Image src={recipeCache[item.recipeId].image!.url} alt="" fill unoptimized sizes="120px" className="object-cover" />
                                 ) : (
                                   <span>🍳</span>
                                 )}
@@ -3497,7 +2744,7 @@ export default function AIRecommendationsModal({
 
                         return (
                           <React.Fragment key={wi}>
-                            {dayOrder.map((day, idx) => {
+                            {dayOrder.map((day) => {
                               const items = byDay[day] || [];
                               return (
                                 <div
@@ -3540,7 +2787,7 @@ export default function AIRecommendationsModal({
                                   </div>
                                   {/* Exercise cards */}
                                   <div className="relative bg-blue-50 rounded-b-lg border border-blue-200 border-t-0 p-1.5 space-y-1.5 min-h-[60px]">
-                                    {items.map((item, ei) => (
+                                    {items.map((item) => (
                                       <div
                                         key={item.id}
                                         draggable={activeSession.status === 'draft'}

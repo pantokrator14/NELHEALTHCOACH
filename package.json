@@ -10,13 +10,15 @@
     "dev:form": "cd apps/form && npm run dev",
     "dev:dashboard": "cd apps/dashboard && npm run dev",
     "dev:landing": "cd apps/landing && npm run dev",
+    "dev:blog": "cd apps/blog && npm run dev",
     "dev:all": "concurrently \"npm run dev:landing\" \"npm run dev:form\" \"npm run dev:dashboard\"",
     "dev:api": "cd apps/api && npm run dev",
     "build": "turbo run build",
     "postinstall": "find . -name '.git' -type d -mindepth 2 -exec rm -rf {} +",
     "security:scan-secrets": "echo 'Instala veilguard manualmente: npm install -g veilguard'",
     "security:scan-code": "echo 'Instala kuzushi manualmente: npm install -g kuzushi'",
-    "security:check": "echo '=== Verificación de seguridad ===' && echo '1. Shield: Detección de ataques en apps/api/src/app/lib/security/shield.ts' && echo '2. Bot Detection: apps/api/src/app/lib/security/botDetector.ts' && echo '3. Rate Limiter: MongoDB-based en apps/api/src/app/lib/security/rateLimiter.ts' && echo '4. Prompt Injection: HTTP-level en apps/api/src/app/lib/security/promptInjection.ts' && echo '5. Guardrails: AI agents protegidos en apps/api/src/app/lib/agents/guard.ts' && echo '6. Security Headers: Configurados en apps/api/next.config.ts'"
+    "security:check": "echo '=== Verificaci\u00f3n de seguridad ===' && echo '1. Shield: Detecci\u00f3n de ataques en apps/api/src/app/lib/security/shield.ts' && echo '2. Bot Detection: apps/api/src/app/lib/security/botDetector.ts' && echo '3. Rate Limiter: MongoDB-based en apps/api/src/app/lib/security/rateLimiter.ts' && echo '4. Prompt Injection: HTTP-level en apps/api/src/app/lib/security/promptInjection.ts' && echo '5. Guardrails: AI agents protegidos en apps/api/src/app/lib/agents/guard.ts' && echo '6. Security Headers: Configurados en apps/api/next.config.ts'",
+    "test:blog": "cd apps/blog && npm test"
   },
   "devDependencies": {
     "@types/node": "^24.0.15",
