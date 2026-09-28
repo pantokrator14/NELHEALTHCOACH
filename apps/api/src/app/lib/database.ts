@@ -214,6 +214,92 @@ export async function getLeadsCollection() {
   return db.collection('leads');
 }
 
+export async function getBlogPostsCollection() {
+  const { db } = await connectToDatabase();
+  // Colección de entradas del blog (pedida por el coach: "entries")
+  return db.collection('entries');
+}
+
+export async function getBlogAuthorCollection() {
+  const { db } = await connectToDatabase();
+  // Perfil del autor del blog (documento singleton, editable por el admin)
+  return db.collection('blog_author');
+}
+
+/**
+ * Contador de visitas del blog, agregado por entrada y día (privacy-friendly:
+ * no guarda IPs ni cookies; solo { slug, day, count }). Índice único para el upsert.
+ */
+export async function getBlogViewsCollection() {
+  const { db } = await connectToDatabase();
+  const collection = db.collection('blog_views');
+  try {
+    await collection.createIndex({ slug: 1, day: 1 }, { unique: true });
+  } catch {
+    // El índice ya existe — ignorar
+  }
+  return collection;
+}
+
+/**
+ * Comentarios del blog (moderados): campos sensibles CIFRADOS, postSlug/status
+ * en claro para consultas de moderación.
+ */
+export async function getBlogCommentsCollection() {
+  const { db } = await connectToDatabase();
+  const collection = db.collection('blog_comments');
+  try {
+    await collection.createIndex({ postSlug: 1, status: 1, createdAt: 1 });
+  } catch {
+    // El índice ya existe — ignorar
+  }
+  return collection;
+}
+
+/** Documento de la lista de espera (email cifrado + hash para dedupe). */
+export interface WaitlistDoc {
+  _id: import('mongodb').ObjectId;
+  emailHash: string;
+  email: string;
+  sources: string[];
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * Lista de espera ÚNICA (libro + sesiones gratuitas): email CIFRADO +
+ * emailHash (HMAC, en claro) para deduplicar sin exponer el correo.
+ * `sources` acumula los motivos por los que se apuntó. Índice único por emailHash.
+ */
+export async function getWaitlistCollection() {
+  const { db } = await connectToDatabase();
+  const collection = db.collection<WaitlistDoc>('waitlist');
+  try {
+    await collection.createIndex({ emailHash: 1 }, { unique: true });
+  } catch {
+    // El índice ya existe — ignorar
+  }
+  return collection;
+}
+
+/** Documento de configuración de sesiones gratuitas (singleton). */
+export interface FreeSessionsDoc {
+  _id: string;
+  open: boolean;
+  limit: number;
+  used: number;
+  updatedAt?: Date;
+}
+
+/**
+ * Configuración de sesiones gratuitas (singleton { _id: 'config' }):
+ * interruptor del coach + cupo + contador. Sin datos personales.
+ */
+export async function getFreeSessionsCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection<FreeSessionsDoc>('free_sessions');
+}
+
 export async function getMedicalDocumentCacheCollection() {
   const { db } = await connectToDatabase();
   return db.collection('medical_document_cache');

@@ -163,7 +163,6 @@ export const useToast = () => {
         />
       );
     };
-    MemoizedToast.displayName = 'ToastComponent';
     return MemoizedToast;
   }, [toast.message, toast.type, toast.isVisible, hideToast]);
 

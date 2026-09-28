@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DragDropList from '../ui/DragDropList';
 import AutocompleteInput from '../ui/AutocompleteInput';
 import { useToast } from '../ui/Toast';
@@ -44,7 +44,7 @@ export default function ExerciseModal({
   const [restBetweenSets, setRestBetweenSets] = useState(exercise?.restBetweenSets ?? '45-60 segundos');
   const [progression, setProgression] = useState(exercise?.progression ?? '');
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
-  const [isPublished, setIsPublished] = useState(exercise?.isPublished ?? true);
+  const [isPublished] = useState(exercise?.isPublished ?? true);
 
   // Progression state
   const [progressionOf, setProgressionOf] = useState(exercise?.progressionOf ?? '');

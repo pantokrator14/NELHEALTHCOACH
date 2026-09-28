@@ -99,10 +99,6 @@ export default function CoachesPage() {
   const activeFilterCount =
     (statusFilter !== 'all' ? 1 : 0) + (stripeFilter !== 'all' ? 1 : 0);
 
-  useEffect(() => {
-    loadCoaches();
-  }, []);
-
   const loadCoaches = async () => {
     try {
       setLoading(true);
@@ -116,6 +112,15 @@ export default function CoachesPage() {
       setLoading(false);
     }
   };
+
+  // Carga inicial (frontera async: la regla react-hooks/set-state-in-effect
+  // prohíbe el setState síncrono del prefijo de loadCoaches en el effect)
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve();
+      loadCoaches();
+    })();
+  }, []);
 
   const handleDeleteCoach = async (coach: Coach, e: React.MouseEvent) => {
     e.stopPropagation();

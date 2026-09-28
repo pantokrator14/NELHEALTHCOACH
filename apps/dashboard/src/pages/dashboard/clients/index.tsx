@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRouter } from 'next/router'
+import { useIsAdmin } from '@/lib/client-hooks'
 import Layout from '../../../components/dashboard/Layout'
 import Head from 'next/head'
-import { apiClient } from '@/lib/api';
+import { apiClient, type FreeSessionsConfig } from '@/lib/api';
 import Image from 'next/image'
 
 interface Client {
@@ -28,19 +30,43 @@ export default function Clients() {
   const [searchTerm, setSearchTerm] = useState('')
   const [copyMsg, setCopyMsg] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
+  const { t } = useTranslation()
+  // Rol derivado del token (para mostrar opción de link gratuito)
+  const isAdmin = useIsAdmin()
 
-  // Detectar si el usuario es admin (para mostrar opción de link gratuito)
+  // ── Sesiones gratuitas (cupo limitado, control del admin) ──
+  const [freeSessions, setFreeSessions] = useState<FreeSessionsConfig | null>(null)
+  const [fsLimitInput, setFsLimitInput] = useState('')
+  const [fsBusy, setFsBusy] = useState(false)
+  const [fsError, setFsError] = useState('')
+
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        setIsAdmin(payload.role === 'admin')
-      } catch { /* ignore */ }
+    if (!isAdmin) return
+    apiClient
+      .getFreeSessions()
+      .then((res) => {
+        setFreeSessions(res.data)
+        setFsLimitInput(String(res.data.limit))
+      })
+      .catch(() => {
+        // Silencioso: el panel simplemente no se muestra con datos
+      })
+  }, [isAdmin])
+
+  const applyFreeSessions = async (input: { open?: boolean; limit?: number; resetUsed?: boolean }) => {
+    setFsBusy(true)
+    setFsError('')
+    try {
+      const res = await apiClient.updateFreeSessions(input)
+      setFreeSessions(res.data)
+      setFsLimitInput(String(res.data.limit))
+    } catch {
+      setFsError(t('clients.freeSessionsError'))
+    } finally {
+      setFsBusy(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -202,6 +228,75 @@ export default function Clients() {
               </div>
             </div>
           </div>
+
+          {/* ── Sesiones gratuitas (solo admin) ── */}
+          {isAdmin && freeSessions && (
+            <div className="mb-6 bg-white rounded-xl shadow-md border border-blue-100 p-5">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-semibold text-blue-700 flex items-center gap-2">
+                    🎟️ {t('clients.freeSessionsTitle')}
+                  </h2>
+                  <p className="text-sm text-gray-500">{t('clients.freeSessionsSubtitle')}</p>
+                  {fsError && <p className="text-sm text-red-600 mt-1">{fsError}</p>}
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  {/* Estado + contador */}
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${freeSessions.open ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                      {freeSessions.open ? t('clients.freeSessionsStatusOpen') : t('clients.freeSessionsStatusClosed')}
+                    </span>
+                    <span className="text-sm text-gray-700 whitespace-nowrap">
+                      {t('clients.freeSessionsUsed')}: <span className="font-bold text-blue-700">{freeSessions.used}</span>/{freeSessions.limit}
+                    </span>
+                  </div>
+
+                  {/* Toggle abrir/cerrar */}
+                  <button
+                    type="button"
+                    onClick={() => void applyFreeSessions({ open: !freeSessions.open })}
+                    disabled={fsBusy}
+                    role="switch"
+                    aria-checked={freeSessions.open}
+                    aria-label={t('clients.freeSessionsTitle')}
+                    className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${freeSessions.open ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${freeSessions.open ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+
+                  {/* Límite */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      value={fsLimitInput}
+                      onChange={(e) => setFsLimitInput(e.target.value)}
+                      className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      aria-label={t('clients.freeSessionsLimit')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void applyFreeSessions({ limit: Math.max(0, parseInt(fsLimitInput, 10) || 0) })}
+                      disabled={fsBusy}
+                      className="px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 transition"
+                    >
+                      {t('clients.freeSessionsSave')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void applyFreeSessions({ resetUsed: true })}
+                      disabled={fsBusy}
+                      className="px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 text-sm font-semibold rounded-lg hover:bg-blue-100 disabled:opacity-60 transition whitespace-nowrap"
+                    >
+                      {t('clients.freeSessionsReset')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-3">{t('clients.freeSessionsHint')}</p>
+            </div>
+          )}
 
           {/* Toast de enlace copiado */}
           {copyMsg && (

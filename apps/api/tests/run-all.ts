@@ -18,7 +18,10 @@ const suites = [
   'auth.test.ts',               // auth + rate limit + validación
   'clients.test.ts',            // clients CRUD + ownership
   'content.test.ts',            // recipes + exercises CRUD + roles
+  'blog.test.ts',               // blog CRUD + roles + traducción (mock LLM)
   'notifications.test.ts',      // notifications + misc
+  'waitlist.test.ts',           // lista de espera unificada (libro + sesiones)
+  'free-sessions.test.ts',      // cupo de sesiones gratuitas (toggle + límite + reset)
   'error-cleanup.test.ts',      // POST limpia generationError viejo al encolar
   'queue.test.ts',              // cola propia (unit, sin LLM)
   'translate.test.ts',          // traducción (unit, mock LLM)

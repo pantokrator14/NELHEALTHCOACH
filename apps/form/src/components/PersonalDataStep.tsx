@@ -1,6 +1,6 @@
 // apps/form/src/components/PersonalDataStep.tsx
 import React, { useState, useEffect } from 'react';
-import { useForm, UseFormSetValue } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import Image from 'next/image';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { personalDataSchema, PersonalDataFormValues } from '../lib/validation';
@@ -23,8 +23,7 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
     register, 
     handleSubmit, 
     formState: { errors }, 
-    setValue,
-    trigger
+    setValue
   } = useForm<PersonalDataFormValues>({
     defaultValues: {
       ...data,

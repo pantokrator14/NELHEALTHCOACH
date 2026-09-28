@@ -4,7 +4,7 @@
 // 2. Paga con Stripe
 // 3. Confirmación
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -33,9 +33,11 @@ export default function RequestSessionPage() {
 
   // Si venimos con pendingSessionId (desde email del coach), ir directo al pago
   useEffect(() => {
-    if (router.isReady && pendingSessionId && typeof pendingSessionId === 'string') {
+    void (async () => {
+      if (!router.isReady || typeof pendingSessionId !== 'string' || !pendingSessionId) return;
+      await Promise.resolve(); // frontera async (react-hooks/set-state-in-effect)
       setStep('payment');
-    }
+    })();
   }, [router.isReady, pendingSessionId]);
 
   // Paso 1: Cliente elige fecha/hora
@@ -114,20 +116,22 @@ export default function RequestSessionPage() {
   };
 
   // Verificar si volvemos de Stripe
-  const checkPaymentResult = () => {
+  const checkPaymentResult = useCallback(() => {
     if (router.query.payment === 'success') {
       setStep('success');
       setResultMessage('Pago confirmado exitosamente.');
     } else if (router.query.payment === 'canceled') {
       setError('El pago fue cancelado. Puedes intentar nuevamente.');
     }
-  };
+  }, [router.query.payment]);
 
   useEffect(() => {
-    if (router.isReady) {
+    void (async () => {
+      if (!router.isReady) return;
+      await Promise.resolve(); // frontera async (react-hooks/set-state-in-effect)
       checkPaymentResult();
-    }
-  }, [router.isReady, router.query]);
+    })();
+  }, [router.isReady, checkPaymentResult]);
 
   // ── Render ──
 

@@ -30,6 +30,7 @@ function buildAllowedOrigins(): string[] {
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',
+    'http://localhost:3003',
     // Producción (fallback por si faltan env vars)
     'https://nelhealthcoach.com',
     'https://www.nelhealthcoach.com',
@@ -43,6 +44,7 @@ function buildAllowedOrigins(): string[] {
     process.env.APP_URL,
     process.env.DASHBOARD_URL,
     process.env.FORM_URL,
+    process.env.BLOG_URL,
   ];
 
   for (const url of urlsFromEnv) {
@@ -74,6 +76,9 @@ const CRITICAL_PATHS = [
   '/api/health',
   '/api/exercises',
   '/api/recipes',
+  '/api/blog',
+  '/api/waitlist',
+  '/api/free-sessions',
   '/api/auth',
   '/api/video',
   '/api/inngest',

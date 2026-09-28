@@ -1,5 +1,3 @@
-import type { TFunction } from 'i18next';
-
 // Acepta tanto TFunction de i18next como wrappers simples (key) => string.
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 

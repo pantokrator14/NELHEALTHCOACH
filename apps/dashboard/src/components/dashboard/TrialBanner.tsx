@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useLocalStorageValue } from '@/lib/client-hooks';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/lib/api';
 
@@ -15,15 +16,12 @@ export default function TrialBanner() {
   const [trialInfo, setTrialInfo] = useState<TrialInfo | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Dismiss persistido: se lee por snapshot (sin setState síncrono en effect)
+  const storageDismissed = useLocalStorageValue('trialBannerDismissed') === 'true';
 
   useEffect(() => {
-    // Verificar si el usuario ya dismissió el banner en esta sesión
-    const dismissedStorage = localStorage.getItem('trialBannerDismissed');
-    if (dismissedStorage === 'true') {
-      setDismissed(true);
-      setLoading(false);
-      return;
-    }
+    // Si ya se dismissió antes, no hay nada que cargar (el render lo oculta)
+    if (storageDismissed) return;
 
     const fetchTrialInfo = async () => {
       try {
@@ -46,7 +44,7 @@ export default function TrialBanner() {
     };
 
     fetchTrialInfo();
-  }, []);
+  }, [storageDismissed]);
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -57,7 +55,7 @@ export default function TrialBanner() {
     router.push('/dashboard/profile?subscribe=1');
   };
 
-  if (loading || dismissed || !trialInfo || trialInfo.status !== 'active') {
+  if (loading || dismissed || storageDismissed || !trialInfo || trialInfo.status !== 'active') {
     return null;
   }
 

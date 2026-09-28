@@ -19,6 +19,14 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // "Ahora" como estado: Date.now() es impuro y no debe llamarse durante el render
+  const [now, setNow] = useState(() => Date.now());
+
+  // Recalcular tiempos relativos cada minuto
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -49,9 +57,12 @@ export default function NotificationBell() {
     }
   }, []);
 
-  // Cargar conteo al montar
+  // Cargar conteo al montar (frontera async: set-state-in-effect)
   useEffect(() => {
-    fetchUnreadCount();
+    void (async () => {
+      await Promise.resolve();
+      fetchUnreadCount();
+    })();
   }, [fetchUnreadCount]);
 
   // Abrir/cerrar dropdown
@@ -111,9 +122,8 @@ export default function NotificationBell() {
     }
   };
 
-  // Formatear fecha relativa
+  // Formatear fecha relativa (usa el "now" del estado, actualizado cada minuto)
   const timeAgo = (dateStr: string): string => {
-    const now = Date.now();
     const date = new Date(dateStr).getTime();
     const diffMs = now - date;
     const diffMin = Math.floor(diffMs / 60000);

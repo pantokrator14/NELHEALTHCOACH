@@ -256,7 +256,40 @@ export interface FinancesData {
   }>;
 }
 
+/** Configuración/disponibilidad de sesiones gratuitas (admin). */
+export interface FreeSessionsConfig {
+  open: boolean;
+  limit: number;
+  used: number;
+  available: boolean;
+  remaining: number;
+}
+
 export const apiClient = {
+  async getFreeSessions(): Promise<{ success: boolean; data: FreeSessionsConfig }> {
+    const response = await fetch(`${API_BASE_URL}/api/free-sessions`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, 'Error al cargar las sesiones gratuitas');
+    }
+    return response.json();
+  },
+
+  async updateFreeSessions(input: { open?: boolean; limit?: number; resetUsed?: boolean }): Promise<{ success: boolean; data: FreeSessionsConfig }> {
+    const response = await fetch(`${API_BASE_URL}/api/free-sessions`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, 'Error al guardar las sesiones gratuitas');
+    }
+    return response.json();
+  },
+
   async login(credentials: { email: string; password: string }) {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',

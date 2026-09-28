@@ -105,9 +105,14 @@ const RecipeFilters: React.FC<RecipeFiltersProps> = ({
   }, [localFilters, onFilterChange]);
 
   // Sincronizar localFilters cuando activeFilters cambia externamente
-  useEffect(() => {
+  // Sincronizar con los filtros externos: ajuste de estado durante el
+  // render comparando JSON (patrón oficial, sin efecto). Si el objeto cambió,
+  // se reemplaza el estado local (p. ej. al aplicar filtros desde fuera).
+  const [prevFilters, setPrevFilters] = useState(activeFilters);
+  if (JSON.stringify(prevFilters) !== JSON.stringify(activeFilters)) {
+    setPrevFilters(activeFilters);
     setLocalFilters(activeFilters);
-  }, [activeFilters]);
+  }
 
   // Limpiar timeout al desmontar
   useEffect(() => {

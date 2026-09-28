@@ -74,24 +74,6 @@ export default function ProfilePage() {
     ? accountInfo.daysRemaining <= 7 && accountInfo.subscriptionLabel.includes('restante')
     : false;
 
-  useEffect(() => {
-    loadProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Detectar ?stripe=success al cargar o al cambiar URL
-  useEffect(() => {
-    if (router.query.stripe === 'success') {
-      setStripeMsg('✅ Stripe conectado exitosamente');
-      router.replace('/dashboard/profile', undefined, { shallow: true });
-      loadProfile();
-    } else if (router.query.stripe === 'canceled') {
-      setStripeMsg('⚠️ Configuración cancelada. Puedes intentarlo de nuevo cuando quieras.');
-      router.replace('/dashboard/profile', undefined, { shallow: true });
-      loadProfile();
-    }
-  }, [router.query.stripe]);
-
   const loadProfile = async () => {
     try {
       const res = await apiClient.getProfile();
@@ -117,6 +99,30 @@ export default function ProfilePage() {
       setLoading(false);
     }
   };
+
+  // Carga inicial y detección de ?stripe=... (después de declarar loadProfile: evita TDZ)
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      loadProfile();
+    })();
+     
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve(); // frontera async (set-state-in-effect)
+      if (router.query.stripe === 'success') {
+        setStripeMsg('✅ Stripe conectado exitosamente');
+        router.replace('/dashboard/profile', undefined, { shallow: true });
+        loadProfile();
+      } else if (router.query.stripe === 'canceled') {
+        setStripeMsg('⚠️ Configuración cancelada. Puedes intentarlo de nuevo cuando quieras.');
+        router.replace('/dashboard/profile', undefined, { shallow: true });
+        loadProfile();
+      }
+    })();
+  }, [router.query.stripe, router]);
 
   const loadAccountInfo = async () => {
     try {

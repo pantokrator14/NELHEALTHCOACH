@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
 
+// URL del blog (app independiente del monorepo)
+const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'http://localhost:3003';
+
 /**
  * Pie de pagina con:
  * - Informacion de la empresa
@@ -24,6 +27,22 @@ const Footer: React.FC = () => {
             </p>
           </div>
           
+          <div>
+            <h4 className="text-lg font-semibold mb-4">{t('landing.footer.quickLinks')}</h4>
+            <ul className="space-y-2">
+              <li>
+                <a
+                  href={BLOG_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  {t('landing.nav.blog')}
+                </a>
+              </li>
+            </ul>
+          </div>
+
           <div>
             <h4 className="text-lg font-semibold mb-4">{t('landing.footer.legal')}</h4>
             <ul className="space-y-2">
