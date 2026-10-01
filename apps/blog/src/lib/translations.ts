@@ -16,6 +16,7 @@ export const en = {
     login: 'Login',
     menu: 'Menu',
     closeMenu: 'Close menu',
+    backToLanding: 'Main Website',
   },
 
   hero: {
@@ -94,6 +95,7 @@ export const en = {
     rss: 'RSS',
     spanishSupport: 'Spanish Support',
     englishSupport: 'English Support',
+    backToLanding: 'Back to main website',
   },
   admin: {
     navPanel: 'Panel',
@@ -183,6 +185,7 @@ export const es: typeof en = {
     login: 'Login',
     menu: 'Menú',
     closeMenu: 'Cerrar menú',
+    backToLanding: 'Web Principal',
   },
 
   hero: {
@@ -261,6 +264,7 @@ export const es: typeof en = {
     rss: 'RSS',
     spanishSupport: 'Asistencia en español',
     englishSupport: 'Asistencia en inglés',
+    backToLanding: 'Volver a la web principal',
   },
   admin: {
     navPanel: 'Panel',
@@ -350,6 +354,7 @@ export const fr: typeof en = {
     login: 'Connexion',
     menu: 'Menu',
     closeMenu: 'Fermer le menu',
+    backToLanding: 'Site Principal',
   },
 
   hero: {
@@ -428,6 +433,7 @@ export const fr: typeof en = {
     rss: 'RSS',
     spanishSupport: 'Assistance en espagnol',
     englishSupport: 'Assistance en anglais',
+    backToLanding: 'Retour au site principal',
   },
   admin: {
     navPanel: 'Panneau',
@@ -517,6 +523,7 @@ export const it: typeof en = {
     login: 'Accedi',
     menu: 'Menu',
     closeMenu: 'Chiudi il menu',
+    backToLanding: 'Sito Principale',
   },
 
   hero: {
@@ -595,6 +602,7 @@ export const it: typeof en = {
     rss: 'RSS',
     spanishSupport: 'Supporto in spagnolo',
     englishSupport: 'Supporto in inglese',
+    backToLanding: 'Torna al sito principale',
   },
   admin: {
     navPanel: 'Pannello',
@@ -684,6 +692,7 @@ export const pt: typeof en = {
     login: 'Entrar',
     menu: 'Menu',
     closeMenu: 'Fechar menu',
+    backToLanding: 'Site Principal',
   },
 
   hero: {
@@ -762,6 +771,7 @@ export const pt: typeof en = {
     rss: 'RSS',
     spanishSupport: 'Suporte em espanhol',
     englishSupport: 'Suporte em inglês',
+    backToLanding: 'Voltar ao site principal',
   },
   admin: {
     navPanel: 'Painel',
@@ -851,6 +861,7 @@ export const de: typeof en = {
     login: 'Anmelden',
     menu: 'Menü',
     closeMenu: 'Menü schließen',
+    backToLanding: 'Hauptseite',
   },
 
   hero: {
@@ -929,6 +940,7 @@ export const de: typeof en = {
     rss: 'RSS',
     spanishSupport: 'Support auf Spanisch',
     englishSupport: 'Support auf Englisch',
+    backToLanding: 'Zurück zur Hauptwebsite',
   },
   admin: {
     navPanel: 'Übersicht',

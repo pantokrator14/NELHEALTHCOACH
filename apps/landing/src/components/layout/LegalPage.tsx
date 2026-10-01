@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Head from 'next/head';
 import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
 import { legalContent, normalizeLegalLang, backLabels, type LegalPageKey } from '../../lib/legalContent';
@@ -23,6 +24,11 @@ const LegalPage: React.FC<LegalPageProps> = ({ pageKey }) => {
 
   return (
     <div>
+      <Head>
+        <title>{`${doc.title} | NELHEALTHCOACH`}</title>
+        <meta name="description" content={`${doc.title} de NELHEALTHCOACH.`} />
+        <meta name="robots" content="noindex, follow" />
+      </Head>
       {/* Hero azul - el id="inicio" hace que el Navbar use logo blanco sobre este fondo */}
       <section id="inicio" className="relative bg-gradient-to-br from-blue-700 to-blue-900">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-700/40 to-gray-700/20"></div>
