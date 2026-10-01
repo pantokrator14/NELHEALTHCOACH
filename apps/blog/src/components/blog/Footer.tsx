@@ -7,7 +7,7 @@ import '@/lib/i18n';
 /**
  * Footer del blog — MISMOS ELEMENTOS que el footer de la landing:
  * marca + descripción, enlaces legales (apuntan a la landing), contacto
- * y redes sociales.
+ * y redes sociales, más botón de retorno a la landing principal.
  */
 const Footer: React.FC = () => {
   const { t } = useTranslation();
@@ -18,12 +18,32 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
             <h3 className="text-xl font-bold mb-4">NELHEALTHCOACH</h3>
-            <p className="text-gray-400">{t('footer.description')}</p>
+            <p className="text-gray-400 mb-4">{t('footer.description')}</p>
+            <a
+              href={LANDING_URL}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>{t('footer.backToLanding')}</span>
+            </a>
           </div>
 
           <div>
             <h4 className="text-lg font-semibold mb-4">{t('footer.legal')}</h4>
             <ul className="space-y-2">
+              <li>
+                <a
+                  href={LANDING_URL}
+                  className="text-blue-400 hover:text-white font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  {t('footer.backToLanding')}
+                </a>
+              </li>
               <li>
                 <a
                   href={`${LANDING_URL}/politica-privacidad`}

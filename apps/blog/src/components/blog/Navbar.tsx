@@ -4,13 +4,14 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 import { localizedPath } from '@/lib/seo';
+import { LANDING_URL } from '@/lib/links';
 import '@/lib/i18n';
 
 /**
  * Navbar del blog (misma estética que la landing):
  * - Sobre el hero (si existe): fondo transparente + logo blanco.
  * - Fuera del hero o sin hero: fondo blanco con sombra + logo azul.
- * Enlaces: Inicio · Categorías · Login (admin) — preservan el idioma (?lang=).
+ * Enlaces: Inicio · Categorías · Web Principal (retorno a la landing) · Login (admin) — preservan el idioma (?lang=).
  * En móvil se colapsa en un menú hamburguesa.
  */
 const Navbar: React.FC = () => {
@@ -39,13 +40,6 @@ const Navbar: React.FC = () => {
   const textColor = overHero ? 'text-white hover:text-blue-200' : 'text-gray-700 hover:text-blue-600';
   const logoPath = overHero ? '/images/logo1.png' : '/images/logo.png';
 
-  // Preserva el idioma (?lang=) al navegar entre páginas
-  const navLinks = [
-    { href: localizedPath('/', lang), label: t('nav.home') },
-    { href: localizedPath('/#categorias', lang), label: t('nav.categories') },
-    { href: localizedPath('/admin/login', lang), label: t('nav.login') },
-  ];
-
   const closeMobile = () => setMobileOpen(false);
 
   return (
@@ -58,16 +52,42 @@ const Navbar: React.FC = () => {
         </Link>
 
         {/* Navegación de escritorio */}
-        <nav className="hidden md:flex items-center space-x-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`font-medium transition-colors ${textColor}`}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <nav className="hidden md:flex items-center space-x-6 lg:space-x-8">
+          <Link
+            href={localizedPath('/', lang)}
+            className={`font-medium transition-colors ${textColor}`}
+          >
+            {t('nav.home')}
+          </Link>
+          <Link
+            href={localizedPath('/#categorias', lang)}
+            className={`font-medium transition-colors ${textColor}`}
+          >
+            {t('nav.categories')}
+          </Link>
+
+          {/* Botón que lleva de regreso a la landing con orden intuitivo */}
+          <a
+            href={LANDING_URL}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              overHero
+                ? 'border-white/50 text-white bg-white/10 hover:bg-white hover:text-blue-900'
+                : 'border-blue-600/30 text-blue-700 bg-blue-50/70 hover:bg-blue-600 hover:text-white hover:border-blue-600 shadow-sm'
+            }`}
+            title="NELHEALTHCOACH"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span>{t('nav.backToLanding')}</span>
+          </a>
+
+          <Link
+            href={localizedPath('/admin/login', lang)}
+            className={`font-medium transition-colors text-xs opacity-75 hover:opacity-100 ${textColor}`}
+          >
+            {t('nav.login')}
+          </Link>
         </nav>
 
         {/* Botón hamburguesa (móvil) */}
@@ -100,16 +120,40 @@ const Navbar: React.FC = () => {
           className="md:hidden absolute top-full left-0 w-full bg-white shadow-lg border-t border-gray-100"
         >
           <div className="container mx-auto px-4 py-2 flex flex-col">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={closeMobile}
-                className="py-3.5 font-medium text-gray-700 hover:text-blue-600 border-b border-gray-100 last:border-0"
-              >
-                {link.label}
-              </Link>
-            ))}
+            <Link
+              href={localizedPath('/', lang)}
+              onClick={closeMobile}
+              className="py-3.5 font-medium text-gray-700 hover:text-blue-600 border-b border-gray-100"
+            >
+              {t('nav.home')}
+            </Link>
+            <Link
+              href={localizedPath('/#categorias', lang)}
+              onClick={closeMobile}
+              className="py-3.5 font-medium text-gray-700 hover:text-blue-600 border-b border-gray-100"
+            >
+              {t('nav.categories')}
+            </Link>
+            <a
+              href={LANDING_URL}
+              onClick={closeMobile}
+              className="py-3.5 font-medium text-blue-600 hover:text-blue-700 border-b border-gray-100 flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                {t('nav.backToLanding')}
+              </span>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">nelhealthcoach.com ↗</span>
+            </a>
+            <Link
+              href={localizedPath('/admin/login', lang)}
+              onClick={closeMobile}
+              className="py-3.5 font-medium text-gray-500 hover:text-blue-600 last:border-0"
+            >
+              {t('nav.login')}
+            </Link>
           </div>
         </nav>
       )}

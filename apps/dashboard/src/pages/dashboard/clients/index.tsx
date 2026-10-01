@@ -233,53 +233,55 @@ export default function Clients() {
           {isAdmin && freeSessions && (
             <div className="mb-6 bg-white rounded-xl shadow-md border border-blue-100 p-5">
               <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-semibold text-blue-700 flex items-center gap-2">
+                <div className="flex-1 min-w-0 text-center sm:text-left">
+                  <h2 className="text-lg font-semibold text-blue-700 flex items-center justify-center sm:justify-start gap-2">
                     🎟️ {t('clients.freeSessionsTitle')}
                   </h2>
-                  <p className="text-sm text-gray-500">{t('clients.freeSessionsSubtitle')}</p>
+                  <p className="text-sm text-gray-500 mt-1">{t('clients.freeSessionsSubtitle')}</p>
                   {fsError && <p className="text-sm text-red-600 mt-1">{fsError}</p>}
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  {/* Estado + contador */}
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${freeSessions.open ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
-                      {freeSessions.open ? t('clients.freeSessionsStatusOpen') : t('clients.freeSessionsStatusClosed')}
-                    </span>
-                    <span className="text-sm text-gray-700 whitespace-nowrap">
-                      {t('clients.freeSessionsUsed')}: <span className="font-bold text-blue-700">{freeSessions.used}</span>/{freeSessions.limit}
-                    </span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+                  {/* Estado + contador + toggle */}
+                  <div className="flex items-center justify-between sm:justify-start gap-3 bg-blue-50/60 sm:bg-transparent p-2.5 sm:p-0 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${freeSessions.open ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                        {freeSessions.open ? t('clients.freeSessionsStatusOpen') : t('clients.freeSessionsStatusClosed')}
+                      </span>
+                      <span className="text-sm text-gray-700 whitespace-nowrap">
+                        {t('clients.freeSessionsUsed')}: <span className="font-bold text-blue-700">{freeSessions.used}</span>/{freeSessions.limit}
+                      </span>
+                    </div>
+
+                    {/* Toggle abrir/cerrar */}
+                    <button
+                      type="button"
+                      onClick={() => void applyFreeSessions({ open: !freeSessions.open })}
+                      disabled={fsBusy}
+                      role="switch"
+                      aria-checked={freeSessions.open}
+                      aria-label={t('clients.freeSessionsTitle')}
+                      className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${freeSessions.open ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${freeSessions.open ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
 
-                  {/* Toggle abrir/cerrar */}
-                  <button
-                    type="button"
-                    onClick={() => void applyFreeSessions({ open: !freeSessions.open })}
-                    disabled={fsBusy}
-                    role="switch"
-                    aria-checked={freeSessions.open}
-                    aria-label={t('clients.freeSessionsTitle')}
-                    className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${freeSessions.open ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                  >
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${freeSessions.open ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-
-                  {/* Límite */}
-                  <div className="flex items-center gap-2">
+                  {/* Límite y botones (en mobile: input -> Guardar -> Reiniciar apilados) */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     <input
                       type="number"
                       min={0}
                       value={fsLimitInput}
                       onChange={(e) => setFsLimitInput(e.target.value)}
-                      className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full sm:w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center sm:text-left"
                       aria-label={t('clients.freeSessionsLimit')}
                     />
                     <button
                       type="button"
                       onClick={() => void applyFreeSessions({ limit: Math.max(0, parseInt(fsLimitInput, 10) || 0) })}
                       disabled={fsBusy}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 transition"
+                      className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 transition text-center whitespace-nowrap shadow-sm"
                     >
                       {t('clients.freeSessionsSave')}
                     </button>
@@ -287,14 +289,14 @@ export default function Clients() {
                       type="button"
                       onClick={() => void applyFreeSessions({ resetUsed: true })}
                       disabled={fsBusy}
-                      className="px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 text-sm font-semibold rounded-lg hover:bg-blue-100 disabled:opacity-60 transition whitespace-nowrap"
+                      className="w-full sm:w-auto px-3.5 py-2 bg-blue-50 text-blue-700 border border-blue-200 text-sm font-semibold rounded-lg hover:bg-blue-100 disabled:opacity-60 transition whitespace-nowrap text-center"
                     >
                       {t('clients.freeSessionsReset')}
                     </button>
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mt-3">{t('clients.freeSessionsHint')}</p>
+              <p className="text-xs text-gray-400 mt-3 text-center sm:text-left">{t('clients.freeSessionsHint')}</p>
             </div>
           )}
 

@@ -46,6 +46,7 @@ const AdminLoginPage: React.FC = () => {
     <>
       <Head>
         <title>{`${t('admin.loginTitle')} | Blog NELHEALTHCOACH`}</title>
+        <meta name="robots" content="noindex, nofollow" />
       </Head>
 
       <main className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-600 flex items-center justify-center px-4">

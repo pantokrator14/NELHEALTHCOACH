@@ -1,5 +1,6 @@
 import React, { useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,9 @@ const AdminLayout: React.FC<Props> = ({ active, children }) => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-blue-50 via-white to-white">
+      <Head>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <header className="bg-blue-700 text-white shadow-md">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Link href="/admin" aria-label="Panel del blog" className="relative h-10 w-32 sm:h-12 sm:w-40 shrink-0">
