@@ -12,7 +12,7 @@ if (!secretKey) {
 }
 
 export const stripeClient = new Stripe(secretKey, {
-  apiVersion: '2026-05-27.dahlia',
+  apiVersion: '2026-08-26.dahlia' as any,
   typescript: true,
 });
 
