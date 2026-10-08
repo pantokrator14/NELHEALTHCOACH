@@ -8,6 +8,21 @@ export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
 export const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'] as const;
 
 export const en = {
+  cookieBanner: {
+    title: 'Cookie Management & Privacy',
+    description: 'We use essential technical cookies to ensure platform functionality and, with your consent, analytical cookies to improve our educational services. You can accept all, reject non-essential, or customize your preferences.',
+    acceptAll: 'Accept all',
+    rejectNonEssential: 'Reject non-essential',
+    customize: 'Customize',
+    savePreferences: 'Save preferences',
+    essentialTitle: 'Technical Cookies (Essential)',
+    essentialDesc: 'Required for core browsing security and authenticated session access.',
+    alwaysActive: 'Always active',
+    analyticsTitle: 'Analytical Cookies & Metrics',
+    analyticsDesc: 'Allow us to understand aggregate site usage to enhance content.',
+    learnMore: 'Learn more in our Cookie Policy',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Home',
@@ -177,6 +192,21 @@ export const en = {
 };
 
 export const es: typeof en = {
+  cookieBanner: {
+    title: 'Gestión de Cookies y Privacidad',
+    description: 'Utilizamos cookies técnicas necesarias para el funcionamiento de la plataforma y, con tu consentimiento, analíticas para optimizar nuestros servicios. Puedes aceptar todas, rechazar las no esenciales o personalizar tus opciones.',
+    acceptAll: 'Aceptar todas',
+    rejectNonEssential: 'Rechazar no esenciales',
+    customize: 'Configurar',
+    savePreferences: 'Guardar preferencias',
+    essentialTitle: 'Cookies Técnicas (Necesarias)',
+    essentialDesc: 'Imprescindibles para el funcionamiento seguro de la plataforma y sesiones.',
+    alwaysActive: 'Siempre activas',
+    analyticsTitle: 'Cookies Analíticas y Medición',
+    analyticsDesc: 'Nos permiten entender el uso global del sitio para mejorar los contenidos.',
+    learnMore: 'Más información en nuestra Política de Cookies',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Inicio',
@@ -346,6 +376,21 @@ export const es: typeof en = {
 };
 
 export const fr: typeof en = {
+  cookieBanner: {
+    title: 'Gestion des Cookies et Confidentialité',
+    description: 'Nous utilisons des cookies techniques nécessaires au fonctionnement du site et, avec votre accord, des cookies analytiques. Vous pouvez tout accepter, refuser les non-essentiels ou personnaliser vos choix.',
+    acceptAll: 'Tout accepter',
+    rejectNonEssential: 'Refuser les non-essentiels',
+    customize: 'Personnaliser',
+    savePreferences: 'Enregistrer',
+    essentialTitle: 'Cookies Techniques (Nécessaires)',
+    essentialDesc: 'Indispensables pour la navigation sécurisée et les sessions.',
+    alwaysActive: 'Toujours actifs',
+    analyticsTitle: 'Cookies Analytiques',
+    analyticsDesc: 'Permettent de mesurer l’audience globale du site.',
+    learnMore: 'En savoir plus dans notre Politique de Cookies',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Accueil',
@@ -515,6 +560,21 @@ export const fr: typeof en = {
 };
 
 export const it: typeof en = {
+  cookieBanner: {
+    title: 'Gestione Cookie e Privacy',
+    description: 'Utilizziamo cookie tecnici necessari e, con il tuo consenso, analitici per ottimizzare i servizi. Puoi accettare tutti, rifiutare i non essenziali o personalizzare.',
+    acceptAll: 'Accetta tutti',
+    rejectNonEssential: 'Rifiuta non essenziali',
+    customize: 'Personalizza',
+    savePreferences: 'Salva preferenze',
+    essentialTitle: 'Cookie Tecnici (Necessari)',
+    essentialDesc: 'Indispensabili per sicurezza e navigazione del sito.',
+    alwaysActive: 'Sempre attivi',
+    analyticsTitle: 'Cookie Analitici',
+    analyticsDesc: 'Consentono di analizzare l’uso aggregato del sito.',
+    learnMore: 'Maggiori informazioni nella Cookie Policy',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Home',
@@ -684,6 +744,21 @@ export const it: typeof en = {
 };
 
 export const pt: typeof en = {
+  cookieBanner: {
+    title: 'Gestão de Cookies e Privacidade',
+    description: 'Utilizamos cookies técnicos essenciais e, com o seu consentimento, analíticos para otimizar os servicios. Você pode aceitar todos, recusar não essenciais ou personalizar.',
+    acceptAll: 'Aceitar todos',
+    rejectNonEssential: 'Recusar não essenciais',
+    customize: 'Personalizar',
+    savePreferences: 'Salvar preferências',
+    essentialTitle: 'Cookies Técnicos (Necessários)',
+    essentialDesc: 'Essenciais para o funcionamento seguro e sessões.',
+    alwaysActive: 'Sempre ativos',
+    analyticsTitle: 'Cookies Analíticos',
+    analyticsDesc: 'Permitem entender o uso agregado do site.',
+    learnMore: 'Saiba mais na nossa Política de Cookies',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Início',
@@ -853,6 +928,21 @@ export const pt: typeof en = {
 };
 
 export const de: typeof en = {
+  cookieBanner: {
+    title: 'Cookie-Einstellungen & Datenschutz',
+    description: 'Wir verwenden essenzielle Cookies für den Betrieb der Plattform sowie mit Ihrer Einwilligung analytische Cookies. Sie können alle akzeptieren, nicht essenzielle ablehnen oder anpassen.',
+    acceptAll: 'Alle akzeptieren',
+    rejectNonEssential: 'Nicht essenzielle ablehnen',
+    customize: 'Anpassen',
+    savePreferences: 'Einstellungen speichern',
+    essentialTitle: 'Technische Cookies (Erforderlich)',
+    essentialDesc: 'Notwendig für Sicherheit und grundlegende Plattformfunktionen.',
+    alwaysActive: 'Immer aktiv',
+    analyticsTitle: 'Analytische Cookies',
+    analyticsDesc: 'Ermöglichen die anonyme Analyse der Plattformnutzung.',
+    learnMore: 'Mehr erfahren in unserer Cookie-Richtlinie',
+  },
+
   appName: 'Blog NELHEALTHCOACH',
   nav: {
     home: 'Start',

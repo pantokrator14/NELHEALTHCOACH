@@ -62,7 +62,7 @@ async function postHandler(request: NextRequest) {
 
     const filename = encodeURIComponent(`${reportType}_${year}_NELHEALTHCOACH_LLC.pdf`);
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

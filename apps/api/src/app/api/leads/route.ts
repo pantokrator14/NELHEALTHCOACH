@@ -1,3 +1,13 @@
+function escapeHtml(str: unknown): string {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // apps/api/src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getLeadsCollection } from '@/app/lib/database';
@@ -74,7 +84,21 @@ async function postHandler(request: NextRequest) {
       );
     }
 
-    const { name, email, phone, objective, source } = parsed.data;
+    const {
+      name,
+      email,
+      phone,
+      objective,
+      commitmentLevel,
+      initialCommitmentLevel,
+      commitmentChangesCount,
+      biggestObstacle,
+      source,
+    } = parsed.data;
+
+    const hadLowInitial = typeof initialCommitmentLevel === 'number' && initialCommitmentLevel < 7;
+    const isCurrentHigh = typeof commitmentLevel === 'number' && commitmentLevel >= 7;
+    const suspectedBypass = hadLowInitial && isCurrentHigh;
 
     // Cupo de sesiones gratuitas: si está lleno/cerrado, rechazar el lead
     if (source === 'free-session') {
@@ -98,6 +122,11 @@ async function postHandler(request: NextRequest) {
       email,
       phone,
       objective,
+      commitmentLevel: commitmentLevel ?? null,
+      initialCommitmentLevel: initialCommitmentLevel ?? null,
+      commitmentChangesCount: commitmentChangesCount ?? 0,
+      suspectedBypass,
+      biggestObstacle: biggestObstacle ?? null,
       source,
       createdAt: new Date(),
     });
@@ -239,18 +268,26 @@ async function postHandler(request: NextRequest) {
 
     // Contenido para el correo del cliente
     const clientContent = `
-      <h1>¡Gracias por contactarnos, ${name}!</h1>
+      <h1>¡Gracias por contactarnos, ${escapeHtml(name)}!</h1>
       <p>Hemos recibido tu solicitud para agendar una sesión gratuita. En breve recibirás la confirmación de tu cita por parte de Calendly.</p>
       
       <div class="data-block">
         <div class="data-row">
           <span class="data-label">Objetivo:</span>
-          <span class="data-value">${objective}</span>
-        </div>
+          <span class="data-value">${escapeHtml(objective)}</span>
+        </div>${commitmentLevel ? `
+        <div class="data-row">
+          <span class="data-label">Compromiso:</span>
+          <span class="data-value">${commitmentLevel}/10</span>
+        </div>` : ''}${biggestObstacle ? `
+        <div class="data-row">
+          <span class="data-label">Mayor obstáculo:</span>
+          <span class="data-value" style="font-style: italic;">"${escapeHtml(biggestObstacle)}"</span>
+        </div>` : ''}
         ${phone ? `
         <div class="data-row">
           <span class="data-label">Teléfono:</span>
-          <span class="data-value">${phone}</span>
+          <span class="data-value">${escapeHtml(phone)}</span>
         </div>
         ` : ''}
       </div>
@@ -266,25 +303,44 @@ async function postHandler(request: NextRequest) {
     const coachContent = `
       <h1>📋 Nuevo lead para sesión gratuita</h1>
       
+      ${suspectedBypass ? `
+      <div style="background-color: #fffaf0; border: 2px solid #dd6b20; border-radius: 8px; padding: 14px 16px; margin: 0 0 20px 0;">
+        <div style="color: #c05621; font-weight: 700; font-size: 15px; margin-bottom: 6px;">
+          ⚠️ ALERTA DE CUALIFICACIÓN: Intento de cambio
+        </div>
+        <p style="color: #7b341e; margin: 0; font-size: 13px; line-height: 1.5;">
+          El prospecto inicialmente seleccionó un nivel de compromiso de <strong>${initialCommitmentLevel}/10</strong> y luego lo cambió a <strong>${commitmentLevel}/10</strong> (${commitmentChangesCount ?? 1} cambio(s) detectado(s)) para poder calificar.
+        </p>
+      </div>
+      ` : ''}
+
       <div class="data-block">
         <div class="data-row">
           <span class="data-label">Nombre:</span>
-          <span class="data-value">${name}</span>
+          <span class="data-value">${escapeHtml(name)}</span>
         </div>
         <div class="data-row">
           <span class="data-label">Email:</span>
-          <span class="data-value">${email}</span>
+          <span class="data-value">${escapeHtml(email)}</span>
         </div>
         ${phone ? `
         <div class="data-row">
           <span class="data-label">Teléfono:</span>
-          <span class="data-value">${phone}</span>
+          <span class="data-value">${escapeHtml(phone)}</span>
         </div>
         ` : ''}
         <div class="data-row">
           <span class="data-label">Objetivo:</span>
-          <span class="data-value">${objective}</span>
-        </div>
+          <span class="data-value">${escapeHtml(objective)}</span>
+        </div>${commitmentLevel ? `
+        <div class="data-row">
+          <span class="data-label">Compromiso:</span>
+          <span class="data-value highlight" style="font-weight: 700; color: #2b6cb0;">${commitmentLevel}/10 ${commitmentLevel >= 8 ? '🔥' : '⭐'} ${suspectedBypass ? '(Modificado ⚠️)' : ''}</span>
+        </div>` : ''}${biggestObstacle ? `
+        <div class="data-row">
+          <span class="data-label">Mayor obstáculo:</span>
+          <span class="data-value" style="font-style: italic; color: #2d3748;">"${escapeHtml(biggestObstacle)}"</span>
+        </div>` : ''}
         <div class="data-row">
           <span class="data-label">Fecha:</span>
           <span class="data-value">${new Date().toLocaleString('es-ES')}</span>

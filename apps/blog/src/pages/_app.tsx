@@ -7,17 +7,24 @@ import { useRouter } from 'next/router';
 // En useEffect se fuerza la detección del idioma real del navegador.
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
+import CookieBanner from '@/components/CookieBanner';
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
-  // Fingerprint una sola vez (no depende del idioma)
+  // Fingerprint reactivo al consentimiento
   useEffect(() => {
-    initFingerprint().catch((err) => {
-      console.warn('FingerprintJS init failed (non-blocking):', err);
-    });
+    const runFingerprint = () => {
+      initFingerprint().catch((err) => {
+        console.warn('FingerprintJS init failed (non-blocking):', err);
+      });
+    };
+
+    runFingerprint();
+    window.addEventListener('nhc_consent_updated', runFingerprint);
+    return () => window.removeEventListener('nhc_consent_updated', runFingerprint);
   }, []);
 
   // Idioma de la URL (?lang=XX) tiene prioridad; si no, se detecta del navegador.
@@ -45,6 +52,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/images/favicon.ico" />
       </Head>
       <Component {...pageProps} />
+      <CookieBanner />
     </>
   );
 }

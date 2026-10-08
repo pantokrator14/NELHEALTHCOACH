@@ -116,6 +116,28 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
               </div>
             </div>
 
+            {/* Aviso de Transparencia de Pago y Reembolsos */}
+            <div className="text-xs text-gray-500 mb-6 text-center leading-relaxed">
+              Pago único y seguro por servicios de coaching y cuestionario. Al continuar, aceptas nuestros{' '}
+              <a
+                href="https://nelhealthcoach.com/terminos-condiciones"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-teal-700 underline font-medium"
+              >
+                Términos
+              </a>{' '}
+              y nuestra{' '}
+              <a
+                href="https://nelhealthcoach.com/reembolsos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-teal-700 underline font-medium"
+              >
+                Política de Reembolsos
+              </a>. Sin cobros sorpresa.
+            </div>
+
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
                 {error}

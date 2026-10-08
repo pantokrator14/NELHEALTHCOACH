@@ -4,13 +4,14 @@
 
 ![NELHEALTHCOACH](https://img.shields.io/badge/NELHEALTHCOACH-Health%20Platform-blueviolet)
 ![Monorepo](https://img.shields.io/badge/Architecture-Monorepo-success)
-![Next.js](https://img.shields.io/badge/Next.js-15.5.4-black)
+![Next.js](https://img.shields.io/badge/Next.js-16.3.6-black)
 ![React](https://img.shields.io/badge/React-19.1.0-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6)
 ![MongoDB](https://img.shields.io/badge/MongoDB-6.0.0-47A248)
-![AWS](https://img.shields.io/badge/AWS-Services-FF9900)
-![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4)
-![LangGraph](https://img.shields.io/badge/Agents-LangGraph-00D4AA)
+![DeepSeek](https://img.shields.io/badge/AI-DeepSeek%20V4%20Flash-blue)
+![Gemini](https://img.shields.io/badge/AI%20Fallback-Google%20Gemini%202.5-4285F4)
+![Deepgram](https://img.shields.io/badge/Audio-Deepgram%20SDK%205.0-13EF93)
+![Compliance](https://img.shields.io/badge/Legal-RGPD%20%7C%20CCPA%20%7C%20JAMS-success)
 
 **Una plataforma moderna para coaching de salud con agentes de IA multi-experto y flujos de trabajo asíncronos**
 
@@ -32,6 +33,15 @@
 - [📄 Licencia](#-licencia)
 
 ## ✨ Características Principales
+
+### ⚖️ **Blindaje Legal, Regulatorio y de Privacidad (Compliance)**
+- **RGPD Art. 9 & CCPA/CPRA**: Casillas de consentimiento estrictamente desacopladas para el tratamiento de datos de salud y categorías especiales en el formulario de clientes.
+- **Gestión de Cookies Conforme (ePrivacy & AEPD)**: Bloqueo preventivo de cookies analíticas de terceros, caducidad a 180 días, sin parpadeos vía `useSyncExternalStore` y respeto automático de señales de privacidad del navegador (*Global Privacy Control - GPC*).
+- **Gobernanza de IA Segura**: Garantía contractual de no reentrenamiento de modelos comerciales con datos de salud y supervisión humana obligatoria del coach antes de la entrega de planes.
+- **Telecomunicaciones y Grabación**: Puerta de consentimiento previo (*Pre-call Consent Gate*) para participantes de videollamadas antes de activar la transcripción de LiveKit/Deepgram.
+- **Protección Laboral (California AB 5 / ABC Test)**: Contrato de coaches diseñado para blindar la condición de contratista independiente e indemnización cruzada a favor de la empresa.
+- **Consumo y Cancelaciones (FTC & California ARL)**: Cancelación en 1 clic de suscripciones de prueba en `/dashboard/trial/cancel`.
+- **Arbitraje Vinculante Individual (JAMS)**: Resolución de controversias mediante arbitraje administrado por JAMS en Riverside County, CA con renuncia a demandas colectivas (*Class Action Waiver*).
 
 ### 🎯 **Plataforma Integral**
 - **Monorepo** con múltiples aplicaciones independientes
@@ -224,45 +234,46 @@ NELHEALTHCOACH/
 
 ## 🚀 Aplicaciones
 
-### 1. **🏠 Landing Page** (`apps/landing`)
-- **Propósito**: Presentación pública de la plataforma
-- **Tecnologías**: Next.js, React, Tailwind CSS, i18next
-- **Características**:
-  - Diseño responsive y moderno con hero carousel de 4 imágenes
-  - **Hero responsive**: intercambio de imágenes según resolución (hero2.png ↔ hero2p.png)
-  - **Multi-idioma**: 6 idiomas (es, en, fr, it, pt, de) con detección automática
-  - Información sobre servicios de coaching (método, about, testimonios)
-  - Formulario de contacto con captura de leads vía API
-  - Call-to-action para registro con enlace personalizado por coach
+El monorepo integra **5 aplicaciones** coordinadas:
 
-### 2. **📝 Formularios de Salud** (`apps/form`)
-- **Propósito**: Captura de datos de pacientes (multi-paso)
-- **Tecnologías**: Next.js, React Hook Form, Yup, i18next
+### 1. **🏠 Landing Page** (`apps/landing`)
+- **Propósito**: Presentación de propuesta de valor, captación calificada y portal de transparencia legal
+- **Tecnologías**: Next.js 16.3.6 (Pages Router), React 19, Tailwind CSS, i18next
 - **Características**:
-  - Formularios validados en tiempo real con React Hook Form + Yup
-  - Subida de documentos médicos a AWS S3
-  - Evaluación completa de salud (médica, mental, estilo de vida)
-  - Captura de foto del paciente (opcional vía `NEXT_PUBLIC_SKIP_PHOTO`)
-  - Multi-idioma integrado
-  - Experiencia de usuario optimizada con diseño paso a paso
+  - Formulario de captación interactivo con **precalificación de compromiso (escala 1 a 10)** y filtro pedagógico de 3 pasos
+  - **Suite legal completa**: `/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`
+  - **Navbar adaptativo contextual**: conmuta automáticamente a navegación entre políticas legales y retorno a la portada en 1 clic
+  - **CookieBanner CMP**: consentimiento previo estricto (RGPD/ePrivacy/AEPD), `useSyncExternalStore` y respeto a Global Privacy Control (GPC)
+  - Multi-idioma integrado en 6 idiomas (es, en, fr, it, pt, de)
+
+### 1b. **📚 Blog de Salud** (`apps/blog`)
+- **Propósito**: Divulgación científica, nutrición cetogénica evolutiva y posicionamiento SEO
+- **Tecnologías**: Next.js 16.3.6, React 19, Tailwind CSS
+- **Características**:
+  - Renderizado SSR/SSG con JSON-LD estructurado (`BlogPosting`, `Blog`) y soporte multilingüe en 6 idiomas
+  - Generación dinámica de feeds RSS 2.0 y sitemap XML
+  - Suite de pruebas de integración automatizadas (76 checks)
+
+### 2. **📝 Formularios de Salud y Contratación** (`apps/form`)
+- **Propósito**: Captura de historial clínico y formalización del contrato de coaching
+- **Tecnologías**: Next.js 16.3.6, React 19, React Hook Form, Yup, i18next
+- **Características**:
+  - Formularios multi-paso validados en tiempo real con React Hook Form + Yup
+  - **Paso 6 de Contrato y Consentimiento Desacoplado**: casillas independientes para Términos/Privacidad, Datos de Salud Sensibles (RGPD Art. 9) y Renuncia a Desistimiento (Art. 103 TRLGDCU)
+  - **Aviso de IA Segura**: cláusula explícita de uso asistido de DeepSeek y Google Gemini, sin reentrenamiento público y con supervisión del coach
+  - **Cláusulas de Protección Legal**: asunción médica de riesgo (*Hold Harmless*) y arbitraje vinculante individual administrado por JAMS (California)
+  - Subida de documentos médicos y analíticas a AWS S3 con URLs prefirmadas
 
 ### 3. **📊 Dashboard de Coaching** (`apps/dashboard`)
-- **Propósito**: Gestión y análisis para coaches
-- **Tecnologías**: Next.js, MongoDB, AWS S3, Google Gemini, LiveKit
+- **Propósito**: Centro de mando clínico, supervisión de IA y consultas para coaches
+- **Tecnologías**: Next.js 16.3.6, React 19, MongoDB, DeepSeek, Google Gemini, LiveKit, Deepgram, Stripe
 - **Características**:
-  - Visualización de pacientes con perfil completo
-  - Seguimiento de progreso y métricas de salud
-  - Análisis estadísticos y reportes
-  - **Recomendaciones de IA** con modal interactivo y plan mensual (4 semanas)
-  - **Análisis médico** con tablas de laboratorios, hallazgos clínicos y óptica keto
-  - **Lista de compras** inteligente con deduplicación y orden por prioridad
-  - **Agendamiento de videollamadas** con LiveKit y detección de zona horaria
-  - **Sala de videollamada** con cámara, micrófono y pantalla compartida
-  - **Gestión de recetas** con búsqueda, filtros, análisis nutricional por IA y soporte multi-idioma
-  - **Gestión de ejercicios** con biblioteca, categorías, CRUD completo y soporte multi-idioma
-  - **Gestión de coaches** con tabla filtrable, búsqueda, paginación y soporte multi-idioma
-  - **i18n completo**: Dashboard 100% internacionalizado con 6 idiomas (es, en, fr, it, pt, de) mediante `react-i18next` con namespaces específicos por sección (`coaches`, `recipes`, `exercises`)
-  - Manejo de errores de Gemini con reintentos automáticos y mensajes descriptivos
+  - Visualización de pacientes con expediente completo y métricas metabólicas
+  - **Contrato de Asesor Blindado (California AB 5)**: registro de coaches con blindaje de contratista independiente, confidencialidad, indemnización total a favor de la empresa y arbitraje individual JAMS
+  - **Recomendaciones de IA Supervisadas**: visor de planes generados con DeepSeek / Google Gemini con disclaimer médico visible y validación humana obligatoria
+  - **Videollamadas con Pre-Call Consent Gate**: pantalla de consentimiento informado previo para grabación y transcripción en tiempo real con Deepgram (cumplimiento telecomunicaciones de dos partes)
+  - **Cancelación Transparente de Periodo de Prueba**: portal en `/dashboard/trial/cancel` en 1 clic (FTC *Click to Cancel* & California ARL)
+  - **Gestión de recetas, ejercicios y coaches** con soporte multi-idioma integral (6 idiomas)
 
 ### 4. **🔌 API Backend** (`apps/api`)
 - **Propósito**: Servicios backend, lógica de negocio y agentes de IA
@@ -314,11 +325,12 @@ NELHEALTHCOACH/
 - **🔑 livekit-server-sdk** - SDK del servidor para tokens y gestión de salas
 - **📦 livekit-client** - SDK del cliente WebRTC
 
-### **IA y Agentes**
-- **🤖 Google Gemini** - Modelo de lenguaje principal (texto + análisis de PDFs)
-- **🕸️ LangGraph 1.2.8** - Orquestación de agentes multi-experto
-- **🔄 Cola propia sobre MongoDB** - Flujos de trabajo asíncronos (worker-on-poll, sin servicios externos)
-- **🎙️ Deepgram SDK 5.0.0** - Transcripción de audio
+### **IA y Modelos**
+- **🧠 DeepSeek V4 Flash** - Modelo principal de razonamiento clínico y dietético (`deepseek-chat`)
+- **🤖 Google Gemini 2.5 Flash** - Fallback automático de alta disponibilidad y análisis de texto de biomarcadores
+- **🎙️ Deepgram SDK 5.0.0** - Transcripción en tiempo real de consultas por videollamada
+- **🔄 Cola propia sobre MongoDB** - Flujos asíncronos resilientes (worker-on-poll, 202 queued, lease 6 min, reintentos)
+- **🕸️ LangGraph 1.2.8** - Orquestación de agentes multi-experto (referencia arquitectónica)
 
 ### **Infraestructura Cloud**
 - **☁️ AWS SDK** - Integración con servicios AWS (S3, SES)
@@ -445,7 +457,8 @@ EMAIL_FROM_ADDRESS=noreply@nelhealthcoach.com
 EMAIL_FROM_NAME=NELHealthCoach
 EMAIL_ENABLED=true
 
-# ── Google Gemini (obligatorio para IA) ──
+# ── Inteligencia Artificial ──
+DEEPSEEK_API_KEY=tu_api_key_deepseek
 GEMINI_API_KEY=tu_api_key_gemini
 GEMINI_MODEL=gemini-2.5-flash
 

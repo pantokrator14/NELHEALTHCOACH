@@ -6,6 +6,21 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 // English translations
 const en = {
+    cookieBanner: {
+      title: 'Cookie Management & Privacy',
+      description: 'We use essential technical cookies to ensure platform functionality and, with your consent, analytical cookies to improve our educational services. You can accept all, reject non-essential, or customize your preferences.',
+      acceptAll: 'Accept all',
+      rejectNonEssential: 'Reject non-essential',
+      customize: 'Customize',
+      savePreferences: 'Save preferences',
+      essentialTitle: 'Technical Cookies (Essential)',
+      essentialDesc: 'Required for core browsing security and authenticated session access.',
+      alwaysActive: 'Always active',
+      analyticsTitle: 'Analytical Cookies & Metrics',
+      analyticsDesc: 'Allow us to understand aggregate site usage to enhance content.',
+      learnMore: 'Learn more in our Cookie Policy',
+    },
+
   common: {
     loading: 'Loading...',
     error: 'An error occurred',
@@ -52,8 +67,7 @@ const en = {
     contractTitle: 'Service Contract',
     contractAccept: 'I accept the contract terms',
     contractError: 'You must accept the contract terms',
-
-    contract: {
+contract: {
       "title": "Coaching Services Agreement",
       "version": "Version 1.0 \u2014 August 1, 2026",
       "section1Title": "1. PARTIES",
@@ -115,15 +129,22 @@ const en = {
       "section9Content": "All materials provided by the Advisor or the Platform (workbooks, plans, resources) are for the Client\u2019s personal use and may not be shared, reproduced or resold.",
       "section10Title": "10. TERMINATION",
       "section10Content": "Either party may terminate this agreement with 7 days\u2019 written notice. Upon termination, the Client will pay for all services rendered up to the date of termination.",
-      "section11Title": "11. LIMITATION OF LIABILITY",
-      "section11Content": "To the maximum extent permitted by law, the total liability of NELHEALTHCOACH and the Advisor to the Client, for any claim arising from this agreement or the services, will be limited to the total amount paid by the Client to the Platform in the three (3) months preceding the claim. In no event shall NELHEALTHCOACH or the Advisor be liable for indirect, incidental, special or consequential damages, including loss of profits, revenue or data.",
-      "section12Title": "12. DISPUTE RESOLUTION AND GOVERNING LAW",
-      "section12Content": "The parties will attempt to resolve any dispute through mediation for a period of 30 days before initiating legal action. This agreement will be governed by the laws of the State of California, United States, and any dispute not resolved through mediation will be submitted to the courts of the State of California.",
+      "section11Title": "11. LIMITATION OF LIABILITY & DAMAGE CAP",
+      "section11Content": "To the maximum extent permitted by applicable law, the cumulative aggregate liability of NELHEALTHCOACH LLC to the Client for any claims arising from or relating to this Agreement is capped at the greater of fifty U.S. dollars (0 USD) or the actual amount paid by the Client to the Platform in the six (6) months prior to the event giving rise to the claim. In no event shall NELHEALTHCOACH LLC be liable for indirect, punitive, special, or consequential damages. Services delivered by the Advisor are the professional responsibility of that individual Advisor.",
+      "section12Title": "12. GOVERNING LAW, BINDING ARBITRATION & CLASS ACTION WAIVER",
+      "section12Content": "This Agreement is governed by the laws of the State of California, USA. The parties agree to attempt informal good-faith resolution for at least 45 days prior to formal dispute filings. Unresolved disputes shall be resolved exclusively through binding individual arbitration administered by JAMS in Riverside County, California. The parties waive jury trial rights and class action representation (Class Action Waiver). The Client may opt out of this arbitration agreement within 30 days of initial acceptance by sending written notice to contact@nelhealthcoach.com.",
       "section13Title": "13. MINORS",
       "section13Content": "The services are intended for persons over 18 years of age. If the Client is under 18, this agreement must be accepted by their parent or legal guardian, who declares to accept these terms on behalf of the minor and is responsible for their compliance.",
       "section14Title": "14. ACCEPTANCE AND VERSION",
       "section14Content": "By clicking \u201cAccept\u201d, the Client (or their legal guardian) declares to have read and understood this agreement, accepts its terms and consents to the processing of their data as set forth herein, including processing by artificial intelligence. The accepted version and the acceptance date are recorded by the Platform.",
-      "acceptInfo": "By clicking \u201cAccept\u201d, you acknowledge that you have read and understood the terms of this agreement and consent to the processing of your data as set forth herein.",
+            "checkboxTerms": "I have read and agree to the Terms of Service and Privacy Policy.",
+      "checkboxHealthData": "Express consent (GDPR Art. 9): I explicitly consent to the processing of my health, physiological, dietary, and medical history data exclusively for designing my personalized coaching plan.",
+      "checkboxImmediateService": "I request immediate commencement of the digital service and acknowledge that I waive the right of withdrawal once the personalized plan generation starts.",
+      "checkboxMarketing": "(Optional) I wish to receive health tips, educational updates, and newsletters.",
+      "requiredConsentsNote": "Please check all required boxes above to continue.",
+      "linkTerms": "Terms of Service",
+      "linkPrivacy": "Privacy Policy",
+"acceptInfo": "By clicking \u201cAccept\u201d, you acknowledge that you have read and understood the terms of this agreement and consent to the processing of your data as set forth herein.",
       "acceptButton": "Accept and continue",
       "rejectButton": "Decline",
       "privacyTitle": "Privacy notice — AI data processing",
@@ -338,6 +359,21 @@ const en = {
 
 // Spanish translations
 const es = {
+    cookieBanner: {
+      title: 'Gestión de Cookies y Privacidad',
+      description: 'Utilizamos cookies técnicas necesarias para el funcionamiento de la plataforma y, con tu consentimiento, analíticas para optimizar nuestros servicios. Puedes aceptar todas, rechazar las no esenciales o personalizar tus opciones.',
+      acceptAll: 'Aceptar todas',
+      rejectNonEssential: 'Rechazar no esenciales',
+      customize: 'Configurar',
+      savePreferences: 'Guardar preferencias',
+      essentialTitle: 'Cookies Técnicas (Necesarias)',
+      essentialDesc: 'Imprescindibles para el funcionamiento seguro de la plataforma y sesiones.',
+      alwaysActive: 'Siempre activas',
+      analyticsTitle: 'Cookies Analíticas y Medición',
+      analyticsDesc: 'Nos permiten entender el uso global del sitio para mejorar los contenidos.',
+      learnMore: 'Más información en nuestra Política de Cookies',
+    },
+
   common: {
     loading: 'Cargando...',
     error: 'Ocurrió un error',
@@ -384,8 +420,7 @@ const es = {
     contractTitle: 'Contrato de Servicios',
     contractAccept: 'Acepto los términos del contrato',
     contractError: 'Debes aceptar los términos del contrato',
-
-    contract: {
+contract: {
       "title": "Contrato de Servicios de Coaching",
       "version": "Versi\u00f3n 1.0 \u2014 1 de agosto de 2026",
       "section1Title": "1. PARTES",
@@ -455,7 +490,14 @@ const es = {
       "section13Content": "Los servicios est\u00e1n destinados a personas mayores de 18 a\u00f1os. Si el Cliente es menor de 18 a\u00f1os, este contrato debe ser aceptado por su padre, madre o tutor legal, quien declara aceptar estos t\u00e9rminos en nombre del menor y se responsabiliza de su cumplimiento.",
       "section14Title": "14. ACEPTACI\u00d3N Y VERSI\u00d3N",
       "section14Content": "Al hacer clic en \u00abAceptar\u00bb, el Cliente (o su tutor legal) declara haber le\u00eddo y entendido este contrato, acepta sus t\u00e9rminos y consiente el tratamiento de sus datos seg\u00fan lo establecido, incluido el procesamiento por inteligencia artificial. La versi\u00f3n aceptada y la fecha de aceptaci\u00f3n quedan registradas por la Plataforma.",
-      "acceptInfo": "Al hacer clic en \u00abAceptar\u00bb, usted reconoce haber le\u00eddo y entendido los t\u00e9rminos de este contrato y da su consentimiento para el tratamiento de sus datos seg\u00fan lo establecido.",
+            "checkboxTerms": "He leído y acepto los Términos de Servicio y la Política de Privacidad general.",
+      "checkboxHealthData": "Consentimiento expreso (RGPD Art. 9): Autorizo expresamente el tratamiento de mis datos de salud, historial médico y hábitos exclusivamente para el diseño personalizado de mi plan de coaching.",
+      "checkboxImmediateService": "Solicito el inicio inmediato del servicio digital personalizado y reconozco la renuncia al derecho de desistimiento una vez iniciado el procesamiento de mi plan.",
+      "checkboxMarketing": "(Opcional) Deseo recibir consejos de salud, novedades educativas y boletines por correo electrónico.",
+      "requiredConsentsNote": "Por favor marca todas las casillas obligatorias arriba para continuar.",
+      "linkTerms": "Términos de Servicio",
+      "linkPrivacy": "Política de Privacidad",
+"acceptInfo": "Al hacer clic en \u00abAceptar\u00bb, usted reconoce haber le\u00eddo y entendido los t\u00e9rminos de este contrato y da su consentimiento para el tratamiento de sus datos seg\u00fan lo establecido.",
       "acceptButton": "Aceptar y continuar",
       "rejectButton": "Rechazar",
       "privacyTitle": "Aviso de privacidad — Tratamiento de datos con IA",
@@ -670,6 +712,21 @@ const es = {
 
 // French translations
 const fr = {
+    cookieBanner: {
+      title: 'Gestion des Cookies et Confidentialité',
+      description: 'Nous utilisons des cookies techniques nécessaires au fonctionnement du site et, avec votre accord, des cookies analytiques. Vous pouvez tout accepter, refuser les non-essentiels ou personnaliser vos choix.',
+      acceptAll: 'Tout accepter',
+      rejectNonEssential: 'Refuser les non-essentiels',
+      customize: 'Personnaliser',
+      savePreferences: 'Enregistrer',
+      essentialTitle: 'Cookies Techniques (Nécessaires)',
+      essentialDesc: 'Indispensables pour la navigation sécurisée et les sessions.',
+      alwaysActive: 'Toujours actifs',
+      analyticsTitle: 'Cookies Analytiques',
+      analyticsDesc: 'Permettent de mesurer l’audience globale du site.',
+      learnMore: 'En savoir plus dans notre Politique de Cookies',
+    },
+
   common: {
     loading: 'Chargement...',
     error: 'Une erreur est survenue',
@@ -716,8 +773,7 @@ const fr = {
     contractTitle: 'Contrat de Service',
     contractAccept: 'J\'accepte les termes du contrat',
     contractError: 'Vous devez accepter les termes du contrat',
-
-    contract: {
+contract: {
       "title": "Contrat de Services de Coaching",
       "version": "Version 1.0 \u2014 1 ao\u00fbt 2026",
       "section1Title": "1. PARTIES",
@@ -787,7 +843,14 @@ const fr = {
       "section13Content": "Les services s\u2019adressent aux personnes de plus de 18 ans. Si le Client est mineur, le pr\u00e9sent contrat doit \u00eatre accept\u00e9 par son p\u00e8re, sa m\u00e8re ou son repr\u00e9sentant l\u00e9gal, qui d\u00e9clare accepter ces conditions au nom du mineur et en assume le respect.",
       "section14Title": "14. ACCEPTATION ET VERSION",
       "section14Content": "En cliquant sur \u00ab Accepter \u00bb, le Client (ou son repr\u00e9sentant l\u00e9gal) d\u00e9clare avoir lu et compris le pr\u00e9sent contrat, en accepte les conditions et consent au traitement de ses donn\u00e9es tel que pr\u00e9vu, y compris le traitement par intelligence artificielle. La version accept\u00e9e et la date d\u2019acceptation sont enregistr\u00e9es par la Plateforme.",
-      "acceptInfo": "En cliquant sur \u00ab Accepter \u00bb, vous reconnaissez avoir lu et compris les conditions du pr\u00e9sent contrat et vous consentez au traitement de vos donn\u00e9es tel que pr\u00e9vu.",
+            "checkboxTerms": "J’ai lu et j’accepte les Conditions Générales et la Politique de Confidentialité.",
+      "checkboxHealthData": "Consentement exprès (RGPD Art. 9) : J’autorise expressément le traitement de mes données de santé exclusivement pour concevoir mon plan personnalisé.",
+      "checkboxImmediateService": "Je demande l’exécution immédiate du service numérique et reconnais renoncer à mon droit de rétractation dès la génération de mon plan.",
+      "checkboxMarketing": "(Optionnel) Je souhaite recevoir des conseils de santé et des actualités par e-mail.",
+      "requiredConsentsNote": "Veuillez cocher toutes les cases obligatoires pour continuer.",
+      "linkTerms": "Conditions Générales",
+      "linkPrivacy": "Politique de Confidentialité",
+"acceptInfo": "En cliquant sur \u00ab Accepter \u00bb, vous reconnaissez avoir lu et compris les conditions du pr\u00e9sent contrat et vous consentez au traitement de vos donn\u00e9es tel que pr\u00e9vu.",
       "acceptButton": "Accepter et continuer",
       "rejectButton": "Refuser",
       "privacyTitle": "Avis de confidentialit\u00e9 — Traitement des donn\u00e9es par IA",
@@ -1002,6 +1065,21 @@ const fr = {
 
 // Italian translations
 const it = {
+    cookieBanner: {
+      title: 'Gestione Cookie e Privacy',
+      description: 'Utilizziamo cookie tecnici necessari e, con il tuo consenso, analitici per ottimizzare i servizi. Puoi accettare tutti, rifiutare i non essenziali o personalizzare.',
+      acceptAll: 'Accetta tutti',
+      rejectNonEssential: 'Rifiuta non essenziali',
+      customize: 'Personalizza',
+      savePreferences: 'Salva preferenze',
+      essentialTitle: 'Cookie Tecnici (Necessari)',
+      essentialDesc: 'Indispensabili per sicurezza e navigazione del sito.',
+      alwaysActive: 'Sempre attivi',
+      analyticsTitle: 'Cookie Analitici',
+      analyticsDesc: 'Consentono di analizzare l’uso aggregato del sito.',
+      learnMore: 'Maggiori informazioni nella Cookie Policy',
+    },
+
   common: {
     loading: 'Caricamento...',
     error: 'Si è verificato un errore',
@@ -1048,8 +1126,7 @@ const it = {
     contractTitle: 'Contratto di Servizio',
     contractAccept: 'Accetto i termini del contratto',
     contractError: 'Devi accettare i termini del contratto',
-
-    contract: {
+contract: {
       "title": "Contratto di Servizi di Coaching",
       "version": "Versione 1.0 \u2014 1 agosto 2026",
       "section1Title": "1. PARTI",
@@ -1119,7 +1196,14 @@ const it = {
       "section13Content": "I servizi sono destinati a persone maggiorenni. Se il Cliente \u00e8 minorenne, il presente contratto deve essere accettato dal genitore o tutore legale, il quale dichiara di accettare i presenti termini per conto del minore e risponde del loro rispetto.",
       "section14Title": "14. ACCETTAZIONE E VERSIONE",
       "section14Content": "Facendo clic su \u201cAccetta\u201d, il Cliente (o il suo tutore legale) dichiara di aver letto e compreso il presente contratto, ne accetta i termini e acconsente al trattamento dei propri dati come previsto, incluso il trattamento tramite intelligenza artificiale. La versione accettata e la data di accettazione vengono registrate dalla Piattaforma.",
-      "acceptInfo": "Facendo clic su \u201cAccetta\u201d, riconosci di aver letto e compreso i termini del presente contratto e acconsenti al trattamento dei tuoi dati come previsto.",
+            "checkboxTerms": "Ho letto e accetto i Termini di Servizio e l’Informativa sulla Privacy.",
+      "checkboxHealthData": "Consenso esplicito (GDPR Art. 9): Autorizzo espressamente il trattamento dei miei dati sanitari e fisiologici esclusivamente per il mio piano di coaching personalizzato.",
+      "checkboxImmediateService": "Richiedo l’inizio immediato del servizio e riconosco la rinuncia al diritto di recesso all’avvio della generazione del piano.",
+      "checkboxMarketing": "(Opzionale) Desidero ricevere consigli di salute e newsletter via email.",
+      "requiredConsentsNote": "Seleziona tutte le caselle obbligatorie per continuare.",
+      "linkTerms": "Termini di Servizio",
+      "linkPrivacy": "Informativa sulla Privacy",
+"acceptInfo": "Facendo clic su \u201cAccetta\u201d, riconosci di aver letto e compreso i termini del presente contratto e acconsenti al trattamento dei tuoi dati come previsto.",
       "acceptButton": "Accetta e continua",
       "rejectButton": "Rifiuta",
       "privacyTitle": "Informativa sulla privacy — Trattamento dei dati con IA",
@@ -1252,6 +1336,21 @@ const it = {
 
 // Portuguese translations
 const pt = {
+    cookieBanner: {
+      title: 'Gestão de Cookies e Privacidade',
+      description: 'Utilizamos cookies técnicos essenciais e, com o seu consentimento, analíticos para otimizar os serviços. Você pode aceitar todos, recusar não essenciais ou personalizar.',
+      acceptAll: 'Aceitar todos',
+      rejectNonEssential: 'Recusar não essenciais',
+      customize: 'Personalizar',
+      savePreferences: 'Salvar preferências',
+      essentialTitle: 'Cookies Técnicos (Necessários)',
+      essentialDesc: 'Essenciais para o funcionamento seguro e sessões.',
+      alwaysActive: 'Sempre ativos',
+      analyticsTitle: 'Cookies Analíticos',
+      analyticsDesc: 'Permitem entender o uso agregado do site.',
+      learnMore: 'Saiba mais na nossa Política de Cookies',
+    },
+
   common: {
     loading: 'Carregando...',
     error: 'Ocorreu um erro',
@@ -1298,8 +1397,7 @@ const pt = {
     contractTitle: 'Contrato de Serviço',
     contractAccept: 'Eu aceito os termos do contrato',
     contractError: 'Você deve aceitar os termos do contrato',
-
-    contract: {
+contract: {
       "title": "Contrato de Servi\u00e7os de Coaching",
       "version": "Vers\u00e3o 1.0 \u2014 1\u00ba de agosto de 2026",
       "section1Title": "1. PARTES",
@@ -1369,7 +1467,14 @@ const pt = {
       "section13Content": "Os servi\u00e7os destinam-se a pessoas maiores de 18 anos. Se o Cliente for menor de idade, este contrato deve ser aceito por seu pai, m\u00e3e ou respons\u00e1vel legal, que declara aceitar estes termos em nome do menor e se responsabiliza pelo seu cumprimento.",
       "section14Title": "14. ACEITA\u00c7\u00c3O E VERS\u00c3O",
       "section14Content": "Ao clicar em \u201cAceitar\u201d, o Cliente (ou seu respons\u00e1vel legal) declara ter lido e compreendido este contrato, aceita seus termos e consente no tratamento de seus dados conforme o previsto, incluindo o processamento por intelig\u00eancia artificial. A vers\u00e3o aceita e a data de aceita\u00e7\u00e3o s\u00e3o registradas pela Plataforma.",
-      "acceptInfo": "Ao clicar em \u201cAceitar\u201d, voc\u00ea reconhece ter lido e compreendido os termos deste contrato e consente no tratamento dos seus dados conforme o previsto.",
+            "checkboxTerms": "Li e concordo com os Termos de Serviço e a Política de Privacidade.",
+      "checkboxHealthData": "Consentimento expresso (RGPD Art. 9): Autorizo expressamente o tratamento dos meus dados de saúde e histórico médico exclusivamente para o plano personalizado.",
+      "checkboxImmediateService": "Solicito o início imediato do serviço e reconheço a renúncia ao direito de arrependimento após o início da geração do plano.",
+      "checkboxMarketing": "(Opcional) Desejo receber dicas de saúde e newsletters por e-mail.",
+      "requiredConsentsNote": "Por favor, marque todas as caixas obrigatórias para continuar.",
+      "linkTerms": "Termos de Serviço",
+      "linkPrivacy": "Política de Privacidade",
+"acceptInfo": "Ao clicar em \u201cAceitar\u201d, voc\u00ea reconhece ter lido e compreendido os termos deste contrato e consente no tratamento dos seus dados conforme o previsto.",
       "acceptButton": "Aceitar e continuar",
       "rejectButton": "Recusar",
       "privacyTitle": "Aviso de privacidade — Processamento de dados com IA",
@@ -1502,6 +1607,21 @@ const pt = {
 
 // German translations
 const de = {
+    cookieBanner: {
+      title: 'Cookie-Einstellungen & Datenschutz',
+      description: 'Wir verwenden essenzielle Cookies für den Betrieb der Plattform sowie mit Ihrer Einwilligung analytische Cookies. Sie können alle akzeptieren, nicht essenzielle ablehnen oder anpassen.',
+      acceptAll: 'Alle akzeptieren',
+      rejectNonEssential: 'Nicht essenzielle ablehnen',
+      customize: 'Anpassen',
+      savePreferences: 'Einstellungen speichern',
+      essentialTitle: 'Technische Cookies (Erforderlich)',
+      essentialDesc: 'Notwendig für Sicherheit und grundlegende Plattformfunktionen.',
+      alwaysActive: 'Immer aktiv',
+      analyticsTitle: 'Analytische Cookies',
+      analyticsDesc: 'Ermöglichen die anonyme Analyse der Plattformnutzung.',
+      learnMore: 'Mehr erfahren in unserer Cookie-Richtlinie',
+    },
+
   common: {
     loading: 'Laden...',
     error: 'Ein Fehler ist aufgetreten',
@@ -1548,8 +1668,7 @@ const de = {
     contractTitle: 'Servicevertrag',
     contractAccept: 'Ich akzeptiere die Vertragsbedingungen',
     contractError: 'Sie müssen die Vertragsbedingungen akzeptieren',
-
-    contract: {
+contract: {
       "title": "Coaching-Dienstleistungsvertrag",
       "version": "Version 1.0 \u2014 1. August 2026",
       "section1Title": "1. PARTEIEN",
@@ -1619,7 +1738,14 @@ const de = {
       "section13Content": "Die Leistungen richten sich an Personen \u00fcber 18 Jahren. Ist der Kunde minderj\u00e4hrig, muss dieser Vertrag von seinem Elternteil oder gesetzlichen Vormund akzeptiert werden, der erkl\u00e4rt, diese Bedingungen im Namen des Minderj\u00e4hrigen zu akzeptieren und f\u00fcr deren Einhaltung verantwortlich ist.",
       "section14Title": "14. ANNAHME UND VERSION",
       "section14Content": "Durch Klicken auf \u201cAkzeptieren\u201d erkl\u00e4rt der Kunde (oder sein gesetzlicher Vormund), diesen Vertrag gelesen und verstanden zu haben, akzeptiert seine Bedingungen und willigt in die Verarbeitung seiner Daten wie vorgesehen ein, einschlie\u00dflich der Verarbeitung durch k\u00fcnstliche Intelligenz. Die akzeptierte Version und das Annahmedatum werden von der Plattform aufgezeichnet.",
-      "acceptInfo": "Durch Klicken auf \u201cAkzeptieren\u201d best\u00e4tigen Sie, die Bedingungen dieses Vertrags gelesen und verstanden zu haben, und willigen in die Verarbeitung Ihrer Daten wie vorgesehen ein.",
+            "checkboxTerms": "Ich habe die Allgemeinen Geschäftsbedingungen und die Datenschutzerklärung gelesen und stimme zu.",
+      "checkboxHealthData": "Ausdrückliche Einwilligung (DSGVO Art. 9): Ich willige ausdrücklich in die Verarbeitung meiner Gesundheitsdaten zur Erstellung meines Plans ein.",
+      "checkboxImmediateService": "Ich verlange den sofortigen Beginn der digitalen Dienstleistung und verzichte auf mein Widerrufsrecht mit Start der Planerstellung.",
+      "checkboxMarketing": "(Optional) Ich möchte Gesundheitstipps und Neuigkeiten per E-Mail erhalten.",
+      "requiredConsentsNote": "Bitte markieren Sie alle erforderlichen Kästchen, um fortzufahren.",
+      "linkTerms": "AGB",
+      "linkPrivacy": "Datenschutz",
+"acceptInfo": "Durch Klicken auf \u201cAkzeptieren\u201d best\u00e4tigen Sie, die Bedingungen dieses Vertrags gelesen und verstanden zu haben, und willigen in die Verarbeitung Ihrer Daten wie vorgesehen ein.",
       "acceptButton": "Akzeptieren und fortfahren",
       "rejectButton": "Ablehnen",
       "privacyTitle": "Datenschutzhinweis — KI-Datenverarbeitung",

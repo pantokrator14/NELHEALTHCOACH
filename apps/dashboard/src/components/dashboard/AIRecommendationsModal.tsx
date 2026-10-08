@@ -1770,6 +1770,22 @@ export default function AIRecommendationsModal({
           </div>
         </div>
 
+        {/* Banner Regulatorio: Delimitación de IA y Descargo Médico (RGPD & FTC) */}
+        <div
+          role="alert"
+          className="bg-amber-50/90 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2.5 text-xs text-amber-900"
+        >
+          <span className="text-base leading-none shrink-0 mt-0.5">⚖️</span>
+          <div>
+            <strong className="font-semibold block text-amber-950">
+              {t('ai.disclaimerBannerTitle')}
+            </strong>
+            <p className="text-amber-800 leading-relaxed mt-0.5">
+              {t('ai.disclaimerBannerText')}
+            </p>
+          </div>
+        </div>
+
         {/* Banner de estado: Generando... o Error */}
         {generating && (
           <div className="bg-blue-50 border border-blue-200 rounded-none px-6 py-4">
