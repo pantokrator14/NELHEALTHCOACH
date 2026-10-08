@@ -19,7 +19,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export type LegalPageKey = 'privacy' | 'terms' | 'notice';
+export type LegalPageKey = 'privacy' | 'terms' | 'notice' | 'refunds' | 'cookies';
 
 const es: Record<LegalPageKey, LegalDocument> = {
   /* ==================== POLÍTICA DE PRIVACIDAD (ES) ==================== */
@@ -80,11 +80,12 @@ const es: Record<LegalPageKey, LegalDocument> = {
         ]
       },
       {
-        title: '6. Uso de inteligencia artificial',
+        title: '6. Uso de inteligencia artificial y garantía de no entrenamiento',
         paragraphs: [
-          'La Plataforma utiliza sistemas de inteligencia artificial (IA) para analizar la información de tu formulario de salud y generar recomendaciones personalizadas de nutrición y bienestar.',
-          'Estos sistemas procesan los datos de forma automatizada bajo nuestra supervisión. Las recomendaciones generadas son revisadas por el asesor antes de entregarse, y no se toman decisiones automatizadas que produzcan efectos jurídicos significativos sobre ti sin intervención humana.',
-          'Puedes solicitar en cualquier momento información sobre el uso de IA en tu proceso, así como oponerte o solicitar que una persona revise las decisiones basadas en estos sistemas.'
+          'La Plataforma utiliza modelos de lenguaje e inteligencia artificial especializados (principalmente DeepSeek y Google Gemini como respaldo tecnológico, y Deepgram para transcripciones de sesiones autorizadas) para analizar de forma segura tu perfil de bienestar y generar borradores de recomendaciones nutricionales.',
+          'Garantía contractual de no entrenamiento: Requerimos formalmente que estos proveedores traten los datos bajo cifrado seguro y PROHIBIMOS de forma estricta que tus datos de salud sean utilizados para el entrenamiento, ajuste o aprendizaje de modelos generales de IA.',
+          'Supervisión humana obligatoria: Toda recomendación preliminar elaborada con asistencia de IA es revisada, validada y ajustada personalmente por tu asesor humano antes de ser entregada. No se toman decisiones automatizadas que produzcan efectos jurídicos o sanitarios vinculantes sobre ti.',
+          'Puedes solicitar en cualquier momento información sobre el uso de estos sistemas en tu plan, así como oponerte o requerir una revisión humana integral.'
         ]
       },
       {
@@ -100,18 +101,23 @@ const es: Record<LegalPageKey, LegalDocument> = {
         ],
       },
       {
-        title: '8. Transferencias internacionales',
+        title: '8. Transferencias internacionales y salvaguardas (RGPD y DPF)',
         paragraphs: [
-          'La Plataforma opera principalmente desde Estados Unidos y tus datos pueden ser almacenados y tratados en servidores ubicados en Estados Unidos u otros países.',
-          'Cuando transferimos datos a terceros fuera de tu país de residencia, adoptamos las garantías adecuadas exigidas por la legislación aplicable, incluidas las cláusulas contractuales tipo de la Unión Europea cuando corresponda.'
+          'La Plataforma opera principalmente desde Estados Unidos y tus datos son procesados y almacenados en infraestructuras seguras ubicadas en Estados Unidos u otros países donde nuestros encargados del tratamiento prestan servicios.',
+          'Para transferencias desde el Espacio Económico Europeo (EEE), Suiza o el Reino Unido hacia Estados Unidos, NELHEALTHCOACH LLC implementa las Cláusulas Contractuales Tipo (SCCs) adoptadas por la Comisión Europea (Decisión de Ejecución (UE) 2021/914) y se alinea con los principios del Marco de Privacidad de Datos UE-EE. UU. (EU-U.S. Data Privacy Framework) para asegurar un nivel de protección equivalente al del RGPD.'
         ]
       },
       {
-        title: '9. Conservación de los datos',
+        title: '9. Conservación y plazos de retención de datos',
         paragraphs: [
-          'Conservamos tus datos personales únicamente durante el tiempo necesario para cumplir las finalidades descritas en esta Política, y durante los plazos exigidos por la ley aplicable.',
-          'Cuando finaliza la relación contractual, los datos del formulario de salud se eliminan o anonimizan, salvo que la ley exija su conservación o exista un procedimiento legal en curso.'
-        ]
+          'Conservamos tus datos personales únicamente durante el tiempo estrictamente necesario para cumplir las finalidades pactadas y los periodos legalmente exigidos:',
+          'Una vez transcurridos los plazos legales, los datos se suprimen de forma segura o se someten a anonimización irreversible para fines estadísticos agregados.'
+        ],
+        bullets: [
+          'Datos de cuenta y perfil de salud: mientras tu cuenta y suscripción permanezcan activas y hasta 12 meses después de la última sesión para facilitar reanudaciones.',
+          'Registros de facturación y transacciones: entre 5 y 7 años conforme a las obligaciones fiscales y tributarias del Servicio de Impuestos Internos de EE. UU. (IRS) y normativa mercantil.',
+          'Registros y evidencias de consentimiento: durante 3 años tras la finalización de la relación contractual para la atención de posibles responsabilidades legales y regulatorias.'
+        ],
       },
       {
         title: '10. Seguridad de los datos',
@@ -121,18 +127,19 @@ const es: Record<LegalPageKey, LegalDocument> = {
         ]
       },
       {
-        title: '11. Tus derechos',
+        title: '11. Tus derechos (RGPD y CCPA/CPRA de California)',
         paragraphs: [
-          'Tienes derecho a:'
+          'De conformidad con el RGPD y las leyes de privacidad aplicables, dispones de los siguientes derechos:',
+          'Aviso para Residentes de California (CCPA/CPRA & Shine the Light): Bajo la Ley de Privacidad del Consumidor de California y la ley "Shine the Light" (Cal. Civ. Code § 1798.83):',
         ],
         bullets: [
-          'Acceder a tus datos personales y obtener una copia de los mismos.',
-          'Rectificar datos inexactos o incompletos.',
-          'Solicitar la eliminación de tus datos cuando ya no sean necesarios.',
-          'Oponerte al tratamiento o solicitar su limitación.',
-          'Solicitar la portabilidad de tus datos.',
-          'Retirar tu consentimiento en cualquier momento, sin que ello afecte a la licitud del tratamiento previo.',
-          'Presentar una reclamación ante la autoridad de protección de datos competente (en California, la California Privacy Protection Agency; en la Unión Europea, la autoridad de tu país de residencia).'
+          'Acceso, Rectificación y Supresión de tus datos personales.',
+          'Limitación del tratamiento y portabilidad de datos.',
+          'Retirada del consentimiento en cualquier momento sin efectos retroactivos.',
+          'Derecho a no ser discriminado: NELHEALTHCOACH no discrimina, altera precios ni niega servicios a ningún usuario por ejercer sus derechos de privacidad.',
+          'NO VENTA NI COMPARTICIÓN: NELHEALTHCOACH LLC declara expresamente que NO vende tus datos personales ni tus datos sensibles de salud a terceros, ni los comparte para publicidad conductual entre contextos.',
+          'Derecho a limitar el uso de datos sensibles únicamente a la prestación del servicio educativo y de bienestar solicitado.',
+          'Presentar una reclamación ante la California Privacy Protection Agency (CPPA) o ante la autoridad de control de protección de datos de tu residencia en la UE.'
         ],
       },
       {
@@ -234,11 +241,11 @@ const es: Record<LegalPageKey, LegalDocument> = {
         ]
       },
       {
-        title: '9. Limitación de responsabilidad',
+        title: '9. Limitación de responsabilidad y renuncia a daños',
         paragraphs: [
-          'La Plataforma se ofrece "tal cual" y "según disponibilidad". NELHEALTHCOACH no garantiza que el servicio sea ininterrumpido o libre de errores.',
-          'En la medida máxima permitida por la ley, NELHEALTHCOACH no será responsable por daños indirectos, incidentales o consecuentes derivados del uso de la Plataforma o de los servicios de los Asesores, y su responsabilidad total se limita al importe pagado por el cliente en los tres meses anteriores al hecho que la motive.',
-          'Los servicios prestados por los Asesores son responsabilidad exclusiva de cada Asesor.'
+          'La Plataforma se ofrece "tal cual" (AS IS) y "según disponibilidad". NELHEALTHCOACH no garantiza que el servicio sea ininterrumpido o totalmente libre de errores.',
+          'En la medida máxima permitida por la ley aplicable: (A) NELHEALTHCOACH no será responsable por daños indirectos, incidentales, punitivos, especiales o consecuentes ni por pérdida de beneficios o datos; y (B) la responsabilidad total acumulada frente a ti por cualquier reclamación se limita a la cantidad mayor entre cincuenta dólares estadounidenses (0 USD) o el importe efectivamente abonado por ti a la Plataforma en los seis (6) meses anteriores al hecho generador.',
+          'Los servicios prestados por los Asesores independientes son responsabilidad profesional exclusiva de cada Asesor.'
         ]
       },
       {
@@ -249,10 +256,14 @@ const es: Record<LegalPageKey, LegalDocument> = {
         ]
       },
       {
-        title: '11. Ley aplicable y resolución de controversias',
+        title: '11. Ley aplicable, arbitraje vinculante individual y renuncia a acciones colectivas',
         paragraphs: [
-          'Estos Términos y Condiciones se rigen por las leyes del Estado de California, Estados Unidos.',
-          'Las partes acuerdan intentar resolver de buena fe cualquier controversia mediante mediación durante un plazo de 30 días antes de acudir a los tribunales. Las controversias que no puedan resolverse por mediación se someterán a la jurisdicción exclusiva de los tribunales del Estado de California.'
+          'Estos Términos se rigen e interpretan conforme a las leyes del Estado de California, Estados Unidos, sin dar efecto a sus principios sobre conflicto de leyes. Los consumidores residentes en el EEE conservan las protecciones obligatorias de sus legislaciones nacionales.',
+          'Resolución informal previa: Las partes se comprometen a intentar resolver cualquier controversia de buena fe mediante notificación formal y reunión informal durante un plazo mínimo de cuarenta y cinco (45) días antes de iniciar cualquier procedimiento arbitral.',
+          'Arbitraje vinculante individual: Toda controversia no resuelta se someterá a arbitraje individual vinculante administrado por JAMS bajo sus Reglas Aplicables, con sede en el Condado de Riverside, California. Las partes renuncian expresamente al derecho a juicio con jurado.',
+          'RENUNCIA A DEMANDAS COLECTIVAS (CLASS ACTION WAIVER): Todas las disputas deben promoverse a título estrictamente individual. Ni tú ni NELHEALTHCOACH podrán actuar como demandantes o miembros de clase en ningún procedimiento colectivo, representativo o de acción grupal.',
+          'Derecho de exclusión (Opt-Out): Puedes optar por no quedar vinculado por esta cláusula de arbitraje notificándolo por escrito a contact@nelhealthcoach.com dentro de los treinta (30) días siguientes a la aceptación inicial de estos Términos.',
+          'Aviso a los Consumidores de California (Cal. Civ. Code § 1789.3): Conforme al Código Civil de California, los usuarios pueden comunicarse con la Complaint Assistance Unit de la Division of Consumer Services del California Department of Consumer Affairs en 1625 N. Market Blvd., Suite N112, Sacramento, CA 95834, o por teléfono al (800) 952-5210.'
         ]
       },
       {
@@ -320,6 +331,79 @@ const es: Record<LegalPageKey, LegalDocument> = {
         title: '7. Contacto',
         paragraphs: [
           'Si tienes dudas sobre este Aviso Legal, puedes escribirnos a contact@nelhealthcoach.com o a NELHEALTHCOACH LLC, 33450 Shifting Sands Trail, Cathedral City, CA 92234, Estados Unidos.'
+        ]
+      }
+    ]
+  }
+,
+
+  refunds: {
+    title: 'Política de Reembolsos y Desistimiento',
+    updated: 'Última actualización: 1 de octubre de 2026',
+    sections: [
+      {
+        title: '1. Derecho Legal de Desistimiento (14 días)',
+        paragraphs: [
+          'De conformidad con la normativa de protección a los consumidores (Directiva 2011/83/UE y Real Decreto Legislativo 1/2007 en España), el usuario que ostente la condición de consumidor tiene derecho a desistir del contrato en un plazo de 14 días naturales a partir de la contratación sin necesidad de justificación.'
+        ]
+      },
+      {
+        title: '2. Excepción al Desistimiento en Servicios Digitales Personalizados',
+        paragraphs: [
+          'El derecho de desistimiento decae y no es aplicable una vez que el servicio ha comenzado a prestarse con el consentimiento expreso y previo del usuario (Art. 103 letras a y m del TRLGDCU).',
+          'En consecuencia, una vez que se genera su plan nutricional o de suplementación personalizado, se emite el informe analítico asistido por IA o se realiza la primera videollamada 1 a 1 de coaching, se entiende que el servicio ha sido ejecutado o iniciado con su consentimiento, extinguiéndose el derecho de desistimiento.'
+        ]
+      },
+      {
+        title: '3. Suscripciones Recurrentes y Cancelación Transparente',
+        paragraphs: [
+          'Para los planes o membresías mensuales recurrentes, el usuario puede cancelar la renovación automática en cualquier momento antes del vencimiento del ciclo en curso, directamente desde su panel de control o enviando un correo a soporte@nelhealthcoach.com.',
+          'La cancelación no conlleva penalización alguna y detiene cualquier cargo futuro. El usuario conservará el acceso a su portal hasta el término del ciclo mensual ya pagado.'
+        ]
+      },
+      {
+        title: '4. Supuestos de Reembolso Aprobados',
+        paragraphs: [
+          'Se emitirán reembolsos íntegros exclusivamente bajo supuestos de cobro duplicado verificado por error técnico o imposibilidad técnica de la plataforma imputable a NelHealthCoach.',
+          'Los reembolsos se procesan a través de Stripe al mismo método de pago original en un plazo de 5 a 10 días hábiles.'
+        ]
+      },
+      {
+        title: '5. Atención y Solicitudes',
+        paragraphs: [
+          'Para cualquier gestión o consulta relativa a pagos o facturación, comuníquese con soporte@nelhealthcoach.com indicando su correo de registro y número de transacción.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Política de Cookies y Rastreo',
+    updated: 'Última actualización: 1 de octubre de 2026',
+    sections: [
+      {
+        title: '1. ¿Qué son las Cookies y Almacenamiento Local?',
+        paragraphs: [
+          'Este sitio web utiliza cookies y tecnologías de almacenamiento local del navegador (como localStorage y sessionStorage) para asegurar el funcionamiento de la plataforma, preservar sus preferencias de idioma y sesión, y ofrecer métricas analíticas agregadas.',
+          'Cumplimos estrictamente con el Reglamento General de Protección de Datos (RGPD) y la Directiva ePrivacy (Directiva 2002/58/CE).'
+        ]
+      },
+      {
+        title: '2. Inventario de Cookies y Tecnologías Empleadas',
+        paragraphs: [
+          'A continuación se detallan las tecnologías de almacenamiento implementadas:'
+        ],
+        bullets: [
+          'nhc_cookie_consent (Técnica / Propia): Registra su elección de consentimiento de cookies. Duración: 180 días.',
+          'i18nextLng (Técnica / Propia): Almacena la preferencia del idioma seleccionado (es, en, fr, it, pt, de). Duración: 7 días.',
+          'nel_ephemeral_visitor_id (Técnica / Sesión): Token aleatorio temporal en sessionStorage para rate limiting y mitigación de ciberataques. No rastrea entre sesiones. Duración: Sesión.',
+          'nhc_consent_analytics (Técnica / Propia): Almacena si ha otorgado o denegado el permiso para métricas analíticas. Duración: 180 días.',
+          'nel_fp_visitor_id (Analítica / Huella de Navegación): Solo se activa si presiona "Aceptar todas" en el banner. Permite métricas de uso y prevención de abusos reiterados. Duración: 180 días.'
+        ]
+      },
+      {
+        title: '3. Revocación y Configuración del Consentimiento',
+        paragraphs: [
+          'Usted tiene pleno control sobre sus datos. Puede modificar o revocar su consentimiento en cualquier momento eliminando los datos de navegación en las opciones de su navegador web, o a través del botón de configuración de privacidad disponible en el pie de página de la plataforma.'
         ]
       }
     ]
@@ -629,6 +713,70 @@ const en: Record<LegalPageKey, LegalDocument> = {
       }
     ]
   }
+,
+
+  refunds: {
+    title: 'Refund & Cancellation Policy',
+    updated: 'Last updated: October 1, 2026',
+    sections: [
+      {
+        title: '1. Right of Withdrawal (14-Day Cooling-off Period)',
+        paragraphs: [
+          'In accordance with consumer protection directives (EU Directive 2011/83/EU), consumers have the right to withdraw from distance contracts within 14 calendar days without stating a reason.'
+        ]
+      },
+      {
+        title: '2. Exception for Personalized Digital Services',
+        paragraphs: [
+          'The right of withdrawal ceases to apply once performance of the digital service has begun with your express prior consent.',
+          'Consequently, once your individualized meal plan or supplementation guide has been generated, AI analysis performed, or 1-on-1 coaching call attended, the personalized service is considered fully or partially executed, extinguishing withdrawal rights.'
+        ]
+      },
+      {
+        title: '3. Subscriptions & Hassle-Free Cancellation',
+        paragraphs: [
+          'For recurring monthly coaching plans, you may cancel automatic renewal at any time before your next billing cycle via your dashboard or by emailing soporte@nelhealthcoach.com.',
+          'Cancellation stops future charges without penalty. You maintain platform access until the end of the current paid billing cycle.'
+        ]
+      },
+      {
+        title: '4. Eligible Refund Cases',
+        paragraphs: [
+          'Full refunds are issued exclusively under verified scenarios such as technical duplicate charges or service non-delivery attributable to NelHealthCoach.',
+          'Refunds are credited to the original Stripe payment method within 5 to 10 business days.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Cookie & Tracking Policy',
+    updated: 'Last updated: October 1, 2026',
+    sections: [
+      {
+        title: '1. What are Cookies and Local Storage?',
+        paragraphs: [
+          'We use technical cookies and local storage (localStorage and sessionStorage) to ensure platform security, maintain language preferences, and gather aggregate usage metrics under GDPR and the ePrivacy Directive.'
+        ]
+      },
+      {
+        title: '2. Cookie Inventory',
+        paragraphs: ['We utilize the following storage technologies:'],
+        bullets: [
+          'nhc_cookie_consent (Essential): Stores user cookie preferences. Retention: 180 days.',
+          'i18nextLng (Essential): Stores language selection. Retention: 7 days.',
+          'nel_ephemeral_visitor_id (Essential): Ephemeral session token for rate limiting and fraud prevention. Retention: Browser session.',
+          'nhc_consent_analytics (Essential): Records analytics consent state. Retention: 180 days.',
+          'nel_fp_visitor_id (Analytics): Only loaded if you click "Accept all". Generates an aggregate visitor identifier. Retention: 180 days.'
+        ]
+      },
+      {
+        title: '3. Managing and Withdrawing Consent',
+        paragraphs: [
+          'You may withdraw or modify consent at any time through our footer consent preferences or by clearing cookies in your browser settings.'
+        ]
+      }
+    ]
+  }
 };
 
 const fr: Record<LegalPageKey, LegalDocument> = {
@@ -933,7 +1081,34 @@ const fr: Record<LegalPageKey, LegalDocument> = {
         ]
       }
     ]
-  }
+  },
+  refunds: {
+    title: 'Politique de Remboursement et Rétractation',
+    updated: 'Octobre 2026',
+    sections: [
+      {
+        title: '1. Droit de rétractation et services numériques personnalisés',
+        paragraphs: [
+          'Conformément à la directive 2011/83/UE, le client dispose d\'un délai de 14 jours pour exercer son droit de rétractation.',
+          'Ce droit s\'éteint dès le commencement d\'exécution des plans personnalisés (nutrition, suppléments, analyse IA ou session de coaching 1 à 1) avec l\'accord préalable du client.',
+          'Les abonnements récurrents peuvent être interrompus à tout moment avant le renouvellement sans frais depuis le compte client ou par email à soporte@nelhealthcoach.com.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Politique de Cookies et Traceurs',
+    updated: 'Octobre 2026',
+    sections: [
+      {
+        title: '1. Gestion des traceurs et respect du RGPD',
+        paragraphs: [
+          'Nous utilisons des cookies techniques nécessaires au fonctionnement et à la sécurité du site. Les cookies d\'analyse et l\'empreinte numérique (fingerprinting) sont strictement bloqués jusqu\'au recueil de votre consentement explicite.',
+          'Vous pouvez à tout moment configurer ou retirer votre consentement depuis la bannière de cookies ou les paramètres de votre navigateur.'
+        ]
+      }
+    ]
+  },
 };
 
 const it: Record<LegalPageKey, LegalDocument> = {
@@ -1238,7 +1413,34 @@ const it: Record<LegalPageKey, LegalDocument> = {
         ]
       }
     ]
-  }
+  },
+  refunds: {
+    title: 'Politica di Rimborso e Recesso',
+    updated: 'Ottobre 2026',
+    sections: [
+      {
+        title: '1. Diritto di recesso e servizi digitali personalizzati',
+        paragraphs: [
+          'In conformità con la direttiva 2011/83/UE, il consumatore ha diritto di recedere entro 14 giorni dall\'acquisto.',
+          'Il diritto decade una volta avviata l\'esecuzione dei servizi personalizzati (piani nutrizionali, analisi IA o sessioni 1 a 1) con il consenso espresso del cliente.',
+          'Gli abbonamenti possono essere annullati in qualsiasi momento prima del rinnovo mensile senza penali tramite la dashboard o scrivendo a soporte@nelhealthcoach.com.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Informativa sui Cookie e Tracciamento',
+    updated: 'Ottobre 2026',
+    sections: [
+      {
+        title: '1. Trasparenza sui cookie e conformità RGPD',
+        paragraphs: [
+          'Utilizziamo cookie tecnici essenziali per la navigazione sicura e le preferenze di lingua. I cookie analitici e il fingerprinting del dispositivo sono bloccati finché non viene fornito il consenso.',
+          'Puoi modificare o revocare le tue preferenze in ogni momento tramite il banner cookie o le impostazioni del browser.'
+        ]
+      }
+    ]
+  },
 };
 
 const pt: Record<LegalPageKey, LegalDocument> = {
@@ -1543,7 +1745,34 @@ const pt: Record<LegalPageKey, LegalDocument> = {
         ]
       }
     ]
-  }
+  },
+  refunds: {
+    title: 'Política de Reembolso e Cancelamento',
+    updated: 'Outubro 2026',
+    sections: [
+      {
+        title: '1. Direito de livre resolução e serviços digitais',
+        paragraphs: [
+          'Em conformidade com a Diretiva 2011/83/UE, o consumidor tem o direito de rescindir o contrato em 14 dias.',
+          'O direito não se aplica após o início da prestação dos serviços personalizados (planos de saúde, análise por IA ou sessões 1 para 1) com o consentimento prévio do cliente.',
+          'As assinaturas recorrentes podem ser canceladas a qualquer momento antes da renovação sem penalidades no painel ou por email para soporte@nelhealthcoach.com.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Política de Cookies e Rastreamento',
+    updated: 'Outubro 2026',
+    sections: [
+      {
+        title: '1. Gestão de cookies e conformidade RGPD',
+        paragraphs: [
+          'Utilizamos cookies técnicos essenciais para a segurança e funções da plataforma. Cookies analíticos e fingerprinting permanecem bloqueados até que o consentimento explícito seja concedido.',
+          'Você pode alterar ou revogar suas preferências a qualquer momento no banner de cookies ou limpando os dados do navegador.'
+        ]
+      }
+    ]
+  },
 };
 
 const de: Record<LegalPageKey, LegalDocument> = {
@@ -1848,7 +2077,33 @@ const de: Record<LegalPageKey, LegalDocument> = {
         ]
       }
     ]
-  }
+  },
+  refunds: {
+    title: 'Rückerstattungsrichtlinie',
+    updated: 'October 2026',
+    sections: [
+      {
+        title: '1. Widerrufsrecht und digitale Dienste',
+        paragraphs: [
+          'NelHealthCoach complies with EU consumer laws (Directive 2011/83/EU). Personalized health plans and AI-generated coaching recommendations initiated with express consent are exempt from statutory withdrawal upon commencement.',
+          'Subscription renewals can be canceled anytime before the next billing cycle without fee via dashboard or email to soporte@nelhealthcoach.com.'
+        ]
+      }
+    ]
+  },
+  cookies: {
+    title: 'Cookie-Richtlinie',
+    updated: 'October 2026',
+    sections: [
+      {
+        title: '1. Cookies und Tracking',
+        paragraphs: [
+          'We strictly respect GDPR & ePrivacy. Essential cookies ensure secure platform access and language settings. Analytics cookies and device fingerprinting are blocked until explicit consent is given.',
+          'You can review or revoke your choices at any time via the cookie banner or browser settings.'
+        ]
+      }
+    ]
+  },
 };
 
 export const legalContent: Record<string, Record<LegalPageKey, LegalDocument>> = {

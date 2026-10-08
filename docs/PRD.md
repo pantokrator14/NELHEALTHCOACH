@@ -1,8 +1,8 @@
 # Documento de Requisitos del Producto (PRD)
 ## NELHEALTHCOACH - Plataforma Integral de Coaching de Salud
 
-**Versión:** 1.2.0  
-**Fecha:** 12 de agosto de 2026  
+**Versión:** 1.3.0  
+**Fecha:** Octubre 2026  
 **Autor:** Equipo de Desarrollo NELHEALTHCOACH  
 **Estado:** En desarrollo activo (desplegado en producción — Vercel Hobby)
 
@@ -38,7 +38,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 
 ### 1.3 Diferenciadores Clave
 1. **Arquitectura Monorepo:** Desarrollo unificado con aplicaciones independientes pero integradas.
-2. **Procesamiento Inteligente:** Extracción LOCAL de documentos médicos con dependencias propias (pdf-parse, mammoth, OCR) + análisis con Gemini como secundario — sin coste por página ni servicios externos de OCR.
+2. **Procesamiento e Inteligencia Artificial Multi-Modelo:** Extracción LOCAL de documentos médicos con dependencias propias (pdf-parse, mammoth, OCR) + motor de razonamiento clínico y dietético en **DeepSeek V4 Flash** con fallback automático a **Google Gemini 2.5 Flash**, y transcripción de sesiones en tiempo real vía **Deepgram**.
 3. **Seguridad de Nivel Médico:** Cifrado de datos sensibles y cumplimiento con estándares de privacidad.
 4. **Experiencia Omnicanal:** Aplicaciones específicas para diferentes roles y necesidades.
 
@@ -49,7 +49,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 ### 2.1 Objetivos Principales (OKRs)
 
 #### **Objetivo 1: Crear una plataforma integral de coaching de salud**
-- **KR1:** Desarrollar 4 aplicaciones integradas (Landing, Formularios, Dashboard, API)
+- **KR1:** Desarrollar 5 aplicaciones integradas (Landing, Blog, Formularios, Dashboard, API)
 - **KR2:** Implementar al menos 10 formularios de evaluación de salud
 - **KR3:** Lograr 99.5% de disponibilidad del sistema
 
@@ -140,13 +140,23 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 ### 4.2 Componentes del Sistema
 
 #### **4.2.1 Aplicación Landing (`apps/landing`)**
-- **Propósito:** Marketing y captación de leads
-- **Tecnologías:** Next.js 15, React 19, Tailwind CSS
+- **Propósito:** Marketing, calificación de leads y portal de transparencia legal
+- **Tecnologías:** Next.js 16.3.6 (Pages Router), React 19.1.0, Tailwind CSS
 - **Características:**
-  - Diseño responsive y optimizado para conversión
-  - Información sobre servicios de coaching
-  - Formulario de contacto y captación
-  - SEO optimizado para términos de salud
+  - Formulario de captación interactivo con precalificación de compromiso (escala 1 a 10) y filtro pedagógico de 3 pasos
+  - Suite de páginas legales completas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`)
+  - Navbar adaptativo dinámico que conmuta a navegación legal y enlace al inicio con un clic
+  - CMP de cookies de consentimiento previo con `useSyncExternalStore` y respeto de señales GPC
+  - i18n multi-idioma (es, en, fr, it, pt, de)
+
+#### **4.2.1b Aplicación Blog (`apps/blog`)**
+- **Propósito:** Biblioteca de divulgación científica y nutrición evolutiva
+- **Tecnologías:** Next.js 16.3.6, React 19.1.0, Tailwind CSS
+- **Características:**
+  - Renderizado SSR/SSG optimizado para indexación y SEO
+  - Metadatos estructurados JSON-LD (`BlogPosting`, `Blog`) y hreflang para 6 idiomas
+  - Generación dinámica de RSS 2.0 y sitemap XML multilingüe
+  - Suite de pruebas de integración automatizadas (76 checks)
 
 #### **4.2.2 Aplicación de Formularios (`apps/form`)**
 - **Propósito:** Captura de datos de pacientes
@@ -706,27 +716,23 @@ graph TD
 
 ---
 
-## 12. Consideraciones de Privacidad
+## 12. Consideraciones de Privacidad y Cumplimiento Regulatorio
 
-### 12.1 Principios de Privacidad
-- **Minimización:** Solo datos necesarios para el servicio
-- **Transparencia:** Política de privacidad clara
-- **Control:** Usuarios controlan sus datos
-- **Seguridad:** Protección adecuada de datos
-- **Acceso:** Usuarios pueden acceder y corregir sus datos
+### 12.1 Principios de Privacidad y Consentimiento Desacoplado (RGPD Art. 9)
+- **Consentimiento Granular:** En el formulario de onboarding (`apps/form`), las casillas legales están estrictamente desacopladas (Términos/Privacidad, Datos de Salud Sensibles, Renuncia a desistimiento y Marketing opcional). Ninguna casilla se presenta premarcada.
+- **Transparencia en IA (DeepSeek & Google Gemini):** Información clara sobre el uso de modelos de lenguaje para asistir en la redacción de planes, con cláusula expresa de no entrenamiento con datos biomédicos del usuario y supervisión humana obligatoria del Coach.
+- **Gestión de Cookies (ePrivacy / EDPB / AEPD):** Banner de cookies CMP con bloqueo preventivo de scripts de terceros, caducidad a 180 días y respeto automático de señales de privacidad del navegador (*Global Privacy Control - GPC*).
 
-### 12.2 Manejo de Datos Sensibles
-- **Consentimiento:** Consentimiento explícito para datos de salud
-- **Anonimización:** Datos anonimizados para análisis agregados
-- **Retención:** Política clara de retención y destrucción
-- **Transferencia:** Transferencias internacionales seguras
+### 12.2 Blindaje Comercial y de Telecomunicaciones
+- **Grabación y Transcripción en Videollamadas (LiveKit & Deepgram):** Pantalla obligatoria de consentimiento previo (*Pre-call Consent Gate*) para participantes antes de ingresar a la sala, en cumplimiento de legislaciones de telecomunicaciones de dos partes (California Cal. Penal Code § 632).
+- **Cancelación Sin Fricción (*Click to Cancel* - FTC & California ARL):** Portal directo en `/dashboard/trial/cancel` permitiendo cancelar suscripciones en 1 clic sin llamadas forzosas.
+- **Protección de Contratista Independiente (California AB 5 / ABC Test):** Contrato de coaches articulado formalmente para blindar la independencia profesional del asesor, sin subordinación laboral ni exclusividad.
+- **Arbitraje Individual Vinculante y Renuncia a Demandas Colectivas (JAMS):** Cláusula de resolución de disputas vinculante administrada por JAMS en Riverside County, California, con *Class Action Waiver* en los contratos de clientes y coaches.
 
-### 12.3 Derechos de los Usuarios
-- **Acceso:** Derecho a acceder a sus datos
-- **Rectificación:** Derecho a corregir datos incorrectos
-- **Eliminación:** Derecho al olvido (con excepciones médicas)
-- **Portabilidad:** Derecho a transferir datos
-- **Oposición:** Derecho a oponerse al procesamiento
+### 12.3 Derechos de los Usuarios (ARCO / RGPD / CCPA)
+- **Acceso y Rectificación:** Solicitud de expedientes y rectificación de métricas en cualquier momento.
+- **Eliminación y Olvido:** Supresión segura de expedientes médicos y biomarcadores tras la finalización del servicio, respetando plazos fiscales obligatorios (5 a 7 años para registros tributarios).
+- **No Venta ni Compartición de Datos (*Do Not Sell or Share*):** Cumplimiento estricto de la ley de California (CCPA/CPRA).
 
 ---
 
@@ -749,6 +755,7 @@ graph TD
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
+| 1.3.0   | 2026-10-08  | Equipo Desarrollo   | Blindaje legal completo (RGPD Art. 9, CCPA, cookies CMP, FTC Click to Cancel, California AB 5 y arbitraje JAMS), incorporación formal de apps/blog (76 tests), calificador inteligente de leads con score de compromiso (1-10) en landing, Navbar adaptativo contextual para páginas legales, integración formal de DeepSeek V4 Flash (primario), Google Gemini (fallback) y Deepgram en toda la documentación técnica. |
 | 1.2.0   | 2026-08-12  | Equipo Desarrollo   | Traducción dinámica del contenido IA (FASE 4, 6 idiomas + PDF), cola propia de trabajos sobre MongoDB (worker-on-poll, 202 queued, lease/reintentos), regeneración encolada, suite de tests TDD con perfiles desechables (259 checks + security gate OWASP), despliegue en producción (Vercel Hobby, maxDuration 300), extracción de documentos con dependencias propias (pdf-parse/mammoth/OCR) + Gemini secundario (sin AWS Textract), stacks de dashboard/landing/form corregidos contra la implementación real |
 | 1.1.0   | 2026-06-18  | Equipo Desarrollo   | Dashboard i18n completo (6 idiomas, namespaces coaches/recipes/exercises), gestión de coaches, documentación actualizada |
 | 1.0.0   | 2026-04-04  | Equipo Desarrollo   | Documento inicial completo    |

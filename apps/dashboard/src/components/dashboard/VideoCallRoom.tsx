@@ -5,13 +5,9 @@
 // - Un solo ControlBar (sin chat, sin duplicados)
 // - Self-view PIP sin espejo
 // - Active speaker highlight
-// - Sin VideoConference (evita duplicación de controles)
+// - Pre-call Consent Gate para grabación y transcripción con IA (Deepgram)
 // - Data channel "session_ended" para que el coach cierre la sala
 //   y el cliente se desconecte automáticamente.
-//
-// IMPORTANTE: Toda la lógica que usa hooks de LiveKit (useDataChannel,
-// useRemoteParticipants) está en sub-componentes que se renderizan
-// DENTRO de <LiveKitRoom> para evitar errores de contexto.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -29,6 +25,7 @@ import {
 import SelfViewPip from './SelfViewPip';
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
+import { useTranslation } from 'react-i18next';
 
 // ─────────────────────────────────────────────
 // Tipos
@@ -96,7 +93,7 @@ function RemoteParticipantsBar() {
             <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-gray-900" />
           )}
         </div>
-      ))}
+      ))};
       {remoteParticipants.length > 6 && (
         <div className="w-9 h-9 rounded-full bg-gray-700/80 border-2 border-white/20 flex items-center justify-center text-[10px] text-white font-medium">
           +{remoteParticipants.length - 6}
@@ -110,9 +107,6 @@ function RemoteParticipantsBar() {
 // CSS para corregir el espejo de la cámara
 // ─────────────────────────────────────────────
 
-// Por defecto LiveKit aplica scaleX(-1) a la cámara local (efecto espejo).
-// Para verla como nos ven los demás, anulamos el mirror con scaleX(1).
-// Solo afecta al self-view PIP, no a las tiles del grid principal.
 const SELF_VIEW_STYLES = `
   .self-view-pip video {
     transform: scaleX(1) !important;
@@ -124,16 +118,17 @@ const SELF_VIEW_STYLES = `
 
 // ─────────────────────────────────────────────
 // Inner component: se renderiza DENTRO de <LiveKitRoom>
-// para que useDataChannel tenga acceso al contexto de la sala.
 // ─────────────────────────────────────────────
 
 interface InnerProps {
   role: 'coach' | 'client';
   roomName: string;
+  transcriptionConsent: boolean;
   onLeave: () => void;
 }
 
-function VideoCallRoomInner({ role, roomName, onLeave }: InnerProps) {
+function VideoCallRoomInner({ role, roomName, transcriptionConsent, onLeave }: InnerProps) {
+  const { t } = useTranslation();
   const connectionState = useConnectionState();
   const connected = connectionState === 'connected';
   const endedRef = useRef(false);
@@ -156,14 +151,10 @@ function VideoCallRoomInner({ role, roomName, onLeave }: InnerProps) {
     endedRef.current = true;
 
     if (role === 'coach') {
-      // Avisar al cliente antes de cerrar la sala
       sendData(new TextEncoder().encode('session_ended'), {
         topic: 'session',
         reliable: true,
-      }).catch(() => {
-        // Si falla el envío, salimos igual
-      });
-      // Pequeña pausa para dar tiempo a que el mensaje llegue
+      }).catch(() => {});
       setTimeout(() => onLeave(), 300);
     } else {
       onLeave();
@@ -187,6 +178,19 @@ function VideoCallRoomInner({ role, roomName, onLeave }: InnerProps) {
           </span>
         </div>
         <div className="flex items-center gap-3 pointer-events-auto">
+          {/* Badge de Transcripción IA */}
+          {transcriptionConsent ? (
+            <span className="flex items-center gap-1.5 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              {t('clients.badgeRecording')}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-800/80 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+              {t('clients.badgeNoRecording')}
+            </span>
+          )}
+
           {connected ? (
             <span className="flex items-center gap-1.5 text-[11px] text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -230,7 +234,7 @@ function VideoCallRoomInner({ role, roomName, onLeave }: InnerProps) {
             }}
           />
 
-          {/* ── Botón salir personalizado (dentro de la barra, a la derecha) ── */}
+          {/* ── Botón salir personalizado ── */}
           <button
             onClick={handleDisconnect}
             className="shrink-0 px-3 py-2 sm:px-4 sm:py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30 flex items-center gap-1 sm:gap-2 hover:scale-105 active:scale-95 text-xs sm:text-sm"
@@ -266,14 +270,18 @@ export default function VideoCallRoom({
   sessionToken,
   onLeave,
 }: VideoCallRoomProps) {
+  const { t } = useTranslation();
+  const [transcriptionConsent, setTranscriptionConsent] = useState<boolean | null>(null);
   const [participantToken, setParticipantToken] = useState<string>('');
   const [serverUrl, setServerUrl] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // ── Obtener token de LiveKit ──
+  // ── Obtener token de LiveKit (solo tras resolver consentimiento) ──
 
   useEffect(() => {
+    if (transcriptionConsent === null) return;
+
     let cancelled = false;
 
     async function fetchToken(): Promise<void> {
@@ -290,13 +298,14 @@ export default function VideoCallRoom({
           if (!storedToken) {
             throw new Error('No autorizado: inicia sesión nuevamente');
           }
-          headers['Authorization'] = `Bearer ${storedToken}`;
+          headers['Authorization'] = `Bearer ${storedToken}` || '';
         }
 
         const body: Record<string, unknown> = {
           roomName,
           role,
           displayName: role === 'coach' ? 'Coach' : 'Cliente',
+          transcriptionConsent,
         };
 
         if (role === 'client' && sessionToken) {
@@ -344,9 +353,7 @@ export default function VideoCallRoom({
     return () => {
       cancelled = true;
     };
-  }, [roomName, role, sessionToken]);
-
-  // ── Manejar errores (callback estable, sin hooks de LiveKit) ──
+  }, [roomName, role, sessionToken, transcriptionConsent]);
 
   const handleError = useCallback((livekitError: Error) => {
     console.error('VideoCallRoom error:', livekitError);
@@ -363,6 +370,41 @@ export default function VideoCallRoom({
       setError(livekitError.message);
     }
   }, []);
+
+  // ── Modal Pre-Call Consent Gate (Cumplimiento de Telecomunicaciones & Privacidad) ──
+  if (transcriptionConsent === null) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/85 backdrop-blur-md p-4">
+        <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+            🎙️
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
+            {t('clients.consentTitle')}
+          </h2>
+          <p className="text-sm text-gray-600 leading-relaxed mb-6">
+            {t('clients.consentDescription')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => setTranscriptionConsent(false)}
+              className="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors font-medium text-sm order-2 sm:order-1"
+            >
+              {t('clients.consentDecline')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTranscriptionConsent(true)}
+              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors font-semibold text-sm shadow-md order-1 sm:order-2"
+            >
+              {t('clients.consentAllow')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Estados de carga y error ──
 
@@ -406,14 +448,8 @@ export default function VideoCallRoom({
     return null;
   }
 
-  // ── Videollamada activa ──
-  //    LiveKitRoom provee el contexto necesario para los hooks
-  //    de LiveKit (useDataChannel, useRemoteParticipants, etc.)
-  //    que se usan dentro de VideoCallRoomInner.
-
   return (
     <div className="fixed inset-0 z-50 bg-gray-950">
-      {/* Estilos para corregir espejo del self-view */}
       <style>{SELF_VIEW_STYLES}</style>
 
       <LiveKitRoom
@@ -428,13 +464,15 @@ export default function VideoCallRoom({
         onError={handleError}
         style={{ height: '100vh' }}
         options={{
-          adaptiveStream: true,
-          dynacast: true,
+          publishDefaults: {
+            videoSimulcastLayers: [],
+          },
         }}
       >
         <VideoCallRoomInner
           role={role}
           roomName={roomName}
+          transcriptionConsent={transcriptionConsent === true}
           onLeave={onLeave}
         />
       </LiveKitRoom>

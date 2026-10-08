@@ -1,8 +1,9 @@
 // apps/dashboard/src/components/CoachContractStep.tsx
-// Acuerdo de Asesor/Coach con soporte i18n (6 idiomas) — v1.0
+// Acuerdo de Asesor/Coach con soporte i18n (6 idiomas) — v2026.1
+// Desacople de consentimientos legales, confidencialidad médica y términos de suscripción.
 // Las traducciones viven en apps/dashboard/src/lib/i18n.ts bajo el namespace register.contract
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +19,12 @@ const TOTAL_SECTIONS = 12;
 const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onReject, isTrial = false }) => {
   const { t } = useTranslation();
   const subscriptionAmount = process.env.NEXT_PUBLIC_COACH_SUBSCRIPTION_AMOUNT || '150';
+
+  const [termsConsent, setTermsConsent] = useState(false);
+  const [confidentialityConsent, setConfidentialityConsent] = useState(false);
+  const [autoRenewalConsent, setAutoRenewalConsent] = useState(false);
+
+  const canAccept = termsConsent && confidentialityConsent && autoRenewalConsent;
 
   const bgGradient = isTrial
     ? 'from-emerald-400 via-emerald-500 to-emerald-600'
@@ -43,7 +50,7 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
     <div className={`min-h-screen bg-gradient-to-br ${bgGradient} py-12 px-4`}>
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             {/* Logo */}
             <div className="flex justify-center mb-8">
               <div className="relative w-48 h-16">
@@ -56,14 +63,14 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
                 />
               </div>
             </div>
-            <h1 className={`text-3xl font-bold text-center ${accentColor} mb-2`}>
+            <h1 className={`text-2xl sm:text-3xl font-bold text-center ${accentColor} mb-2`}>
               {t('register.contract.title')}
             </h1>
             <p className="text-center text-sm text-gray-500 mb-8">
               {t('register.contract.version')}
             </p>
 
-            <div className="bg-gray-50 p-6 rounded-lg max-h-96 overflow-y-auto mb-8">
+            <div className="bg-gray-50 p-4 sm:p-6 rounded-lg max-h-96 overflow-y-auto mb-8 border border-gray-200">
               <div className="space-y-6 text-gray-700">
                 {Array.from({ length: TOTAL_SECTIONS }, (_, i) => i + 1).map((section) => {
                   const title = t(`register.contract.section${section}Title`, { defaultValue: '' });
@@ -76,7 +83,7 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
 
                   return (
                     <section key={section}>
-                      <h2 className={`text-xl font-semibold ${sectionTitleColor} mb-2`}>{title}</h2>
+                      <h2 className={`text-lg sm:text-xl font-semibold ${sectionTitleColor} mb-2`}>{title}</h2>
                       {intro && <p className="text-sm mb-2">{intro}</p>}
                       {content && <p className="text-sm">{content}</p>}
                       {price && (
@@ -97,22 +104,81 @@ const CoachContractStep: React.FC<CoachContractStepProps> = ({ onAccept, onRejec
               </div>
             </div>
 
-            <div className="text-center mb-6">
-              <p className="text-sm text-gray-600">
-                {t('register.contract.acceptInfo')}
-              </p>
+            {/* Casillas de consentimiento independientes para Coaches */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6 space-y-4">
+              <h3 className={`text-sm font-bold ${accentColor} uppercase tracking-wide`}>
+                Consentimientos y Compromisos Regulatorios
+              </h3>
+
+              {/* Casilla 1: Términos y Contrato */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  id="coach-consent-terms"
+                  checked={termsConsent}
+                  onChange={(e) => setTermsConsent(e.target.checked)}
+                  className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                />
+                <span className="text-xs sm:text-sm text-gray-800 leading-snug">
+                  <span className="font-semibold text-blue-950">* </span>
+                  {t('register.contract.checkboxTerms')}
+                </span>
+              </label>
+
+              {/* Casilla 2: Confidencialidad y RGPD de Clientes */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  id="coach-consent-confidentiality"
+                  checked={confidentialityConsent}
+                  onChange={(e) => setConfidentialityConsent(e.target.checked)}
+                  className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                />
+                <span className="text-xs sm:text-sm text-gray-800 leading-snug">
+                  <span className="font-semibold text-blue-950">* </span>
+                  {t('register.contract.checkboxDataConfidentiality')}
+                </span>
+              </label>
+
+              {/* Casilla 3: Renovación y Cancelación */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  id="coach-consent-autorenewal"
+                  checked={autoRenewalConsent}
+                  onChange={(e) => setAutoRenewalConsent(e.target.checked)}
+                  className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                />
+                <span className="text-xs sm:text-sm text-gray-800 leading-snug">
+                  <span className="font-semibold text-blue-950">* </span>
+                  {t('register.contract.checkboxAutoRenewal')}
+                </span>
+              </label>
+
+              {!canAccept && (
+                <p className="text-xs text-amber-700 font-medium pt-1">
+                  ⚠️ {t('register.contract.requiredConsentsNote')}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
+                type="button"
                 onClick={onReject}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
               >
                 {t('register.contract.rejectButton')}
               </button>
               <button
+                type="button"
+                disabled={!canAccept}
                 onClick={onAccept}
-                className={`px-8 py-3 text-white rounded-lg transition-colors font-semibold ${btnColor}`}
+                className={`px-8 py-3 rounded-lg font-semibold transition-all order-1 sm:order-2 ${
+                  canAccept
+                    ? `text-white ${btnColor} shadow-lg cursor-pointer transform hover:scale-[1.02]`
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-75'
+                }`}
               >
                 {t('register.contract.acceptButton')}
               </button>

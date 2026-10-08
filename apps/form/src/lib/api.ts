@@ -1,30 +1,24 @@
 // apps/form/src/lib/api.ts
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { getVisitorId } from './fingerprint';
 
-/**
- * Versión vigente del contrato de servicios (contrato de cliente).
- * Se envía al API al aceptar el contrato y queda registrada junto a la fecha.
- */
-export const CONTRACT_VERSION = '1.0';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const CONTRACT_VERSION = '2026.1';
 
-/**
- * Retorna headers base con el visitorId de FingerprintJS si está disponible.
- */
-function getBaseHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (typeof window !== 'undefined') {
-    const visitorId = localStorage.getItem('nel_fp_visitor_id');
-    if (visitorId) {
-      headers['X-Visitor-Id'] = visitorId;
-    }
+// Headers base para peticiones JSON a la API
+function getBaseHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const visitorId = getVisitorId();
+  if (visitorId) {
+    headers['X-Visitor-Id'] = visitorId;
   }
   return headers;
 }
 
-// Minimal types for the form payload used by submitForm!
+// Tipos base para el payload
 type PersonalData = {
   profilePhoto?: File | null;
-  language?: string;
   [key: string]: unknown;
 };
 
@@ -40,6 +34,12 @@ export type FormPayload = {
   contractVersion?: string;
   stripeSessionId?: string;
   free?: boolean;
+  healthDataConsent?: boolean;
+  termsAndPrivacyConsent?: boolean;
+  immediateServiceConsent?: boolean;
+  marketingConsent?: boolean;
+  consentTimestamp?: string;
+  consentPolicyVersion?: string;
   [key: string]: unknown;
 };
 
@@ -95,6 +95,13 @@ export const apiClient = {
       },
       contractAccepted: formData.contractAccepted,
       contractVersion: formData.contractVersion,
+      // Consentimientos RGPD Art. 9 y Legal Compliance
+      healthDataConsent: formData.healthDataConsent,
+      termsAndPrivacyConsent: formData.termsAndPrivacyConsent,
+      immediateServiceConsent: formData.immediateServiceConsent,
+      marketingConsent: formData.marketingConsent,
+      consentTimestamp: formData.consentTimestamp,
+      consentPolicyVersion: formData.consentPolicyVersion,
       // Reenviar campos de pago/link gratuito (JSON.stringify omite undefined)
       stripeSessionId: formData.stripeSessionId,
       free: formData.free,
@@ -139,184 +146,144 @@ export const apiClient = {
       clientId = result.data.id;
       console.log('✅ ClientId obtenido de result.data.id:', clientId);
     }
-    // ✅ Buscar en otros lugares por si hay inconsistencias
-    else if (result._id) {
-      clientId = result._id;
-      console.log('✅ ClientId obtenido de result._id:', clientId);
-    }
-    else if (result.id) {
-      clientId = result.id;
-      console.log('✅ ClientId obtenido de result.id:', clientId);
-    }
-    else {
-      console.error('❌ NO SE PUDO OBTENER EL CLIENT_ID. Respuesta completa:', result);
-      // Continuamos sin clientId - el formulario se envió pero sin archivos
-      console.log('⚠️ Continuando sin subir archivos debido a clientId faltante');
-      return result;
+    // ✅ Si result.data es el ID directamente (string)
+    else if (typeof result.data === 'string') {
+      clientId = result.data;
+      console.log('✅ ClientId obtenido de result.data (string):', clientId);
     }
 
-    console.log('✅ Cliente creado, ID:', clientId);
-
-    // Token para subir archivos (devuelto por el backend al crear el cliente)
-    const uploadToken = result.data?.uploadToken as string | undefined;
-
-    // Subir archivos si existen
-    try {
-      // Subir foto de perfil
-      if (formData.personalData.profilePhoto) {
-        console.log('📸 Subiendo foto de perfil...');
-        await this.uploadProfilePhoto(clientId as string, formData.personalData.profilePhoto as File, uploadToken);
-      } else {
-        console.log('⚠️ No hay foto de perfil para subir');
-      }
-
-      // Subir documentos médicos
-      if (formData.medicalData.documents && formData.medicalData.documents.length > 0) {
-        console.log('📄 Subiendo documentos médicos...', formData.medicalData.documents.length);
-        await this.uploadDocuments(clientId as string, formData.medicalData.documents as File[], uploadToken);
-      } else {
-        console.log('⚠️ No hay documentos para subir - continuando sin documentos');
-        // No hay error, simplemente continuamos
-      }
-
-      console.log('✅ Proceso de archivos completado');
-    } catch (uploadError) {
-      console.error('❌ Error en proceso de archivos:', uploadError);
-      // No relanzamos el error - el formulario principal ya se envió
+    if (!clientId) {
+      console.error('❌ No se encontró ningún ID en la respuesta:', result);
+      throw new Error('No se recibió el ID del cliente en la respuesta del servidor');
     }
 
-    return result;
-  },
+    console.log('🎯 ClientId final que se usará para uploads:', clientId);
 
-  async uploadProfilePhoto(clientId: string, file: File, uploadToken?: string) {
-    try {
-      console.log('🔑 Obteniendo URL firmada para foto de perfil...', { clientId, fileName: file.name });
+    // Subir foto de perfil si existe
+    if (formData.personalData.profilePhoto instanceof File) {
+      console.log('📸 Subiendo foto de perfil...', formData.personalData.profilePhoto.name);
       
-      // 1. Obtener URL firmada
+      const photoPayload = {
+        files: [{
+          fieldName: 'profilePhoto',
+          fileName: formData.personalData.profilePhoto.name,
+          contentType: formData.personalData.profilePhoto.type
+        }]
+      };
+
+      console.log('📤 Solicitando URL prefirmada para foto:', photoPayload);
+
       const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'POST',
-        headers: {
-          ...getBaseHeaders(),
-          ...(uploadToken && { 'X-Upload-Token': uploadToken }),
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          fileCategory: 'profile'
-        }),
+        headers: getBaseHeaders(),
+        body: JSON.stringify(photoPayload),
       });
 
-      console.log('📡 Respuesta de URL firmada:', uploadResponse.status);
-
       if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('❌ Error obteniendo URL de upload:', errorText);
-        throw new Error('Error al obtener URL de upload: ' + uploadResponse.status);
+        const errorText = await uploadResponse.text().catch(() => '<no body>');
+        console.error('❌ Error obteniendo URL prefirmada para foto:', uploadResponse.status, errorText);
+        throw new Error(`Error al obtener URL prefirmada para foto de perfil: ${uploadResponse.status}`);
       }
 
       const uploadData = await uploadResponse.json();
-      console.log('✅ URL firmada obtenida:', uploadData);
+      console.log('📥 Respuesta de URL prefirmada para foto:', uploadData);
 
-      // 2. Subir archivo a S3
-      console.log('☁️ Subiendo a S3...');
-      await uploadFileToS3(uploadData.data.uploadURL, file);
+      if (!uploadData.success || !uploadData.data || !uploadData.data[0]) {
+        throw new Error('Respuesta inválida al solicitar URL prefirmada para foto');
+      }
 
-      // 3. Confirmar upload
-      console.log('✅ Confirmando upload en base de datos...');
+      await uploadFileToS3(uploadData.data[0].uploadUrl, formData.personalData.profilePhoto);
+
+      const confirmPayload = {
+        fieldName: 'profilePhoto',
+        key: uploadData.data[0].key,
+        originalName: uploadData.data[0].originalName
+      };
+
+      console.log('📤 Confirmando subida de foto en la base de datos:', confirmPayload);
+
       const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
         method: 'PUT',
-        headers: {
-          ...getBaseHeaders(),
-          ...(uploadToken && { 'X-Upload-Token': uploadToken }),
-        },
-        body: JSON.stringify({
-          fileKey: uploadData.data.fileKey,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          fileCategory: 'profile',
-          fileURL: uploadData.data.fileURL
-        }),
+        headers: getBaseHeaders(),
+        body: JSON.stringify(confirmPayload),
       });
 
       if (!confirmResponse.ok) {
-        const errorText = await confirmResponse.text();
-        console.error('❌ Error confirmando upload:', errorText);
-        throw new Error('Error al confirmar upload: ' + confirmResponse.status);
+        const errorText = await confirmResponse.text().catch(() => '<no body>');
+        console.error('❌ Error confirmando foto:', confirmResponse.status, errorText);
+        throw new Error(`Error al confirmar subida de foto de perfil: ${confirmResponse.status}`);
       }
 
       console.log('✅ Foto de perfil subida y confirmada exitosamente');
-    } catch (error) {
-      console.error('❌ Error subiendo foto de perfil:', error);
-      throw error;
     }
-  },
 
-  async uploadDocuments(clientId: string, files: File[], uploadToken?: string) {
-    for (const file of files) {
-      try {
-        console.log('🔑 Obteniendo URL firmada para documento:', file.name);
-        
-        // 1. Obtener URL firmada
-        const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
-          method: 'POST',
-          headers: {
-            ...getBaseHeaders(),
-            ...(uploadToken && { 'X-Upload-Token': uploadToken }),
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            fileCategory: 'document'
-          }),
-        });
+    // Subir documentos médicos si existen
+    if (formData.medicalData.documents && formData.medicalData.documents.length > 0) {
+      console.log(`📑 Subiendo ${formData.medicalData.documents.length} documentos médicos...`);
+      
+      for (const doc of formData.medicalData.documents) {
+        if (doc instanceof File) {
+          console.log(`📄 Procesando documento: ${doc.name} (${doc.type}, ${doc.size} bytes)`);
+          
+          const docPayload = {
+            files: [{
+              fieldName: 'documents',
+              fileName: doc.name,
+              contentType: doc.type
+            }]
+          };
 
-        console.log('📡 Respuesta de URL firmada para documento:', uploadResponse.status);
+          console.log('📤 Solicitando URL prefirmada para documento:', docPayload);
 
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          console.error('❌ Error obteniendo URL de upload para documento:', errorText);
-          continue; // Continuar con el siguiente archivo
+          const uploadResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
+            method: 'POST',
+            headers: getBaseHeaders(),
+            body: JSON.stringify(docPayload),
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text().catch(() => '<no body>');
+            console.error('❌ Error obteniendo URL prefirmada para documento:', uploadResponse.status, errorText);
+            throw new Error(`Error al obtener URL prefirmada para documento ${doc.name}: ${uploadResponse.status}`);
+          }
+
+          const uploadData = await uploadResponse.json();
+          console.log('📥 Respuesta de URL prefirmada para documento:', uploadData);
+
+          if (!uploadData.success || !uploadData.data || !uploadData.data[0]) {
+            throw new Error(`Respuesta inválida al solicitar URL prefirmada para ${doc.name}`);
+          }
+
+          await uploadFileToS3(uploadData.data[0].uploadUrl, doc);
+
+          const confirmPayload = {
+            fieldName: 'documents',
+            key: uploadData.data[0].key,
+            originalName: uploadData.data[0].originalName
+          };
+
+          console.log('📤 Confirmando subida de documento en la base de datos:', confirmPayload);
+
+          const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
+            method: 'PUT',
+            headers: getBaseHeaders(),
+            body: JSON.stringify(confirmPayload),
+          });
+
+          if (!confirmResponse.ok) {
+            const errorText = await confirmResponse.text().catch(() => '<no body>');
+            console.error('❌ Error confirmando documento:', confirmResponse.status, errorText);
+            throw new Error(`Error al confirmar subida de documento ${doc.name}: ${confirmResponse.status}`);
+          }
+
+          console.log(`✅ Documento ${doc.name} subido y confirmado exitosamente`);
         }
-
-        const uploadData = await uploadResponse.json();
-        console.log('✅ URL firmada obtenida para documento:', uploadData);
-
-        // 2. Subir archivo a S3
-        console.log('☁️ Subiendo documento a S3...', file.name);
-        await uploadFileToS3(uploadData.data.uploadURL, file);
-
-        // 3. Confirmar upload
-        console.log('✅ Confirmando upload de documento en base de datos...');
-        const confirmResponse = await fetch(`${API_BASE_URL}/api/clients/${clientId}/upload`, {
-          method: 'PUT',
-          headers: {
-            ...getBaseHeaders(),
-            ...(uploadToken && { 'X-Upload-Token': uploadToken }),
-          },
-          body: JSON.stringify({
-            fileKey: uploadData.data.fileKey,
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            fileCategory: 'document',
-            fileURL: uploadData.data.fileURL
-          }),
-        });
-
-        if (!confirmResponse.ok) {
-          const errorText = await confirmResponse.text();
-          console.error('❌ Error confirmando upload de documento:', errorText);
-        } else {
-          console.log('✅ Documento subido y confirmado:', file.name);
-        }
-
-      } catch (error) {
-        console.error('❌ Error subiendo documento:', file.name, error);
-        // Continuamos con el siguiente archivo
       }
     }
-  },
+
+    console.log('🎉 Formulario completado exitosamente con todos sus archivos');
+    return result;
+  }
 };
+
+export { API_BASE_URL, CONTRACT_VERSION };

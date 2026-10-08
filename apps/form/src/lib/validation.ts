@@ -132,6 +132,10 @@ physicalLimitations: yup.string().optional(),
 
 export const contractSchema = yup.object({
   contractAccepted: yup.boolean().oneOf([true], 'Debe aceptar los términos y condiciones'),
+  healthDataConsent: yup.boolean().oneOf([true], 'Debe otorgar consentimiento expreso para el tratamiento de datos de salud'),
+  termsAndPrivacyConsent: yup.boolean().oneOf([true], 'Debe aceptar los Términos de Servicio y la Política de Privacidad'),
+  immediateServiceConsent: yup.boolean().oneOf([true], 'Debe autorizar el inicio inmediato del servicio'),
+  marketingConsent: yup.boolean().optional(),
 });
 
 // ─── Schema PROPIO del paso Contexto y Estilo de Vida ────────────────────────

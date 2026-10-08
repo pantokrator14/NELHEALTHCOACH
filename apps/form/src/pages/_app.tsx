@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import CookieBanner from '@/components/CookieBanner';
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
@@ -20,9 +21,15 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     }
 
-    initFingerprint().catch((err) => {
-      console.warn('FingerprintJS init failed (non-blocking):', err);
-    });
+    const runFingerprint = () => {
+      initFingerprint().catch((err) => {
+        console.warn('FingerprintJS init failed (non-blocking):', err);
+      });
+    };
+
+    runFingerprint();
+    window.addEventListener('nhc_consent_updated', runFingerprint);
+    return () => window.removeEventListener('nhc_consent_updated', runFingerprint);
   }, []);
 
   return (
@@ -37,6 +44,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <ErrorBoundary>
         <Component {...pageProps} />
       </ErrorBoundary>
+      <CookieBanner />
     </>
   );
 }

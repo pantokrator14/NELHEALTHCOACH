@@ -1,52 +1,56 @@
 # PRD - Landing Page
 ## Documento de Requerimientos del Producto - NELHEALTHCOACH Landing
 
+**Versión:** 1.3.0  
+**Fecha:** Octubre 2026  
+**Estado:** Producción / Cumplimiento Legal y Conversión Inteligente
+
 ---
 
 ## 1. Visión General
 
 ### 1.1 Propósito
 La landing page de NELHEALTHCOACH es la cara pública del negocio, diseñada para:
-- **Presentar** los servicios de coaching de salud
-- **Generar leads** calificados mediante formulario de contacto
-- **Establecer credibilidad** y autoridad en el nicho
-- **Dirigir tráfico** a las aplicaciones principales (formulario, dashboard)
+- **Presentar** la propuesta de valor del coaching de salud integral con enfoque evolutivo y metabólico.
+- **Calificar y captar leads** comprometidos mediante un embudo de contacto inteligente con filtro de compromiso.
+- **Establecer confianza y transparencia** mediante cumplimiento regulatorio de vanguardia (RGPD, CCPA/CPRA, arbitraje JAMS y políticas claras).
+- **Proporcionar navegación contextual e informada** hacia las aplicaciones del ecosistema (Blog, Formulario de Onboarding y Dashboard).
 
 ### 1.2 Alcance
-- Sitio web estático con contenido marketing
-- Formulario de captación de leads
-- Información sobre metodología y servicios
-- Testimonios y casos de éxito
-- Blog/recursos educativos (futuro)
+- Sitio web estático de alto rendimiento optimizado con Next.js 16.
+- Formulario de captación interactivo con pre-calificación de compromiso (escala 1 a 10).
+- Presentación de metodología, servicios y biblioteca científica (Blog Preview).
+- Suite integral de páginas legales en 6 idiomas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`).
+- Navbar adaptativo dinámico para navegación legal y retorno a la portada.
+- Consent Management Platform (CMP) de cookies con consentimiento previo y respeto de señales GPC.
 
 ---
 
 ## 2. Objetivos del Negocio
 
 ### 2.1 Objetivos Principales
-1. **Conversión** de visitantes a leads (meta: 5%)
-2. **Educación** sobre servicios de coaching de salud
-3. **Posicionamiento** de marca en el mercado
-4. **Reducción** de costo por lead adquirido
+1. **Calidad de Prospectos**: Filtrar y captar prospectos con alto nivel de compromiso (score >= 7) para maximizar la efectividad del tiempo del coach.
+2. **Conversión Informada**: Guiar a prospectos en fases prematuras hacia recursos educativos (Blog y redes sociales).
+3. **Blindaje Regulatorio**: Mitigar riesgos de multas o sanciones (RGPD, ePrivacy, CCPA/CPRA, FTC).
+4. **Experiencia Omnicanal Fluida**: Transición natural entre la landing, el blog y el formulario de onboarding.
 
 ### 2.2 Métricas de Éxito
-- **Tasa de conversión**: > 5% visitantes a leads
-- **Tiempo en página**: > 2 minutos
-- **Rebote**: < 40%
-- **Leads/mes**: > 50 leads calificados
-- **SEO**: Posición 1-3 para keywords principales
+- **Tasa de conversión de leads calificados**: > 5% visitantes a leads con compromiso verificado.
+- **Calidad de leads**: > 80% de leads agendados con score >= 7.
+- **Cumplimiento legal**: 100% de consentimientos previos registrados antes de cargar scripts analíticos.
+- **Performance Web**: Core Web Vitals en verde (LCP < 2.5s, CLS < 0.1, FID/INP < 100ms).
 
 ---
 
 ## 3. Arquitectura Técnica
 
 ### 3.1 Stack Tecnológico
-- **Framework**: Next.js 15.5 (Pages Router)
-- **Lenguaje**: TypeScript 5.8.3
-- **Estilos**: Tailwind CSS
-- **Formulario de contacto**: useState + fetch nativo (POST a `/api/leads` con visitorId de FingerprintJS)
-- **i18n**: React i18next con **6 idiomas** (es, en, fr, it, pt, de) + detección automática del navegador
-- **Seguridad**: FingerprintJS (anti-bots en el formulario de leads)
+- **Framework**: Next.js 16.3.6 (Pages Router)
+- **Runtime & UI**: React 19.1.0, TypeScript 5.8.3
+- **Estilos**: Tailwind CSS (paleta corporativa blanca/azul, tipografía accesible)
+- **i18n**: react-i18next con 6 idiomas (`es`, `en`, `fr`, `it`, `pt`, `de`) + detección de idioma del navegador
+- **Gestión de Consentimiento**: `CookieBanner` con `useSyncExternalStore` (sin parpadeos ni violaciones de ESLint), almacenamiento con caducidad (180 días) y soporte de Global Privacy Control (GPC)
+- **Seguridad**: FingerprintJS condicionado a consentimiento previo de analítica para mitigar bots
 - **Hosting**: Vercel
 
 ### 3.2 Estructura de Directorios
@@ -54,247 +58,76 @@ La landing page de NELHEALTHCOACH es la cara pública del negocio, diseñada par
 apps/landing/
 ├── src/
 │   ├── components/
-│   │   ├── layout/          # Layout general
-│   │   └── sections/        # Secciones de página
-│   ├── lib/                 # Utilidades
-│   ├── pages/               # Páginas Next.js
-│   └── public/              # Assets estáticos
+│   │   ├── common/         # CookieBanner (CMP), modales, botones
+│   │   ├── layout/         # Layout general, Navbar adaptativo, Footer, LegalPage
+│   │   └── sections/       # Hero, Metodo, SobreMi, BlogPreview, ContactFormSection
+│   ├── lib/
+│   │   ├── fingerprint.ts  # Detección condicional anti-bots
+│   │   ├── i18n.ts         # Diccionarios i18n (6 idiomas)
+│   │   └── legalContent.ts # Textos normativos completos (Privacidad, Términos, Cookies, etc.)
+│   ├── pages/
+│   │   ├── aviso-legal.tsx
+│   │   ├── cookies.tsx
+│   │   ├── index.tsx
+│   │   ├── politica-privacidad.tsx
+│   │   ├── reembolsos.tsx
+│   │   └── terminos-condiciones.tsx
+│   └── styles/             # globals.css
 ```
 
 ---
 
-## 4. Secciones de la Landing Page
+## 4. Secciones y Componentes de la Landing Page
 
-### 4.1 Header/Navbar
-- **Logo** NELHEALTHCOACH
-- **Menú de navegación** (Inicio, Servicios, Método, Testimonios, Contacto)
-- **Selector de idioma** (ES, EN, FR, IT, PT, DE)
-- **CTA principal** "Comienza tu evaluación"
-- **Responsive** con menú hamburguesa móvil
+### 4.1 Header / Navbar Adaptativo
+- **Logo corporativo**:
+  - En la landing page (`/`): Clic realiza scroll suave a la sección `#inicio`.
+  - En cualquier página legal: Clic redirige a `/` para volver a la portada.
+- **Navegación Desktop contextual**:
+  - **En portada (`/`)**: Muestra secciones principales (`Inicio`, `Método`, `Sobre mí`, `Blog`, `Secreto`, `Contacto`).
+  - **En páginas legales**: Conmuta automáticamente para mostrar accesos directos a todas las páginas legales (`Privacidad`, `Términos`, `Aviso Legal`, `Cookies`, `Reembolsos`), resaltando la página activa y ofreciendo un botón destacado **`← Volver al Inicio`**.
+- **Comportamiento visual (isOverHero)**:
+  - Sobre hero azul: Logo blanco y tipografía blanca/azul claro.
+  - Sobre secciones blancas: Logo azul con sombra sutil y tipografía gris/azul corporativo.
+- **Navegación Móvil**: Menú desplegable hamburguesa que replica la navegación contextual y se cierra automáticamente al navegar.
 
 ### 4.2 Hero Section
-- **Título principal**: "Transforma tu salud con coaching personalizado"
-- **Subtítulo**: "Planificación 100% personalizada con IA"
-- **Imagen/Vídeo** de presentación
-- **Dos CTAs**: "Comienza ahora" (formulario) + "Ver servicios"
-- **Estadísticas** de impacto (clientes, resultados, satisfacción)
+- Carrusel de impacto con propuesta de valor clara y llamadas a la acción primarias hacia el formulario y el método.
+- Adaptación responsive multi-resolución.
 
-### 4.3 Servicios Section
-- **Coaching de Ejercicio**: Rutinas personalizadas
-- **Planificación Nutricional**: Dietas adaptadas
-- **Seguimiento de Hábitos**: Cambios sostenibles
-- **Soporte 1:1**: Sesiones con coach certificado
-- **Cada servicio incluye**: Icono, título, descripción, beneficios
+### 4.3 Metodo NEL & Sobre Mí
+- Explicación de la metodología holística basada en biología evolutiva, nutrición cetogénica/baja en carbohidratos y sincronización circadiana.
 
-### 4.4 Método NEL Section
-- **Proceso paso a paso**:
-  1. Evaluación integral
-  2. Análisis IA personalizado
-  3. Plan adaptado a tu vida
-  4. Ajustes continuos
-- **Diferenciales**: IA especializada, enfoque holístico, seguimiento constante
-- **Infografía** del proceso
+### 4.4 Blog Preview Section
+- Muestra una vista previa de la biblioteca científica y artículos del blog (`apps/blog`), educando al usuario antes de la contratación.
 
-### 4.5 Testimonios Section
-- **Carrusel** de testimonios reales
-- **Fotos** de clientes (con consentimiento)
-- **Métricas** de resultados (kg perdidos, % grasa, etc.)
-- **Video testimonios** (opcional)
-- **Sello de confianza** (certificaciones, afiliaciones)
+### 4.5 Formulario de Contacto y Calificador de Compromiso
+- **Paso 1: Datos de Contacto**: Nombre, Email, Teléfono, Objetivo de salud.
+- **Paso 2: Evaluación de Compromiso (Score 1 a 10)**:
+  - Escala interactiva del 1 al 10 donde el usuario declara su nivel de determinación para transformar su salud.
+- **Filtro Inteligente de 3 Pasos (Gate de Compromiso)**:
+  - **Si el compromiso es >= 7**: El prospecto califica exitosamente y envía su solicitud.
+  - **Si el compromiso es < 7**: Se presenta un aviso pedagógico y no excluyente (*"Cuéntame de ti, me gustaría conocer tus objetivos..."*), sugiriendo que puede ser prematuro para un proceso 1 a 1 intensivo, pero ofreciendo **dos caminos**:
+    1. **Reconsiderar**: Botón para volver y ajustar sus respuestas con mayor reflexión.
+    2. **Explorar Recursos**: Enlace a artículos del blog y redes sociales sin frustración.
+  - **Notificación por Correo al Coach**: El correo que recibe el coach incluye el score exacto de compromiso (1-10) del prospecto para preparar la llamada inicial.
 
-### 4.6 Formulario de Contacto
-- **Campos**: Nombre, Email, Teléfono, Objetivo principal
-- **Preselección** de servicios de interés
-- **Consentimiento** GDPR/privacidad
-- **Submit** a API de leads
-- **Confirmación** + redirección a formulario completo
+### 4.6 Páginas Legales Integradas (`LegalPage.tsx`)
+Plantilla unificada, profesional y responsive para todas las políticas:
+1. **Política de Privacidad (`/politica-privacidad`)**: Cumplimiento RGPD Art. 9, CCPA/CPRA *Notice at Collection*, no venta/intercambio de datos ("Do Not Sell or Share"), transferencias internacionales (DPF/SCCs), retención y garantías de IA (**DeepSeek y Google Gemini**, sin reentrenamiento público).
+2. **Términos de Servicio (`/terminos-condiciones`)**: Ley de California, Arbitraje individual vinculante administrado por **JAMS** (Riverside County, CA) con renuncia a demandas colectivas (*Class Action Waiver*) y tope cuantitativo de responsabilidad.
+3. **Aviso Legal (`/aviso-legal`)**: Datos registrales de NELHEALTHCOACH LLC (33450 Shifting Sands Trail, Cathedral City, CA 92234).
+4. **Política de Cookies (`/cookies`)**: Distinción entre cookies esenciales y analíticas, almacenamiento HTML5 y señales GPC.
+5. **Política de Reembolsos y Desistimiento (`/reembolsos`)**: Cancelación y excepciones de desistimiento por ejecución inmediata (Art. 103 TRLGDCU / FTC).
 
-### 4.7 Footer
-- **Logo** y eslogan
-- **Enlaces rápidos** (Políticas, Términos, Blog)
-- **Información de contacto** (email, teléfono)
-- **Redes sociales**
-- **Copyright** y avisos legales
+### 4.7 Cookie Banner (Consent Management Platform)
+- Banner inferior con fondo blanco, acentos azules y botones corporativos.
+- Bloqueo por defecto de analítica hasta que el usuario pulse "Aceptar todas" o configure preferencias.
+- Persistencia por 180 días con evento global `nhc_consent_updated`.
 
 ---
 
-## 5. Experiencia de Usuario
-
-### 5.1 Flujo de Conversión
-```
-Visitante → Hero (30s) → Servicios (45s) → Método (30s)
-     ↓           ↓             ↓              ↓
-  Entrada    Primer CTA    Valor prop.   Confianza
-     ↓
-  Testimonios → Formulario → Thank You
-     ↓             ↓            ↓
-  Social proof   Conversión   Redirección
-```
-
-### 5.2 Diseño Responsive
-- **Mobile-first** approach
-- **Breakpoints**: Mobile (< 640px), Tablet (641-1024px), Desktop (>1024px)
-- **Imágenes optimizadas** por dispositivo
-- **Touch-friendly** CTAs y formularios
-
-### 5.3 Performance
-- **LCP**: < 2.5s
-- **FID**: < 100ms
-- **CLS**: < 0.1
-- **Peso página**: < 1MB
-- **Score Lighthouse**: > 90
-
----
-
-## 6. Integraciones
-
-### 6.1 Backend
-- **API de leads**: `POST /api/leads`
-- **Procesamiento**: Validación, almacenamiento, notificación
-- **Seguridad**: Rate limiting, captcha (futuro)
-
-### 6.2 Marketing
-- **Google Analytics 4**: Tracking conversiones
-- **Google Tag Manager**: Eventos personalizados
-- **Email marketing**: Integración con Resend
-- **CRM**: Futura integración con HubSpot/Salesforce
-
-### 6.3 SEO
-- **Meta tags** optimizados
-- **Schema markup** para servicios locales
-- **Sitemap.xml** automático
-- **Robots.txt** configurado
-- **Open Graph** para redes sociales
-
----
-
-## 7. Contenido y Copywriting
-
-### 7.1 Tone of Voice
-- **Profesional** pero cercano
-- **Empoderador** y motivacional
-- **Basado en evidencia** científica
-- **Claro** y directo
-
-### 7.2 Keywords Principales
-- **Primarias**: coaching salud, entrenador personal online, plan nutricional personalizado
-- **Secundarias**: pérdida de peso, ganancia muscular, hábitos saludables
-- **Locales**: coach salud Barcelona, nutricionista online España
-
-### 7.3 Contenido Multimedia
-- **Fotos** reales de sesiones (con consentimiento)
-- **Vídeos** explicativos del método
-- **Infografías** de resultados
-- **Gráficos** de progreso (ejemplos anonimizados)
-
----
-
-## 8. Seguridad y Privacidad
-
-### 8.1 Protección de Datos
-- **SSL/TLS** obligatorio
-- **Formularios** con validación CSRF
-- **Datos leads** encriptados en tránsito y reposo
-- **Consentimiento explícito** para contacto
-
-### 8.2 Cumplimiento Legal
-- **GDPR/CCPA**: Banner de cookies, política privacidad
-- **Términos de servicio** accesibles
-- **Aviso legal** completo
-- **Protección menores**: +18 años requerido
-
----
-
-## 9. Analytics y Tracking
-
-### 9.1 Métricas a Monitorear
-- **Conversiones**: Leads por fuente/origen
-- **Comportamiento**: Scroll depth, heatmaps
-- **Técnicas**: Errores, performance, uptime
-- **SEO**: Posiciones, tráfico orgánico
-
-### 9.2 Dashboards
-- **Google Analytics**: Conversiones y comportamiento
-- **Vercel Analytics**: Performance y errores
-- **Custom dashboard**: Leads en tiempo real
-- **Reportes semanales** automáticos
-
----
-
-## 10. Roadmap
-
-### Fase 1 (Completado)
-- [x] Landing básica con secciones principales
-- [x] Formulario de contacto funcional
-- [x] Diseño responsive con hero adaptativo (imágenes intercambiables por resolución)
-- [x] Integración con API de leads
-- [x] i18n multi-idioma completo (6 idiomas: ES, EN, FR, IT, PT, DE)
-- [x] Hero carousel de 4 imágenes
-- [x] Seguridad: FingerprintJS
-
-### Fase 2 (En progreso)
-- [ ] Blog/recursos educativos
-- [ ] Calculadora de metas personalizada
-- [ ] Chatbot de preguntas frecuentes
-- [ ] Sistema de reservas online
-
-### Fase 3 (Futuro)
-- [ ] Landing pages específicas por servicio
-- [ ] A/B testing automatizado
-- [ ] Integración CRM completa
-- [ ] Programa de afiliados
-
----
-
-## 11. Consideraciones Técnicas
-
-### 11.1 Dependencias Críticas
-- **Vercel**: Hosting y deployment
-- **API backend**: Disponibilidad para leads
-- **Google Services**: Analytics y SEO
-- **CDN**: Imágenes y assets
-
-### 11.2 Plan de Contingencia
-- **Formulario offline**: Email de contacto directo
-- **Cache agresivo**: Página estática en CDN
-- **Monitoring**: Alertas por caídas
-- **Backup manual**: Contenido en CMS headless
-
----
-
-## 12. Equipo y Responsabilidades
-
-### 12.1 Roles
-- **Frontend Lead**: Desarrollo y mantenimiento
-- **UX/UI Designer**: Diseño y prototipos
-- **Content Writer**: Copywriting y SEO
-- **Marketing Specialist**: Conversión y analytics
-
-### 12.2 SLA
-- **Disponibilidad**: 99.9% mensual
-- **Actualizaciones**: Contenido semanal, código mensual
-- **Soporte**: Business hours para issues
-- **Backups**: Diarios automáticos
-
----
-
-## 13. Presupuesto y Recursos
-
-### 13.1 Costos Operativos
-- **Hosting**: Vercel Pro ($20/mes)
-- **Dominio**: $15/año
-- **CDN**: $10/mes (imágenes)
-- **Herramientas**: $50/mes (analytics, email)
-
-### 13.2 Recursos Humanos
-- **Desarrollador**: 10h/semana (mantenimiento)
-- **Diseñador**: 5h/semana (actualizaciones)
-- **Content**: 5h/semana (blog/SEO)
-- **Marketing**: 10h/semana (optimización)
-
----
-
-*Documento actualizado: Junio 2026*
-*Versión: 2.2*
-*Última actualización: 2026-08-12 — stack corregido (sin Framer Motion, sin React Hook Form/Zod; contacto con fetch nativo + FingerprintJS)*
-*Propietario: Equipo Marketing NELHEALTHCOACH*
+## 5. Pruebas y Aseguramiento de Calidad
+- **Linting**: Cumplimiento estricto de ESLint sin llamados directos a `setState` en efectos (`useSyncExternalStore` y event listeners).
+- **Compilación**: Verificado con `next build` en producción con código 0.
+- **i18n**: Paridad idiomática completa en los 6 idiomas soportados.

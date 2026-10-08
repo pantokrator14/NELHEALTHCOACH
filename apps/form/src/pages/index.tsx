@@ -28,6 +28,12 @@ interface HealthFormData {
   personalData?: Partial<PersonalDataFormValues>;
   medicalData?: Partial<MedicalDataFormValues>;
   stripeSessionId?: string;
+  healthDataConsent?: boolean;
+  termsAndPrivacyConsent?: boolean;
+  immediateServiceConsent?: boolean;
+  marketingConsent?: boolean;
+  consentTimestamp?: string;
+  consentPolicyVersion?: string;
 }
 
 interface HealthEvaluationsStepData {
@@ -210,8 +216,18 @@ const FormPage: React.FC = () => {
     setFormData(prev => ({ ...prev, ...newData }));
   }
 
-  const handleContractAccept = () => {
-    updateFormData({ contractAccepted: true, contractVersion: CONTRACT_VERSION, paymentCompleted: isFree });
+  const handleContractAccept = (consentData?: import('@/components/ContractStep').ContractConsentData) => {
+    updateFormData({
+      contractAccepted: true,
+      contractVersion: CONTRACT_VERSION,
+      paymentCompleted: isFree,
+      healthDataConsent: consentData?.healthDataConsent ?? true,
+      termsAndPrivacyConsent: consentData?.termsAndPrivacyConsent ?? true,
+      immediateServiceConsent: consentData?.immediateServiceConsent ?? true,
+      marketingConsent: consentData?.marketingConsent ?? false,
+      consentTimestamp: consentData?.consentTimestamp ?? new Date().toISOString(),
+      consentPolicyVersion: consentData?.consentPolicyVersion ?? CONTRACT_VERSION,
+    });
     if (isFree) {
       // Link gratuito: saltar PaymentStep (índice 1), ir directo a ObjectivesStep (índice 2)
       console.log('🆓 Modo gratuito — saltando paso de pago');
@@ -452,6 +468,12 @@ const FormPage: React.FC = () => {
       const formPayload: FormPayload = {
         contractAccepted: completeData.contractAccepted,
         contractVersion: completeData.contractVersion,
+        healthDataConsent: formData.healthDataConsent ?? true,
+        termsAndPrivacyConsent: formData.termsAndPrivacyConsent ?? true,
+        immediateServiceConsent: formData.immediateServiceConsent ?? true,
+        marketingConsent: formData.marketingConsent ?? false,
+        consentTimestamp: formData.consentTimestamp ?? new Date().toISOString(),
+        consentPolicyVersion: formData.consentPolicyVersion ?? CONTRACT_VERSION,
         personalData: convertPersonalDataForApi(completeData.personalData),
         medicalData: convertMedicalDataForApi(medicalDataWithDocs),
         // Stripe Session ID para verificar el pago en backend

@@ -130,7 +130,7 @@ export interface PDFWeekData {
 }
 
 export interface PDFRecommendationData {
-  client: { name: string; photoBuffer?: Buffer | null; sex?: string; age?: string; weight?: string; height?: string; };
+  client: { name: string; photoBuffer?: Buffer | null; sex?: string; age?: string; weight?: string; height?: string; language?: string; };
   session: {
     summary: string;
     vision: string;
@@ -401,31 +401,72 @@ function buildOfficialCover(doc: PDFKit.PDFDocument, data: PDFRecommendationData
   return doc.y + 25;
 }
 
-function buildDisclaimer(doc: PDFKit.PDFDocument, startY: number): number {
-  doc.y = checkSpace(doc, startY, 50);
+
+const MEDICAL_LEGAL_DISCLAIMER: Record<string, { title: string; body: string; note: string }> = {
+  es: {
+    title: 'AVISO LEGAL Y DESCARGO MÉDICO INDELEBLE:',
+    body: 'NelHealthCoach ofrece orientación educativa en hábitos de vida y bienestar. Los planes nutricionales, sugerencias de suplementación y rutinas de ejercicio generados o asistidos por inteligencia artificial no constituyen diagnóstico, prescripción médica ni tratamiento clínico.',
+    note: 'Consulte siempre a su médico o profesional sanitario de confianza antes de realizar cambios drásticos en su alimentación, suplementación o actividad física.',
+  },
+  en: {
+    title: 'LEGAL NOTICE & MEDICAL DISCLAIMER:',
+    body: 'NelHealthCoach provides educational guidance on lifestyle and wellness habits. Nutritional plans, supplementation suggestions, and exercise routines generated or assisted by artificial intelligence do not constitute a medical diagnosis, prescription, or clinical treatment.',
+    note: 'Always consult your physician or qualified healthcare provider before making major changes to your diet, supplements, or physical activity.',
+  },
+  fr: {
+    title: 'AVIS JURIDIQUE ET AVERTISSEMENT MÉDICAL :',
+    body: 'NelHealthCoach fournit des conseils éducatifs sur les habitudes de vie et le bien-être. Les plans nutritionnels, suggestions de suppléments et programmes d’exercice assistés par l’IA ne constituent ni un diagnostic ni une prescription médicale.',
+    note: 'Consultez toujours votre médecin traitant avant d’entreprendre des changements drastiques dans votre alimentation ou votre activité physique.',
+  },
+  it: {
+    title: 'AVVISO LEGALE E DISCLAIMER MEDICO:',
+    body: 'NelHealthCoach offre orientamento educativo su stile di vita e benessere. Piani nutrizionali, suggerimenti di integrazione e routine di esercizio assistiti da intelligenza artificiale non costituiscono diagnosi o prescrizione medica.',
+    note: 'Consulta sempre il tuo medico prima di apportare cambiamenti drastici alla tua alimentazione o attività fisica.',
+  },
+  pt: {
+    title: 'AVISO LEGAL E ISENÇÃO DE RESPONSABILIDADE MÉDICA:',
+    body: 'NelHealthCoach oferece orientação educativa em hábitos de vida e bem-estar. Planos nutricionais, suplementação e rotinas de treino gerados ou assistidos por inteligência artificial não constituem diagnóstico ou prescrição médica.',
+    note: 'Consulte sempre o seu médico antes de realizar alterações drásticas na sua alimentação ou atividade física.',
+  },
+  de: {
+    title: 'RECHTLICHER HINWEIS UND MEDIZINISCHER HAFTUNGSAUSSCHLUSS:',
+    body: 'NelHealthCoach bietet pädagogische Orientierung für Lebensstil und Wohlbefinden. KI-unterstützte Ernährungspläne, Nahrungsergänzungsvorschläge und Trainingsroutinen stellen weder eine medizinische Diagnose noch eine Verordnung dar.',
+    note: 'Konsultieren Sie stets Ihren Arzt, bevor Sie grundlegende Änderungen an Ihrer Ernährung oder körperlichen Betätigung vornehmen.',
+  },
+};
+function buildDisclaimer(doc: PDFKit.PDFDocument, startY: number, lang = 'es'): number {
+  doc.y = checkSpace(doc, startY, 70);
   const startBoxY = doc.y;
   
-  const txt1 = 'IMPORTANTE: Las presentes recomendaciones no son un substituto a las consultas médicas profesionales.';
-  const txt2 = 'Consultar con un médico y/o profesional de la salud de confianza previamente.';
+  const disc = MEDICAL_LEGAL_DISCLAIMER[lang] || MEDICAL_LEGAL_DISCLAIMER['es'];
+  const txt1 = disc.title;
+  const txt2 = disc.body;
+  const txt3 = disc.note;
   
   doc.font('Helvetica-Bold').fontSize(8.5);
-  const h1 = doc.heightOfString(txt1, { width: USABLE_WIDTH - 20 });
-  doc.font('Helvetica').fontSize(8.5);
-  const h2 = doc.heightOfString(txt2, { width: USABLE_WIDTH - 20 });
+  const h1 = doc.heightOfString(txt1, { width: USABLE_WIDTH - 24 });
+  doc.font('Helvetica').fontSize(7.5);
+  const h2 = doc.heightOfString(txt2, { width: USABLE_WIDTH - 24 });
+  doc.font('Helvetica-Oblique').fontSize(7.5);
+  const h3 = doc.heightOfString(txt3, { width: USABLE_WIDTH - 24 });
   
-  const blockH = h1 + h2 + 20; 
+  const blockH = h1 + h2 + h3 + 22; 
   
-  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 4).fillColor('#FFF9C4').fill().restore();
-  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 4).strokeColor('#FBC02D').lineWidth(1).stroke().restore();
+  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 5).fillColor('#FFF9C4').fill().restore();
+  doc.save().roundedRect(MARGIN, startBoxY, USABLE_WIDTH, blockH, 5).strokeColor('#FBC02D').lineWidth(1).stroke().restore();
 
-  doc.y = startBoxY + 8;
-  doc.save().fillColor('#E65100').font('Helvetica-Bold').fontSize(8.5);
-  doc.text(txt1, MARGIN + 10, doc.y, { width: USABLE_WIDTH - 20, align: 'center' });
-  doc.font('Helvetica').fillColor('#E65100').fontSize(8.5);
-  doc.text(txt2, MARGIN + 10, doc.y + 2, { width: USABLE_WIDTH - 20, align: 'center' });
+  doc.y = startBoxY + 7;
+  doc.save().fillColor('#B71C1C').font('Helvetica-Bold').fontSize(8);
+  doc.text(txt1, MARGIN + 12, doc.y, { width: USABLE_WIDTH - 24, align: 'center' });
+  doc.y += 3;
+  doc.font('Helvetica').fillColor('#424242').fontSize(7.5);
+  doc.text(txt2, MARGIN + 12, doc.y, { width: USABLE_WIDTH - 24, align: 'justify' });
+  doc.y += 3;
+  doc.font('Helvetica-BoldOblique').fillColor('#C62828').fontSize(7.5);
+  doc.text(txt3, MARGIN + 12, doc.y, { width: USABLE_WIDTH - 24, align: 'center' });
   doc.restore();
 
-  return startBoxY + blockH + 20;
+  return startBoxY + blockH + 18;
 }
 
 function buildSummarySection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
@@ -1079,7 +1120,7 @@ export function generateRecommendationPDF(raw_data: PDFRecommendationData): Prom
       
       // -- SECCIÓN 1: Portada Oficial, Disclaimer, Resumen y Visión
       doc.y = buildOfficialCover(doc, data, doc.y);
-      doc.y = buildDisclaimer(doc, doc.y);
+      doc.y = buildDisclaimer(doc, doc.y, data.client?.language || "es");
       doc.y = buildSummarySection(doc, data, doc.y);
       doc.y = buildVisionSection(doc, data, doc.y);
       

@@ -97,6 +97,13 @@ export const clientFormSchema = z.object({
   contractAccepted: z.boolean().default(false),
   contractVersion: z.string().optional(),
   coachId: z.string().optional(),
+  // RGPD Art. 9 & Legal Compliance Consents
+  healthDataConsent: z.boolean().default(false),
+  termsAndPrivacyConsent: z.boolean().default(false),
+  immediateServiceConsent: z.boolean().default(false),
+  marketingConsent: z.boolean().default(false),
+  consentTimestamp: z.string().optional(),
+  consentPolicyVersion: z.string().optional(),
 });
 
 export type ClientFormInput = z.infer<typeof clientFormSchema>;

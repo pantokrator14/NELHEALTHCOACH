@@ -81,8 +81,11 @@ export default function TrialVerifyCard() {
               <p className="text-gray-600 text-sm mb-4">
                 {shownMessage}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 mb-1">
                 {t('trial.verifyCard.refundNote')}
+              </p>
+              <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 mt-2 text-left leading-relaxed">
+                ℹ️ {t('trial.verifyCard.trialTermsNote')}
               </p>
             </>
           )}
@@ -101,6 +104,11 @@ export default function TrialVerifyCard() {
                 {shownMessage}
               </p>
 
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3 text-left">
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  ℹ️ {t('trial.verifyCard.trialTermsNote')}
+                </p>
+              </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-left">
                 <p className="text-xs text-amber-700 font-medium mb-1">
                   📧 Revisa tu correo electrónico

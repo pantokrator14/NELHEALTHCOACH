@@ -5,6 +5,21 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 const en = {
+    cookieBanner: {
+      title: 'Cookie Management & Privacy',
+      description: 'We use essential technical cookies to ensure platform functionality and, with your consent, analytical cookies to improve our educational services. You can accept all, reject non-essential, or customize your preferences.',
+      acceptAll: 'Accept all',
+      rejectNonEssential: 'Reject non-essential',
+      customize: 'Customize',
+      savePreferences: 'Save preferences',
+      essentialTitle: 'Technical Cookies (Essential)',
+      essentialDesc: 'Required for core browsing security and authenticated session access.',
+      alwaysActive: 'Always active',
+      analyticsTitle: 'Analytical Cookies & Metrics',
+      analyticsDesc: 'Allow us to understand aggregate site usage to enhance content.',
+      learnMore: 'Learn more in our Cookie Policy',
+    },
+
   common: {
     loading: 'Loading...',
     error: 'An error occurred',
@@ -61,7 +76,13 @@ const en = {
       libro: 'Secret',
       testimonios: 'Testimonials',
       contacto: 'Contact',
-      blog: 'Blog'
+      blog: 'Blog',
+      privacy: 'Privacy',
+      terms: 'Terms',
+      notice: 'Legal Notice',
+      cookies: 'Cookies',
+      refunds: 'Refunds',
+      backToHome: 'Back to Home'
     },
 
     blogPreview: {
@@ -229,9 +250,38 @@ const en = {
       objective4: 'Improve digestion',
       objective5: 'Reduce stress',
       objective6: 'Sleep better',
-      objective7: 'Other'
+      objective7: 'Other',
+            tellUsTitle: 'Tell me about yourself',
+      tellUsSubtitle: 'I would like to know your goals so we can prepare a session tailored to you.',
+      commitmentLowFeedback: 'Thank you for your honesty. Based on your current answers, an intensive 1-on-1 coaching program may be premature right now. To build sustainable habits at your own pace, we suggest exploring the articles and posts on our blog and social media.',
+      exploreBlogAndSocial: 'Explore Blog & Social Media',
+      continueWithObstacles: 'I want to try: explain my limitations',
+      obstaclesTitle: 'Your main limitations',
+      obstaclesSubtitle: 'To assess if we can help you right now, tell us what has held you back so far.',
+      obstaclesQuestion: 'What have been your biggest difficulties or limitations in achieving your goals? *',
+      obstaclesRequiredError: 'Please explain your limitations with at least 10 characters to continue',
+      contactTitle: 'Your contact details',
+      contactSubtitle: 'Enter your details to reserve your spot and pick your time on the calendar.',
+      stepBadge2: 'Step 2 of 2: Contact info',
+      step1Title: 'Do you qualify for a free session?',
+      step1Subtitle: 'Spots are limited and we look for people committed to transforming their health.',
+      commitmentQuestion: 'On a scale from 1 to 10, what is your commitment level to make real habit changes in the next 3 months?',
+      commitmentLowLabel: '1: Low',
+      commitmentHighLabel: '10: Fully committed',
+      commitmentQualified: '✨ Great commitment! You have the right mindset to make the most of this 1-on-1 session.',
+      commitmentNotQualified: '💡 Thank you for your honesty. Based on your current answers, an intensive 1-on-1 coaching program may be premature right now. To make the most of your time and build healthy habits at your own pace, we recommend starting with our free Blog guides and articles.',
+      obstacleLabel: 'What has been your biggest obstacle to reaching your goal so far? *',
+      obstaclePlaceholder: 'E.g.: Lack of consistency, yo-yo dieting, evening cravings...',
+      obstacleRequiredError: 'Please briefly describe your biggest obstacle (minimum 5 characters)',
+      exploreBlog: 'Explore Blog articles',
+      backButton: 'Back',
+      nextButton: 'Continue to next step',
+      step2Title: 'Almost done! Confirm your details',
+      step2Subtitle: 'We will reserve your spot and you can pick your preferred time on the calendar.',
+      selectCommitmentError: 'Please select your commitment level to continue',
+      selectedCommitment: 'Commitment level',
     },
-    footer: {
+footer: {
       rights: 'All rights reserved.',
       privacy: 'Privacy Policy',
       terms: 'Terms of Service',
@@ -242,6 +292,9 @@ const en = {
       description: 'Transforming lives through integral health and conscious nutrition.',
       legal: 'Legal',
       legalNotice: 'Legal Notice',
+      refunds: 'Refunds & Cancellation',
+      cookies: 'Cookie Policy',
+      medicalDisclaimer: 'NelHealthCoach provides educational guidance on lifestyle and wellness habits. Nutritional plans, supplementation suggestions, and exercise routines generated or assisted by artificial intelligence do not constitute medical diagnosis, prescription, or clinical treatment. Always consult your physician before making drastic changes to your diet or physical activity.',
       spanishSupport: 'Spanish Support',
       englishSupport: 'English Support',
       copyright: '© 2025 NELHEALTHCOACH. All rights reserved.'
@@ -312,6 +365,21 @@ const en = {
 };
 
 const es = {
+    cookieBanner: {
+      title: 'Gestión de Cookies y Privacidad',
+      description: 'Utilizamos cookies técnicas necesarias para el funcionamiento de la plataforma y, con tu consentimiento, analíticas para optimizar nuestros servicios. Puedes aceptar todas, rechazar las no esenciales o personalizar tus opciones.',
+      acceptAll: 'Aceptar todas',
+      rejectNonEssential: 'Rechazar no esenciales',
+      customize: 'Configurar',
+      savePreferences: 'Guardar preferencias',
+      essentialTitle: 'Cookies Técnicas (Necesarias)',
+      essentialDesc: 'Imprescindibles para el funcionamiento seguro de la plataforma y sesiones.',
+      alwaysActive: 'Siempre activas',
+      analyticsTitle: 'Cookies Analíticas y Medición',
+      analyticsDesc: 'Nos permiten entender el uso global del sitio para mejorar los contenidos.',
+      learnMore: 'Más información en nuestra Política de Cookies',
+    },
+
   common: {
     loading: 'Cargando...',
     error: 'Ocurrió un error',
@@ -368,7 +436,13 @@ const es = {
       libro: 'Secreto',
       testimonios: 'Testimonios',
       contacto: 'Contacto',
-      blog: 'Blog'
+      blog: 'Blog',
+      privacy: 'Privacidad',
+      terms: 'Términos',
+      notice: 'Aviso Legal',
+      cookies: 'Cookies',
+      refunds: 'Reembolsos',
+      backToHome: 'Volver al Inicio'
     },
 
     blogPreview: {
@@ -536,9 +610,38 @@ const es = {
       objective4: 'Mejorar digestión',
       objective5: 'Reducir estrés',
       objective6: 'Dormir mejor',
-      objective7: 'Otro'
+      objective7: 'Otro',
+            tellUsTitle: 'Cuéntame sobre ti',
+      tellUsSubtitle: 'Me gustaría conocer tus metas y objetivos para preparar una sesión adaptada a ti.',
+      commitmentLowFeedback: 'Gracias por tu honestidad. Basado en tus respuestas actuales, este momento puede ser prematuro para un proceso 1 a 1 intensivo. Para construir hábitos sostenibles a tu ritmo, te sugerimos comenzar explorando los artículos y publicaciones de nuestro blog y en nuestras redes sociales.',
+      exploreBlogAndSocial: 'Explorar Blog y Redes Sociales',
+      continueWithObstacles: 'Quiero intentarlo: explicar mis limitantes',
+      obstaclesTitle: 'Tus principales limitantes',
+      obstaclesSubtitle: 'Para evaluar si podemos ayudarte en este momento, cuéntanos qué te ha frenado hasta ahora.',
+      obstaclesQuestion: '¿Cuáles han sido tus principales limitantes o dificultades para cumplir tus objetivos? *',
+      obstaclesRequiredError: 'Por favor cuéntanos tus limitantes con al menos 10 caracteres para continuar',
+      contactTitle: 'Tus datos de contacto',
+      contactSubtitle: 'Ingresa tus datos para reservar tu cupo y seleccionar tu horario en el calendario.',
+      stepBadge2: 'Paso 2 de 2: Datos de contacto',
+      step1Title: '¿Calificas para una sesión gratuita?',
+      step1Subtitle: 'Los cupos son limitados y buscamos personas comprometidas a transformar su salud.',
+      commitmentQuestion: 'En una escala del 1 al 10, ¿cuál es tu nivel de compromiso para realizar cambios reales en tus hábitos en los próximos 3 meses?',
+      commitmentLowLabel: '1: Poco',
+      commitmentHighLabel: '10: Totalmente decidido/a',
+      commitmentQualified: '✨ ¡Excelente compromiso! Tienes la mentalidad necesaria para aprovechar esta sesión al máximo.',
+      commitmentNotQualified: '💡 Gracias por tu honestidad. Basado en tus respuestas actuales, este momento puede ser prematuro para un proceso 1 a 1 intensivo. Para aprovechar mejor tu tiempo y construir hábitos sostenibles a tu ritmo, te sugerimos comenzar explorando los artículos y guías de nuestro Blog gratuito.',
+      obstacleLabel: '¿Qué es lo que más te ha impedido alcanzar tu objetivo hasta ahora? *',
+      obstaclePlaceholder: 'Ej: Falta de constancia, efecto rebote en dietas pasadas, ansiedad por las noches...',
+      obstacleRequiredError: 'Por favor cuéntanos brevemente tu mayor obstáculo (mínimo 5 caracteres)',
+      exploreBlog: 'Explorar artículos del Blog',
+      backButton: 'Atrás',
+      nextButton: 'Continuar al siguiente paso',
+      step2Title: '¡Casi listo! Confirma tus datos',
+      step2Subtitle: 'Reservaremos tu cupo y podrás seleccionar tu horario en el calendario.',
+      selectCommitmentError: 'Por favor selecciona tu nivel de compromiso para continuar',
+      selectedCommitment: 'Nivel de compromiso',
     },
-    footer: {
+footer: {
       rights: 'Todos los derechos reservados.',
       privacy: 'Política de Privacidad',
       terms: 'Términos de Servicio',
@@ -549,6 +652,9 @@ const es = {
       description: 'Transformando vidas a través de la salud integral y la nutrición consciente.',
       legal: 'Legal',
       legalNotice: 'Aviso legal',
+      refunds: 'Reembolsos y Desistimiento',
+      cookies: 'Política de Cookies',
+      medicalDisclaimer: 'NelHealthCoach ofrece orientación educativa en hábitos de vida y bienestar. Los planes nutricionales, sugerencias de suplementación y rutinas de ejercicio generados o asistidos por inteligencia artificial no constituyen diagnóstico, prescripción médica ni tratamiento clínico. Consulte siempre a su médico antes de realizar cambios drásticos en su alimentación o actividad física.',
       spanishSupport: 'Asistencia en español',
       englishSupport: 'Asistencia en inglés',
       copyright: '© 2025 NELHEALTHCOACH. Todos los derechos reservados.'
@@ -619,6 +725,21 @@ const es = {
 };
 
 const fr = {
+    cookieBanner: {
+      title: 'Gestion des Cookies et Confidentialité',
+      description: 'Nous utilisons des cookies techniques nécessaires au fonctionnement du site et, avec votre accord, des cookies analytiques. Vous pouvez tout accepter, refuser les non-essentiels ou personnaliser vos choix.',
+      acceptAll: 'Tout accepter',
+      rejectNonEssential: 'Refuser les non-essentiels',
+      customize: 'Personnaliser',
+      savePreferences: 'Enregistrer',
+      essentialTitle: 'Cookies Techniques (Nécessaires)',
+      essentialDesc: 'Indispensables pour la navigation sécurisée et les sessions.',
+      alwaysActive: 'Toujours actifs',
+      analyticsTitle: 'Cookies Analytiques',
+      analyticsDesc: 'Permettent de mesurer l’audience globale du site.',
+      learnMore: 'En savoir plus dans notre Politique de Cookies',
+    },
+
   common: {
     loading: 'Chargement...',
     error: "Une erreur est survenue",
@@ -670,12 +791,19 @@ const fr = {
   landing: {
     nav: {
       home: 'Accueil',
-      metodo: 'Methode',
-      sobreMi: 'A Propos',
+      inicio: 'Accueil',
+      metodo: 'Méthode',
+      sobreMi: 'À Propos',
       libro: 'Secret',
-      testimonios: 'Temoignages',
+      testimonios: 'Témoignages',
       contacto: 'Contact',
-      blog: 'Blog'
+      blog: 'Blog',
+      privacy: 'Confidentialité',
+      terms: 'Conditions',
+      notice: 'Mentions Légales',
+      cookies: 'Cookies',
+      refunds: 'Remboursements',
+      backToHome: 'Retour à l’accueil'
     },
 
     blogPreview: {
@@ -844,9 +972,38 @@ const fr = {
       objective4: 'Ameliorer la digestion',
       objective5: 'Reduire le stress',
       objective6: 'Dormir mieux',
-      objective7: 'Autre'
+      objective7: 'Autre',
+            tellUsTitle: 'Parlez-moi de vous',
+      tellUsSubtitle: 'J’aimerais connaître vos objectifs afin de préparer une séance sur mesure pour vous.',
+      commitmentLowFeedback: 'Merci pour votre franchise. D’après vos réponses, un accompagnement intensif n’est peut-être pas optimal pour l’instant. Pour progresser à votre propre rythme, nous vous conseillons de découvrir les articles et publications de notre blog et sur nos réseaux sociaux.',
+      exploreBlogAndSocial: 'Explorer le Blog et les Réseaux',
+      continueWithObstacles: 'Je souhaite essayer : expliquer mes freins',
+      obstaclesTitle: 'Vos principaux freins',
+      obstaclesSubtitle: 'Pour évaluer si nous pouvons vous aider, dites-nous ce qui vous a freiné jusqu’à présent.',
+      obstaclesQuestion: 'Quelles ont été vos principales difficultés ou limites pour atteindre vos objectifs ? *',
+      obstaclesRequiredError: 'Veuillez expliquer vos freins avec au moins 10 caractères pour continuer',
+      contactTitle: 'Vos coordonnées',
+      contactSubtitle: 'Indiquez vos coordonnées pour réserver votre place et choisir votre créneau.',
+      stepBadge2: 'Étape 2 sur 2 : Coordonnées',
+      step1Title: 'Êtes-vous éligible à une séance gratuite ?',
+      step1Subtitle: 'Les places sont limitées et nous recherchons des personnes engagées à transformer leur santé.',
+      commitmentQuestion: 'Sur une échelle de 1 à 10, quel est votre niveau d’engagement pour changer vos habitudes dans les 3 prochains mois ?',
+      commitmentLowLabel: '1 : Faible',
+      commitmentHighLabel: '10 : Totalement déterminé(e)',
+      commitmentQualified: '✨ Excellent engagement ! Vous avez l’état d’esprit idéal pour profiter de cette séance.',
+      commitmentNotQualified: '💡 Merci pour votre franchise. D’après vos réponses, un accompagnement intensif n’est peut-être pas optimal pour l’instant. Pour progresser à votre propre rythme, nous vous conseillons de découvrir les articles et guides gratuits de notre Blog.',
+      obstacleLabel: 'Quel a été votre plus grand obstacle pour atteindre votre objectif jusqu’à présent ? *',
+      obstaclePlaceholder: 'Ex : Manque de régularité, effet yoyo des régimes passés, grignotages le soir...',
+      obstacleRequiredError: 'Veuillez décrire brièvement votre principal obstacle (au moins 5 caractères)',
+      exploreBlog: 'Découvrir les articles du Blog',
+      backButton: 'Retour',
+      nextButton: 'Passer à l’étape suivante',
+      step2Title: 'Presque prêt ! Confirmez vos coordonnées',
+      step2Subtitle: 'Nous réserverons votre place et vous pourrez choisir votre créneau dans le calendrier.',
+      selectCommitmentError: 'Veuillez sélectionner votre niveau d’engagement pour continuer',
+      selectedCommitment: 'Niveau d’engagement',
     },
-    footer: {
+footer: {
       rights: 'Tous droits reserves.',
       privacy: 'Politique de Confidentialite',
       terms: 'Conditions d\'Utilisation',
@@ -857,6 +1014,9 @@ const fr = {
       description: 'Transformant des vies grace a la sante integrale et la nutrition consciente.',
       legal: 'Mentions legales',
       legalNotice: 'Avis legal',
+      refunds: 'Remboursements et Rétractation',
+      cookies: 'Politique de Cookies',
+      medicalDisclaimer: 'NelHealthCoach fournit des conseils éducatifs sur les habitudes de vie et le bien-être. Les plans nutritionnels et programmes d’exercice assistés par l’IA ne constituent ni un diagnostic ni une prescription médicale. Consultez toujours votre médecin.',
       spanishSupport: 'Support en francais',
       englishSupport: 'Support en anglais',
       copyright: '© 2025 NELHEALTHCOACH. Tous droits reserves.'
@@ -927,6 +1087,21 @@ const fr = {
 };
 
 const it = {
+    cookieBanner: {
+      title: 'Gestione Cookie e Privacy',
+      description: 'Utilizziamo cookie tecnici necessari e, con il tuo consenso, analitici per ottimizzare i servizi. Puoi accettare tutti, rifiutare i non essenziali o personalizzare.',
+      acceptAll: 'Accetta tutti',
+      rejectNonEssential: 'Rifiuta non essenziali',
+      customize: 'Personalizza',
+      savePreferences: 'Salva preferenze',
+      essentialTitle: 'Cookie Tecnici (Necessari)',
+      essentialDesc: 'Indispensabili per sicurezza e navigazione del sito.',
+      alwaysActive: 'Sempre attivi',
+      analyticsTitle: 'Cookie Analitici',
+      analyticsDesc: 'Consentono di analizzare l’uso aggregato del sito.',
+      learnMore: 'Maggiori informazioni nella Cookie Policy',
+    },
+
   common: {
     loading: 'Caricamento...',
     error: "Si e verificato un errore",
@@ -978,12 +1153,19 @@ const it = {
   landing: {
     nav: {
       home: 'Home',
+      inicio: 'Home',
       metodo: 'Metodo',
       sobreMi: 'Su di Me',
       libro: 'Segreto',
       testimonios: 'Testimonianze',
       contacto: 'Contatto',
-      blog: 'Blog'
+      blog: 'Blog',
+      privacy: 'Privacy',
+      terms: 'Termini',
+      notice: 'Note Legali',
+      cookies: 'Cookie',
+      refunds: 'Rimborsi',
+      backToHome: 'Torna alla Home'
     },
 
     blogPreview: {
@@ -1152,9 +1334,38 @@ const it = {
       objective4: 'Migliorare digestione',
       objective5: 'Ridurre stress',
       objective6: 'Dormire meglio',
-      objective7: 'Altro'
+      objective7: 'Altro',
+            tellUsTitle: 'Parlami di te',
+      tellUsSubtitle: 'Vorrei conoscere i tuoi obiettivi per preparare una sessione su misura per te.',
+      commitmentLowFeedback: 'Grazie per la tua sincerità. In base alle tue risposte attuali, un percorso intensivo 1 a 1 potrebbe essere prematuro. Per costruire abitudini sostenibili al tuo ritmo, ti suggeriamo di consultare gli articoli del nostro blog e i nostri social network.',
+      exploreBlogAndSocial: 'Esplora Blog e Social Media',
+      continueWithObstacles: 'Voglio provare: spiega i miei limiti',
+      obstaclesTitle: 'I tuoi ostacoli principali',
+      obstaclesSubtitle: 'Per valutare se possiamo aiutarti adesso, spiegaci cosa ti ha frenato finora.',
+      obstaclesQuestion: 'Quali sono state le tue maggiori difficoltà o limitazioni nel raggiungere i tuoi obiettivi? *',
+      obstaclesRequiredError: 'Spiega i tuoi ostacoli con almeno 10 caratteri per continuare',
+      contactTitle: 'I tuoi dati di contatto',
+      contactSubtitle: 'Inserisci i tuoi dati per riservare il posto e scegliere il tuo orario nel calendario.',
+      stepBadge2: 'Passo 2 di 2: Contatto',
+      step1Title: 'Sei idoneo per una sessione gratuita?',
+      step1Subtitle: 'I posti sono limitati e cerchiamo persone determinate a trasformare la propria salute.',
+      commitmentQuestion: 'Su una scala da 1 a 10, qual è il tuo livello di impegno per cambiare abitudini nei prossimi 3 mesi?',
+      commitmentLowLabel: '1: Basso',
+      commitmentHighLabel: '10: Pienamente determinato/a',
+      commitmentQualified: '✨ Ottimo impegno! Hai la giusta mentalità per sfruttare al meglio questa sessione.',
+      commitmentNotQualified: '💡 Grazie per la tua sincerità. In base alle tue risposte attuali, un percorso intensivo 1 a 1 potrebbe essere prematuro. Per iniziare al tuo ritmo, ti suggeriamo di consultare gli articoli e le guide gratuite del nostro Blog.',
+      obstacleLabel: 'Qual è stato il tuo ostacolo principale nel raggiungere il tuo obiettivo finora? *',
+      obstaclePlaceholder: 'Es: Mancanza di costanza, effetto yo-yo delle diete passate, fame nervosa serale...',
+      obstacleRequiredError: 'Descrivi brevemente il tuo ostacolo principale (almeno 5 caratteri)',
+      exploreBlog: 'Esplora gli articoli del Blog',
+      backButton: 'Indietro',
+      nextButton: 'Continua al passaggio successivo',
+      step2Title: 'Quasi fatto! Conferma i tuoi dati',
+      step2Subtitle: 'Riserviamo il tuo posto e potrai scegliere l’orario nel calendario.',
+      selectCommitmentError: 'Seleziona il tuo livello di impegno per continuare',
+      selectedCommitment: 'Livello di impegno',
     },
-    footer: {
+footer: {
       rights: 'Tutti i diritti riservati.',
       privacy: 'Privacy Policy',
       terms: 'Termini di Servizio',
@@ -1165,6 +1376,9 @@ const it = {
       description: 'Trasformando vite attraverso la salute integrale e la nutrizione consapevole.',
       legal: 'Note legali',
       legalNotice: 'Avviso legale',
+      refunds: 'Rimborsi e Recesso',
+      cookies: 'Politica sui Cookie',
+      medicalDisclaimer: 'NelHealthCoach offre orientamento educativo su stile di vita e benessere. I piani nutrizionali e le routine di allenamento assistite da IA non costituiscono diagnosi o prescrizione medica. Consulta sempre il tuo medico.',
       spanishSupport: 'Supporto in italiano',
       englishSupport: 'Supporto in inglese',
       copyright: '© 2025 NELHEALTHCOACH. Tutti i diritti riservati.'
@@ -1235,6 +1449,21 @@ const it = {
 };
 
 const pt = {
+    cookieBanner: {
+      title: 'Gestão de Cookies e Privacidade',
+      description: 'Utilizamos cookies técnicos essenciais e, com o seu consentimento, analíticos para otimizar os serviços. Você pode aceitar todos, recusar não essenciais ou personalizar.',
+      acceptAll: 'Aceitar todos',
+      rejectNonEssential: 'Recusar não essenciais',
+      customize: 'Personalizar',
+      savePreferences: 'Salvar preferências',
+      essentialTitle: 'Cookies Técnicos (Necessários)',
+      essentialDesc: 'Essenciais para o funcionamento seguro e sessões.',
+      alwaysActive: 'Sempre ativos',
+      analyticsTitle: 'Cookies Analíticos',
+      analyticsDesc: 'Permitem entender o uso agregado do site.',
+      learnMore: 'Saiba mais na nossa Política de Cookies',
+    },
+
   common: {
     loading: 'Carregando...',
     error: 'Ocorreu um erro',
@@ -1285,13 +1514,21 @@ const pt = {
   },
   landing: {
     nav: {
-      home: 'Inicio',
-      metodo: 'Metodo',
+      home: 'Início',
+      inicio: 'Início',
+      metodo: 'Método',
       sobreMi: 'Sobre Mim',
       libro: 'Segredo',
       testimonios: 'Depoimentos',
       contato: 'Contato',
-      blog: 'Blog'
+      contacto: 'Contato',
+      blog: 'Blog',
+      privacy: 'Privacidade',
+      terms: 'Termos',
+      notice: 'Aviso Legal',
+      cookies: 'Cookies',
+      refunds: 'Reembolsos',
+      backToHome: 'Voltar ao Início'
     },
 
     blogPreview: {
@@ -1460,9 +1697,38 @@ const pt = {
       objective4: 'Melhorar digestao',
       objective5: 'Reduzir estresse',
       objective6: 'Dormir melhor',
-      objective7: 'Outro'
+      objective7: 'Outro',
+            tellUsTitle: 'Conte-me sobre você',
+      tellUsSubtitle: 'Gostaria de conhecer suas metas e objetivos para preparar uma sessão adaptada a você.',
+      commitmentLowFeedback: 'Obrigado pela sua sinceridade. Com base nas suas respostas, uma mentoria intensiva 1 a 1 pode ser prematura agora. Para construir hábitos sustentáveis no seu ritmo, sugerimos explorar os artigos e publicações do nosso blog e redes sociais.',
+      exploreBlogAndSocial: 'Explorar Blog e Redes Sociais',
+      continueWithObstacles: 'Quero tentar: explicar minhas limitações',
+      obstaclesTitle: 'Suas principais limitações',
+      obstaclesSubtitle: 'Para avaliar se podemos te ajudar agora, conte-nos o que te impediu até hoje.',
+      obstaclesQuestion: 'Quais têm sido suas principais dificuldades ou limitações para atingir seus objetivos? *',
+      obstaclesRequiredError: 'Por favor, explique suas limitações com pelo menos 10 caracteres para continuar',
+      contactTitle: 'Seus dados de contato',
+      contactSubtitle: 'Insira seus dados para reservar sua vaga e escolher seu horário no calendário.',
+      stepBadge2: 'Passo 2 de 2: Contato',
+      step1Title: 'Você se qualifica para uma sessão gratuita?',
+      step1Subtitle: 'As vagas são limitadas e buscamos pessoas comprometidas a transformar sua saúde.',
+      commitmentQuestion: 'Em uma escala de 1 a 10, qual é o seu nível de compromisso para mudar seus hábitos nos próximos 3 meses?',
+      commitmentLowLabel: '1: Pouco',
+      commitmentHighLabel: '10: Totalmente decidido(a)',
+      commitmentQualified: '✨ Excelente compromisso! Você tem a mentalidade ideal para aproveitar ao máximo esta sessão.',
+      commitmentNotQualified: '💡 Obrigado pela sua sinceridade. Com base nas suas respostas, uma mentoria intensiva 1 a 1 pode ser prematura agora. Para avançar no seu próprio ritmo, recomendamos começar explorando os artigos e guias gratuitos do nosso Blog.',
+      obstacleLabel: 'Qual tem sido seu maior obstáculo para alcançar seu objetivo até agora? *',
+      obstaclePlaceholder: 'Ex: Falta de consistência, efeito sanfona em dietas passadas, ansiedade noturna...',
+      obstacleRequiredError: 'Por favor, descreva brevemente seu maior obstáculo (mínimo 5 caracteres)',
+      exploreBlog: 'Explorar artigos do Blog',
+      backButton: 'Voltar',
+      nextButton: 'Continuar para o próximo passo',
+      step2Title: 'Quase pronto! Confirme seus dados',
+      step2Subtitle: 'Reservaremos sua vaga e você poderá escolher seu horário no calendário.',
+      selectCommitmentError: 'Por favor selecione seu nível de compromisso para continuar',
+      selectedCommitment: 'Nível de compromisso',
     },
-    footer: {
+footer: {
       rights: 'Todos os direitos reservados.',
       privacy: 'Politica de Privacidade',
       terms: 'Termos de Servico',
@@ -1473,6 +1739,9 @@ const pt = {
       description: 'Transformando vidas atraves da saude integral e nutricao consciente.',
       legal: 'Legal',
       legalNotice: 'Aviso Legal',
+      refunds: 'Reembolsos e Cancelamento',
+      cookies: 'Política de Cookies',
+      medicalDisclaimer: 'NelHealthCoach oferece orientação educativa em hábitos de vida e bem-estar. Os planos nutricionais e treinos assistidos por inteligência artificial não constituem diagnóstico ou prescrição médica. Consulte sempre o seu médico.',
       spanishSupport: 'Suporte em Portugues',
       englishSupport: 'Suporte em Ingles',
       copyright: '© 2025 NELHEALTHCOACH. Todos os direitos reservados.'
@@ -1543,6 +1812,21 @@ const pt = {
 };
 
 const de = {
+    cookieBanner: {
+      title: 'Cookie-Einstellungen & Datenschutz',
+      description: 'Wir verwenden essenzielle Cookies für den Betrieb der Plattform sowie mit Ihrer Einwilligung analytische Cookies. Sie können alle akzeptieren, nicht essenzielle ablehnen oder anpassen.',
+      acceptAll: 'Alle akzeptieren',
+      rejectNonEssential: 'Nicht essenzielle ablehnen',
+      customize: 'Anpassen',
+      savePreferences: 'Einstellungen speichern',
+      essentialTitle: 'Technische Cookies (Erforderlich)',
+      essentialDesc: 'Notwendig für Sicherheit und grundlegende Plattformfunktionen.',
+      alwaysActive: 'Immer aktiv',
+      analyticsTitle: 'Analytische Cookies',
+      analyticsDesc: 'Ermöglichen die anonyme Analyse der Plattformnutzung.',
+      learnMore: 'Mehr erfahren in unserer Cookie-Richtlinie',
+    },
+
   common: {
     loading: 'Laden...',
     error: 'Ein Fehler ist aufgetreten',
@@ -1594,12 +1878,19 @@ const de = {
   landing: {
     nav: {
       home: 'Startseite',
+      inicio: 'Startseite',
       metodo: 'Methode',
-      sobreMi: 'Uber Mich',
+      sobreMi: 'Über Mich',
       libro: 'Geheimnis',
-      testimonios: 'Testimonials',
+      testimonios: 'Erfahrungsberichte',
       contacto: 'Kontakt',
-      blog: 'Blog'
+      blog: 'Blog',
+      privacy: 'Datenschutz',
+      terms: 'AGB',
+      notice: 'Impressum',
+      cookies: 'Cookies',
+      refunds: 'Rückerstattung',
+      backToHome: 'Zurück zur Startseite'
     },
 
     blogPreview: {
@@ -1768,9 +2059,38 @@ const de = {
       objective4: 'Verdauung verbessern',
       objective5: 'Stress reduzieren',
       objective6: 'Besser schlafen',
-      objective7: 'Andere'
+      objective7: 'Andere',
+            tellUsTitle: 'Erzähl mir von dir',
+      tellUsSubtitle: 'Ich möchte deine Ziele kennenlernen, um eine maßgeschneiderte Session vorzubereiten.',
+      commitmentLowFeedback: 'Danke für deine Offenheit. Basierend auf deinen Antworten ist ein intensives 1:1-Coaching im Moment vielleicht noch verfrüht. Um in deinem eigenen Tempo nachhaltige Gewohnheiten aufzubauen, empfehlen wir dir die Beiträge in unserem Blog und auf Social Media.',
+      exploreBlogAndSocial: 'Blog & Social Media entdecken',
+      continueWithObstacles: 'Ich möchte es versuchen: meine Hürden erklären',
+      obstaclesTitle: 'Deine größten Hürden',
+      obstaclesSubtitle: 'Um zu prüfen, ob wir dir helfen können, erzähle uns, was dich bisher gebremst hat.',
+      obstaclesQuestion: 'Was waren deine größten Schwierigkeiten oder Hürden beim Erreichen deiner Ziele? *',
+      obstaclesRequiredError: 'Bitte beschreibe deine Hürden mit mindestens 10 Zeichen, um fortzufahren',
+      contactTitle: 'Deine Kontaktdaten',
+      contactSubtitle: 'Gib deine Daten ein, um deinen Platz zu sichern und deinen Termin zu wählen.',
+      stepBadge2: 'Schritt 2 von 2: Kontaktdaten',
+      step1Title: 'Qualifizierst du dich für eine kostenlose Session?',
+      step1Subtitle: 'Die Plätze sind begrenzt und wir suchen entschlossene Menschen, die ihre Gesundheit transformieren möchten.',
+      commitmentQuestion: 'Auf einer Skala von 1 bis 10: Wie hoch ist dein Engagement, in den nächsten 3 Monaten echte Gewohnheiten zu verändern?',
+      commitmentLowLabel: '1: Gering',
+      commitmentHighLabel: '10: Voll entschlossen',
+      commitmentQualified: '✨ Großartiges Engagement! Du hast die perfekte Einstellung für diese 1:1-Session.',
+      commitmentNotQualified: '💡 Danke für deine Offenheit. Basierend auf deinen Antworten ist ein intensives 1:1-Coaching im Moment vielleicht noch verfrüht. Um in deinem eigenen Tempo nachhaltige Gewohnheiten aufzubauen, empfehlen wir dir die kostenlosen Blog-Artikel und Ratgeber.',
+      obstacleLabel: 'Was war bisher dein größtes Hindernis auf dem Weg zu deinem Ziel? *',
+      obstaclePlaceholder: 'Z.B.: Mangelnde Konsequenz, Jo-Jo-Effekt früherer Diäten, Heißhunger am Abend...',
+      obstacleRequiredError: 'Bitte beschreibe kurz dein größtes Hindernis (mindestens 5 Zeichen)',
+      exploreBlog: 'Blog-Artikel entdecken',
+      backButton: 'Zurück',
+      nextButton: 'Weiter zum nächsten Schritt',
+      step2Title: 'Fast geschafft! Bestätige deine Daten',
+      step2Subtitle: 'Wir reservieren deinen Platz und du kannst deinen Wunschtermin im Kalender wählen.',
+      selectCommitmentError: 'Bitte wähle dein Engagement-Niveau aus, um fortzufahren',
+      selectedCommitment: 'Engagement-Niveau',
     },
-    footer: {
+footer: {
       rights: 'Alle Rechte vorbehalten.',
       privacy: 'Datenschutzrichtlinie',
       terms: 'Nutzungsbedingungen',
@@ -1781,6 +2101,9 @@ const de = {
       description: 'Transformation von Leben durch ganzheitliche Gesundheit und bewusste Ernahrung.',
       legal: 'Rechtliches',
       legalNotice: 'Rechtlicher Hinweis',
+      refunds: 'Rückerstattung & Widerruf',
+      cookies: 'Cookie-Richtlinie',
+      medicalDisclaimer: 'NelHealthCoach bietet pädagogische Orientierung für Lebensstil und Wohlbefinden. KI-unterstützte Pläne stellen weder Diagnose noch ärztliche Verordnung dar. Konsultieren Sie stets Ihren Arzt vor grundlegenden Änderungen.',
       spanishSupport: 'Support auf Deutsch',
       englishSupport: 'Support auf Englisch',
       copyright: '© 2025 NELHEALTHCOACH. Alle Rechte vorbehalten.'
