@@ -119,6 +119,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="relative w-40 h-12 mx-auto">
             <Image
               src="/logo.png"
+                sizes="160px"
               alt="NELHEALTHCOACH Logo"
               fill
               style={{ objectFit: 'contain' }}

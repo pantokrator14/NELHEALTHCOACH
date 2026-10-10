@@ -1,7 +1,7 @@
 # PRD - Landing Page
 ## Documento de Requerimientos del Producto - NELHEALTHCOACH Landing
 
-**Versión:** 1.3.0  
+**Versión:** 1.4.0  
 **Fecha:** Octubre 2026  
 **Estado:** Producción / Cumplimiento Legal y Conversión Inteligente
 
@@ -21,7 +21,9 @@ La landing page de NELHEALTHCOACH es la cara pública del negocio, diseñada par
 - Formulario de captación interactivo con pre-calificación de compromiso (escala 1 a 10).
 - Presentación de metodología, servicios y biblioteca científica (Blog Preview).
 - Suite integral de páginas legales en 6 idiomas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`).
-- Navbar adaptativo dinámico para navegación legal y retorno a la portada.
+- Navbar adaptativo dinámico con botón destacado de Login al Dashboard, navegación legal contextual y retorno a la portada con un clic.
+- SEO técnico integral: robots.txt.tsx, sitemap.xml.tsx dinámico, Schema.org JSON-LD (HealthAndBeautyBusiness, LocalBusiness, Person) y canonicals.
+- Cumplimiento de accesibilidad WCAG 2.1 AA (contraste >= 4.5:1, focus-visible, emparejamiento id/htmlFor, atributos sizes en 100% de imágenes).
 - Consent Management Platform (CMP) de cookies con consentimiento previo y respeto de señales GPC.
 
 ---

@@ -21,6 +21,7 @@ const AboutSection: React.FC = () => {
             <div className="relative w-full h-96 lg:h-full">
              <Image
                src="/images/about/nelhealthcoach.jpeg"
+                sizes="(max-width: 1024px) 350px, 450px"
                alt="Manuel Martínez | NelHealthCoach"
                fill
                className="rounded-2xl shadow-2xl hover:scale-[1.02] transition-transform duration-300 object-cover"

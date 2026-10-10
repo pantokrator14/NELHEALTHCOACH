@@ -1,7 +1,7 @@
 # PRD - Dashboard
 ## Documento de Requerimientos del Producto - NELHEALTHCOACH Dashboard
 
-**Versión:** 1.3.0  
+**Versión:** 1.4.0  
 **Fecha:** Octubre 2026  
 **Estado:** Producción / Cumplimiento California AB 5, FTC & JAMS
 
@@ -19,7 +19,10 @@ El Dashboard de NELHEALTHCOACH es el centro de operaciones profesional para los 
 
 ### 1.2 Alcance
 - Panel protegido con autenticación JWT y roles.
-- Módulos de clientes, recetas, ejercicios, finanzas y perfil profesional.
+- Módulos de clientes, recetas, ejercicios, finanzas y perfil profesional con estados de carga skeleton pulsantes (Principio Anti-AI).
+- Blindaje de indexación con robots.txt (Disallow: /) y meta noindex, nofollow, noarchive.
+- Accesibilidad WCAG 2.1 AA con navegación modal por Escape, focus-visible y emparejamiento de formularios.
+- Optimización de rendimiento eliminando advertencias de Next Image con sizes="160px" en logo y cabeceras de seguridad HTTP con permisos LiveKit.
 - Flujo de registro de coaches con contrato legal blindado.
 - Salas de videollamada interactivas con transcripción asistida por Deepgram.
 - Portal de gestión de suscripciones de coaches con cancelación en un clic.

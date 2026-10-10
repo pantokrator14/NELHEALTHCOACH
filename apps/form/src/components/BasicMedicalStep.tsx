@@ -54,6 +54,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             <div className="relative w-48 h-16">
               <Image
                 src="/logo.png"
+                sizes="192px"
                 alt="NELHEALTHCOACH"
                 fill
                 className="object-contain"

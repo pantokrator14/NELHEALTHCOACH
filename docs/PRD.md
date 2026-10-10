@@ -1,7 +1,7 @@
 # Documento de Requisitos del Producto (PRD)
 ## NELHEALTHCOACH - Plataforma Integral de Coaching de Salud
 
-**Versión:** 1.3.0  
+**Versión:** 1.4.0  
 **Fecha:** Octubre 2026  
 **Autor:** Equipo de Desarrollo NELHEALTHCOACH  
 **Estado:** En desarrollo activo (desplegado en producción — Vercel Hobby)
@@ -515,9 +515,30 @@ AssessmentForm {
 - **Categoría:** Usabilidad
 - **Descripción:** Interfaz debe ser intuitiva y accesible
 - **Requisitos:**
-  - Cumplimiento WCAG 2.1 AA
-  - Diseño responsive (mobile-first)
+  - Cumplimiento estricto W3C WCAG 2.1 AA (vinculación formal de formularios id <-> htmlFor, navegación por teclado con Escape, focus-visible y ratios de contraste >= 4.5:1)
+  - Principio Anti-AI en cargas asíncronas: supresión de spinners flotantes y pantallas en blanco; reemplazo por skeletons pulsantes estructurados (animate-pulse)
+  - Diseño responsive (mobile-first) y acceso directo con botón destacado de Login en Navbar
   - Tiempo de aprendizaje < 30 minutos
+
+#### **NF-009: SEO Técnico, Indexación Selectiva y Metadatos Estructurados**
+- **ID:** NF-009
+- **Categoría:** SEO & Indexación
+- **Descripción:** Optimización integral para motores de búsqueda y blindaje de áreas privadas
+- **Requisitos:**
+  1. Indexación selectiva en robots.txt (Allow en Landing/Blog con sitemaps declarados; Disallow total con noindex/nofollow en Dashboard y Form)
+  2. Sitemaps dinámicos XML (/sitemap.xml) con fechas reales de modificación, frecuencias y soporte hreflang
+  3. Canonical tags normalizadas y absolutas, con redirecciones 301 para trailing slashes
+  4. Datos estructurados Schema.org / JSON-LD (HealthAndBeautyBusiness + LocalBusiness, Person y BlogPosting)
+
+#### **NF-010: Cabeceras de Seguridad HTTP y Optimización de Medios (Core Web Vitals)**
+- **ID:** NF-010
+- **Categoría:** Seguridad & Rendimiento Web
+- **Descripción:** Protección a nivel cabecera HTTP y optimización de carga de activos
+- **Requisitos:**
+  1. HTTP Security Headers (X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection: 1; mode=block, Referrer-Policy, HSTS y Permissions-Policy)
+  2. 100% de componentes next/image con fill equipados con atributo sizes según dimensiones del contenedor
+  3. Lazy loading y decoding async en imágenes y recursos below the fold; retención de priority exclusivo en LCP
+  4. Directiva display: swap en todas las fuentes web
   - Satisfacción de usuario (CSAT > 85%)
 
 #### **NF-008: Internacionalización**

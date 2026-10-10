@@ -1,7 +1,7 @@
 # PRD - Formulario de Evaluación y Contratación
 ## Documento de Requerimientos del Producto - NELHEALTHCOACH Form
 
-**Versión:** 1.3.0  
+**Versión:** 1.4.0  
 **Fecha:** Octubre 2026  
 **Estado:** Producción / Cumplimiento RGPD Art. 9 & Arbitraje JAMS
 
@@ -17,7 +17,9 @@ El formulario de evaluación de NELHEALTHCOACH es el punto neurálgico de onboar
 - **Nutrir el pipeline de IA multi-agente** para la generación de recomendaciones nutricionales y físicas personalizadas.
 
 ### 1.2 Alcance
-- Formulario multi-paso interactivo (6 pasos).
+- Formulario multi-paso interactivo (6 pasos) auditado bajo WCAG 2.1 AA con vinculación id <-> htmlFor en el 100% de campos y switches.
+- Bloqueo total de indexación de motores de búsqueda vía robots.txt (Disallow: /) y meta noindex, nofollow, noarchive.
+- Optimización de Core Web Vitals con atributo sizes="192px" en todos los logos e imágenes.
 - Subida segura de analíticas médicas y documentos a AWS S3.
 - Paso final de Contrato y Consentimiento con casillas desacopladas.
 - Soporte multilingüe completo (6 idiomas: ES, EN, FR, IT, PT, DE).
