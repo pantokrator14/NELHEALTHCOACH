@@ -99,10 +99,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
           <form onSubmit={handleSubmit(onSubmitWithPhoto)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-name" className="block text-sm font-medium text-blue-500 mb-2">
                   Nombre completo *
                 </label>
-                <input
+                <input id="personal-name"
                   type="text"
                   {...register('name')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -114,10 +114,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-address" className="block text-sm font-medium text-blue-500 mb-2">
                   Dirección *
                 </label>
-                <input
+                <input id="personal-address"
                   type="text"
                   {...register('address')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -129,10 +129,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-phone" className="block text-sm font-medium text-blue-500 mb-2">
                   Teléfono *
                 </label>
-                <input
+                <input id="personal-phone"
                   type="tel"
                   {...register('phone')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -144,10 +144,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-email" className="block text-sm font-medium text-blue-500 mb-2">
                   Email *
                 </label>
-                <input
+                <input id="personal-email"
                   type="email"
                   {...register('email')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -159,10 +159,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-birthDate" className="block text-sm font-medium text-blue-500 mb-2">
                   Fecha de nacimiento *
                 </label>
-                <input
+                <input id="personal-birthDate"
                   type="date"
                   {...register('birthDate')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -173,10 +173,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-gender" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.gender')} *
                 </label>
-                <select
+                <select id="personal-gender"
                   {...register('gender')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
@@ -191,10 +191,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-language" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.language')} *
                 </label>
-                <select
+                <select id="personal-language"
                   {...register('language')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
@@ -211,10 +211,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-age" className="block text-sm font-medium text-blue-500 mb-2">
                   Edad *
                 </label>
-                <input
+                <input id="personal-age"
                   type="number"
                   step="1"
                   {...register('age')}
@@ -227,10 +227,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-weight" className="block text-sm font-medium text-blue-500 mb-2">
                   Peso (kg) *
                 </label>
-                <input
+                <input id="personal-weight"
                   type="number"
                   step="any"
                   {...register('weight')}
@@ -243,10 +243,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-height" className="block text-sm font-medium text-blue-500 mb-2">
                   Talla (cm) *
                 </label>
-                <input
+                <input id="personal-height"
                   type="number"
                   step="any"
                   {...register('height')}
@@ -259,10 +259,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-maritalStatus" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.maritalStatus')} *
                 </label>
-                <select
+                <select id="personal-maritalStatus"
                   {...register('maritalStatus')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
@@ -279,10 +279,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-education" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.education')} *
                 </label>
-                <select
+                <select id="personal-education"
                   {...register('education')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
@@ -300,10 +300,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-occupation" className="block text-sm font-medium text-blue-500 mb-2">
                   Ocupación *
                 </label>
-                <input
+                <input id="personal-occupation"
                   type="text"
                   {...register('occupation')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -315,10 +315,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-bodyFatPercentage" className="block text-sm font-medium text-blue-500 mb-2">
                   Porcentaje de grasa corporal (opcional)
                 </label>
-                <input
+                <input id="personal-bodyFatPercentage"
                   type="text"
                   {...register('bodyFatPercentage')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -327,10 +327,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-weightVariation" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.weightStable')}
                 </label>
-                <select
+                <select id="personal-weightVariation"
                   {...register('weightVariation')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 >
@@ -345,10 +345,10 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-blue-500 mb-2">
+                <label htmlFor="personal-dislikedFoodsActivities" className="block text-sm font-medium text-blue-500 mb-2">
                   {t('form.foodRestrictions')}
                 </label>
-                <textarea
+                <textarea id="personal-dislikedFoodsActivities"
                   {...register('dislikedFoodsActivities')}
                   rows={3}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"

@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import Layout from '@/components/layout/Layout';
 import HeroCarousel from '@/components/sections/HeroCarousel';
 import MethodSection from '@/components/sections/MethodSection';
@@ -8,16 +9,16 @@ import BookSection from '@/components/sections/BookSection';
 // import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import ContactFormSection from '@/components/sections/ContactFormSection';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://nelhealthcoach.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nelhealthcoach.com';
 
 const schemaData = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': 'HealthAndBeautyBusiness',
+      '@type': ['HealthAndBeautyBusiness', 'LocalBusiness'],
       '@id': `${SITE_URL}/#business`,
-      name: 'NELHEALTHCOACH',
-      url: SITE_URL,
+      name: 'NelHealthCoach',
+      url: 'https://www.nelhealthcoach.com',
       logo: `${SITE_URL}/images/logo.png`,
       image: `${SITE_URL}/images/hero/hero4.jpg`,
       description: 'Programa y consultas de coaching en salud integral, nutrición consciente y hábitos saludables con enfoque personalizado.',
@@ -31,6 +32,15 @@ const schemaData = {
         postalCode: '92234',
         addressCountry: 'US',
       },
+      founder: {
+        '@type': 'Person',
+        '@id': `${SITE_URL}/#coach`,
+        name: 'Manuel Martínez',
+        jobTitle: 'Health Coach',
+        image: `${SITE_URL}/images/about/nelhealthcoach.jpeg`,
+        description: 'Coach en salud integral y nutrición consciente enfocado en bienestar y transformación de hábitos de vida.',
+      },
+      knowsAbout: ['Nutrición', 'Entrenamiento funcional', 'Hábitos de vida saludable'],
       sameAs: [
         'https://facebook.com/NELHEALTHCOACH',
         'https://instagram.com/NELHEALTHCOACH',
@@ -42,7 +52,7 @@ const schemaData = {
       '@type': 'Person',
       '@id': `${SITE_URL}/#coach`,
       name: 'Manuel Martínez',
-      jobTitle: 'Health Coach Integral',
+      jobTitle: 'Health Coach',
       worksFor: {
         '@id': `${SITE_URL}/#business`,
       },
@@ -53,21 +63,23 @@ const schemaData = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const title = 'NELHEALTHCOACH | Coaching de Salud Integral y Nutrición Consciente';
   const description = 'Transforma tu vida a través de la salud integral, nutrición consciente y hábitos saludables con Manuel Martínez, Health Coach certificado.';
   const shareImage = `${SITE_URL}/images/hero/hero4.jpg`;
+  const canonicalUrl = `${SITE_URL}${router.asPath ? router.asPath.split('?')[0] : ''}`;
 
   return (
     <>
       <Head>
         <title>{title}</title>
         <meta name="description" content={description} />
-        <link rel="canonical" href={SITE_URL} />
+        <link rel="canonical" href={canonicalUrl} />
 
         {/* Open Graph (Facebook, WhatsApp, LinkedIn) */}
         <meta property="og:site_name" content="NELHEALTHCOACH" />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={SITE_URL} />
+        <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
         <meta property="og:image" content={shareImage} />

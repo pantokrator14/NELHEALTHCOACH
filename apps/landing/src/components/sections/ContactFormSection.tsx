@@ -63,6 +63,7 @@ const ContactFormSection: React.FC = () => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsModalOpen(false);
+        setIsWaitlistOpen(false);
         setStep('intro');
       }
     };
@@ -329,7 +330,7 @@ const ContactFormSection: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setIsWaitlistOpen(true)}
-                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                   >
                     <span className="text-2xl">⏳</span>
                     <span>{t('landing.contact.waitlistButton')}</span>
@@ -342,7 +343,7 @@ const ContactFormSection: React.FC = () => {
                       setStep('intro');
                       setIsModalOpen(true);
                     }}
-                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                    className="w-full sm:w-auto px-12 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-2xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                   >
                     <span className="text-2xl">📅</span>
                     <span>{t('landing.contact.viewSchedule')}</span>
@@ -376,11 +377,11 @@ const ContactFormSection: React.FC = () => {
 
       {/* Modal conversacional y amigable */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 relative shadow-2xl my-8">
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
               aria-label={t('common.close') || 'Cerrar'}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,15 +401,16 @@ const ContactFormSection: React.FC = () => {
 
                 {/* Objetivo */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold text-blue-900 mb-1.5">
+                  <label htmlFor="contact-objective" className="block text-sm font-semibold text-blue-900 mb-1.5">
                     {t('landing.contact.mainObjective')} *
                   </label>
                   <select
+                    id="contact-objective"
                     name="objective"
                     required
                     value={formData.objective}
                     onChange={handleInputChange}
-                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 bg-white"
+                    className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 bg-white focus-visible:outline-none"
                   >
                     {objectives.map(opt => (
                       <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
@@ -417,16 +419,17 @@ const ContactFormSection: React.FC = () => {
 
                   {formData.objective === 'otro' && (
                     <div className="mt-2.5">
-                      <label className="block text-xs font-medium text-blue-700 mb-1">
+                      <label htmlFor="contact-other-objective" className="block text-xs font-medium text-blue-700 mb-1">
                         {t('landing.contact.specifyObjective')}
                       </label>
                       <input
+                        id="contact-other-objective"
                         type="text"
                         name="otherObjective"
                         value={formData.otherObjective}
                         onChange={handleInputChange}
                         placeholder={t('landing.contact.objectivePlaceholder')}
-                        className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 text-sm"
+                        className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 text-sm focus-visible:outline-none"
                         required
                       />
                     </div>
@@ -438,7 +441,7 @@ const ContactFormSection: React.FC = () => {
                   <label className="block text-sm font-semibold text-blue-900 mb-1.5">
                     {t('landing.contact.commitmentQuestion')} *
                   </label>
-                  <p className="text-xs text-gray-500 mb-2.5">
+                  <p className="text-xs text-gray-600 mb-2.5">
                     Selecciona una puntuación del 1 al 10:
                   </p>
                   <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
@@ -449,7 +452,7 @@ const ContactFormSection: React.FC = () => {
                           type="button"
                           key={`commitment-${num}`}
                           onClick={() => handleSelectCommitment(num)}
-                          className={`h-11 rounded-lg border-2 font-bold text-base transition-all flex items-center justify-center ${
+                          className={`h-11 rounded-lg border-2 font-bold text-base transition-all flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
                             isSelected
                               ? 'bg-blue-600 text-white border-blue-700 shadow-md scale-105'
                               : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
@@ -485,7 +488,7 @@ const ContactFormSection: React.FC = () => {
                         href="https://blog.nelhealthcoach.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-blue-300 rounded-lg text-blue-700 hover:bg-blue-100 font-semibold text-xs transition"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-blue-300 rounded-lg text-blue-700 hover:bg-blue-100 font-semibold text-xs transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                       >
                         <span>📖</span>
                         <span>{t('landing.contact.exploreBlogAndSocial')} ↗</span>
@@ -496,7 +499,7 @@ const ContactFormSection: React.FC = () => {
                           setError('');
                           setStep('obstacles');
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-xs transition shadow-sm"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-xs transition shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                       >
                         <span>✍️</span>
                         <span>{t('landing.contact.continueWithObstacles')} →</span>
@@ -513,7 +516,7 @@ const ContactFormSection: React.FC = () => {
                     <button
                       type="button"
                       disabled
-                      className="w-full py-3 px-4 bg-gray-200 text-gray-500 font-semibold rounded-xl text-sm cursor-not-allowed"
+                      className="w-full py-3 px-4 bg-gray-200 text-gray-600 font-semibold rounded-xl text-sm cursor-not-allowed"
                     >
                       {t('landing.contact.selectCommitmentError')}
                     </button>
@@ -521,7 +524,7 @@ const ContactFormSection: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleIntroContinue}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 hover:from-blue-700 hover:to-blue-800 shadow-md transition transform hover:scale-[1.01]"
+                      className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 hover:from-blue-700 hover:to-blue-800 shadow-md transition transform hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                     >
                       <span>{t('landing.contact.nextButton')}</span>
                       <span>→</span>
@@ -540,7 +543,7 @@ const ContactFormSection: React.FC = () => {
                     setError('');
                     setStep('intro');
                   }}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1 mb-3"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1 mb-3 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                 >
                   ← {t('landing.contact.backButton')}
                 </button>
@@ -553,18 +556,19 @@ const ContactFormSection: React.FC = () => {
                 </p>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-semibold text-blue-900 mb-1.5">
+                  <label htmlFor="contact-obstacles" className="block text-sm font-semibold text-blue-900 mb-1.5">
                     {t('landing.contact.obstaclesQuestion')}
                   </label>
                   <textarea
+                    id="contact-obstacles"
                     name="biggestObstacle"
                     rows={4}
                     value={formData.biggestObstacle}
                     onChange={handleInputChange}
                     placeholder="Ej: He probado varias dietas pero siempre tengo efecto rebote y me cuesta mantener la constancia en el gimnasio..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 text-sm resize-none shadow-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 text-sm resize-none shadow-sm focus-visible:outline-none"
                   />
-                  <div className="flex justify-between items-center text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between items-center text-xs text-gray-600 mt-1">
                     <span>Mínimo 10 caracteres</span>
                     <span>{formData.biggestObstacle.trim().length}/500</span>
                   </div>
@@ -579,14 +583,14 @@ const ContactFormSection: React.FC = () => {
                       setError('');
                       setStep('intro');
                     }}
-                    className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium order-2 sm:order-1 transition"
+                    className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium order-2 sm:order-1 transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     ← {t('landing.contact.backButton')}
                   </button>
                   <button
                     type="button"
                     onClick={handleObstaclesContinue}
-                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm shadow-md order-1 sm:order-2 transition"
+                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm shadow-md order-1 sm:order-2 transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     {t('landing.contact.nextButton')} →
                   </button>
@@ -608,7 +612,7 @@ const ContactFormSection: React.FC = () => {
                       setStep('intro');
                     }
                   }}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1 mb-3"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1 mb-3 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                 >
                   ← {t('landing.contact.backButton')}
                 </button>
@@ -622,37 +626,46 @@ const ContactFormSection: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.name')} *</label>
+                    <label htmlFor="contact-name" className="block text-sm font-medium text-blue-700 mb-1">
+                      {t('landing.contact.name')} *
+                    </label>
                     <input
+                      id="contact-name"
                       type="text"
                       name="name"
                       required
                       value={formData.name}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 focus-visible:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.email')} *</label>
+                    <label htmlFor="contact-email" className="block text-sm font-medium text-blue-700 mb-1">
+                      {t('landing.contact.email')} *
+                    </label>
                     <input
+                      id="contact-email"
                       type="email"
                       name="email"
                       required
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 focus-visible:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-blue-700 mb-1">{t('landing.contact.phone')}</label>
+                    <label htmlFor="contact-phone" className="block text-sm font-medium text-blue-700 mb-1">
+                      {t('landing.contact.phone')}
+                    </label>
                     <input
+                      id="contact-phone"
                       type="tel"
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 focus-visible:outline-none"
                     />
                   </div>
 
@@ -669,14 +682,14 @@ const ContactFormSection: React.FC = () => {
                           setStep('intro');
                         }
                       }}
-                      className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium order-2 sm:order-1 transition"
+                      className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium order-2 sm:order-1 transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                     >
                       ← {t('landing.contact.backButton')}
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full sm:w-auto px-7 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm font-bold shadow-md order-1 sm:order-2"
+                      className="w-full sm:w-auto px-7 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm font-bold shadow-md order-1 sm:order-2 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                     >
                       {loading ? t('landing.contact.sendingLabel') : t('landing.contact.continueLabel')}
                     </button>
@@ -690,12 +703,12 @@ const ContactFormSection: React.FC = () => {
 
       {/* Modal de lista de espera (sin cupos) */}
       {isWaitlistOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl max-w-md w-full p-6 relative">
             <button
               onClick={() => setIsWaitlistOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-              aria-label={t('common.close')}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none rounded-full p-1"
+              aria-label={t('common.close') || 'Cerrar'}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -723,18 +736,24 @@ const ContactFormSection: React.FC = () => {
                     autoComplete="off"
                   />
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={waitlistEmail}
-                  onChange={(e) => setWaitlistEmail(e.target.value)}
-                  placeholder={t('landing.contact.waitlistPlaceholder')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-700"
-                />
+                <div>
+                  <label htmlFor="waitlist-email" className="sr-only">
+                    {t('landing.contact.waitlistPlaceholder')}
+                  </label>
+                  <input
+                    id="waitlist-email"
+                    type="email"
+                    required
+                    value={waitlistEmail}
+                    onChange={(e) => setWaitlistEmail(e.target.value)}
+                    placeholder={t('landing.contact.waitlistPlaceholder')}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-700 focus-visible:outline-none"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={waitlistStatus === 'sending'}
-                  className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                 >
                   {waitlistStatus === 'sending' ? t('landing.contact.sendingLabel') : t('landing.contact.waitlistSubmit')}
                 </button>

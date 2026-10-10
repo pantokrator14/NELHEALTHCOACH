@@ -49,17 +49,22 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
           <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
             {/* Motivación principal */}
             <div>
-              <label className="block text-sm font-medium text-indigo-600 mb-2">
+              <p className="block text-sm font-medium text-indigo-600 mb-2">
                 ¿Cuál es tu motivación principal? (Selecciona hasta 3)
-              </label>
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {motivationOptions.map((opt) => (
-                  <label key={opt.value} className="flex items-center space-x-2 p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition">
+                  <label
+                    key={opt.value}
+                    htmlFor={`obj-motivation-${opt.value}`}
+                    className="flex items-center space-x-2 p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition cursor-pointer"
+                  >
                     <input
+                      id={`obj-motivation-${opt.value}`}
                       type="checkbox"
                       value={opt.value}
                       {...register('motivation')}
-                      className="text-indigo-600 focus:ring-indigo-500 rounded"
+                      className="text-indigo-600 focus:ring-indigo-500 rounded focus-visible:ring-2 focus-visible:ring-indigo-500"
                     />
                     <span className="text-sm text-gray-700">{opt.label}</span>
                   </label>
@@ -69,9 +74,9 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
 
             {/* Nivel de compromiso */}
             <div>
-              <label className="block text-sm font-medium text-indigo-600 mb-2">
+              <p className="block text-sm font-medium text-indigo-600 mb-2">
                 En una escala del 1 al 10, ¿cuál es tu nivel de compromiso para realizar cambios en tus hábitos en los próximos 3 meses? (1: Nada comprometido, 10: Totalmente comprometido)
-              </label>
+              </p>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                   <label
@@ -98,25 +103,27 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
 
             {/* Experiencia previa con coach */}
             <div>
-              <label className="block text-sm font-medium text-indigo-600 mb-2">
+              <p className="block text-sm font-medium text-indigo-600 mb-2">
                 ¿Has trabajado antes con un coach de salud o nutricionista?
-              </label>
+              </p>
               <div className="flex space-x-4">
-                <label className="flex items-center">
+                <label htmlFor="obj-prev-coach-yes" className="flex items-center cursor-pointer">
                   <input
+                    id="obj-prev-coach-yes"
                     type="radio"
                     value="true"
                     {...register('previousCoachExperience')}
-                    className="mr-2 text-indigo-600 focus:ring-indigo-500"
+                    className="mr-2 text-indigo-600 focus:ring-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500"
                   />
                   <span className="text-sm text-gray-700">Sí</span>
                 </label>
-                <label className="flex items-center">
+                <label htmlFor="obj-prev-coach-no" className="flex items-center cursor-pointer">
                   <input
+                    id="obj-prev-coach-no"
                     type="radio"
                     value="false"
                     {...register('previousCoachExperience')}
-                    className="mr-2 text-indigo-600 focus:ring-indigo-500"
+                    className="mr-2 text-indigo-600 focus:ring-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500"
                   />
                   <span className="text-sm text-gray-700">No</span>
                 </label>
@@ -125,26 +132,28 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
 
             {/* Si sí, qué funcionó / no funcionó */}
             <div>
-              <label className="block text-sm font-medium text-indigo-600 mb-2">
+              <label htmlFor="objectives-previousCoachExperienceDetails" className="block text-sm font-medium text-indigo-600 mb-2">
                 Si respondiste que sí, ¿qué fue lo que funcionó bien y qué no?
               </label>
               <textarea
+                id="objectives-previousCoachExperienceDetails"
                 rows={3}
                 {...register('previousCoachExperienceDetails')}
-                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700"
+                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                 placeholder="Ej: Trabajé con nutricionista hace 2 años por 6 meses, perdí 8kg pero lo recuperé. Seguía dietas muy restrictivas que no podía mantener. Con entrenador personal hice 3 meses de gimnasio pero me lesioné la rodilla. Aprendí que necesito un enfoque más sostenible y menos extremo."
               />
             </div>
 
             {/* Fecha límite */}
             <div>
-              <label className="block text-sm font-medium text-indigo-600 mb-2">
+              <label htmlFor="objectives-targetDate" className="block text-sm font-medium text-indigo-600 mb-2">
                 ¿Tienes alguna fecha límite o evento importante en mente para alcanzar tus objetivos? (opcional)
               </label>
               <input
+                id="objectives-targetDate"
                 type="text"
                 {...register('targetDate')}
-                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700"
+                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-gray-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                 placeholder="Ej: Boda de mi hermana en 4 meses (quiero bajar 2 tallas de vestido), vacaciones en la playa en 3 meses, revisión médica anual en 5 meses donde quiero mostrar mejoras en mis marcadores de salud, evento importante del trabajo en 2 meses"
               />
             </div>
@@ -153,13 +162,13 @@ const ObjectivesStep: React.FC<ObjectivesStepProps> = ({ data, onSubmit, onBack 
               <button
                 type="button"
                 onClick={onBack}
-                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1"
+                className="w-full sm:w-auto px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold order-2 sm:order-1 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 Atrás
               </button>
               <button
                 type="submit"
-                className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold order-1 sm:order-2"
+                className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold order-1 sm:order-2 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
               >
                 Siguiente
               </button>

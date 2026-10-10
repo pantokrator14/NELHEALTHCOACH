@@ -83,7 +83,7 @@ const RecipeSearchModal: React.FC<RecipeSearchModalProps> = ({ onSelect, onClose
           <h2 className="font-bold text-lg flex items-center gap-2">
             <span>🍽️</span> Buscar Receta
           </h2>
-          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={onClose} aria-label="Cerrar modal" className="text-white/80 hover:text-white text-xl leading-none p-1 rounded focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none">✕</button>
         </div>
 
         {/* Search input */}

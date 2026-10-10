@@ -372,6 +372,8 @@ export default function AIRecommendationsModal({
     } catch { /* localStorage no disponible */ }
   };
 
+
+
   // ===== ESTADOS DE NAVEGACIÓN =====
 
   const [, setExpandedWeeks] = useState<number[]>([0]);
@@ -448,6 +450,19 @@ export default function AIRecommendationsModal({
   const [transcriptStatus, setTranscriptStatus] = useState<TranscriptStatus | null>(null);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [transcriptPolling, setTranscriptPolling] = useState(false);
+
+  // Cerrar con Escape cuando no hay sub-modales abiertos
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!showRecipeSearch && !showExerciseSearch && !showExerciseDetail && !showRecipeDetail && !showAIRecipeEditModal && !showEditItemModal && !showSessionScheduler) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, showRecipeSearch, showExerciseSearch, showExerciseDetail, showRecipeDetail, showAIRecipeEditModal, showEditItemModal, showSessionScheduler]);
 
   // ===== FUNCIONES AUXILIARES =====
   const convertToNewStructure = useCallback((weeks: unknown[]): AIRecommendationWeek[] => {
@@ -1766,7 +1781,7 @@ export default function AIRecommendationsModal({
                 </button>
               )}
             </div>
-            <button onClick={onClose} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0" title="Cerrar"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <button onClick={onClose} aria-label={t("common.close")} className="text-white hover:text-green-200 p-2 rounded-full hover:bg-green-700 transition-colors flex-shrink-0 ml-2 -mt-2 -mr-2 md:mt-0 md:mr-0 mb-2 md:mb-0 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none" title="Cerrar"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
           </div>
         </div>
 
@@ -3245,7 +3260,7 @@ export default function AIRecommendationsModal({
                   details: {
                     recipe: {
                       ingredients: recipeData.ingredients.map((ing: string) => ({ name: ing, quantity: '', notes: '' })),
-                      preparation: recipeData.instructions?.join('\n') || '',
+                      preparation: recipeData.instructions?.join("\n") || '',
                       tips: '',
                     },
                   },

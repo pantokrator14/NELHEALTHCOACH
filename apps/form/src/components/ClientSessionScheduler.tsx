@@ -71,27 +71,29 @@ const ClientSessionScheduler: React.FC<ClientSessionSchedulerProps> = ({
 
       <div className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="client-session-datetime" className="block text-sm font-medium text-gray-700 mb-1">
             Fecha y hora
           </label>
           <input
+            id="client-session-datetime"
             type="datetime-local"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
             min={MIN_SESSION_DATE}
           />
           <p className="text-xs text-gray-500 mt-1">{formattedDate}</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="client-session-duration" className="block text-sm font-medium text-gray-700 mb-1">
             Duración estimada
           </label>
           <select
+            id="client-session-duration"
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
           >
             <option value={30}>30 minutos</option>
             <option value={45}>45 minutos</option>

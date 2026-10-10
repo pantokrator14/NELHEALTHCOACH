@@ -270,7 +270,7 @@ export const BookSection: React.FC = () => {
                       alt={t('landing.book.alt')}
                       fill
                       sizes="(max-width: 640px) 16rem, (max-width: 1024px) 20rem, 22rem"
-                      priority
+                      loading="lazy"
                       className="object-cover"
                     />
                   </div>

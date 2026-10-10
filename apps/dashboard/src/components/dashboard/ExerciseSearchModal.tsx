@@ -48,6 +48,14 @@ const ExerciseSearchModal: React.FC<ExerciseSearchModalProps> = ({ onSelect, onC
     return () => clearTimeout(delay);
   }, [searchExercises]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const selectedExercise = results.find(r => r.id === selectedId);
 
   const handleConfirm = () => {
@@ -67,7 +75,7 @@ const ExerciseSearchModal: React.FC<ExerciseSearchModalProps> = ({ onSelect, onC
           <h2 className="font-bold text-lg flex items-center gap-2">
             <span>🔍</span> Buscar Ejercicio
           </h2>
-          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={onClose} aria-label="Cerrar modal" className="text-white/80 hover:text-white text-xl leading-none p-1 rounded focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none">✕</button>
         </div>
 
         {/* Search input */}

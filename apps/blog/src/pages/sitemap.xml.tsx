@@ -8,9 +8,15 @@ import { buildSitemapXml } from '@/lib/sitemap';
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const posts = await apiClient.getPosts().catch(() => [] as BlogPost[]);
+  const publishedPosts = posts.filter((post) => post.isPublished !== false);
 
   const xml = buildSitemapXml(
-    posts.map((post) => ({ slug: post.slug, updatedAt: post.updatedAt })),
+    publishedPosts.map((post) => ({
+      slug: post.slug,
+      updatedAt: post.updatedAt,
+      publishedAt: post.publishedAt,
+      createdAt: post.createdAt,
+    })),
   );
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');

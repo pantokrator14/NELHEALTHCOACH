@@ -80,7 +80,7 @@ export default function ExerciseDetailModal({
             </svg>
             Detalle del Ejercicio
           </h2>
-          <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-teal-700 rounded-full transition">
+          <button onClick={onClose} aria-label="Cerrar modal" className="p-1.5 sm:p-2 hover:bg-teal-700 rounded-full transition focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none">
             <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

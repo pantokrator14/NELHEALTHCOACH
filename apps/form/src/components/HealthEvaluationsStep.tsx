@@ -213,17 +213,21 @@ const HealthEvaluationsStep: React.FC<HealthEvaluationsStepProps> = ({ data, onS
                       <div key={questionIndex} className="flex flex-col md:flex-row md:items-start justify-between p-4 bg-white rounded-lg hover:bg-pink-100 transition-colors border border-pink-100">
                         <span className="flex-1 text-sm text-pink-700 md:pr-4 mb-2 md:mb-0">{question.text}</span>
                         <div className="flex flex-wrap gap-2">
-                          {options.map((opt) => (
-                            <label key={opt.value} className="flex items-center space-x-1">
-                              <input
-                                type="radio"
-                                value={opt.value}
-                                {...register(`${section.section}.${questionIndex}`)}
-                                className="text-pink-700 focus:ring-pink-500"
-                              />
-                              <span className="text-xs font-medium text-pink-700">{opt.label}</span>
-                            </label>
-                          ))}
+                          {options.map((opt) => {
+                            const optId = `eval-${section.section}-${questionIndex}-${opt.value}`;
+                            return (
+                              <label key={opt.value} htmlFor={optId} className="flex items-center space-x-1 cursor-pointer">
+                                <input
+                                  id={optId}
+                                  type="radio"
+                                  value={opt.value}
+                                  {...register(`${section.section}.${questionIndex}`)}
+                                  className="text-pink-700 focus:ring-pink-500 focus-visible:ring-2 focus-visible:ring-pink-500"
+                                />
+                                <span className="text-xs font-medium text-pink-700">{opt.label}</span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
                     );

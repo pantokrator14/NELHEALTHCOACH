@@ -196,7 +196,7 @@ const Navbar: React.FC = () => {
         {/* Botón de menú móvil */}
         <button
           type="button"
-          aria-label="Abrir menú"
+          aria-label={mobileMenuOpen ? t('common.closeMenu', 'Cerrar menú') : t('common.openMenu', 'Abrir menú')}
           className={`lg:hidden text-2xl p-2 rounded-lg transition-colors ${
             isOverHero ? 'text-white hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'
           }`}
@@ -216,7 +216,7 @@ const Navbar: React.FC = () => {
           <div className="flex flex-col space-y-3">
             {isLegalPage ? (
               <>
-                <p className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-1">
+                <p className={`text-xs uppercase tracking-wider font-semibold mb-1 ${isOverHero ? 'text-gray-300' : 'text-gray-600'}`}>
                   Páginas Legales
                 </p>
                 {LEGAL_NAV_ITEMS.map((item) => {

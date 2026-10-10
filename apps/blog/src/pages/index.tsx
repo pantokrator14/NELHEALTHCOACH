@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import type { GetServerSideProps } from 'next';
 import { useTranslation } from 'react-i18next';
 import Navbar from '@/components/blog/Navbar';
@@ -38,9 +39,49 @@ export const getServerSideProps: GetServerSideProps<Props> = async ({ req, query
   return { props: { posts, categories, lang, activeCategory: category } };
 };
 
+const BlogPostCardSkeleton = () => (
+  <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 animate-pulse">
+    <div className="h-48 bg-gray-200 w-full" />
+    <div className="p-6 space-y-4">
+      <div className="w-24 h-6 bg-gray-200 rounded-full" />
+      <div className="h-6 bg-gray-200 rounded w-3/4" />
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 rounded w-full" />
+        <div className="h-4 bg-gray-200 rounded w-5/6" />
+      </div>
+      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="h-4 bg-gray-200 rounded w-28" />
+        <div className="h-4 bg-gray-200 rounded w-16" />
+      </div>
+    </div>
+  </div>
+);
+
 const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) => {
+  const router = useRouter();
   const { t } = useTranslation();
-  const canonical = absoluteUrl(localizedPath('/', lang));
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  useEffect(() => {
+    const handleStart = (url: string) => {
+      if (url !== router.asPath) setIsNavigating(true);
+    };
+    const handleComplete = () => setIsNavigating(false);
+
+    router.events.on('routeChangeStart', handleStart);
+    router.events.on('routeChangeComplete', handleComplete);
+    router.events.on('routeChangeError', handleComplete);
+
+    return () => {
+      router.events.off('routeChangeStart', handleStart);
+      router.events.off('routeChangeComplete', handleComplete);
+      router.events.off('routeChangeError', handleComplete);
+    };
+  }, [router]);
+
+  const SITE_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.nelhealthcoach.com';
+  const cleanPath = router.asPath ? router.asPath.split('?')[0] : '';
+  const canonical = `${SITE_URL}${cleanPath === '/' ? '' : cleanPath}`;
   const description = t('hero.subtitle');
   const alternates = buildAlternates('/');
 
@@ -134,7 +175,13 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
             </div>
           )}
 
-          {posts.length === 0 ? (
+          {isNavigating || router.isFallback ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <BlogPostCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-gray-500 text-lg">{t('common.empty')}</p>
             </div>

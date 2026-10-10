@@ -315,12 +315,13 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
                     </label>
                     <div className="space-y-3">
                       {item.options.map(option => (
-                        <label key={option.value} className="flex items-center p-3 hover:bg-purple-50 rounded-lg transition-colors">
+                        <label key={option.value} htmlFor={`mh-${item.field}-${option.value}`} className="flex items-center p-3 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer">
                           <input
+                            id={`mh-${item.field}-${option.value}`}
                             type="radio"
                             value={option.value}
                             {...register(item.field)}
-                            className="mr-3 text-purple-600 focus:ring-purple-700 h-4 w-4"
+                            className="mr-3 text-purple-600 focus:ring-purple-700 h-4 w-4 focus-visible:ring-2 focus-visible:ring-purple-500"
                           />
                           <span className="text-base text-gray-700 font-medium">{option.label}</span>
                         </label>
@@ -339,10 +340,11 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
               <div className="space-y-6">
                 {mentalHealthOpenEnded.map((item, index) => (
                   <div key={index} className="bg-white p-6 rounded-lg border border-purple-100">
-                    <label className="block text-lg font-medium text-purple-800 mb-3">
+                    <label htmlFor={`mh-${item.field}`} className="block text-lg font-medium text-purple-800 mb-3">
                       {item.question}
                     </label>
                     <textarea
+                      id={`mh-${item.field}`}
                       rows={4}
                       {...register(item.field)}
                       className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition text-gray-700"

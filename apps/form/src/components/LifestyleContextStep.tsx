@@ -89,10 +89,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
           <form onSubmit={handleSubmit(onValidSubmit, onInvalidSubmit)} className="space-y-6">
             {/* Día típico entre semana */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-typicalWeekday" className="block text-sm font-medium text-teal-600 mb-2">
                 Describe un día típico entre semana (desde que te levantas hasta que te acuestas). Incluye horarios de comidas, trabajo y tiempo libre.
               </label>
-              <textarea
+              <textarea id="lifestyle-typicalWeekday"
                 rows={4}
                 {...register('typicalWeekday')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -102,10 +102,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Día típico fin de semana */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-typicalWeekend" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Cómo es un día típico de fin de semana? ¿Es muy diferente al de entre semana? Describe actividades, horarios, comidas y si sales o te quedas en casa.
               </label>
-              <textarea
+              <textarea id="lifestyle-typicalWeekend"
                 rows={4}
                 {...register('typicalWeekend')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -115,10 +115,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Quién cocina */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-whoCooks" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Quién cocina en casa? Describe quiénes viven contigo y cómo se organizan con las comidas. ¿Con qué frecuencia comes fuera o pides comida a domicilio?
               </label>
-              <textarea
+              <textarea id="lifestyle-whoCooks"
                 rows={3}
                 {...register('whoCooks')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -128,10 +128,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Nivel de actividad física actual */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-currentActivityLevel" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Cuál es tu nivel de actividad física actual? Sé lo más detallado posible: ¿caminas? ¿subes escaleras? ¿tienes un trabajo activo o sedentario?
               </label>
-              <textarea
+              <textarea id="lifestyle-currentActivityLevel"
                 rows={3}
                 {...register('currentActivityLevel')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -141,10 +141,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Limitaciones físicas */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-physicalLimitations" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Tienes alguna lesión, operación o limitación física que debamos considerar al diseñar tus ejercicios? Describe cuándo ocurrió, cómo te afecta y si has recibido tratamiento.
               </label>
-              <textarea
+              <textarea id="lifestyle-physicalLimitations"
                 rows={3}
                 {...register('physicalLimitations')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -154,10 +154,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Acceso a gimnasio o equipos */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-gymAccess" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Tienes acceso a un gimnasio, parque de calistenia o equipos de ejercicio en casa?
               </label>
-              <select
+              <select id="lifestyle-gymAccess"
                 {...register('gymAccess')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
               >
@@ -175,10 +175,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Detalles del acceso */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-gymAccessDetails" className="block text-sm font-medium text-teal-600 mb-2">
                 Describe los equipos o espacios disponibles (ej: tipo de máquinas, pesas libres, barras, etc.)
               </label>
-              <textarea
+              <textarea id="lifestyle-gymAccessDetails"
                 rows={3}
                 {...register('gymAccessDetails')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -188,10 +188,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Tipos de ejercicio preferidos */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-preferredExerciseTypes" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Qué tipos de ejercicio disfrutas o estarías dispuesto a probar? (ej: cardio, fuerza, yoga, natación, etc.)
               </label>
-              <textarea
+              <textarea id="lifestyle-preferredExerciseTypes"
                 rows={3}
                 {...register('preferredExerciseTypes')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"
@@ -201,10 +201,10 @@ const LifestyleContextStep: React.FC<LifestyleContextStepProps> = ({ data, onSub
 
             {/* Disponibilidad de tiempo para ejercicio */}
             <div>
-              <label className="block text-sm font-medium text-teal-600 mb-2">
+              <label htmlFor="lifestyle-exerciseTimeAvailability" className="block text-sm font-medium text-teal-600 mb-2">
                 ¿Cuánto tiempo puedes dedicar al ejercicio por sesión y cuántas veces por semana?
               </label>
-              <textarea
+              <textarea id="lifestyle-exerciseTimeAvailability"
                 rows={2}
                 {...register('exerciseTimeAvailability')}
                 className="w-full px-4 py-3 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition text-gray-700"

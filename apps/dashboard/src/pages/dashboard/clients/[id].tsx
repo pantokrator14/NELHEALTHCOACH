@@ -615,11 +615,104 @@ export default function ClientProfile() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="p-8 flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
-      </Layout>
+      <>
+        <Head>
+          <title>Cargando Perfil - NELHEALTHCOACH</title>
+        </Head>
+        <Layout>
+          <div className="p-8 flex flex-col lg:flex-row gap-8 min-h-full animate-pulse">
+            {/* Columna izquierda Skeleton - 30% */}
+            <div className="w-full lg:w-1/3">
+              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                <div className="flex flex-col items-center text-center mb-6">
+                  <div className="w-48 h-48 sm:w-60 sm:h-60 rounded-full bg-gray-200 mb-4" />
+                  <div className="h-7 bg-gray-200 rounded w-44 mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-56" />
+                </div>
+
+                {/* Pestañas Skeleton */}
+                <div className="mb-6 flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                  <div className="flex-1 h-9 bg-gray-200 rounded-md" />
+                  <div className="flex-1 h-9 bg-gray-200 rounded-md" />
+                  <div className="flex-1 h-9 bg-gray-200 rounded-md" />
+                </div>
+
+                {/* Datos de contacto Skeleton */}
+                <div className="space-y-4">
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-20" />
+                    <div className="h-4 bg-gray-200 rounded w-36" />
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-20" />
+                    <div className="h-4 bg-gray-200 rounded w-32" />
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24" />
+                    <div className="h-4 bg-gray-200 rounded w-48" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Columna derecha Skeleton - 70% Bloques Clínicos */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              {/* Bloque Clínico 1 */}
+              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <div className="h-6 bg-gray-200 rounded w-48" />
+                  <div className="h-6 bg-gray-200 rounded-full w-24" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-28" />
+                    <div className="h-5 bg-gray-200 rounded w-full" />
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-32" />
+                    <div className="h-5 bg-gray-200 rounded w-3/4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bloque Clínico 2 */}
+              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <div className="h-6 bg-gray-200 rounded w-56" />
+                  <div className="h-6 bg-gray-200 rounded-full w-20" />
+                </div>
+                <div className="space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-full" />
+                  <div className="h-4 bg-gray-200 rounded w-5/6" />
+                  <div className="h-4 bg-gray-200 rounded w-4/6" />
+                </div>
+              </div>
+
+              {/* Bloque Clínico 3 */}
+              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <div className="h-6 bg-gray-200 rounded w-40" />
+                  <div className="h-6 bg-gray-200 rounded-full w-28" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-16" />
+                    <div className="h-5 bg-gray-200 rounded w-24" />
+                  </div>
+                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-16" />
+                    <div className="h-5 bg-gray-200 rounded w-24" />
+                  </div>
+                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-16" />
+                    <div className="h-5 bg-gray-200 rounded w-24" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Layout>
+      </>
     )
   }
 
@@ -962,7 +1055,7 @@ export default function ClientProfile() {
                     Historial de empleos
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.employmentHistory || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.employmentHistory || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Vivienda */}
@@ -972,7 +1065,7 @@ export default function ClientProfile() {
                     Historial de Vivienda
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.housingHistory || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.housingHistory || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Hobbies */}
@@ -982,7 +1075,7 @@ export default function ClientProfile() {
                     Hobbies e Intereses
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.hobbies || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.hobbies || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Día típico entre semana */}
@@ -992,7 +1085,7 @@ export default function ClientProfile() {
                     Día típico entre semana
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.typicalWeekday || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.typicalWeekday || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Día típico fin de semana */}
@@ -1002,7 +1095,7 @@ export default function ClientProfile() {
                     Día típico fin de semana
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.typicalWeekend || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.typicalWeekend || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Quién cocina / comida fuera */}
@@ -1012,7 +1105,7 @@ export default function ClientProfile() {
                     Quién cocina / comida fuera
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.whoCooks || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.whoCooks || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Nivel de actividad física */}
@@ -1022,7 +1115,7 @@ export default function ClientProfile() {
                     Nivel de actividad física
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.currentActivityLevel || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.currentActivityLevel || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
                 {/* Limitaciones físicas */}
@@ -1032,7 +1125,7 @@ export default function ClientProfile() {
                     Limitaciones físicas
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.physicalLimitations || <span className="text-gray-400 italic">No especificado</span>}
+                    {client.medicalData.physicalLimitations || <span className="text-gray-600 italic">No especificado</span>}
                   </p>
                 </div>
               </div>
