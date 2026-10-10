@@ -133,9 +133,11 @@ const FileUpload: React.FC<FileUploadProps> = ({
     setError(null);
   };
 
+  const inputId = `file-upload-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-blue-500 mb-2">
+      <label htmlFor={inputId} className="block text-sm font-medium text-blue-500 mb-2 cursor-pointer">
         {label}
       </label>
       
@@ -151,11 +153,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
         onDrop={handleDrop}
       >
         <input
+          id={inputId}
           ref={fileInputRef}
           type="file"
           accept={accept}
           onChange={handleChange}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          aria-label={label}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
         />
         
         <div className="text-center">
@@ -185,7 +189,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
               <button
                 type="button"
                 onClick={handleRemove}
-                className="text-sm text-red-600 hover:text-red-700 font-medium"
+                className="text-sm text-red-600 hover:text-red-700 font-medium focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none rounded"
               >
                 Eliminar archivo
               </button>

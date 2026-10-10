@@ -24,7 +24,7 @@ const AboutSection: React.FC = () => {
                alt="Manuel Martínez | NelHealthCoach"
                fill
                className="rounded-2xl shadow-2xl hover:scale-[1.02] transition-transform duration-300 object-cover"
-               priority
+               loading="lazy"
              />
             </div>
           </div>

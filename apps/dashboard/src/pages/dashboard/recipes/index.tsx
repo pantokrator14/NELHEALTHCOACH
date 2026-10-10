@@ -4,6 +4,7 @@ import Head from 'next/head';
 import RecipeCard from '../../../components/dashboard/RecipeCard';
 import RecipeModal from '../../../components/dashboard/RecipeModal';
 import RecipeDetailModal from '../../../components/dashboard/RecipeDetailModal';
+import { RecipeCardSkeleton } from '../../../components/ui/SkeletonLoader';
 import RecipeFilters, { FilterState, SortOption } from '../../../components/dashboard/RecipeFilters';
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/api';
@@ -368,20 +369,34 @@ const RecipesPage = () => {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="p-8">
-          <div className="flex flex-col items-center justify-center h-96">
-            <div className="relative">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 bg-blue-100 rounded-full"></div>
+      <>
+        <Head>
+          <title>{t('recipes.title')} - NELHEALTHCOACH</title>
+          <meta name="description" content={t('recipes.pageDescription')} />
+        </Head>
+        <Layout>
+          <div className="p-8">
+            {/* Encabezado Skeleton */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 animate-pulse">
+              <div className="flex items-center mb-4 lg:mb-0">
+                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 flex-shrink-0" />
+                <div className="space-y-2">
+                  <div className="h-8 bg-gray-200 rounded w-48" />
+                  <div className="h-4 bg-gray-200 rounded w-64" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-14 bg-gray-200 rounded-xl w-28" />
+                ))}
               </div>
             </div>
-            <p className="mt-6 text-lg text-gray-700 font-medium">{t('recipes.loadingText')}</p>
-            <p className="text-gray-500">{t('recipes.loadingWait')}</p>
+
+            {/* Grid Skeleton de tarjetas de recetas */}
+            <RecipeCardSkeleton count={10} />
           </div>
-        </div>
-      </Layout>
+        </Layout>
+      </>
     );
   }
 

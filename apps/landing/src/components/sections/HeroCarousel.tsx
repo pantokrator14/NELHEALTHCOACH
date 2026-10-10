@@ -52,11 +52,12 @@ const HeroCarousel: React.FC = () => {
           <div className="relative w-full h-full">
             <Image
               src={slide.image}
-              alt={`Slide ${slide.id}`}
+              alt={t(slide.titleKey)}
               fill
               sizes="100vw"
               className="object-cover"
               priority={index === 0}
+              loading={index === 0 ? 'eager' : 'lazy'}
             />
           </div>
 
@@ -78,7 +79,7 @@ const HeroCarousel: React.FC = () => {
           <button
             key={index}
             onClick={() => setCurrentSlide(index)}
-            className={`w-3 h-3 rounded-full transition-all duration-300 ${
+            className={`w-3 h-3 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none focus-visible:ring-white ${
               index === currentSlide ? 'bg-white w-8' : 'bg-blue-200'
             }`}
             aria-label={`Ir a slide ${index + 1}`}

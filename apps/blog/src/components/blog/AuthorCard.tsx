@@ -36,6 +36,7 @@ const AuthorCard: React.FC<Props> = ({ author }) => {
             fill
             className="object-cover"
             sizes="80px"
+            loading="lazy"
           />
         </div>
         <div className="min-w-0">

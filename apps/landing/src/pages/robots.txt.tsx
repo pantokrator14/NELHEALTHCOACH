@@ -2,7 +2,7 @@
 // robots.txt de la landing.
 import type { GetServerSideProps } from 'next';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://nelhealthcoach.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nelhealthcoach.com';
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const robots = `User-agent: *

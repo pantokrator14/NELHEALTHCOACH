@@ -127,13 +127,49 @@ export default function Clients() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="p-8">
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <>
+        <Head>
+          <title>Clientes - NELHEALTHCOACH</title>
+        </Head>
+        <Layout>
+          <div className="p-8">
+            {/* Encabezado Skeleton */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 animate-pulse">
+              <div className="flex items-center mb-4 lg:mb-0">
+                <div className="w-12 h-12 bg-gray-200 rounded-full mr-4 flex-shrink-0" />
+                <div className="space-y-2">
+                  <div className="h-8 bg-gray-200 rounded w-56" />
+                  <div className="h-4 bg-gray-200 rounded w-72" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-10 bg-gray-200 rounded-lg w-44" />
+                <div className="h-10 bg-gray-200 rounded-lg w-32" />
+              </div>
+            </div>
+
+            {/* Barra de búsqueda Skeleton */}
+            <div className="mb-6 animate-pulse">
+              <div className="h-12 bg-gray-200 rounded-lg w-full" />
+            </div>
+
+            {/* Grid Skeleton de clientes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-xl shadow-md border border-blue-100 p-6 animate-pulse flex flex-col items-center"
+                >
+                  <div className="w-20 h-20 bg-gray-200 rounded-full mb-4" />
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-5/6 mb-4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </Layout>
+        </Layout>
+      </>
     )
   }
 

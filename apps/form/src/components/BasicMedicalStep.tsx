@@ -69,10 +69,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Campos de texto básicos */}
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-mainComplaint" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Cuál es tu mayor queja? Por favor enlista todos los síntomas y cuándo comenzaron *
               </label>
-              <textarea
+              <textarea id="medical-mainComplaint"
                 rows={4}
                 {...register('mainComplaint')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -85,7 +85,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
 
             {/* Intensidad (1-10) */}
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-mainComplaintImpact" className="block text-sm font-medium text-yellow-600 mb-2">
                 En una escala del 1 al 10, ¿cómo calificarías la intensidad de esa queja? (1: leve, 10: insoportable)
               </label>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
@@ -120,7 +120,7 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
               <label className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Este síntoma te impide realizar alguna actividad específica en tu día a día?
               </label>
-              <textarea
+              <textarea id="medical-mainComplaintImpact"
                 rows={3}
                 {...register('mainComplaintImpact')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -129,10 +129,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-medications" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Qué medicamentos estás tomando?
               </label>
-              <textarea
+              <textarea id="medical-medications"
                 rows={3}
                 {...register('medications')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -141,10 +141,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-supplements" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Qué suplementos estás tomando? (vitaminas y/o minerales)
               </label>
-              <textarea
+              <textarea id="medical-supplements"
                 rows={3}
                 {...register('supplements')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -153,10 +153,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-currentPastConditions" className="block text-sm font-medium text-yellow-600 mb-2">
                 Indica tus condiciones de salud actuales y pasadas (por ejemplo: Diabetes Mellitus, Hipertensión, etc.)
               </label>
-              <textarea
+              <textarea id="medical-currentPastConditions"
                 rows={3}
                 {...register('currentPastConditions')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -165,10 +165,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-additionalMedicalHistory" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Hay algo más en tu historial médico que debamos considerar? (incluso de tu niñez)
               </label>
-              <textarea
+              <textarea id="medical-additionalMedicalHistory"
                 rows={3}
                 {...register('additionalMedicalHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -177,10 +177,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-allergies" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Tienes alguna alergia? ¿Cuáles?
               </label>
-              <textarea
+              <textarea id="medical-allergies"
                 rows={3}
                 {...register('allergies')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -189,10 +189,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-surgeries" className="block text-sm font-medium text-yellow-600 mb-2">
                 Enlista las cirugías a las que te has sometido
               </label>
-              <textarea
+              <textarea id="medical-surgeries"
                 rows={3}
                 {...register('surgeries')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -201,10 +201,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-employmentHistory" className="block text-sm font-medium text-yellow-600 mb-2">
                 Describe brevemente tu trabajo ACTUAL. ¿Es principalmente sedentario, físicamente activo, o una mezcla? ¿Estás expuesto a estrés crónico, químicos, ruido o turnos rotativos?
               </label>
-              <textarea
+              <textarea id="medical-employmentHistory"
                 rows={3}
                 {...register('employmentHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -213,10 +213,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-hobbies" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Cuáles son tus hobbies? (incluye los presentes y los pasados)
               </label>
-              <textarea
+              <textarea id="medical-hobbies"
                 rows={3}
                 {...register('hobbies')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -225,10 +225,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-housingHistory" className="block text-sm font-medium text-yellow-600 mb-2">
                 Detalla el historial de vivienda que has tenido (tipo de casas, en dónde y cuándo)
               </label>
-              <textarea
+              <textarea id="medical-housingHistory"
                 rows={3}
                 {...register('housingHistory')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
@@ -237,10 +237,10 @@ const BasicMedicalStep: React.FC<BasicMedicalStepProps> = ({ data, onSubmit, onB
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-yellow-600 mb-2">
+              <label htmlFor="medical-appetiteChanges" className="block text-sm font-medium text-yellow-600 mb-2">
                 ¿Has tenido cambios significativos en tu apetito o sed recientemente?
               </label>
-              <select
+              <select id="medical-appetiteChanges"
                 {...register('appetiteChanges')}
                 className="w-full px-4 py-3 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition text-gray-700"
               >

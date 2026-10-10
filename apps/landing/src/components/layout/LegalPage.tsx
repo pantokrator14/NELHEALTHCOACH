@@ -3,31 +3,37 @@
 import React from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
 import { legalContent, normalizeLegalLang, backLabels, type LegalPageKey } from '../../lib/legalContent';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nelhealthcoach.com';
 
 interface LegalPageProps {
   pageKey: LegalPageKey;
 }
 
 /**
- * Página legal genérica (Política de Privacidad, Términos y Condiciones, Aviso Legal).
+ * Página legal genérica (Política de Privacidad, Términos y Condiciones, Aviso Legal, Cookies, Reembolsos).
  * Mantiene la estética de la landing:
  * - Hero con gradiente azul y logo blanco (el Navbar cambia automáticamente al logo
  *   azul al hacer scroll gracias al id="inicio" y al IntersectionObserver).
  * - Contenido sobre fondo blanco con acentos azules.
  */
 const LegalPage: React.FC<LegalPageProps> = ({ pageKey }) => {
+  const router = useRouter();
   const { i18n } = useTranslation();
   const doc = legalContent[normalizeLegalLang(i18n.language)][pageKey];
+  const canonicalUrl = `${SITE_URL}${router.asPath ? router.asPath.split('?')[0] : ''}`;
 
   return (
     <div>
       <Head>
         <title>{`${doc.title} | NELHEALTHCOACH`}</title>
         <meta name="description" content={`${doc.title} de NELHEALTHCOACH.`} />
-        <meta name="robots" content="noindex, follow" />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={canonicalUrl} />
       </Head>
       {/* Hero azul - el id="inicio" hace que el Navbar use logo blanco sobre este fondo */}
       <section id="inicio" className="relative bg-gradient-to-br from-blue-700 to-blue-900">

@@ -134,6 +134,44 @@ const COLORS = {
   subscription: '#6366f1',
 };
 
+const FinanceKpiSkeleton = () => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 animate-pulse">
+    {Array.from({ length: 4 }).map((_, i) => (
+      <div key={i} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-4 bg-gray-200 rounded w-28" />
+          <div className="w-9 h-9 bg-gray-200 rounded-lg" />
+        </div>
+        <div className="h-8 bg-gray-200 rounded w-36 mb-2" />
+        <div className="h-3 bg-gray-200 rounded w-24" />
+      </div>
+    ))}
+  </div>
+);
+
+const FinanceTableSkeleton = ({ rows = 5 }: { rows?: number }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
+    <div className="h-12 bg-gray-50 border-b border-gray-100 px-6 flex items-center justify-between">
+      <div className="h-4 bg-gray-200 rounded w-32" />
+      <div className="h-4 bg-gray-200 rounded w-24" />
+    </div>
+    <div className="divide-y divide-gray-100">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="p-4 px-6 flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-48" />
+            <div className="h-3 bg-gray-200 rounded w-32" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="h-6 bg-gray-200 rounded-full w-20" />
+            <div className="h-5 bg-gray-200 rounded w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 function CoachFinancesPage() {
   const { t } = useTranslation();
   const { showToast, ToastComponent } = useToast();
@@ -257,8 +295,9 @@ function CoachFinancesPage() {
           </div>
 
           {loading && (
-            <div className="flex justify-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500" />
+            <div className="space-y-6">
+              <FinanceKpiSkeleton />
+              <FinanceTableSkeleton rows={4} />
             </div>
           )}
 
@@ -931,8 +970,9 @@ function AdminFinancesPage() {
               </div>
 
               {summaryLoading ? (
-                <div className="flex justify-center py-20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500" />
+                <div className="space-y-6">
+                  <FinanceKpiSkeleton />
+                  <FinanceTableSkeleton rows={6} />
                 </div>
               ) : summary ? (
                 <>
@@ -1074,8 +1114,13 @@ function AdminFinancesPage() {
               </div>
 
               {incomeLoading ? (
-                <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
+                <div className="space-y-6">
+                  <div className="grid grid-cols-3 gap-4 mb-6 animate-pulse">
+                    <div className="bg-gray-100 rounded-lg p-4 h-24" />
+                    <div className="bg-gray-100 rounded-lg p-4 h-24" />
+                    <div className="bg-gray-100 rounded-lg p-4 h-24" />
+                  </div>
+                  <FinanceTableSkeleton rows={6} />
                 </div>
               ) : incomeData ? (
                 <>
@@ -1319,9 +1364,7 @@ function AdminFinancesPage() {
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('adminFinance.expensesTitle')}</h2>
 
                 {expensesLoading ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500" />
-                  </div>
+                  <FinanceTableSkeleton rows={6} />
                 ) : expenses.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">{t('adminFinance.noExpenses')}</div>
                 ) : (

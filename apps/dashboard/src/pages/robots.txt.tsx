@@ -3,7 +3,9 @@
 import type { GetServerSideProps } from 'next';
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
-  const robots = `User-agent: *\nDisallow: /\n`;
+  const robots = `User-agent: *
+Disallow: /
+`;
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.write(robots);

@@ -10,6 +10,8 @@ import { escapeXml } from './xml';
 export interface SitemapPost {
   slug: string;
   updatedAt?: string | null;
+  createdAt?: string | null;
+  publishedAt?: string | null;
 }
 
 function buildUrlEntry(
@@ -25,10 +27,11 @@ function buildUrlEntry(
       `    <xhtml:link rel="alternate" hreflang="${lang}" href="${escapeXml(
         absoluteUrl(localizedPath(path, lang)),
       )}" />`,
-  ).join('\n');
+  ).join("\n");
 
   return `  <url>
-    <loc>${loc}</loc>${lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : ''}
+    <loc>${loc}</loc>${lastmod ? `
+    <lastmod>${lastmod}</lastmod>` : ''}
 ${alternates}
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
@@ -44,7 +47,18 @@ export function buildSitemapXml(posts: SitemapPost[]): string {
   }
 
   for (const post of posts) {
-    const lastmod = post.updatedAt ? new Date(post.updatedAt).toISOString() : null;
+    const rawDate = post.updatedAt || post.publishedAt || post.createdAt;
+    let lastmod: string | null = null;
+    if (rawDate) {
+      try {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          lastmod = d.toISOString();
+        }
+      } catch {
+        lastmod = null;
+      }
+    }
     for (const lang of SUPPORTED_LANGS) {
       urls.push(buildUrlEntry(`/post/${post.slug}`, lang, lastmod, 'weekly', '0.8'));
     }
@@ -52,7 +66,7 @@ export function buildSitemapXml(posts: SitemapPost[]): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${urls.join('\n')}
+${urls.join("\n")}
 </urlset>
 `;
 }

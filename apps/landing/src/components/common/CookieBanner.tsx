@@ -159,6 +159,7 @@ export const CookieBanner: React.FC = () => {
                   </p>
                 </div>
                 <input
+                  id="cookie-essential-disabled"
                   type="checkbox"
                   disabled
                   checked
@@ -168,7 +169,7 @@ export const CookieBanner: React.FC = () => {
               </div>
 
               {/* Categoría 2: Analíticas */}
-              <label className="p-3.5 bg-gray-50/90 rounded-xl border border-gray-200 flex items-start justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors">
+              <label htmlFor="cookie-analytics-toggle" className="p-3.5 bg-gray-50/90 rounded-xl border border-gray-200 flex items-start justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors">
                 <div className="space-y-1">
                   <span className="font-semibold text-xs sm:text-sm text-gray-800 block">
                     {t('cookieBanner.analyticsTitle', 'Cookies Analíticas y Medición')}
@@ -181,11 +182,12 @@ export const CookieBanner: React.FC = () => {
                   </p>
                 </div>
                 <input
+                  id="cookie-analytics-toggle"
                   type="checkbox"
                   checked={analyticsEnabled}
                   onChange={(e) => setAnalyticsEnabled(e.target.checked)}
                   aria-label={t('cookieBanner.analyticsTitle', 'Cookies Analíticas y Medición')}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500"
                 />
               </label>
             </div>
