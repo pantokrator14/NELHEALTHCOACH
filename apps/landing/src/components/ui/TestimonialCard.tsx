@@ -21,6 +21,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({
         <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4">
           <Image
             src={image}
+                sizes="64px"
             alt={name}
             fill
             className="object-cover"

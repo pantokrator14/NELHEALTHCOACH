@@ -82,7 +82,8 @@ const en = {
       notice: 'Legal Notice',
       cookies: 'Cookies',
       refunds: 'Refunds',
-      backToHome: 'Back to Home'
+      backToHome: 'Back to Home',
+      login: 'Login',
     },
 
     blogPreview: {
@@ -442,7 +443,8 @@ const es = {
       notice: 'Aviso Legal',
       cookies: 'Cookies',
       refunds: 'Reembolsos',
-      backToHome: 'Volver al Inicio'
+      backToHome: 'Volver al Inicio',
+      login: 'Login',
     },
 
     blogPreview: {
@@ -803,7 +805,8 @@ const fr = {
       notice: 'Mentions Légales',
       cookies: 'Cookies',
       refunds: 'Remboursements',
-      backToHome: 'Retour à l’accueil'
+      backToHome: 'Retour à l’accueil',
+      login: 'Login',
     },
 
     blogPreview: {
@@ -1165,7 +1168,8 @@ const it = {
       notice: 'Note Legali',
       cookies: 'Cookie',
       refunds: 'Rimborsi',
-      backToHome: 'Torna alla Home'
+      backToHome: 'Torna alla Home',
+      login: 'Login',
     },
 
     blogPreview: {
@@ -1528,7 +1532,8 @@ const pt = {
       notice: 'Aviso Legal',
       cookies: 'Cookies',
       refunds: 'Reembolsos',
-      backToHome: 'Voltar ao Início'
+      backToHome: 'Voltar ao Início',
+      login: 'Login',
     },
 
     blogPreview: {
@@ -1890,7 +1895,8 @@ const de = {
       notice: 'Impressum',
       cookies: 'Cookies',
       refunds: 'Rückerstattung',
-      backToHome: 'Zurück zur Startseite'
+      backToHome: 'Zurück zur Startseite',
+      login: 'Login',
     },
 
     blogPreview: {

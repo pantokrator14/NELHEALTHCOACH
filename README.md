@@ -22,6 +22,8 @@
 - [✨ Características Principales](#-características-principales)
 - [🤖 Sistema de Agentes de IA](#-sistema-de-agentes-de-ia)
 - [🔄 Flujos Asíncronos (Cola Propia)](#-flujos-asíncronos-cola-propia)
+- [🌐 SEO Técnico, Sitemaps e Indexación](#-seo-técnico-sitemaps-e-indexación)
+- [♿ Accesibilidad Web (WCAG 2.1 AA) & Skeletons](#-accesibilidad-web-wcag-21-aa--skeletons)
 - [🏗️ Arquitectura del Proyecto](#️-arquitectura-del-proyecto)
 - [🚀 Aplicaciones](#-aplicaciones)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
@@ -217,6 +219,37 @@ La plataforma usa una **cola de trabajos propia sobre MongoDB** (patrón *worker
 | `process-transcription` | Procesa transcripciones de sesiones de coaching (Deepgram) |
 
 **Por qué**: en Vercel Hobby no hay procesos persistentes ni workers — la cola propia sobre MongoDB (ya en producción) resuelve los timeouts de generación (antes 60-240s síncronos → 504) con cero dependencias nuevas y el frontend ya soportaba el patrón `queued` + polling.
+
+### 🌐 **SEO Técnico, Sitemaps e Indexación Selectiva**
+- **Indexación Selectiva en `robots.txt`**:
+  - **Públicas** (`apps/landing`, `apps/blog`): Permiso explícito de rastreo (`Allow: /`), desautorización de áreas administrativas (`Disallow: /admin`) y declaración de sitemaps oficiales.
+  - **Privadas** (`apps/dashboard`, `apps/form`): Bloqueo total con `User-agent: * Disallow: /` e inyección obligatoria en `<Head>` de `<meta name="robots" content="noindex, nofollow, noarchive" />`.
+- **Sitemaps Dinámicos XML**:
+  - `apps/landing`: Generación vía `/sitemap.xml` de todas las páginas públicas indexables con `<lastmod>`, `<changefreq>` y `<priority>`.
+  - `apps/blog`: Generación en 6 idiomas vía `sitemap.ts` con fecha real de última modificación y etiquetas `<xhtml:link rel="alternate" hreflang="...">`.
+- **Canonical Tags y Redirecciones 301**:
+  - Enlaces canónicos absolutos normalizados en todas las rutas públicas.
+  - Redirección 301 para trailing slashes configurada en `next.config.ts`.
+- **Datos Estructurados (Schema.org / JSON-LD)**:
+  - Landing: Inyección de `HealthAndBeautyBusiness` + `LocalBusiness`, `Person` (Manuel Martínez, Health Coach) y `knowsAbout`.
+  - Blog: Inyección de `BlogPosting` con `headline`, `image`, `datePublished`, `dateModified`, `author` y `publisher`.
+
+### ♿ **Accesibilidad Web (WCAG 2.1 AA) & Skeletons (Principio Anti-AI)**
+- **Skeletons de Carga Asíncrona**:
+  - Eliminación de pantallas en blanco y spinners flotantes; reemplazados por skeletons visuales pulsantes (`animate-pulse`) en listado de clientes, perfil clínico, recetas, finanzas (KPIs y transacciones) y lectura de entradas de blog.
+- **Formularios Accesibles**:
+  - Vinculación explícita de cada `<input>`, `<select>` y `<textarea>` mediante atributo `id` único y etiqueta `<label htmlFor="...">`.
+  - Casillas y toggles de consentimiento totalmente clickeables a través de su label.
+- **Navegación por Teclado y Foco Visible**:
+  - Soporte de tecla `Escape` en modales, focus traps y foco visible en todos los controles (`focus-visible:ring-2 focus-visible:outline-none`).
+- **Contraste de Color**:
+  - Ratios de contraste elevados (>= 4.5:1) sobre blanco o fondos oscuros, elevando clases secundarias de `text-gray-400` a `text-gray-600`.
+- **Core Web Vitals & Optimización de Medios**:
+  - 100% de componentes `<Image fill>` equipados con la propiedad `sizes` adaptada a sus contenedores (0 advertencias en consola).
+  - Carga diferida (`loading="lazy"`, `decoding="async"`) para elementos *below the fold* y tipografías con `display: swap`.
+
+### 🔑 **Navegación & Acceso Directo (Login CTA)**
+- **Acceso Directo al Dashboard**: Botón estilizado y accesible de **Login** con borde distintivo integrado en el Navbar de la Landing page (desktop y menú móvil), enlazando directamente al panel administrativo privado.
 
 ## 🏗️ Arquitectura del Proyecto
 
