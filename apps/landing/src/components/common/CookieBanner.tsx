@@ -3,7 +3,7 @@
 // Colores y diseño corporativo de NelHealthCoach (Limpio, blanco y azul).
 // Cumplimiento estricto RGPD, Directiva ePrivacy y guías EDPB/AEPD.
 
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 
@@ -48,6 +48,17 @@ export const CookieBanner: React.FC = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
 
+  // Cerrar panel de configuración con Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showConfig) {
+        setShowConfig(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showConfig]);
+
   const saveConsent = (type: 'all' | 'essential' | 'custom', analytics: boolean) => {
     try {
       const record: ConsentRecord = {
@@ -91,7 +102,7 @@ export const CookieBanner: React.FC = () => {
                 )}{' '}
                 <Link
                   href="/cookies"
-                  className="text-blue-600 hover:text-blue-800 underline font-medium focus-visible:ring-2 focus-visible:ring-blue-500 rounded outline-none"
+                  className="text-blue-600 hover:text-blue-800 underline font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded outline-none"
                 >
                   {t('cookieBanner.learnMore', 'Más información en nuestra Política de Cookies')}
                 </Link>
@@ -103,21 +114,21 @@ export const CookieBanner: React.FC = () => {
               <button
                 type="button"
                 onClick={handleRejectAll}
-                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 text-gray-700 text-xs sm:text-sm font-medium transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 text-gray-700 text-xs sm:text-sm font-medium transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 outline-none"
               >
                 {t('cookieBanner.rejectNonEssential', 'Rechazar no esenciales')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowConfig(true)}
-                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-blue-200 hover:border-blue-300 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 text-xs sm:text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-blue-200 hover:border-blue-300 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 text-xs sm:text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 outline-none"
               >
                 {t('cookieBanner.customize', 'Configurar')}
               </button>
               <button
                 type="button"
                 onClick={handleAcceptAll}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold transition-colors shadow-md shadow-blue-500/20 focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold transition-colors shadow-md shadow-blue-500/20 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 outline-none"
               >
                 {t('cookieBanner.acceptAll', 'Aceptar todas')}
               </button>
@@ -133,7 +144,7 @@ export const CookieBanner: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowConfig(false)}
-                className="text-gray-500 hover:text-blue-700 text-xs font-medium underline p-1"
+                className="text-gray-500 hover:text-blue-700 text-xs font-medium underline p-1 focus-visible:ring-2 focus-visible:ring-blue-600 rounded outline-none"
               >
                 ← Volver
               </button>
@@ -169,7 +180,7 @@ export const CookieBanner: React.FC = () => {
               </div>
 
               {/* Categoría 2: Analíticas */}
-              <label htmlFor="cookie-analytics-toggle" className="p-3.5 bg-gray-50/90 rounded-xl border border-gray-200 flex items-start justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors">
+              <label htmlFor="cookie-analytics-toggle" className="p-3.5 bg-gray-50/90 rounded-xl border border-gray-200 flex items-start justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors focus-within:ring-2 focus-within:ring-blue-600 rounded-xl">
                 <div className="space-y-1">
                   <span className="font-semibold text-xs sm:text-sm text-gray-800 block">
                     {t('cookieBanner.analyticsTitle', 'Cookies Analíticas y Medición')}
@@ -187,7 +198,7 @@ export const CookieBanner: React.FC = () => {
                   checked={analyticsEnabled}
                   onChange={(e) => setAnalyticsEnabled(e.target.checked)}
                   aria-label={t('cookieBanner.analyticsTitle', 'Cookies Analíticas y Medición')}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600"
                 />
               </label>
             </div>
@@ -196,14 +207,14 @@ export const CookieBanner: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowConfig(false)}
-                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100 text-xs font-medium"
+                className="px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-100 text-xs font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 outline-none"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleSaveCustom}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm"
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 outline-none"
               >
                 {t('cookieBanner.savePreferences', 'Guardar preferencias')}
               </button>
