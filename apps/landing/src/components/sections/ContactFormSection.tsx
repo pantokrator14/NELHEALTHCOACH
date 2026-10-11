@@ -49,7 +49,7 @@ const ContactFormSection: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // Disponibilidad de sesiones gratuitas (cupo limitado)
+  // Disponibilidad de sesiones personalizadas (cupo limitado)
   const [sessionInfo, setSessionInfo] = useState<{ available: boolean; remaining: number } | null>(null);
   // Lista de espera (misma lista unificada del libro, origen 'sessions')
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
@@ -71,7 +71,7 @@ const ContactFormSection: React.FC = () => {
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // Disponibilidad de la sesión gratuita
+  // Disponibilidad de la sesión personalizada
   const refreshAvailability = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/free-sessions/availability`, { cache: 'no-store' });
