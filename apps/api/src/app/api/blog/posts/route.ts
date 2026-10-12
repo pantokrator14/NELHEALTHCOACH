@@ -117,7 +117,12 @@ async function getHandler(request: NextRequest) {
       }
       results = results.slice(0, limit);
 
-      return NextResponse.json({ success: true, data: results });
+      const res = NextResponse.json({ success: true, data: results });
+      if (!isAdmin) {
+        res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+        res.headers.set('CDN-Cache-Control', 'max-age=1800');
+      }
+      return res;
     } catch (error: unknown) {
       const apiError = error as { status?: number; message?: string };
       if (apiError?.status) {

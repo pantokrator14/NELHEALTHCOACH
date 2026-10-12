@@ -6,6 +6,12 @@ import '../../lib/i18n';
 // URL del blog (app independiente del monorepo)
 const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'http://localhost:3003';
 
+const SOCIAL_LINKS = [
+  { name: 'instagram', label: 'Instagram', href: 'https://www.instagram.com/nelhealthcoach', initial: 'I' },
+  { name: 'tiktok', label: 'TikTok', href: 'https://www.tiktok.com/@nelhealthcoachoficial', initial: 'T' },
+  { name: 'facebook', label: 'Facebook', href: 'https://facebook.com/NELHEALTHCOACH', initial: 'F' },
+];
+
 /**
  * Pie de página con:
  * - Información de la empresa y datos fiscales
@@ -107,17 +113,17 @@ const Footer: React.FC = () => {
             {t('landing.footer.copyright')}
           </p>
           <div className="flex space-x-4">
-            {['facebook', 'instagram', 'youtube'].map((social) => (
+            {SOCIAL_LINKS.map((social) => (
               <a 
-                key={social}
-                href={`https://${social}.com/NELHEALTHCOACH`}
+                key={social.name}
+                href={social.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-white transition-colors"
-                aria-label={`Síguenos en ${social}`}
+                className="text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 rounded-full"
+                aria-label={`Síguenos en ${social.label}`}
               >
                 <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-sm font-semibold hover:bg-gray-700">
-                  {social.charAt(0).toUpperCase()}
+                  {social.initial}
                 </div>
               </a>
             ))}

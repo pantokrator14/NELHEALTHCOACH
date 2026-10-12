@@ -15,57 +15,54 @@ const schemaData = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': ['HealthAndBeautyBusiness', 'LocalBusiness'],
-      '@id': `${SITE_URL}/#business`,
+      '@type': ['Organization', 'Brand'],
+      '@id': 'https://www.nelhealthcoach.com/#metodo',
       name: 'NelHealthCoach',
-      url: 'https://www.nelhealthcoach.com',
-      logo: `${SITE_URL}/images/logo.png`,
-      image: `${SITE_URL}/images/hero/hero4.jpg`,
-      description: 'Programa y consultas de coaching en salud integral, nutrición consciente y hábitos saludables con enfoque personalizado.',
-      telephone: '+1-442-342-5050',
-      email: 'contact@nelhealthcoach.com',
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: '33450 Shifting Sands Trail',
-        addressLocality: 'Cathedral City',
-        addressRegion: 'CA',
-        postalCode: '92234',
-        addressCountry: 'US',
-      },
-      founder: {
-        '@type': 'Person',
-        '@id': `${SITE_URL}/#coach`,
-        name: 'Manuel Martínez',
-        jobTitle: 'Health Coach',
-        image: `${SITE_URL}/images/about/nelhealthcoach.jpeg`,
-        description: 'Coach en salud integral y nutrición consciente enfocado en bienestar y transformación de hábitos de vida.',
-      },
-      knowsAbout: ['Nutrición', 'Entrenamiento funcional', 'Hábitos de vida saludable'],
-      sameAs: [
-        'https://facebook.com/NELHEALTHCOACH',
-        'https://instagram.com/NELHEALTHCOACH',
-        'https://youtube.com/NELHEALTHCOACH',
+      legalName: 'NelHealthCoach',
+      alternateName: [
+        'NELHEALTHCOACH',
+        'Nel Health Coach',
+        'NelHealth',
+        'nelhealthcoach',
       ],
-      priceRange: '$$',
+      url: 'https://www.nelhealthcoach.com',
+      logo: 'https://www.nelhealthcoach.com/images/logo.png',
+      description: 'Plataforma de coaching de salud integral y longevidad basada en hábitos ancestrales, ritmos circadianos, luz solar, grounding y nutrición evolutiva.',
+      sameAs: [
+        'https://www.instagram.com/nelhealthcoach',
+        'https://www.tiktok.com/@nelhealthcoachoficial',
+      ],
+      founder: {
+        '@id': 'https://www.nelhealthcoach.com/#sobre-mi',
+      },
     },
     {
       '@type': 'Person',
-      '@id': `${SITE_URL}/#coach`,
+      '@id': 'https://www.nelhealthcoach.com/#sobre-mi',
       name: 'Manuel Martínez',
-      jobTitle: 'Health Coach',
+      jobTitle: 'Health Coach & Fundador',
       worksFor: {
-        '@id': `${SITE_URL}/#business`,
+        '@id': 'https://www.nelhealthcoach.com/#metodo',
       },
-      image: `${SITE_URL}/images/about/nelhealthcoach.jpeg`,
-      description: 'Coach en salud integral y nutrición consciente enfocado en bienestar y transformación de hábitos de vida.',
+      sameAs: [
+        'https://www.instagram.com/nelhealthcoach',
+      ],
+      knowsAbout: [
+        'Alimentación ancestral y evolutiva',
+        'Ritmos circadianos y cronobiología',
+        'Exposición a la luz solar y salud mitocondrial',
+        'Grounding y conexión con la naturaleza',
+        'Entrenamiento funcional y movimiento natural',
+        'Longevidad y flexibilidad metabólica',
+      ],
     },
   ],
 };
 
 export default function Home() {
   const router = useRouter();
-  const title = 'NELHEALTHCOACH | Coaching de Salud Integral y Nutrición Consciente';
-  const description = 'Transforma tu vida a través de la salud integral, nutrición consciente y hábitos saludables con Manuel Martínez, Health Coach certificado.';
+  const title = 'NelHealthCoach | Salud Ancestral, Ritmos Circadianos y Longevidad';
+  const description = 'Plataforma de coaching de salud integral y longevidad basada en hábitos ancestrales, ritmos circadianos, luz solar, grounding y nutrición evolutiva con Manuel Martínez.';
   const shareImage = `${SITE_URL}/images/hero/hero4.jpg`;
   const canonicalUrl = `${SITE_URL}${router.asPath ? router.asPath.split('?')[0] : ''}`;
 
@@ -74,10 +71,11 @@ export default function Home() {
       <Head>
         <title>{title}</title>
         <meta name="description" content={description} />
+        <meta name="application-name" content="NelHealthCoach" />
         <link rel="canonical" href={canonicalUrl} />
 
         {/* Open Graph (Facebook, WhatsApp, LinkedIn) */}
-        <meta property="og:site_name" content="NELHEALTHCOACH" />
+        <meta property="og:site_name" content="NelHealthCoach" />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={title} />

@@ -68,7 +68,7 @@ const AdminDashboardPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>{`${t('admin.dashboardTitle')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${t('admin.dashboardTitle')} | Blog NelHealthCoach`}</title>
       </Head>
 
       <AdminLayout active="panel">

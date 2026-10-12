@@ -265,16 +265,58 @@ export interface FreeSessionsConfig {
   remaining: number;
 }
 
+// Deduplicación en memoria para catálogos y configuraciones (1 minuto)
+export const DEDUPING_INTERVAL_MS = 60000;
+interface DedupeEntry<T> {
+  promise: Promise<T>;
+  timestamp: number;
+}
+const dedupeCache = new Map<string, DedupeEntry<unknown>>();
+
+export function clearDedupeCache(prefix?: string): void {
+  if (!prefix) {
+    dedupeCache.clear();
+    return;
+  }
+  for (const key of dedupeCache.keys()) {
+    if (key.startsWith(prefix)) {
+      dedupeCache.delete(key);
+    }
+  }
+}
+
+async function dedupedRequest<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  ttl = DEDUPING_INTERVAL_MS,
+): Promise<T> {
+  const now = Date.now();
+  const cached = dedupeCache.get(key) as DedupeEntry<T> | undefined;
+  if (cached && now - cached.timestamp < ttl) {
+    return cached.promise;
+  }
+
+  const promise = fetcher().catch((err) => {
+    dedupeCache.delete(key);
+    throw err;
+  });
+
+  dedupeCache.set(key, { promise: promise as Promise<unknown>, timestamp: now });
+  return promise;
+}
+
 export const apiClient = {
   async getFreeSessions(): Promise<{ success: boolean; data: FreeSessionsConfig }> {
-    const response = await fetch(`${API_BASE_URL}/api/free-sessions`, {
-      headers: getAuthHeaders(),
+    return dedupedRequest('config:free-sessions', async () => {
+      const response = await fetch(`${API_BASE_URL}/api/free-sessions`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw apiError(errorData, 'Error al cargar las sesiones gratuitas');
+      }
+      return response.json();
     });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw apiError(errorData, 'Error al cargar las sesiones gratuitas');
-    }
-    return response.json();
   },
 
   async updateFreeSessions(input: { open?: boolean; limit?: number; resetUsed?: boolean }): Promise<{ success: boolean; data: FreeSessionsConfig }> {
@@ -287,6 +329,7 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw apiError(errorData, 'Error al guardar las sesiones gratuitas');
     }
+    clearDedupeCache('config:free-sessions');
     return response.json();
   },
 
@@ -841,24 +884,27 @@ export const apiClient = {
 
   // Métodos para Recetas - Tipos corregidos
   async getRecipes(search?: string, category?: string): Promise<ApiResponse<Recipe[]>> {
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (category) params.append('category', category);
+    const cacheKey = `catalog:recipes:${search || ''}:${category || ''}`;
+    return dedupedRequest(cacheKey, async () => {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (category) params.append('category', category);
 
-    const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(`${API_BASE_URL}/api/recipes${query}`, {
-      headers: getAuthHeaders(),
-    });
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/recipes${query}`, {
+        headers: getAuthHeaders(),
+      });
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        clearAuthToken();
-        window.location.href = '/login';
+      if (!response.ok) {
+        if (response.status === 401) {
+          clearAuthToken();
+          window.location.href = '/login';
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw apiError(errorData, 'Error al cargar recetas');
       }
-      const errorData = await response.json().catch(() => ({}));
-      throw apiError(errorData, 'Error al cargar recetas');
-    }
-    return response.json();
+      return response.json();
+    });
   },
 
   async generateRecipeUploadURL(
@@ -920,6 +966,7 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw apiError(errorData, 'Error confirmando upload');
     }
+    clearDedupeCache('catalog:recipes');
     return response.json();
   },
 
@@ -1166,16 +1213,19 @@ export const apiClient = {
 
   // ── Exercises ──
   async getExercises(search?: string): Promise<ApiResponse<Exercise[]>> {
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    const response = await fetch(`${API_BASE_URL}/api/exercises?${params.toString()}`, {
-      headers: getAuthHeaders(),
+    const cacheKey = `catalog:exercises:${search || ''}`;
+    return dedupedRequest(cacheKey, async () => {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      const response = await fetch(`${API_BASE_URL}/api/exercises?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw apiError(errorData, 'Error al cargar ejercicios');
+      }
+      return response.json();
     });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw apiError(errorData, 'Error al cargar ejercicios');
-    }
-    return response.json();
   },
 
   async createExercise(data: ExerciseFormData): Promise<ApiResponse<{ id: string }>> {
@@ -1188,6 +1238,7 @@ export const apiClient = {
       const errorData = await response.json().catch(() => ({}));
       throw apiError(errorData, 'Error al crear ejercicio');
     }
+    clearDedupeCache('catalog:exercises');
     return response.json();
   },
 

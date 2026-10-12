@@ -158,7 +158,7 @@ const AdminEditorPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>{`${isEditing ? t('admin.editorTitleEdit') : t('admin.editorTitleNew')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${isEditing ? t('admin.editorTitleEdit') : t('admin.editorTitleNew')} | Blog NelHealthCoach`}</title>
       </Head>
 
       <AdminLayout active="editor">

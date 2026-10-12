@@ -94,7 +94,7 @@ const AdminCommentsPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>{`${t('admin.commentsTitle')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${t('admin.commentsTitle')} | Blog NelHealthCoach`}</title>
       </Head>
 
       <AdminLayout active="comments">

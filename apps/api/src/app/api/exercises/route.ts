@@ -93,7 +93,12 @@ async function getHandler(request: NextRequest) {
           difficulty: ex.difficulty,
           clientLevel: ex.clientLevel,
         }));
-        return NextResponse.json({ success: true, data: searchResults });
+        const res = NextResponse.json({ success: true, data: searchResults });
+        if (!isAdmin) {
+          res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+          res.headers.set('CDN-Cache-Control', 'max-age=1800');
+        }
+        return res;
       }
 
       // Resolver nombres de progresiones (mapeo id → name)
@@ -109,7 +114,12 @@ async function getHandler(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ success: true, data: results });
+      const res = NextResponse.json({ success: true, data: results });
+      if (!isAdmin) {
+        res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+        res.headers.set('CDN-Cache-Control', 'max-age=1800');
+      }
+      return res;
     } catch (error: unknown) {
       logger.error('EXERCISES', 'Error al obtener ejercicios', error as Error);
       return NextResponse.json(

@@ -132,7 +132,8 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
   return (
     <>
       <Head>
-        <title>{`${post.title} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${post.title} | NelHealthCoach`}</title>
+        <meta name="application-name" content="NelHealthCoach" />
         <meta name="description" content={description} />
         <link rel="canonical" href={canonical} />
 
@@ -147,7 +148,7 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
         ))}
 
         {/* Open Graph (Facebook, WhatsApp, LinkedIn…) */}
-        <meta property="og:site_name" content="NELHEALTHCOACH" />
+        <meta property="og:site_name" content="NelHealthCoach" />
         <meta property="og:title" content={post.title} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="article" />

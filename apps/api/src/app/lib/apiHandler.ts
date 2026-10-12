@@ -80,6 +80,12 @@ export function apiHandler<T extends Record<string, string> = Record<string, str
         response.headers.set('X-Request-ID', requestId);
       }
 
+      // Proteccion de datos privados: no-store por defecto si no es ruta publica explicita
+      if (!response.headers.has('Cache-Control')) {
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        response.headers.set('Pragma', 'no-cache');
+      }
+
       return response;
     } catch (error) {
       const duration = Date.now() - start;
@@ -104,7 +110,11 @@ export function apiHandler<T extends Record<string, string> = Record<string, str
         },
         {
           status: 500,
-          headers: { 'X-Request-ID': requestId },
+          headers: {
+            'X-Request-ID': requestId,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+          },
         },
       );
     }

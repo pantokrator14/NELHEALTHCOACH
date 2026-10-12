@@ -45,7 +45,7 @@ const AdminLoginPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>{`${t('admin.loginTitle')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${t('admin.loginTitle')} | Blog NelHealthCoach`}</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
 

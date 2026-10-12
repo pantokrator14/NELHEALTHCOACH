@@ -46,8 +46,9 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <title>Blog | NELHEALTHCOACH</title>
-        <meta name="description" content="Blog de salud y bienestar de NELHEALTHCOACH" />
+        <title>Blog | NelHealthCoach</title>
+        <meta name="application-name" content="NelHealthCoach" />
+        <meta name="description" content="Blog de salud ancestral y longevidad de NelHealthCoach" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/images/favicon.ico" />
       </Head>

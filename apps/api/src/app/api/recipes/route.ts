@@ -83,11 +83,21 @@ async function getHandler(request: NextRequest) {
           image: recipe.image,
           cookTime: recipe.cookTime,
         }));
-        return NextResponse.json({ success: true, data: searchResults });
+        const res = NextResponse.json({ success: true, data: searchResults });
+        if (!isAdmin) {
+          res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+          res.headers.set('CDN-Cache-Control', 'max-age=1800');
+        }
+        return res;
       }
 
       // Modo 'full': devolver todos los campos (sin límite cuando no hay búsqueda)
-      return NextResponse.json({ success: true, data: results });
+      const res = NextResponse.json({ success: true, data: results });
+      if (!isAdmin) {
+        res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+        res.headers.set('CDN-Cache-Control', 'max-age=1800');
+      }
+      return res;
 
     } catch (error: unknown) {
       logger.error('RECIPES', 'Error en búsqueda', error);

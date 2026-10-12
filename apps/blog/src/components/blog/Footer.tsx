@@ -4,6 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { LANDING_URL } from '@/lib/links';
 import '@/lib/i18n';
 
+const SOCIAL_LINKS = [
+  { name: 'instagram', label: 'Instagram', href: 'https://www.instagram.com/nelhealthcoach', initial: 'I' },
+  { name: 'tiktok', label: 'TikTok', href: 'https://www.tiktok.com/@nelhealthcoachoficial', initial: 'T' },
+  { name: 'facebook', label: 'Facebook', href: 'https://facebook.com/NELHEALTHCOACH', initial: 'F' },
+];
+
 /**
  * Footer del blog — MISMOS ELEMENTOS que el footer de la landing:
  * marca + descripción, enlaces legales (apuntan a la landing), contacto
@@ -89,17 +95,17 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">{t('footer.social')}</h4>
             <div className="flex space-x-4">
-              {['facebook', 'instagram', 'youtube'].map((social) => (
+              {SOCIAL_LINKS.map((social) => (
                 <a
-                  key={social}
-                  href={`https://${social}.com/NELHEALTHCOACH`}
+                  key={social.name}
+                  href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-white transition-colors"
-                  aria-label={`Síguenos en ${social}`}
+                  className="text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 rounded-full"
+                  aria-label={`Síguenos en ${social.label}`}
                 >
                   <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center">
-                    {social.charAt(0).toUpperCase()}
+                    {social.initial}
                   </div>
                 </a>
               ))}
