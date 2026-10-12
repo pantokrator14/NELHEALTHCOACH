@@ -41,7 +41,8 @@ export const en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Integral health coach and founder of NELHEALTHCOACH',
+    role: 'Health and lifestyle coach',
+    bio: 'Manuel Martínez is a health and lifestyle coach dedicated to restoring human vitality through ancestral habits: circadian alignment, natural sunlight, grounding, functional movement, and evolutionary nutrition.',
     experience_one: '{{count}} year of experience',
     experience_other: '{{count}} years of experience',
   },
@@ -225,7 +226,8 @@ export const es: typeof en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Coach de salud integral y fundador de NELHEALTHCOACH',
+    role: 'Coach de salud y estilo de vida',
+    bio: 'Manuel Martínez es coach de salud y estilo de vida enfocado en devolver la vitalidad humana a través de hábitos ancestrales: sincronización circadiana, luz solar, grounding, movimiento funcional y nutrición evolutiva.',
     experience_one: '{{count}} año de experiencia',
     experience_other: '{{count}} años de experiencia',
   },
@@ -409,7 +411,8 @@ export const fr: typeof en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Coach en santé intégrale et fondateur de NELHEALTHCOACH',
+    role: 'Coach en santé et mode de vie',
+    bio: 'Manuel Martínez est un coach de santé et de mode de vie dédié à restaurer la vitalité humaine grâce aux habitudes ancestrales : alignement circadien, lumière solaire, mise à la terre, mouvement fonctionnel et nutrition évolutive.',
     experience_one: '{{count}} an d’expérience',
     experience_other: '{{count}} ans d’expérience',
   },
@@ -593,7 +596,8 @@ export const it: typeof en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Coach di salute integrale e fondatore di NELHEALTHCOACH',
+    role: 'Coach per la salute e lo stile di vita',
+    bio: 'Manuel Martínez è un coach per la salute e lo stile di vita focalizzato sul ripristino della vitalità umana attraverso abitudini ancestrali: sincronizzazione circadiana, luce solare, grounding, movimento funzionale e nutrizione evolutiva.',
     experience_one: '{{count}} anno di esperienza',
     experience_other: '{{count}} anni di esperienza',
   },
@@ -777,7 +781,8 @@ export const pt: typeof en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Coach de saúde integral e fundador da NELHEALTHCOACH',
+    role: 'Coach de saúde e estilo de vida',
+    bio: 'Manuel Martínez é coach de saúde e estilo de vida focado em restaurar a vitalidade humana por meio de hábitos ancestrais: sincronização circadiana, luz solar, grounding, movimento funcional e nutrição evolutiva.',
     experience_one: '{{count}} ano de experiência',
     experience_other: '{{count}} anos de experiência',
   },
@@ -961,7 +966,8 @@ export const de: typeof en = {
 
   author: {
     name: 'Manuel Martínez',
-    role: 'Ganzheitlicher Gesundheitscoach und Gründer von NELHEALTHCOACH',
+    role: 'Gesundheits- und Lifestyle-Coach',
+    bio: 'Manuel Martínez ist Gesundheits- und Lifestyle-Coach, der sich der Wiederherstellung der menschlichen Vitalität durch ancestrale Gewohnheiten widmet: zirkadiane Synchronisation, Sonnenlicht, Grounding, funktionelle Bewegung und evolutionäre Ernährung.',
     experience_one: '{{count}} Jahr Erfahrung',
     experience_other: '{{count}} Jahre Erfahrung',
   },

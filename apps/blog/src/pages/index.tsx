@@ -94,7 +94,8 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
   return (
     <>
       <Head>
-        <title>{`${t('common.allPosts')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${t('common.allPosts')} | NelHealthCoach`}</title>
+        <meta name="application-name" content="NelHealthCoach" />
         <meta name="description" content={description} />
         <link rel="canonical" href={canonical} />
 
@@ -112,12 +113,12 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
         <link
           rel="alternate"
           type="application/rss+xml"
-          title="Blog NELHEALTHCOACH"
+          title="Blog NelHealthCoach"
           href="/rss.xml"
         />
 
-        <meta property="og:site_name" content="NELHEALTHCOACH" />
-        <meta property="og:title" content={`${t('hero.title')} | NELHEALTHCOACH`} />
+        <meta property="og:site_name" content="NelHealthCoach" />
+        <meta property="og:title" content={`${t('hero.title')} | NelHealthCoach`} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={canonical} />
@@ -125,7 +126,7 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
         <meta property="og:image" content={absoluteUrl('/images/logo.png')} />
 
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content={`${t('hero.title')} | NELHEALTHCOACH`} />
+        <meta name="twitter:title" content={`${t('hero.title')} | NelHealthCoach`} />
         <meta name="twitter:description" content={description} />
 
         <script

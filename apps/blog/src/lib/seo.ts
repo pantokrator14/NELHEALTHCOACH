@@ -91,7 +91,8 @@ export function buildPostJsonLd(post: PostSeoInput): Record<string, unknown> {
     inLanguage: post.lang ?? 'es',
     publisher: {
       '@type': 'Organization',
-      name: 'NELHEALTHCOACH',
+      name: 'NelHealthCoach',
+      url: 'https://www.nelhealthcoach.com',
       logo: { '@type': 'ImageObject', url: absoluteUrl('/images/logo.png') },
     },
   };
@@ -120,12 +121,13 @@ export function buildBlogJsonLd(input: {
   return {
     '@context': 'https://schema.org',
     '@type': 'Blog',
-    name: 'Blog NELHEALTHCOACH',
+    name: 'Blog NelHealthCoach',
     url: absoluteUrl('/'),
     inLanguage: input.lang ?? 'es',
     publisher: {
       '@type': 'Organization',
-      name: 'NELHEALTHCOACH',
+      name: 'NelHealthCoach',
+      url: 'https://www.nelhealthcoach.com',
       logo: { '@type': 'ImageObject', url: absoluteUrl('/images/logo.png') },
     },
     ...(input.authorName

@@ -21,7 +21,7 @@ const AuthorCard: React.FC<Props> = ({ author }) => {
 
   const name = author?.name || t('author.name');
   const role = author?.role || t('author.role');
-  const bio = author?.bio || '';
+  const bio = author?.bio || t('author.bio');
   const photoUrl = author?.photo?.url || DEFAULT_PHOTO;
   const specialties = author?.specialties ?? [];
   const years = author?.yearsOfExperience ?? 0;

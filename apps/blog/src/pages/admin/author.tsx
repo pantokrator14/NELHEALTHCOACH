@@ -133,7 +133,7 @@ const AdminAuthorPage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>{`${t('admin.authorTitle')} | Blog NELHEALTHCOACH`}</title>
+        <title>{`${t('admin.authorTitle')} | Blog NelHealthCoach`}</title>
       </Head>
 
       <AdminLayout active="author">

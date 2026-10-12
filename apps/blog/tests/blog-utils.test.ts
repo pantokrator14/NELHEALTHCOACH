@@ -192,7 +192,7 @@ check('post JSON-LD autor Person', (jsonLd.author as Record<string, unknown>)['@
 check('post JSON-LD fecha publicación', jsonLd.datePublished === '2026-01-15T10:00:00.000Z');
 check('post JSON-LD fecha modificación', jsonLd.dateModified === '2026-01-16T10:00:00.000Z');
 check('post JSON-LD imagen', Array.isArray(jsonLd.image) && (jsonLd.image as string[])[0] === 'https://s3.example.com/cover.jpg');
-check('post JSON-LD publisher', (jsonLd.publisher as Record<string, unknown>).name === 'NELHEALTHCOACH');
+check('post JSON-LD publisher', (jsonLd.publisher as Record<string, unknown>).name === 'NelHealthCoach');
 check('post JSON-LD idioma', jsonLd.inLanguage === 'es');
 check('post JSON-LD con categoría keyword', Array.isArray(jsonLd.keywords) && (jsonLd.keywords as string[]).includes('nutricion'));
 

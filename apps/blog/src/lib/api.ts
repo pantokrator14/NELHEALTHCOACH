@@ -177,6 +177,46 @@ async function request<T>(
 
 // ── Cliente ──────────────────────────────────────────────────────────────────
 
+// Deduplicación en memoria para catálogos y configuraciones (1 minuto)
+export const DEDUPING_INTERVAL_MS = 60000;
+interface DedupeEntry<T> {
+  promise: Promise<T>;
+  timestamp: number;
+}
+const dedupeCache = new Map<string, DedupeEntry<unknown>>();
+
+export function clearDedupeCache(prefix?: string): void {
+  if (!prefix) {
+    dedupeCache.clear();
+    return;
+  }
+  for (const key of dedupeCache.keys()) {
+    if (key.startsWith(prefix)) {
+      dedupeCache.delete(key);
+    }
+  }
+}
+
+async function dedupedRequest<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  ttl = DEDUPING_INTERVAL_MS,
+): Promise<T> {
+  const now = Date.now();
+  const cached = dedupeCache.get(key) as DedupeEntry<T> | undefined;
+  if (cached && now - cached.timestamp < ttl) {
+    return cached.promise;
+  }
+
+  const promise = fetcher().catch((err) => {
+    dedupeCache.delete(key);
+    throw err;
+  });
+
+  dedupeCache.set(key, { promise: promise as Promise<unknown>, timestamp: now });
+  return promise;
+}
+
 export const apiClient = {
   /** Lista entradas públicas (o todas, si hay token de admin válido). */
   getPosts(lang?: string, category?: string): Promise<BlogPost[]> {
@@ -199,22 +239,28 @@ export const apiClient = {
 
   /** Categorías derivadas de las entradas publicadas. */
   getCategories(): Promise<BlogCategory[]> {
-    return request<BlogCategory[]>('/api/blog/categories', {}, false);
+    return dedupedRequest('catalog:categories', () =>
+      request<BlogCategory[]>('/api/blog/categories', {}, false)
+    );
   },
 
   /** Perfil público del autor (nombre, rol, bio y foto). */
   getAuthor(lang?: string): Promise<BlogAuthor> {
     const params = new URLSearchParams();
     if (lang) params.set('lang', lang);
-    return request<BlogAuthor>(`/api/blog/author?${params.toString()}`, {}, false);
+    return dedupedRequest(`catalog:author:${lang || 'default'}`, () =>
+      request<BlogAuthor>(`/api/blog/author?${params.toString()}`, {}, false)
+    );
   },
 
   /** Guarda el perfil del autor (solo admin). */
-  updateAuthor(input: BlogAuthorInput): Promise<BlogAuthor> {
-    return request<BlogAuthor>('/api/blog/author', {
+  async updateAuthor(input: BlogAuthorInput): Promise<BlogAuthor> {
+    const res = await request<BlogAuthor>('/api/blog/author', {
       method: 'PUT',
       body: JSON.stringify(input),
     });
+    clearDedupeCache('catalog:author');
+    return res;
   },
 
   /** URL prefirmada de S3 para la foto del autor (solo admin). */
