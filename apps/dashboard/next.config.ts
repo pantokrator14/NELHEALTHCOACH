@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:3001';
-    const connectSrc = `connect-src 'self' https: ${apiUrl} ws:`;
+    const connectSrc = `connect-src 'self' ${apiUrl} https://api.stripe.com https://*.livekit.cloud wss://*.livekit.cloud ws:`;
 
     return [
       {
@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value: process.env.CSP_HEADER
-              || `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; ${connectSrc}; frame-src 'self' https://js.stripe.com https://nelhealthcoach-bucket.s3.us-west-1.amazonaws.com; font-src 'self' data:;`,
+              || `default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://nelhealthcoach-bucket.s3.us-west-1.amazonaws.com https://app.nelhealthcoach.com; ${connectSrc}; frame-src 'self' https://js.stripe.com https://nelhealthcoach-bucket.s3.us-west-1.amazonaws.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https:; font-src 'self' data:;`,
           },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Frame-Options', value: 'DENY' },

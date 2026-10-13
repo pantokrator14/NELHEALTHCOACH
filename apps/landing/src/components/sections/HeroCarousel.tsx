@@ -109,7 +109,7 @@ const HeroCarousel: React.FC = () => {
         type="button"
         onClick={prevSlide}
         aria-label="Diapositiva anterior (Flecha izquierda)"
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+        className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -120,7 +120,7 @@ const HeroCarousel: React.FC = () => {
         type="button"
         onClick={nextSlide}
         aria-label="Siguiente diapositiva (Flecha derecha)"
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+        className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm transition-all focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

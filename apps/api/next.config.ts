@@ -24,7 +24,7 @@ const nextConfig = {
           // Política de referrer
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           // Content Security Policy básico para API
-          { key: 'Content-Security-Policy', value: "default-src 'self'; frame-ancestors 'none'" },
+          { key: 'Content-Security-Policy', value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'" },
           // Permissions Policy: limitar APIs del navegador
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           // DNS prefetch control
