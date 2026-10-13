@@ -125,7 +125,7 @@ const en = {
     },
     carousel: {
       slide1: "It's time to listen to your body",
-      slide2: "Let your food be your medicine and your medicine be your food",
+      slide2: "Let your food be your medicine and your medicine be your food (Hippocrates, 5th century BC)",
       slide3: "Know the Power of your Body",
       slide4: "Choose a goal and we'll accompany you step by step"
     },
@@ -486,7 +486,7 @@ const es = {
     },
     carousel: {
       slide1: "Llegó el momento de escuchar a tu cuerpo",
-      slide2: "Que tu alimento sea tu medicina y que tu medicina sea tu alimento",
+      slide2: "Que tu alimento sea tu medicina y que tu medicina sea tu alimento (Hipócrates, siglo V a.C.)",
       slide3: "Conoce el poder de tu cuerpo",
       slide4: "Elige una meta y te acompañamos paso a paso"
     },
@@ -848,7 +848,7 @@ const fr = {
     },
     carousel: {
       slide1: "C'est le moment d'ecouter votre corps",
-      slide2: "Que votre nourriture soit votre medecine",
+      slide2: "Que votre nourriture soit votre médecine (Hippocrate, Ve siècle av. J.-C.)",
       slide3: "Connaître le pouvoir de votre corps",
       slide4: "Choisissez un objectif et nous vous accompagnons"
     },
@@ -1211,7 +1211,7 @@ const it = {
     },
     carousel: {
       slide1: "E il momento di ascoltare il tuo corpo",
-      slide2: "Che il cibo sia la tua medicina",
+      slide2: "Che il cibo sia la tua medicina (Ippocrate, V secolo a.C.)",
       slide3: "Conosci il Potere del tuo Corpo",
       slide4: "Scegli un obiettivo e ti accompagniamo"
     },
@@ -1575,7 +1575,7 @@ const pt = {
     },
     carousel: {
       slide1: 'E hora de ouvir seu corpo',
-      slide2: 'Que seu alimento seja sua medicina',
+      slide2: 'Que seu alimento seja sua medicina (Hipócrates, século V a.C.)',
       slide3: 'Conoce o Poder do seu Corpo',
       slide4: 'Escolha um objetivo e nos acompanhamos'
     },
@@ -1938,7 +1938,7 @@ const de = {
     },
     carousel: {
       slide1: 'Es ist Zeit, auf deinen Korper zu horen',
-      slide2: 'Lass Nahrung deine Medizin sein',
+      slide2: 'Lass Nahrung deine Medizin sein (Hippokrates, 5. Jh. v. Chr.)',
       slide3: 'Kenne die Kraft deines Korpers',
       slide4: 'Wahle ein Ziel und wir begleiten dich'
     },
