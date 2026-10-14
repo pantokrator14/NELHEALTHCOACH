@@ -76,6 +76,7 @@ const en = {
       libro: 'Secret',
       testimonios: 'Testimonials',
       contacto: 'Contact',
+      agendar: 'Schedule',
       blog: 'Blog',
       privacy: 'Privacy',
       terms: 'Terms',
@@ -83,7 +84,7 @@ const en = {
       cookies: 'Cookies',
       refunds: 'Refunds',
       backToHome: 'Back to Home',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {
@@ -437,6 +438,7 @@ const es = {
       libro: 'Secreto',
       testimonios: 'Testimonios',
       contacto: 'Contacto',
+      agendar: 'Agendar',
       blog: 'Blog',
       privacy: 'Privacidad',
       terms: 'Términos',
@@ -444,7 +446,7 @@ const es = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Volver al Inicio',
-      login: 'Login',
+      login: 'Login (Asesores)',
     },
 
     blogPreview: {
@@ -799,6 +801,7 @@ const fr = {
       libro: 'Secret',
       testimonios: 'Témoignages',
       contacto: 'Contact',
+      agendar: 'Réserver',
       blog: 'Blog',
       privacy: 'Confidentialité',
       terms: 'Conditions',
@@ -806,7 +809,7 @@ const fr = {
       cookies: 'Cookies',
       refunds: 'Remboursements',
       backToHome: 'Retour à l’accueil',
-      login: 'Login',
+      login: 'Login (Coachs)',
     },
 
     blogPreview: {
@@ -1162,6 +1165,7 @@ const it = {
       libro: 'Segreto',
       testimonios: 'Testimonianze',
       contacto: 'Contatto',
+      agendar: 'Prenota',
       blog: 'Blog',
       privacy: 'Privacy',
       terms: 'Termini',
@@ -1169,7 +1173,7 @@ const it = {
       cookies: 'Cookie',
       refunds: 'Rimborsi',
       backToHome: 'Torna alla Home',
-      login: 'Login',
+      login: 'Login (Coach)',
     },
 
     blogPreview: {
@@ -1526,6 +1530,7 @@ const pt = {
       testimonios: 'Depoimentos',
       contato: 'Contato',
       contacto: 'Contato',
+      agendar: 'Agendar',
       blog: 'Blog',
       privacy: 'Privacidade',
       terms: 'Termos',
@@ -1533,7 +1538,7 @@ const pt = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Voltar ao Início',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {
@@ -1889,6 +1894,7 @@ const de = {
       libro: 'Geheimnis',
       testimonios: 'Erfahrungsberichte',
       contacto: 'Kontakt',
+      agendar: 'Termin buchen',
       blog: 'Blog',
       privacy: 'Datenschutz',
       terms: 'AGB',
@@ -1896,7 +1902,7 @@ const de = {
       cookies: 'Cookies',
       refunds: 'Rückerstattung',
       backToHome: 'Zurück zur Startseite',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {

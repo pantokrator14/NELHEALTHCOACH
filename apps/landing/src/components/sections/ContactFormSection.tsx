@@ -78,6 +78,9 @@ const ContactFormSection: React.FC = () => {
       const data = (await res.json()) as { success?: boolean; data?: { available: boolean; remaining: number } };
       if (data?.success && data.data) {
         setSessionInfo({ available: data.data.available, remaining: data.data.remaining });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('nhc_slots_availability', { detail: { available: data.data.available } }));
+        }
       }
     } catch {
       // Sin datos de disponibilidad: no bloqueamos el formulario

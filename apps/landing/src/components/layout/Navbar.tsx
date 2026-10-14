@@ -9,6 +9,8 @@ const DASHBOARD_URL =
   process.env.NEXT_PUBLIC_DASHBOARD_URL ||
   (process.env.NODE_ENV === 'production' ? 'https://app.nelhealthcoach.com' : 'http://localhost:3002');
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 interface NavSectionItem {
   id: string;
   labelKey: string;
@@ -42,9 +44,50 @@ const Navbar: React.FC = () => {
   const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isOverHero, setIsOverHero] = useState(true);
+  const [hasSlotsAvailable, setHasSlotsAvailable] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const isLegalPage = LEGAL_NAV_ITEMS.some((item) => item.href === router.pathname);
+
+  // Consultar disponibilidad de cupos para adaptar dinámicamente "Agendar" o "Contacto"
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAvailability = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/free-sessions/availability`, { cache: 'no-store' });
+        const data = (await res.json()) as { success?: boolean; data?: { available: boolean } };
+        if (isMounted && data?.success && data.data && typeof data.data.available === 'boolean') {
+          setHasSlotsAvailable(data.data.available);
+        }
+      } catch {
+        // En caso de fallo de red, se mantiene el valor inicial
+      }
+    };
+
+    void fetchAvailability();
+
+    const handleSlotsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ available: boolean }>;
+      if (customEvent.detail && typeof customEvent.detail.available === 'boolean') {
+        setHasSlotsAvailable(customEvent.detail.available);
+      }
+    };
+
+    window.addEventListener('nhc_slots_availability', handleSlotsEvent);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('nhc_slots_availability', handleSlotsEvent);
+    };
+  }, []);
+
+  const getNavItemLabel = (item: NavSectionItem) => {
+    if (item.id === 'contacto') {
+      return hasSlotsAvailable
+        ? t('landing.nav.agendar', 'Agendar')
+        : t('landing.nav.contacto', 'Contacto');
+    }
+    return t(item.labelKey);
+  };
 
   // Cerrar el menú móvil en transiciones de ruta mediante suscripción a eventos
   useEffect(() => {
@@ -188,14 +231,14 @@ const Navbar: React.FC = () => {
               {/* Botón Login en páginas legales */}
               <a
                 href={`${DASHBOARD_URL}/login`}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                   isOverHero
                     ? 'border-white/70 text-white hover:bg-white hover:text-blue-700 backdrop-blur-sm'
                     : 'border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white shadow-sm'
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login')}</span>
+                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
               </a>
             </>
           ) : (
@@ -210,21 +253,21 @@ const Navbar: React.FC = () => {
                   }}
                   className={`font-medium transition-colors cursor-pointer rounded-lg px-2 py-1 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${textColor}`}
                 >
-                  {t(item.labelKey)}
+                  {getNavItemLabel(item)}
                 </a>
               ))}
 
               {/* Botón Login con borde distintivo */}
               <a
                 href={`${DASHBOARD_URL}/login`}
-                className={`inline-flex items-center gap-1.5 font-semibold text-sm px-4 py-1.5 rounded-full border-2 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-sm px-4 py-1.5 rounded-full border-2 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                   isOverHero
                     ? 'border-white text-white hover:bg-white hover:text-blue-700 backdrop-blur-sm'
                     : 'border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white'
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login')}</span>
+                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
               </a>
             </>
           )}
@@ -253,9 +296,6 @@ const Navbar: React.FC = () => {
           <div className="flex flex-col space-y-3">
             {isLegalPage ? (
               <>
-                <p className={`text-xs uppercase tracking-wider font-semibold mb-1 ${isOverHero ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Páginas Legales
-                </p>
                 {LEGAL_NAV_ITEMS.map((item) => {
                   const isActive = router.pathname === item.href;
                   return (
@@ -263,27 +303,24 @@ const Navbar: React.FC = () => {
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`font-medium text-base py-2 transition-colors flex items-center justify-between rounded-lg px-2 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
+                      className={`font-medium py-2 px-2 rounded-lg transition-colors ${
                         isActive
-                          ? isOverHero
-                            ? 'text-blue-300 font-bold'
-                            : 'text-blue-600 font-bold'
+                          ? 'text-blue-500 font-bold bg-blue-50/10'
                           : isOverHero
-                          ? 'text-white/90 hover:text-white'
+                          ? 'text-white hover:text-blue-200'
                           : 'text-gray-700 hover:text-blue-600'
                       }`}
                     >
-                      <span>{t(item.labelKey, item.defaultLabel)}</span>
-                      {isActive && <span className="text-xs">●</span>}
+                      {t(item.labelKey, item.defaultLabel)}
                     </Link>
                   );
                 })}
 
-                <div className="pt-3 border-t border-gray-700/30 flex flex-col gap-2.5">
+                <div className="pt-3 border-t border-gray-200/40 flex flex-col gap-2">
                   <Link
                     href="/"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                    className="inline-flex items-center justify-center gap-2 w-full py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all shadow"
                   >
                     <span>←</span>
                     <span>{t('landing.nav.backToHome', 'Volver al Inicio')}</span>
@@ -298,7 +335,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login')}</span>
+                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
                   </a>
                 </div>
               </>
@@ -316,7 +353,7 @@ const Navbar: React.FC = () => {
                       isOverHero ? 'text-white hover:text-blue-200' : 'text-gray-700 hover:text-blue-600'
                     }`}
                   >
-                    {t(item.labelKey)}
+                    {getNavItemLabel(item)}
                   </a>
                 ))}
 
@@ -331,7 +368,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login')}</span>
+                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
                   </a>
                 </div>
               </>

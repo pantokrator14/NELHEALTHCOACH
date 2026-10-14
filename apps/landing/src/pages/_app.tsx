@@ -2,11 +2,18 @@ import '@/styles/globals.css';
 import Head from 'next/head';
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
+import { Inter } from 'next/font/google';
 // i18n — se inicializa en SSR con español (porque LanguageDetector no funciona en servidor)
 // Luego en useEffect se fuerza la detección del idioma real del navegador
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
 import CookieBanner from '@/components/common/CookieBanner';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
@@ -32,7 +39,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <>
+    <div className={`${inter.variable} ${inter.className} font-sans`}>
       <Head>
         <title>NelHealthCoach | Transforma tu vida</title>
         <meta name="application-name" content="NelHealthCoach" />
@@ -43,6 +50,6 @@ export default function App({ Component, pageProps }: AppProps) {
       {/* Banner de cookies al inicio del DOM para acceso inmediato con teclado */}
       <CookieBanner />
       <Component {...pageProps} />
-    </>
+    </div>
   );
 }

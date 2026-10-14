@@ -2,10 +2,17 @@ import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import { useEffect } from 'react';
+import { Inter } from 'next/font/google';
 // i18n — se inicializa en SSR con español (porque LanguageDetector no funciona en servidor)
 // Luego en useEffect se fuerza la detección del idioma real del navegador
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
@@ -26,7 +33,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <>
+    <div className={`${inter.variable} ${inter.className} font-sans`}>
       <Head>
         <title>NELHEALTHCOACH | Dashboard</title>
         <meta name="description" content="Administración de servicios de coaching y bienestar." />
@@ -35,6 +42,6 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Component {...pageProps} />
-    </>
+    </div>
   );
 }
