@@ -188,14 +188,14 @@ const Navbar: React.FC = () => {
               {/* Botón Login en páginas legales */}
               <a
                 href={`${DASHBOARD_URL}/login`}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                   isOverHero
                     ? 'border-white/70 text-white hover:bg-white hover:text-blue-700 backdrop-blur-sm'
                     : 'border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white shadow-sm'
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login')}</span>
+                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
               </a>
             </>
           ) : (
@@ -217,14 +217,14 @@ const Navbar: React.FC = () => {
               {/* Botón Login con borde distintivo */}
               <a
                 href={`${DASHBOARD_URL}/login`}
-                className={`inline-flex items-center gap-1.5 font-semibold text-sm px-4 py-1.5 rounded-full border-2 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-sm px-4 py-1.5 rounded-full border-2 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                   isOverHero
                     ? 'border-white text-white hover:bg-white hover:text-blue-700 backdrop-blur-sm'
                     : 'border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white'
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login')}</span>
+                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
               </a>
             </>
           )}
@@ -298,7 +298,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login')}</span>
+                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
                   </a>
                 </div>
               </>
@@ -331,7 +331,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login')}</span>
+                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
                   </a>
                 </div>
               </>

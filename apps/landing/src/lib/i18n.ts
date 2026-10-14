@@ -83,7 +83,7 @@ const en = {
       cookies: 'Cookies',
       refunds: 'Refunds',
       backToHome: 'Back to Home',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {
@@ -444,7 +444,7 @@ const es = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Volver al Inicio',
-      login: 'Login',
+      login: 'Login (Asesores)',
     },
 
     blogPreview: {
@@ -806,7 +806,7 @@ const fr = {
       cookies: 'Cookies',
       refunds: 'Remboursements',
       backToHome: 'Retour à l’accueil',
-      login: 'Login',
+      login: 'Login (Coachs)',
     },
 
     blogPreview: {
@@ -1169,7 +1169,7 @@ const it = {
       cookies: 'Cookie',
       refunds: 'Rimborsi',
       backToHome: 'Torna alla Home',
-      login: 'Login',
+      login: 'Login (Coach)',
     },
 
     blogPreview: {
@@ -1533,7 +1533,7 @@ const pt = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Voltar ao Início',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {
@@ -1896,7 +1896,7 @@ const de = {
       cookies: 'Cookies',
       refunds: 'Rückerstattung',
       backToHome: 'Zurück zur Startseite',
-      login: 'Login',
+      login: 'Login (Coaches)',
     },
 
     blogPreview: {

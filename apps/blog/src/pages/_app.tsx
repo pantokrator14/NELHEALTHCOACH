@@ -3,11 +3,18 @@ import Head from 'next/head';
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { Inter } from 'next/font/google';
 // i18n — se inicializa en SSR con español (LanguageDetector no funciona en servidor).
 // En useEffect se fuerza la detección del idioma real del navegador.
 import i18n from '@/lib/i18n';
 import { initFingerprint } from '@/lib/fingerprint';
 import CookieBanner from '@/components/CookieBanner';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 const SUPPORTED_LANGS = ['en', 'es', 'fr', 'it', 'pt', 'de'];
 
@@ -44,7 +51,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [router.query.lang]);
 
   return (
-    <>
+    <div className={`${inter.variable} ${inter.className} font-sans`}>
       <Head>
         <title>Blog | NelHealthCoach</title>
         <meta name="application-name" content="NelHealthCoach" />
@@ -54,6 +61,6 @@ export default function App({ Component, pageProps }: AppProps) {
       </Head>
       <Component {...pageProps} />
       <CookieBanner />
-    </>
+    </div>
   );
 }
