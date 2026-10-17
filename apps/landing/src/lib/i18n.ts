@@ -174,14 +174,13 @@ const en = {
     about: {
       title: "About Me",
       subtitle: "My name is Manuel Martínez.",
-      description1: "I am a man whose life took a radical turn after understanding the impact of manipulation in nutrition and modern medicine. During the pandemic, I realized that many foods make us sick and that conventional medicine often only relieves symptoms without addressing the root cause.",
+      description1: "I am a man whose life took a radical turn after understanding the impact of manipulation in nutrition and modern medicine. During the pandemic, I realized that many foods make us sick and that conventional medicine often only relieves symptoms, without addressing the root cause.",
       description2: "On my journey through this path that is life —and thanks to my daily learning and the search for well-being—, I understood to what extent we have been conditioned. Diverse family experiences drove me to seek a change; I decided to listen to my body and my life took a complete turn when I discovered that the best medicine is ancestral nutrition.",
-      description3: "This revelation motivated me to obtain a certification in modern nutrition to empower women, whom I consider the pillar of society. My mission is to help families free themselves from dependence on processed products and misinformation. I promote nutrition as medicine and the importance of listening to one's own body to prevent and reverse disease. A clear example is my daughter, who took thyroid medication for ten years without seeing improvement; by changing her nutrition, she recovered her health naturally.",
+      description3: "This revelation motivated me to obtain a certification in modern nutrition to empower women, whom I consider the pillar of society. My mission is to help families free themselves from dependence on processed products and misinformation. I promote nutrition as medicine and the importance of listening to one’s own body to prevent and reverse diseases. A clear example is my daughter, who took thyroid medication for ten years without seeing improvement; by changing her nutrition, she recovered her health naturally.",
       description4: "These experiences drove me to obtain two certifications in nutrition to accompany and guide other people toward their own liberation. This is my story... and it could be yours.",
-      description5: "Nutrition is your best medicine.",
       badge1: "CERTIFIED MODERN NUTRITION COACH",
       badge2: "+50 Transformed Clients",
-      badge3: "Experience in evolutionary human nutrition",
+      badge3: "Experience in evolutionary human nutrition"
     },
     book: {
       eyebrow: 'New release',
@@ -540,10 +539,9 @@ const es = {
       description2: 'En mi recorrido por este camino que es la vida —y gracias a mi aprendizaje diario y a la búsqueda del bienestar—, comprendí hasta qué punto hemos sido condicionados. Diversas experiencias familiares me impulsaron a buscar un cambio; decidí escuchar a mi cuerpo y mi vida dio un vuelco total al descubrir que la mejor medicina es la alimentación ancestral.',
       description3: 'Esta revelación me motivó a obtener una certificación en nutrición moderna para empoderar a las mujeres, a quienes considero el pilar de la sociedad. Mi misión es ayudar a las familias a liberarse de la dependencia de los productos procesados y de la desinformación. Promuevo la alimentación como medicina y la importancia de escuchar al propio cuerpo para prevenir y revertir enfermedades. Un claro ejemplo es mi hija, quien tomó medicamentos para la tiroides durante diez años sin ver mejoría; al cambiar su alimentación, recuperó su salud de forma natural.',
       description4: 'Estas vivencias me impulsaron a obtener dos certificaciones en nutrición para acompañar y guiar a otras personas hacia su propia liberación. Esta es mi historia... y podría ser la tuya.',
-      description5: 'La alimentación es tu mejor medicina.',
       badge1: 'COACH CERTIFICADO EN NUTRICIÓN MODERNA',
       badge2: '+50 Clientes Transformados',
-      badge3: 'Experiencia en nutrición humana evolutiva',
+      badge3: 'Experiencia en nutrición humana evolutiva'
     },
     book: {
       eyebrow: 'Nuevo lanzamiento',
@@ -897,16 +895,15 @@ const fr = {
       }
     },
     about: {
-      title: "À propos de moi",
+      title: 'À propos de moi',
       subtitle: "Je m'appelle Manuel Martínez.",
-      description1: "Je suis un homme dont la vie a pris un tournant radical après avoir compris l'impact de la manipulation dans l'alimentation et la médecine moderne. Pendant la pandémie, j'ai réalisé que de nombreux aliments nous rendent malades et que la médecine conventionnelle ne fait souvent que soulager les symptômes sans s'attaquer à la cause profonde.",
+      description1: "Je suis un homme dont la vie a pris un tournant radical après avoir compris l'impact de la manipulation dans l'alimentation et la médecine moderne. Pendant la pandémie, j'ai réalisé que de nombreux aliments nous rendent malades et que la médecine conventionnelle ne fait souvent que soulager les symptômes, sans s'attaquer à la cause profonde.",
       description2: "Sur mon chemin dans cette vie — et grâce à mon apprentissage quotidien et à ma recherche du bien-être —, j'ai compris à quel point nous avons été conditionnés. Diverses expériences familiales m'ont poussé à chercher un changement ; j'ai décidé d'écouter mon corps et ma vie a complètement basculé lorsque j'ai découvert que la meilleure médecine est l'alimentation ancestrale.",
       description3: "Cette révélation m'a motivé à obtenir une certification en nutrition moderne pour autonomiser les femmes, que je considère comme le pilier de la société. Ma mission est d'aider les familles à se libérer de la dépendance aux produits transformés et de la désinformation. Je promeus l'alimentation comme médecine et l'importance d'écouter son propre corps pour prévenir et inverser les maladies. Un exemple clair est ma fille, qui a pris des médicaments pour la thyroïde pendant dix ans sans voir d'amélioration ; en changeant son alimentation, elle a retrouvé sa santé naturellement.",
       description4: "Ces expériences m'ont poussé à obtenir deux certifications en nutrition pour accompagner et guider d'autres personnes vers leur propre libération. Voici mon histoire... et elle pourrait être la vôtre.",
-      description5: "L'alimentation est votre meilleure médecine.",
-      badge1: "COACH CERTIFIÉ EN NUTRITION MODERNE",
-      badge2: "+50 Clients Transformés",
-      badge3: "Expérience en nutrition humaine évolutive",
+      badge1: 'COACH CERTIFIÉ EN NUTRITION MODERNE',
+      badge2: '+50 Clients Transformés',
+      badge3: 'Expérience en nutrition humaine évolutive'
     },
     book: {
       eyebrow: 'Nouvelle parution',
@@ -1262,14 +1259,13 @@ const it = {
     about: {
       title: "Su di me",
       subtitle: "Mi chiamo Manuel Martínez.",
-      description1: "Sono un uomo la cui vita ha preso una svolta radicale dopo aver compreso l'impatto della manipolazione nell'alimentazione e nella medicina moderna. Durante la pandemia, mi sono reso conto che molti alimenti ci fanno ammalare e che la medicina convenzionale spesso allevia solo i sintomi senza affrontare la causa profonda.",
-      description2: "Nel mio percorso in questo cammino che è la vita —e grazie al mio apprendimento quotidiano e alla ricerca del benessere—, ho compreso fino a che punto siamo stati condizionati. Diverse esperienze familiari mi hanno spinto a cercare un cambiamento; ho deciso di ascoltare il mio corpo e la mia vita ha preso una svolta totale quando ho scoperto che la migliore medicina è l'alimentazione ancestrale.",
-      description3: "Questa rivelazione mi ha motivato a ottenere una certificazione in nutrizione moderna per responsabilizzare le donne, che considero il pilastro della società. La mia missione è aiutare le famiglie a liberarsi dalla dipendenza dai prodotti trasformati e dalla disinformazione. Promuovo l'alimentazione come medicina e l'importanza di ascoltare il proprio corpo per prevenire e invertire le malattie. Un chiaro esempio è mia figlia, che ha preso farmaci per la tiroide per dieci anni senza vedere miglioramenti; cambiando la sua alimentazione, ha recuperato la salute in modo naturale.",
+      description1: "Sono un uomo la cui vita ha preso una svolta radicale dopo aver compreso l’impatto della manipolazione nell’alimentazione e nella medicina moderna. Durante la pandemia, mi sono reso conto che molti alimenti ci fanno ammalare e che la medicina convenzionale spesso allevia solo i sintomi, senza affrontare la causa profonda.",
+      description2: "Nel mio percorso in questo cammino che è la vita — e grazie al mio apprendimento quotidiano e alla ricerca del benessere —, ho compreso fino a che punto siamo stati condizionati. Diverse esperienze familiari mi hanno spinto a cercare un cambiamento; ho deciso di ascoltare il mio corpo e la mia vita ha preso una svolta totale quando ho scoperto che la migliore medicina è l’alimentazione ancestrale.",
+      description3: "Questa rivelazione mi ha motivato a ottenere una certificazione in nutrizione moderna per responsabilizzare le donne, che considero il pilastro della società. La mia missione è aiutare le famiglie a liberarsi dalla dipendenza dai prodotti trasformati e dalla disinformazione. Promuovo l’alimentazione come medicina e l’importanza di ascoltare il proprio corpo per prevenire e invertire le malattie. Un chiaro esempio è mia figlia, che ha preso farmaci per la tiroide per dieci anni senza vedere miglioramenti; cambiando la sua alimentazione, ha recuperato la salute in modo naturale.",
       description4: "Queste esperienze mi hanno spinto a ottenere due certificazioni in nutrizione per accompagnare e guidare altre persone verso la propria liberazione. Questa è la mia storia... e potrebbe essere la tua.",
-      description5: "L'alimentazione è la tua migliore medicina.",
       badge1: "COACH CERTIFICATO IN NUTRIZIONE MODERNA",
       badge2: "+50 Clienti Trasformati",
-      badge3: "Esperienza in nutrizione umana evolutiva",
+      badge3: "Esperienza in nutrizione umana evolutiva"
     },
     book: {
       eyebrow: 'Nuova uscita',
@@ -1630,10 +1626,9 @@ const pt = {
       description2: "No meu percurso por este caminho que é a vida — e graças à minha aprendizagem diária e à procura do bem-estar —, compreendi até que ponto fomos condicionados. Diversas experiências familiares impulsionaram-me a procurar uma mudança; decidi ouvir o meu corpo e a minha vida deu uma volta completa ao descobrir que o melhor medicamento é a alimentação ancestral.",
       description3: "Esta revelação motivou-me a obter uma certificação em nutrição moderna para capacitar as mulheres, que considero o pilar da sociedade. A minha missão é ajudar as famílias a libertarem-se da dependência dos produtos processados e da desinformação. Promovo a alimentação como medicamento e a importância de ouvir o próprio corpo para prevenir e reverter doenças. Um exemplo claro é a minha filha, que tomou medicamentos para a tiroide durante dez anos sem ver melhorias; ao mudar a sua alimentação, recuperou a saúde de forma natural.",
       description4: "Estas vivências impulsionaram-me a obter duas certificações em nutrição para acompanhar e guiar outras pessoas rumo à sua própria liberação. Esta é a minha história... e poderia ser a sua.",
-      description5: "A alimentação é o seu melhor medicamento.",
       badge1: "COACH CERTIFICADO EM NUTRIÇÃO MODERNA",
       badge2: "+50 Clientes Transformados",
-      badge3: "Experiência em nutrição humana evolutiva",
+      badge3: "Experiência em nutrição humana evolutiva"
     },
     book: {
       eyebrow: 'Nova publicação',
@@ -1987,16 +1982,15 @@ const de = {
       }
     },
     about: {
-      title: "Über mich",
-      subtitle: "Mein Name ist Manuel Martínez.",
-      description1: "Ich bin ein Mann, dessen Leben eine radikale Wende nahm, nachdem ich die Auswirkungen der Manipulation in der Ernährung und der modernen Medizin verstanden habe. Während der Pandemie wurde mir klar, dass viele Lebensmittel uns krank machen und dass die konventionelle Medizin oft nur Symptome lindert, ohne die Ursache zu bekämpfen.",
-      description2: "Auf meinem Weg durch dieses Leben — und dank meines täglichen Lernens und der Suche nach Wohlbefinden — habe ich verstanden, in welchem Ausmaß wir konditioniert wurden. Verschiedene familiäre Erfahrungen trieben mich dazu, eine Veränderung zu suchen; ich beschloss, auf meinen Körper zu hören, und mein Leben nahm eine totale Wende, als ich entdeckte, dass die beste Medizin die ursprüngliche Ernährung ist.",
-      description3: "Diese Offenbarung motivierte mich, eine Zertifizierung in moderner Ernährung zu erwerben, um Frauen zu stärken, die ich als die Säule der Gesellschaft betrachte. Meine Mission ist es, Familien zu helfen, sich von der Abhängigkeit von verarbeiteten Produkten und Fehlinformationen zu befreien. Ich fördere Ernährung als Medizin und die Bedeutung, auf den eigenen Körper zu hören, um Krankheiten vorzubeugen und umzukehren. Ein klares Beispiel ist meine Tochter, die zehn Jahre lang Schilddrüsenmedikamente nahm, ohne Besserung zu sehen; durch die Änderung ihrer Ernährung erlangte sie ihre Gesundheit auf natürliche Weise zurück.",
-      description4: "Diese Erfahrungen trieben mich dazu, zwei Ernährungszertifizierungen zu erwerben, um andere Menschen auf ihrem Weg zur eigenen Befreiung zu begleiten und zu führen. Das ist meine Geschichte... und es könnte Ihre sein.",
-      description5: "Die Ernährung ist Ihre beste Medizin.",
-      badge1: "ZERTIFIZIERTER COACH FÜR MODERNE ERNÄHRUNG",
-      badge2: "+50 transformierte Kunden",
-      badge3: "Erfahrung in evolutiver menschlicher Ernährung",
+      title: 'Über mich',
+      subtitle: 'Mein Name ist Manuel Martínez.',
+      description1: 'Ich bin ein Mann, dessen Leben eine radikale Wende nahm, nachdem ich die Auswirkungen der Manipulation in der Ernährung und der modernen Medizin verstanden habe. Während der Pandemie wurde mir klar, dass viele Lebensmittel uns krank machen und dass die konventionelle Medizin oft nur Symptome lindert, ohne die Ursache zu bekämpfen.',
+      description2: 'Auf meinem Weg durch dieses Leben — und dank meines täglichen Lernens und der Suche nach Wohlbefinden — habe ich verstanden, in welchem Ausmaß wir konditioniert wurden. Verschiedene familiäre Erfahrungen trieben mich dazu, eine Veränderung zu suchen; ich beschloss, auf meinen Körper zu hören, und mein Leben nahm eine totale Wende, als ich entdeckte, dass die beste Medizin die ursprüngliche Ernährung ist.',
+      description3: 'Diese Offenbarung motivierte mich, eine Zertifizierung in moderner Ernährung zu erwerben, um Frauen zu stärken, die ich als die Säule der Gesellschaft betrachte. Meine Mission ist es, Familien zu helfen, sich von der Abhängigkeit von verarbeiteten Produkten und Fehlinformationen zu befreien. Ich fördere Ernährung als Medizin und die Bedeutung, auf den eigenen Körper zu hören, um Krankheiten vorzubeugen und umzukehren. Ein klares Beispiel ist meine Tochter, die zehn Jahre lang Schilddrüsenmedikamente nahm, ohne Besserung zu sehen; durch die Änderung ihrer Ernährung erlangte sie ihre Gesundheit auf natürliche Weise zurück.',
+      description4: 'Diese Erfahrungen trieben mich dazu, zwei Ernährungszertifizierungen zu erwerben, um andere Menschen auf ihrem Weg zur eigenen Befreiung zu begleiten und zu führen. Das ist meine Geschichte... und es könnte Ihre sein.',
+      badge1: 'ZERTIFIZIERTER COACH FÜR MODERNE ERNÄHRUNG',
+      badge2: '+50 transformierte Kunden',
+      badge3: 'Erfahrung in evolutiver menschlicher Ernährung'
     },
     book: {
       eyebrow: 'Neuerscheinung',
