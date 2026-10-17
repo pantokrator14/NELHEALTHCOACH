@@ -38,14 +38,11 @@ const AboutSection: React.FC = () => {
             <p className="mb-4 text-white">
               {t('landing.about.description2')}
             </p>
-            <p className="mb-6 text-white">
+            <p className="mb-4 text-white">
               {t('landing.about.description3')}
             </p>
             <p className="mb-6 text-white">
               {t('landing.about.description4')}
-            </p>
-            <p className="mb-6 text-white">
-              {t('landing.about.description5')}
             </p>
             
             <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
