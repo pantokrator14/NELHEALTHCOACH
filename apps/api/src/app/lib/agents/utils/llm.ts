@@ -899,11 +899,16 @@ export async function extractTextFromImageViaGemini(
 
   const base64Image = imageBuffer.toString('base64');
 
+  const isPdf = mimeType === 'application/pdf';
+  const promptText = isPdf
+    ? `Extrae TODO el texto visible en este documento PDF ("${fileName}"). Preserva la estructura original: respeta saltos de línea, tablas de laboratorio, unidades, rangos de referencia y listas. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto. Si no hay texto legible, devuelve una cadena vacía.`
+    : `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`;
+
   const body: Record<string, unknown> = {
     contents: [{
       parts: [
         {
-          text: `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`,
+          text: promptText,
         },
         {
           inline_data: {
@@ -916,6 +921,7 @@ export async function extractTextFromImageViaGemini(
     generationConfig: {
       temperature: 0.1,
       maxOutputTokens: 8192,
+      ...(isGemini4Model(model) ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
     },
   };
 
@@ -986,8 +992,8 @@ export async function analyzeS3FileWithGemini(
       };
     }
 
-    // ── Ruta para documentos (PDF, DOCX, texto): extracción local + texto ──
-    const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
+    // ── Ruta para documentos (PDF, DOCX, texto): extracción local + OCR Gemini si es PDF escaneado ──
+    let extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
     logCtx.info('AI', `[${caller}] Texto extraído localmente`, {
       method: extracted.method,
       chars: extracted.text.length,
@@ -995,7 +1001,19 @@ export async function analyzeS3FileWithGemini(
       ocrConfidence: extracted.ocrConfidence,
     });
 
-    // Enviar texto extraído directamente a Gemini (sin re-extraer)
+    if (!extracted.text.trim() && (fileType === 'pdf' || mimeType === 'application/pdf')) {
+      logCtx.warn('AI', `[${caller}] PDF sin capa de texto (escaneado) — extrayendo con Gemini multimodal`);
+      const ocrText = await extractTextFromImageViaGemini(buffer, fileName, 'application/pdf');
+      if (ocrText.trim()) {
+        extracted = {
+          text: ocrText,
+          method: 'gemini-multimodal',
+          pages: extracted.pages,
+        };
+      }
+    }
+
+    // Enviar texto extraído directamente a análisis clínico (DeepSeek primario → Gemini fallback)
     const analysis = await sendTextToGemini(extracted.text, fileName, analysisContext);
 
     return {

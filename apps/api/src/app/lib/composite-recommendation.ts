@@ -19,7 +19,7 @@ export interface CompositeInput {
   medicalData: Record<string, unknown>;
   healthAssessment: Record<string, string>;
   mentalHealth: Record<string, string>;
-  processedDocuments: Array<{ title: string; content: string; documentType: string; confidence: number }>;
+  processedDocuments: Array<{ title: string; content: string; documentType: string; confidence: number; uploadedAt?: string }>;
   previousSessions: Array<Record<string, unknown>>;
   coachNotes: string;
   monthNumber: number;
@@ -221,9 +221,15 @@ function formatMental(data: Record<string, string>): string {
     .join("\n") || "- Sin datos";
 }
 
-function formatDocs(docs: Array<{ title: string; content: string }>): string {
+function formatDocs(docs: Array<{ title: string; content: string; uploadedAt?: string }>): string {
   if (!docs?.length) return "- Sin docs";
-  return docs.map((d, i) => `${i + 1}. ${d.title}\n${d.content.substring(0, 3000)}`).join("\n\n");
+  return docs.map((d, i) => {
+    const dateLabel = d.uploadedAt ? new Date(d.uploadedAt).toISOString().slice(0, 10) : null;
+    const tag = i === 0
+      ? (dateLabel ? `[Subido: ${dateLabel} — MÁS RECIENTE]` : `[MÁS RECIENTE]`)
+      : (dateLabel ? `[Subido: ${dateLabel}]` : ``);
+    return `${i + 1}. ${tag ? `${tag} ` : ""}${d.title}\n${d.content.substring(0, 3000)}`;
+  }).join("\n\n");
 }
 
 // ── Prompts por Fase ───────────────────────────────────────
@@ -241,7 +247,7 @@ function buildMedicalPrompt(
 ## DATOS MÉDICOS DEL CLIENTE
 ${formatMedicalSummary(input.medicalData)}
 
-## DOCUMENTOS CLÍNICOS
+## DOCUMENTOS CLÍNICOS ACTUALES (ordenados del más reciente al más antiguo; prioriza siempre los más recientes)
 ${hasDocuments ? formatDocs(input.processedDocuments) : "- NO HAY DOCUMENTOS MÉDICOS DISPONIBLES"}
 
 ${input.coachNotes ? `### NOTAS DEL COACH\n${input.coachNotes}\n` : ""}
