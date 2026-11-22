@@ -154,7 +154,7 @@ export interface AIResponseNutritionItem {
 
 export class AIService {
   private static config: AIConfig = {
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-4-hydrogen',
     temperature: 0.7,
     maxTokens: 30000,
     apiKey: process.env.GEMINI_API_KEY,
@@ -1115,6 +1115,7 @@ ${responseSchema}
             temperature: this.config.temperature,
             maxOutputTokens: this.config.maxTokens,
             responseMimeType: 'application/json',
+            ...(model.startsWith('gemini-4') ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
           },
         };
 
@@ -1156,8 +1157,8 @@ ${responseSchema}
         }
 
         const finishReason = candidates[0]?.finishReason as string | undefined;
-        const parts = (candidates[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text: string }> | undefined;
-        const content = parts?.[0]?.text;
+        const parts = (candidates[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text?: string; thought?: boolean }> | undefined;
+        const content = parts?.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text!).join('');
 
         logCtx.info("AI", "[callGemini] Contenido recibido", {
           finishReason,
@@ -1316,8 +1317,8 @@ ${responseSchema}
 
   /**
    * Llama a la API con fallback automático:
-   *   1. Intenta Gemini primero
-   *   2. Si falla → intenta DeepSeek real
+   *   1. Intenta DeepSeek primero (primario)
+   *   2. Si falla → intenta Gemini (respaldo: gemini-4-hydrogen)
    *   3. Si ambos fallan → mock en development o lanza error
    */
   private static async callDeepSeekAPI(
@@ -1326,27 +1327,29 @@ ${responseSchema}
     retryCount = 0
   ): Promise<string> {
     const logCtx = metadata ? logger.withContext(metadata) : logger;
-    let geminiMsg = "";
+    let deepseekMsg = "";
 
-    // 1. Intentar Gemini
+    // 1. Intentar DeepSeek (primario)
     try {
-      logCtx.info("AI", "[callDeepSeekAPI] Intentando Gemini (primario)");
-      return await this.callGeminiForRecommendations(prompt, metadata, retryCount);
-    } catch (geminiError) {
-      geminiMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
-      logCtx.warn("AI", "[callDeepSeekAPI] Gemini falló, probando fallback DeepSeek", {
-        error: geminiMsg.substring(0, 200),
+      logCtx.info("AI", "[callDeepSeekAPI] Intentando DeepSeek (primario)");
+      return await this.callDeepSeekRESTAPI(prompt, metadata);
+    } catch (deepseekError) {
+      deepseekMsg = deepseekError instanceof Error ? deepseekError.message : String(deepseekError);
+      logCtx.warn("AI", "[callDeepSeekAPI] DeepSeek falló, probando respaldo Gemini", {
+        error: deepseekMsg.substring(0, 200),
       });
     }
 
-    // 2. Fallback a DeepSeek real
+    // 2. Respaldo a Gemini (gemini-4-hydrogen)
     try {
-      logCtx.info("AI", "[callDeepSeekAPI] Intentando DeepSeek (fallback)");
-      return await this.callDeepSeekRESTAPI(prompt, metadata);
-    } catch (deepseekError) {
-      const dsMsg = deepseekError instanceof Error ? deepseekError.message : String(deepseekError);
-      logCtx.error("AI", "[callDeepSeekAPI] Ambos proveedores fallaron (Gemini → DeepSeek)", undefined, {
-        deepseekError: dsMsg.substring(0, 200),
+      logCtx.info("AI", "[callDeepSeekAPI] Intentando Gemini (respaldo)", {
+        model: this.config.model,
+      });
+      return await this.callGeminiForRecommendations(prompt, metadata, retryCount);
+    } catch (geminiError) {
+      const geminiMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+      logCtx.error("AI", "[callDeepSeekAPI] Ambos proveedores fallaron (DeepSeek → Gemini)", undefined, {
+        geminiError: geminiMsg.substring(0, 200),
       });
 
       // 3. En desarrollo, devolver mock
@@ -1356,7 +1359,7 @@ ${responseSchema}
       }
 
       throw new Error(
-        `Todos los proveedores LLM fallaron. Gemini: ${geminiMsg.substring(0, 100) || "unknown"} → DeepSeek: ${dsMsg.substring(0, 100)}`
+        `Todos los proveedores LLM fallaron. DeepSeek: ${deepseekMsg.substring(0, 100) || "unknown"} → Gemini: ${geminiMsg.substring(0, 100)}`
       );
     }
   }
@@ -1386,6 +1389,7 @@ ${responseSchema}
           temperature: this.config.temperature,
           maxOutputTokens: 4000,
           responseMimeType: 'application/json',
+          ...(model.startsWith('gemini-4') ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
         },
       };
 
@@ -1412,8 +1416,8 @@ ${responseSchema}
 
         const data = await response.json() as Record<string, unknown>;
         const candidates = data.candidates as Array<Record<string, unknown>> | undefined;
-        const parts = (candidates?.[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text: string }> | undefined;
-        const content = parts?.[0]?.text;
+        const parts = (candidates?.[0]?.content as Record<string, unknown> | undefined)?.parts as Array<{ text?: string; thought?: boolean }> | undefined;
+        const content = parts?.filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text!).join('');
 
         if (!content) {
           throw new Error('Gemini devolvió contenido vacío en reintento');

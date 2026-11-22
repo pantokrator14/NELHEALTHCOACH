@@ -37,4 +37,24 @@ export const recipeSchema = z.object({
   isPublished: z.boolean().default(true),
 });
 
+export const analyzeRecipeImageSchema = z
+  .object({
+    imageBase64: z.string().max(15_000_000).optional(),
+    mimeType: z
+      .enum(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
+      .optional(),
+    recipeId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, 'recipeId inválido')
+      .optional(),
+    servings: z.number().int().min(1).max(100).optional().default(1),
+    title: z.string().max(500).optional(),
+    description: z.string().max(5000).optional(),
+    ingredients: z.array(z.string().max(500)).max(100).optional(),
+  })
+  .refine((data) => Boolean((data.imageBase64 && data.mimeType) || data.recipeId), {
+    message: 'Se requiere una imagen (imageBase64 y mimeType) o un recipeId con imagen guardada',
+  });
+
 export type RecipeInput = z.infer<typeof recipeSchema>;
+export type AnalyzeRecipeImageInput = z.infer<typeof analyzeRecipeImageSchema>;

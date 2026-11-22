@@ -454,7 +454,15 @@ const en = {
     emptyFilteredAction: 'Clear Filters',
     nutritionCalculated: 'Nutrition calculated from {{source}}',
     ai: 'AI',
-    local: 'local'
+    local: 'local',
+    modalAnalyzeImageNutrition: 'Analyze Photo with AI',
+    modalAnalyzingImage: 'Analyzing photo...',
+    modalAnalyzeImageHint: 'Estimate calories and macros from the recipe photo without overwriting your ingredients',
+    imageNutritionCalculated: 'Nutrition stats estimated from photo with AI',
+    errorAnalyzingImage: 'Could not analyze image with AI',
+    addImageFirst: 'Select a recipe image first',
+    modalAddDetectedIngredients: 'Add {{count}} detected ingredients',
+    detectedIngredientsAdded: 'Detected ingredients added to the recipe'
   },
   exercises: {
     title: 'Exercises',
@@ -1517,7 +1525,15 @@ const es = {
     emptyFilteredAction: 'Limpiar Filtros',
     nutritionCalculated: 'Nutrición calculada desde {{source}}',
     ai: 'IA',
-    local: 'local'
+    local: 'local',
+    modalAnalyzeImageNutrition: 'Analizar foto con IA',
+    modalAnalyzingImage: 'Analizando foto...',
+    modalAnalyzeImageHint: 'Estima calorías y macros desde la foto sin modificar tus ingredientes',
+    imageNutritionCalculated: 'Valores nutricionales estimados desde la foto con IA',
+    errorAnalyzingImage: 'No se pudo analizar la imagen con IA',
+    addImageFirst: 'Selecciona primero una imagen de la receta',
+    modalAddDetectedIngredients: 'Agregar {{count}} ingredientes detectados',
+    detectedIngredientsAdded: 'Ingredientes detectados agregados a la receta'
   },
   exercises: {
     title: 'Ejercicios',
@@ -2568,7 +2584,15 @@ const fr = {
     emptyFilteredAction: 'Effacer les Filtres',
     nutritionCalculated: 'Nutrition calculée à partir de {{source}}',
     ai: 'IA',
-    local: 'local'
+    local: 'local',
+    modalAnalyzeImageNutrition: 'Analyser la photo avec l’IA',
+    modalAnalyzingImage: 'Analyse de la photo...',
+    modalAnalyzeImageHint: 'Estime les calories et les macros à partir de la photo sans modifier vos ingrédients',
+    imageNutritionCalculated: 'Valeurs nutritionnelles estimées à partir de la photo avec l’IA',
+    errorAnalyzingImage: 'Impossible d’analyser l’image avec l’IA',
+    addImageFirst: 'Sélectionnez d’abord une image de recette',
+    modalAddDetectedIngredients: 'Ajouter {{count}} ingrédients détectés',
+    detectedIngredientsAdded: 'Ingrédients détectés ajoutés à la recette'
   },
   exercises: {
     title: 'Exercices',
@@ -3612,7 +3636,15 @@ const it = {
     emptyFilteredAction: 'Cancella Filtri',
     nutritionCalculated: 'Nutrizione calcolata da {{source}}',
     ai: 'IA',
-    local: 'locale'
+    local: 'locale',
+    modalAnalyzeImageNutrition: 'Analizza foto con IA',
+    modalAnalyzingImage: 'Analisi della foto...',
+    modalAnalyzeImageHint: 'Stima calorie e macro dalla foto senza modificare i tuoi ingredienti',
+    imageNutritionCalculated: 'Valori nutrizionali stimati dalla foto con IA',
+    errorAnalyzingImage: 'Impossibile analizzare l’immagine con l’IA',
+    addImageFirst: 'Seleziona prima un’immagine della ricetta',
+    modalAddDetectedIngredients: 'Aggiungi {{count}} ingredienti rilevati',
+    detectedIngredientsAdded: 'Ingredienti rilevati aggiunti alla ricetta'
   },
   exercises: {
     title: 'Esercizi',
@@ -4656,7 +4688,15 @@ const pt = {
     emptyFilteredAction: 'Limpar Filtros',
     nutritionCalculated: 'Nutrição calculada de {{source}}',
     ai: 'IA',
-    local: 'local'
+    local: 'local',
+    modalAnalyzeImageNutrition: 'Analisar foto com IA',
+    modalAnalyzingImage: 'Analisando foto...',
+    modalAnalyzeImageHint: 'Estima calorias e macros a partir da foto sem alterar seus ingredientes',
+    imageNutritionCalculated: 'Valores nutricionais estimados a partir da foto com IA',
+    errorAnalyzingImage: 'Não foi possível analisar a imagem com IA',
+    addImageFirst: 'Selecione primeiro uma imagem da receita',
+    modalAddDetectedIngredients: 'Adicionar {{count}} ingredientes detectados',
+    detectedIngredientsAdded: 'Ingredientes detectados adicionados à receita'
   },
   exercises: {
     title: 'Exercícios',
@@ -5700,7 +5740,15 @@ const de = {
     emptyFilteredAction: 'Filter zurücksetzen',
     nutritionCalculated: 'Nährwerte berechnet von {{source}}',
     ai: 'KI',
-    local: 'lokal'
+    local: 'lokal',
+    modalAnalyzeImageNutrition: 'Foto mit KI analysieren',
+    modalAnalyzingImage: 'Foto wird analysiert...',
+    modalAnalyzeImageHint: 'Schätzt Kalorien und Makros anhand des Fotos, ohne deine Zutaten zu überschreiben',
+    imageNutritionCalculated: 'Nährwerte anhand des Fotos mit KI geschätzt',
+    errorAnalyzingImage: 'Bild konnte nicht mit KI analysiert werden',
+    addImageFirst: 'Wähle zuerst ein Rezeptbild aus',
+    modalAddDetectedIngredients: '{{count}} erkannte Zutaten hinzufügen',
+    detectedIngredientsAdded: 'Erkannte Zutaten zum Rezept hinzugefügt'
   },
   exercises: {
     title: 'Übungen',

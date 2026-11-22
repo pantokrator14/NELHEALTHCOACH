@@ -2,11 +2,22 @@ import { AIService } from './ai-service';
 import { logger } from './logger';
 import { getNutritionCollection } from '../lib/database';
 import { encrypt, safeDecrypt } from './encryption';
-import { callGeminiAPI } from './agents/utils/llm';
+import { callGeminiAPI, callGeminiImageAPI, robustJsonParse } from './agents/utils/llm';
 
 export interface IngredientAnalysisInput {
   ingredients: string[];
   servings?: number;
+  recipeId?: string;
+}
+
+
+export interface ImageNutritionAnalysisInput {
+  imageBase64: string;
+  mimeType: string;
+  servings?: number;
+  title?: string;
+  description?: string;
+  ingredients?: string[];
   recipeId?: string;
 }
 
@@ -53,6 +64,187 @@ export class NutritionService {
     });
   }
   
+
+  /**
+   * Analiza la imagen de una receta usando IA multimodal (Gemini Vision)
+   * y estima macronutrientes, calorías e ingredientes visibles.
+   */
+  static async analyzeRecipeImageWithAI(
+    input: ImageNutritionAnalysisInput
+  ): Promise<any> {
+    const servings = Math.max(1, Math.min(100, Number(input.servings) || 1));
+    const loggerWithContext = logger.withContext({
+      recipeId: input.recipeId,
+      servings,
+      mimeType: input.mimeType,
+    });
+
+    return loggerWithContext.time("NUTRITION_SERVICE", "Analizando imagen de receta con IA", async () => {
+      const contextLines: string[] = [];
+      if (input.title?.trim()) contextLines.push(`- Título de la receta: ${input.title.trim()}`);
+      if (input.description?.trim()) contextLines.push(`- Descripción: ${input.description.trim()}`);
+      if (input.ingredients && input.ingredients.length > 0) {
+        contextLines.push(`- Ingredientes indicados por el coach: ${input.ingredients.join(", ")}`);
+      }
+
+      const contextSection = contextLines.length > 0
+        ? `\nCONTEXTO OPCIONAL PROPORCIONADO POR EL COACH (úsalos como referencia adicional junto con lo que ves en la foto):\n${contextLines.join("\n")}\n`
+        : "";
+
+      const userPrompt = `Analiza esta fotografía de un plato o receta y calcula su perfil nutricional estimado.
+${contextSection}
+INSTRUCCIONES:
+1. Identifica visualmente los alimentos, ingredientes principales, método de cocción (ej. aceites/salsas visibles) y tamaño aproximado de la porción mostrada en la imagen.
+2. Si el plato completo tiene ${servings} porción(es), estima los valores totales del plato mostrado ("total") y los valores por porción ("perServing" = total / ${servings}). Si no se indica otra cosa y la foto muestra un plato individual, asume que corresponde a ${servings} porción(es) razonable(s).
+3. Desglosa cada ingrediente o componente visualmente identificado en "ingredients" con cantidad estimada, unidad ("g", "ml", "unidad", "cda") y su aporte nutricional.
+4. Incluye también "detectedIngredients" como lista legible en español (ej. ["180g pechuga de pollo a la plancha", "100g aguacate", "1 cda aceite de oliva"]).
+5. Calcula "ketoRatio" con los porcentajes aproximados de grasa, proteína y carbohidratos respecto al total de macronutrientes en gramos.
+
+DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
+{
+  "total": {
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0,
+    "calories": 0
+  },
+  "perServing": {
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0,
+    "calories": 0
+  },
+  "ingredients": [
+    {
+      "ingredient": "nombre del alimento",
+      "quantity": 0,
+      "unit": "g",
+      "contribution": {
+        "protein": 0,
+        "carbs": 0,
+        "fat": 0,
+        "calories": 0,
+        "percentage": 0
+      }
+    }
+  ],
+  "detectedIngredients": ["cantidad unidad ingrediente"],
+  "servings": ${servings},
+  "ketoRatio": {
+    "fatPercentage": 0,
+    "proteinPercentage": 0,
+    "carbPercentage": 0,
+    "isKetoFriendly": false
+  }
+}`;
+
+      const aiResponse = await callGeminiImageAPI({
+        systemPrompt:
+          "Eres un nutricionista experto en análisis visual de alimentos, nutrición evolutiva/ancestral y cálculo de macronutrientes. Estima porciones y valores nutricionales con criterio realista a partir de imágenes de platos. Responde siempre con JSON válido.",
+        userPrompt,
+        imageBase64: input.imageBase64,
+        mimeType: input.mimeType,
+        temperature: 0.25,
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json",
+        thinkingLevel: "low",
+      });
+
+      const parsed = robustJsonParse<Record<string, any>>(aiResponse.text);
+      const normalized = this.normalizeImageNutritionResult(parsed, servings);
+
+      loggerWithContext.info("NUTRITION_SERVICE", "Nutrición desde imagen calculada con IA", {
+        perServingCalories: normalized.perServing.calories,
+        detectedCount: normalized.detectedIngredients.length,
+        servings,
+      });
+
+      return normalized;
+    });
+  }
+
+  /**
+   * Valida y normaliza el JSON devuelto por la IA para análisis de imagen
+   */
+  private static normalizeImageNutritionResult(raw: Record<string, any>, servings: number) {
+    const num = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    };
+    const round1 = (v: unknown) => Math.round(num(v) * 10) / 10;
+    const round0 = (v: unknown) => Math.round(num(v));
+
+    const totalRaw = raw?.total && typeof raw.total === "object" ? raw.total : {};
+    const perRaw = raw?.perServing && typeof raw.perServing === "object" ? raw.perServing : {};
+
+    const total = {
+      protein: round1(totalRaw.protein),
+      carbs: round1(totalRaw.carbs),
+      fat: round1(totalRaw.fat),
+      calories: round0(totalRaw.calories),
+    };
+
+    const perServing = {
+      protein: round1(perRaw.protein ?? total.protein / servings),
+      carbs: round1(perRaw.carbs ?? total.carbs / servings),
+      fat: round1(perRaw.fat ?? total.fat / servings),
+      calories: round0(perRaw.calories ?? total.calories / servings),
+    };
+
+    // Si la IA devolvió solo perServing y total vino en 0, reconstruir total
+    if (total.calories === 0 && perServing.calories > 0) {
+      total.protein = round1(perServing.protein * servings);
+      total.carbs = round1(perServing.carbs * servings);
+      total.fat = round1(perServing.fat * servings);
+      total.calories = round0(perServing.calories * servings);
+    }
+
+    const ingredients = Array.isArray(raw?.ingredients)
+      ? raw.ingredients
+          .filter((item: any) => item && typeof item.ingredient === "string")
+          .map((item: any) => ({
+            ingredient: String(item.ingredient).trim(),
+            quantity: round1(item.quantity),
+            unit: typeof item.unit === "string" && item.unit.trim() ? item.unit.trim() : "g",
+            contribution: {
+              protein: round1(item.contribution?.protein),
+              carbs: round1(item.contribution?.carbs),
+              fat: round1(item.contribution?.fat),
+              calories: round0(item.contribution?.calories),
+              percentage: round0(item.contribution?.percentage),
+            },
+          }))
+      : [];
+
+    const detectedIngredients = Array.isArray(raw?.detectedIngredients)
+      ? raw.detectedIngredients
+          .filter((s: unknown) => typeof s === "string" && s.trim().length > 0)
+          .map((s: string) => s.trim())
+      : ingredients.map((i: any) => `${i.quantity}${i.unit} ${i.ingredient}`);
+
+    const totalMacros = total.protein + total.carbs + total.fat;
+    const fatPercentage = totalMacros > 0 ? Math.round((total.fat / totalMacros) * 100) : round0(raw?.ketoRatio?.fatPercentage);
+    const proteinPercentage = totalMacros > 0 ? Math.round((total.protein / totalMacros) * 100) : round0(raw?.ketoRatio?.proteinPercentage);
+    const carbPercentage = totalMacros > 0 ? Math.round((total.carbs / totalMacros) * 100) : round0(raw?.ketoRatio?.carbPercentage);
+
+    return {
+      total,
+      perServing,
+      ingredients,
+      detectedIngredients,
+      servings,
+      ketoRatio: {
+        fatPercentage,
+        proteinPercentage,
+        carbPercentage,
+        isKetoFriendly:
+          typeof raw?.ketoRatio?.isKetoFriendly === "boolean"
+            ? raw.ketoRatio.isKetoFriendly
+            : fatPercentage >= 60 && carbPercentage <= 15,
+      },
+    };
+  }
+
   /**
    * Parsear ingredientes para extraer cantidades y nombres
    */

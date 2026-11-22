@@ -751,7 +751,7 @@ export const generateRecommendationsFn = inngest.createFunction(
     });
 
     log.info("AI", "Starting recommendation generation", {
-      model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+      model: process.env.GEMINI_MODEL || "gemini-4-hydrogen",
       coachNotesProvided: !!coachNotes,
     });
 
@@ -794,7 +794,7 @@ export const generateRecommendationsFn = inngest.createFunction(
       log.error("AI", `LangGraph execution failed: ${errorMessage}`, graphError instanceof Error ? graphError : new Error(errorMessage), {
         clientId,
         monthNumber,
-        model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+        model: process.env.GEMINI_MODEL || "gemini-4-hydrogen",
         stack: errorStack,
       });
       executionError = errorMessage;

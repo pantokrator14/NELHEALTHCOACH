@@ -42,6 +42,7 @@ interface NutritionDetails {
       percentage: number;
     };
   }>;
+  detectedIngredients?: string[];
   servings: number;
   ketoRatio?: {
     fatPercentage: number;
@@ -95,6 +96,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
   const [availableTags, setAvailableTags] = useState<string[]>(existingTags);
 
   const [isCalculatingNutrition, setIsCalculatingNutrition] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [nutritionSource, setNutritionSource] = useState<'manual' | 'ai' | 'local'>('manual');
   const [nutritionDetails, setNutritionDetails] = useState<NutritionDetails | null>(null);
   
@@ -207,7 +209,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
         setNutritionSource(response.source || 'ai');
         
         showToast(
-          t('recipes.nutritionCalculated', { source: response.source === 'ai' ? t('recipes.ai') : t('recipes.local') }), 
+          t('recipes.nutritionCalculated', { source: (response.source === 'ai' || (response.source as string) === 'ai_analysis') ? t('recipes.ai') : t('recipes.local') }), 
           'success'
         );
       }
@@ -218,6 +220,142 @@ const RecipeModal: React.FC<RecipeModalProps> = ({
       setIsCalculatingNutrition(false);
     }
   };
+
+  const prepareImageForAI = (
+    file: File
+  ): Promise<{
+    imageBase64: string;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+  }> => {
+    return new Promise((resolve, reject) => {
+      const readRawFile = () => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+          const normalizedMime = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+          const mimeType = (allowed.includes(normalizedMime) ? normalizedMime : 'image/jpeg') as
+            | 'image/jpeg'
+            | 'image/png'
+            | 'image/webp'
+            | 'image/gif';
+          resolve({ imageBase64: result, mimeType });
+        };
+        reader.onerror = () => reject(new Error('Error leyendo imagen'));
+        reader.readAsDataURL(file);
+      };
+
+      // Para GIF o archivos pequeños (<= 900KB), enviar tal cual sin re-codificar
+      if (file.type === 'image/gif' || file.size <= 900 * 1024) {
+        readRawFile();
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const MAX_DIM = 1280;
+          let { width, height } = img;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(objectUrl);
+            readRawFile();
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          URL.revokeObjectURL(objectUrl);
+          resolve({ imageBase64: dataUrl, mimeType: 'image/jpeg' });
+        } catch {
+          URL.revokeObjectURL(objectUrl);
+          readRawFile();
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        readRawFile();
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  // Función para estimar nutrición a partir de la foto con IA (sin afectar cálculo por ingredientes ni edición manual)
+  const analyzeNutritionFromImage = async () => {
+    if (!imageFile && !imagePreview) {
+      showToast(t('recipes.addImageFirst'), 'warning');
+      return;
+    }
+
+    setIsAnalyzingImage(true);
+    try {
+      const commonContext = {
+        servings: formData.servings || 1,
+        title: formData.title.trim() || undefined,
+        description: formData.description.trim() || undefined,
+        ingredients: formData.ingredients.length > 0 ? formData.ingredients : undefined,
+      };
+
+      let response;
+      if (imageFile) {
+        const { imageBase64, mimeType } = await prepareImageForAI(imageFile);
+        response = await apiClient.analyzeRecipeImage({
+          imageBase64,
+          mimeType,
+          ...commonContext,
+        });
+      } else if (imagePreview && imagePreview.startsWith('data:image/')) {
+        const semiIdx = imagePreview.indexOf(';base64,');
+        const extractedMime = semiIdx > 5 ? imagePreview.slice(5, semiIdx) : 'image/jpeg';
+        const rawMime = extractedMime === 'image/jpg' ? 'image/jpeg' : extractedMime;
+        const mimeType = (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(rawMime)
+          ? rawMime
+          : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+        response = await apiClient.analyzeRecipeImage({
+          imageBase64: imagePreview,
+          mimeType,
+          ...commonContext,
+        });
+      } else if (recipe?.id) {
+        response = await apiClient.analyzeRecipeImage({
+          recipeId: recipe.id,
+          ...commonContext,
+        });
+      } else {
+        showToast(t('recipes.addImageFirst'), 'warning');
+        return;
+      }
+
+      if (response?.success && response.data) {
+        setFormData(prev => ({
+          ...prev,
+          nutrition: response.data.perServing,
+        }));
+
+        setNutritionDetails({
+          ...response.data,
+          source: 'ai',
+        });
+        setNutritionSource('ai');
+
+        showToast(t('recipes.imageNutritionCalculated'), 'success');
+      }
+    } catch (error) {
+      console.error('Error analizando imagen con IA:', error);
+      showToast(translateApiError(error, t, 'recipes.errorAnalyzingImage'), 'error');
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  };
+
 
   // Función para agregar nueva categoría (y actualizar lista)
   const handleAddCategory = (category: string) => {
@@ -806,7 +944,7 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                     <button
                       type="button"
                       onClick={calculateNutritionAutomatically}
-                      disabled={isCalculatingNutrition || formData.ingredients.length === 0 || isSubmitting || isUploading}
+                      disabled={isCalculatingNutrition || isAnalyzingImage || formData.ingredients.length === 0 || isSubmitting || isUploading}
                       className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition disabled:opacity-50 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap flex-shrink-0"
                     >
                       {isCalculatingNutrition ? (
@@ -915,6 +1053,26 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                         </div>
                       </div>
                       
+                      {nutritionDetails.detectedIngredients &&
+                        nutritionDetails.detectedIngredients.length > 0 &&
+                        formData.ingredients.length === 0 && (
+                          <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  ingredients: nutritionDetails.detectedIngredients || [],
+                                }));
+                                showToast(t('recipes.detectedIngredientsAdded'), 'success');
+                              }}
+                              className="text-xs font-medium text-blue-700 hover:text-blue-900 underline"
+                            >
+                              + {t('recipes.modalAddDetectedIngredients', { count: nutritionDetails.detectedIngredients.length })}
+                            </button>
+                          </div>
+                        )}
+
                       {nutritionDetails.ketoRatio && (
                         <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
                           <span className="text-xs text-gray-600">
@@ -982,12 +1140,43 @@ showToast(t('recipes.recipeCreatedImageError'), 'warning');
                       id="image-upload"
                       disabled={isUploading}
                     />
-                    <label
-                      htmlFor="image-upload"
-                      className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
-                    >
-                      {imagePreview ? t('recipes.modalChangeImage') : t('recipes.modalSelectImage')}
-                    </label>
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                      <label
+                        htmlFor="image-upload"
+                        className="inline-block px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base"
+                      >
+                        {imagePreview ? t('recipes.modalChangeImage') : t('recipes.modalSelectImage')}
+                      </label>
+
+                      {imagePreview && (
+                        <button
+                          type="button"
+                          onClick={analyzeNutritionFromImage}
+                          disabled={isAnalyzingImage || isCalculatingNutrition || isSubmitting || isUploading}
+                          className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm sm:text-base font-medium"
+                        >
+                          {isAnalyzingImage ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              {t('recipes.modalAnalyzingImage')}
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              {t('recipes.modalAnalyzeImageNutrition')}
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {imagePreview && (
+                      <p className="mt-2.5 text-xs text-gray-500">
+                        {t('recipes.modalAnalyzeImageHint')}
+                      </p>
+                    )}
                   </div>
                   
                   {isUploading && (

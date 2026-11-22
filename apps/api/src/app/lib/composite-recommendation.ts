@@ -8,7 +8,7 @@
  * Cada fase es una llamada LLM independiente para evitar "atención degradada" en prompts masivos.
  */
 
-import { createDeepSeekJSONLLM, robustJsonParse } from "./agents/utils/llm";
+import { createDeepSeekJSONLLM, callGeminiAPI, robustJsonParse } from "./agents/utils/llm";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { logger } from "./logger";
 
@@ -980,7 +980,23 @@ async function invokeLLM(
         errorType: error?.error?.type,
         errorMessage: error?.message?.substring(0, 500),
       });
-      if (attempt === MAX_LLM_ATTEMPTS - 1) throw error;
+      if (attempt === MAX_LLM_ATTEMPTS - 1) {
+        if (process.env.GEMINI_API_KEY) {
+          logCtx.warn("AI", `${phaseLabel}: Intentando fallback final directo a Gemini REST (${process.env.GEMINI_MODEL || "gemini-4-hydrogen"})`);
+          const geminiFallback = await callGeminiAPI({
+            systemPrompt: systemMsg,
+            userPrompt: humanMsg,
+            temperature: 0.3,
+            maxOutputTokens: Math.min(32000, Math.max(tokens, 16000)),
+            responseMimeType: "application/json",
+            thinkingLevel: "low",
+          });
+          if (geminiFallback.text) {
+            return geminiFallback.text;
+          }
+        }
+        throw error;
+      }
       continue; // error transitorio → reintentar
     }
 
@@ -1045,7 +1061,28 @@ async function invokeLLM(
     });
   }
 
-  // Si llegamos aquí: agotamos reintentos con contenido vacío
+  // Si llegamos aquí: agotamos reintentos con contenido vacío en primario → fallback directo a Gemini
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const fallbackModel = process.env.GEMINI_MODEL || "gemini-4-hydrogen";
+      logCtx.warn("AI", `${phaseLabel}: Primario devolvió vacío tras ${MAX_LLM_ATTEMPTS} intentos; usando fallback Gemini (${fallbackModel})`);
+      const geminiFallback = await callGeminiAPI({
+        systemPrompt: systemMsg,
+        userPrompt: humanMsg,
+        temperature: 0.3,
+        maxOutputTokens: Math.min(32000, Math.max(maxTokens ?? 16000, 16000)),
+        responseMimeType: "application/json",
+        thinkingLevel: "low",
+      });
+      if (geminiFallback.text && geminiFallback.text.trim().length > 0) {
+        logCtx.info("AI", `${phaseLabel}: Fallback Gemini (${fallbackModel}) respondió con ${geminiFallback.text.length} caracteres`);
+        return geminiFallback.text;
+      }
+    } catch (geminiFallbackErr) {
+      logCtx.error("AI", `${phaseLabel}: Fallback directo a Gemini también falló`, geminiFallbackErr instanceof Error ? geminiFallbackErr : undefined);
+    }
+  }
+
   logCtx.error("AI", `${phaseLabel}: LLM devolvió vacío tras ${MAX_LLM_ATTEMPTS} intentos con maxTokens escalado`, undefined, {
     lastMetadata,
   });
