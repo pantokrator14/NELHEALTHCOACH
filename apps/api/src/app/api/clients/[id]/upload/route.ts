@@ -970,6 +970,27 @@ async function extractAndCacheDocument(
     // PDF, DOCX, texto → extracción local
     extracted = await extractTextFromBuffer(buffer, fileName, fileType);
 
+    // Fallback OCR con Gemini multimodal para PDFs escaneados (imagen dentro de PDF)
+    if (!extracted.text.trim() && (ext === 'pdf' || fileType === 'application/pdf')) {
+      logCtx.warn('AI', 'PDF sin texto seleccionable (posible escaneo) — intentando OCR con Gemini multimodal');
+      try {
+        const geminiPdfText = await extractTextFromImageViaGemini(buffer, fileName, 'application/pdf');
+        if (geminiPdfText.trim()) {
+          extracted = {
+            text: geminiPdfText,
+            method: 'gemini-multimodal',
+            ocrConfidence: 100,
+          };
+          logCtx.info('AI', 'Texto extraído de PDF escaneado vía Gemini multimodal', {
+            chars: geminiPdfText.length,
+          });
+        }
+      } catch (geminiPdfErr) {
+        const errMsg = geminiPdfErr instanceof Error ? geminiPdfErr.message : 'Error desconocido';
+        logCtx.warn('AI', 'OCR de PDF escaneado con Gemini falló', { error: errMsg.substring(0, 200) });
+      }
+    }
+
     if (!extracted.text.trim()) {
       logCtx.warn('AI', 'No se pudo extraer texto del documento — guardando como fallido', {
         method: extracted.method,

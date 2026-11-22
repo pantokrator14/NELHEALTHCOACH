@@ -12,6 +12,7 @@ import type {
   ChecklistItem,
 } from "../../../../../../packages/types";
 import { logger } from "@/app/lib/logger";
+import { selectCurrentEvaluationDocuments } from "@/app/lib/document-selection";
 
 // ─────────────────────────────────────────────
 // Type-safe event data schema
@@ -311,20 +312,28 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
     confidence: number;
   }> = [];
 
-  // Obtener documentos del cliente (PDFs en S3)
+  // Obtener documentos del cliente (filtrando solo los más actuales para esta evaluación)
   const clientDocs = medicalData.documents as Array<{
     name: string;
     key: string;
     type?: string;
+    uploadedAt?: string;
   }> | undefined;
 
   if (clientDocs && clientDocs.length > 0) {
-    const pdfDocs = clientDocs.filter(
-      (doc) => doc.name?.toLowerCase().endsWith('.pdf') || doc.type?.includes('pdf')
+    const selection = selectCurrentEvaluationDocuments(
+      clientDocs,
+      (doc.aiProgress as { sessions?: Array<Record<string, unknown>> } | undefined)?.sessions as any
+    );
+    const pdfDocs = selection.selected.filter(
+      (docItem) => docItem.name?.toLowerCase().endsWith('.pdf') || docItem.type?.includes('pdf')
     );
 
-    logger.info("AI", `[fetchClientData] ${pdfDocs.length} PDF(s) encontrados para análisis con Gemini`, {
+    logger.info("AI", `[fetchClientData] ${pdfDocs.length} PDF(s) actuales seleccionados para análisis`, {
       totalDocs: clientDocs.length,
+      selectedCurrentDocs: selection.selected.length,
+      excludedHistoricalDocs: selection.excludedCount,
+      selectionReason: selection.reason,
       pdfCount: pdfDocs.length,
     });
 
@@ -751,7 +760,7 @@ export const generateRecommendationsFn = inngest.createFunction(
     });
 
     log.info("AI", "Starting recommendation generation", {
-      model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+      model: process.env.GEMINI_MODEL || "gemini-4-hydrogen",
       coachNotesProvided: !!coachNotes,
     });
 
@@ -794,7 +803,7 @@ export const generateRecommendationsFn = inngest.createFunction(
       log.error("AI", `LangGraph execution failed: ${errorMessage}`, graphError instanceof Error ? graphError : new Error(errorMessage), {
         clientId,
         monthNumber,
-        model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+        model: process.env.GEMINI_MODEL || "gemini-4-hydrogen",
         stack: errorStack,
       });
       executionError = errorMessage;

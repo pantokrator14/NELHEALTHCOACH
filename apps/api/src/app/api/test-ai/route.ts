@@ -38,7 +38,7 @@ async function getHandler(request: NextRequest) {
 
     return NextResponse.json({
       apiKeyPresent: !!process.env.GEMINI_API_KEY,
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+      model: process.env.GEMINI_MODEL || 'gemini-4-hydrogen',
       connectionTest: isConnected,
       simpleRequest: {
         content: result.text?.substring(0, 200),

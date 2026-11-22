@@ -72,6 +72,7 @@ export interface NutritionAnalysisResult {
       percentage: number;
     };
   }>;
+  detectedIngredients?: string[];
   servings: number;
   ketoRatio?: {
     fatPercentage: number;

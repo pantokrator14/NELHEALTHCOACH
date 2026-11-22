@@ -1087,6 +1087,33 @@ export const apiClient = {
 
     return response.json();
   },
+  analyzeRecipeImage: async (payload: {
+    imageBase64?: string;
+    mimeType?: 'image/jpeg' | 'image/jpg' | 'image/png' | 'image/webp' | 'image/gif';
+    recipeId?: string;
+    servings?: number;
+    title?: string;
+    description?: string;
+    ingredients?: string[];
+  }): Promise<{
+    success: boolean;
+    data: NutritionAnalysisResult;
+    source: 'ai';
+    timestamp: string;
+  }> => {
+    const response = await fetch(`${API_BASE_URL}/api/recipes/analyze-image`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw apiError(error, 'Error analizando imagen con IA');
+    }
+
+    return response.json();
+  },
 
   // Buscar recetas
   async searchRecipes(query: string) {

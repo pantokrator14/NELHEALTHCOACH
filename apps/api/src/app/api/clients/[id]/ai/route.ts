@@ -11,8 +11,9 @@ import { EmailService } from '@/app/lib/email-service';
 import { generateCompositeRecommendation, CompositeOutputWithIds, generateShoppingListFromWeeklyPlan } from '@/app/lib/composite-recommendation';
 import { translateSessionContent, detectLanguage, normalizeClientLang, encryptSessionFields, defaultLLM, SUPPORTED_LANGS, LANG_LABELS, SupportedLang } from '@/app/lib/recommendation-translator';
 import { enqueueAIJob, claimAIJob, completeAIJob, failAIJob, requeueAIJob, MAX_ATTEMPTS } from '@/app/lib/ai-job-queue';
-import { sendTextToGemini } from '@/app/lib/agents/utils/llm';
-import { extractTextFromBuffer } from '@/app/lib/document-extractor';
+import { sendTextToGemini, extractTextFromImageViaGemini } from '@/app/lib/agents/utils/llm';
+import { extractTextFromBuffer, extractTextFromImageViaPaddleOCR } from '@/app/lib/document-extractor';
+import { selectCurrentEvaluationDocuments } from '@/app/lib/document-selection';
 import { getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
@@ -549,11 +550,12 @@ async function executeGenerationForClient(
         medicalData: aiInput.medicalData || {},
         healthAssessment: healthAssessment || {},
         mentalHealth: mentalHealth || {},
-        processedDocuments: (processedDocuments || []).map((d: { title?: string; content?: string; documentType?: string; confidence?: number }) => ({
+        processedDocuments: (processedDocuments || []).map((d: { title?: string; content?: string; documentType?: string; confidence?: number; uploadedAt?: string }) => ({
           title: d.title || '',
           content: d.content || '',
           documentType: d.documentType || 'other',
           confidence: d.confidence || 0,
+          uploadedAt: d.uploadedAt,
         })),
         previousSessions: (aiInput.previousSessions || []) as any,
         coachNotes: aiInput.coachNotes || '',
@@ -1240,10 +1242,29 @@ function extractJSONFromMarkdown(text: string): string {
 }
 
 // Funciones auxiliares
+function inferDocumentMimeType(fileName: string, rawType?: string): string {
+  if (rawType && rawType.includes('/')) return rawType;
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    pdf: 'application/pdf',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    tiff: 'image/tiff',
+    tif: 'image/tiff',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return map[ext] || 'application/pdf';
+}
+
 async function prepareAIInput(
   client: any,
   requestId: string,
-  clientId: string
+  clientId: string,
+  options: { excludeSessionId?: string } = {}
 ): Promise<any> {
   const loggerWithContext = logger.withContext({ requestId });
 
@@ -1287,18 +1308,42 @@ async function prepareAIInput(
   let allLabResults: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }> = [];
   let extractedMedicalSummary = '';
 
+  let selectedDocumentsForEval: any[] = [];
   if (client.medicalData?.documents && Array.isArray(client.medicalData.documents) && client.medicalData.documents.length > 0) {
-    loggerWithContext.debug('AI', 'Analizando documentos reales con Gemini nativo (SECUENCIAL)', {
-      documentCount: client.medicalData.documents.length
+    const decryptedMetaDocs = client.medicalData.documents.map((doc: any) => {
+      const rawUploadedAt = typeof doc?.uploadedAt === 'string' && isEncrypted(doc.uploadedAt)
+        ? safeDecrypt(doc.uploadedAt)
+        : doc?.uploadedAt;
+      return {
+        ...doc,
+        uploadedAt: rawUploadedAt,
+      };
     });
 
-    const totalAttempted = client.medicalData.documents.length;
+    const selection = selectCurrentEvaluationDocuments(
+      decryptedMetaDocs,
+      client.aiProgress?.sessions,
+      { excludeSessionId: options.excludeSessionId }
+    );
+    selectedDocumentsForEval = selection.selected;
 
-      // Procesar documentos SECUENCIALMENTE para evitar 503 por concurrencia
-      for (let docIndex = 0; docIndex < client.medicalData.documents.length; docIndex++) {
-        const doc = client.medicalData.documents[docIndex];
+    loggerWithContext.info('AI', 'Selección de documentos actuales para evaluación IA', {
+      totalDocumentsOnProfile: client.medicalData.documents.length,
+      selectedDocumentsCount: selectedDocumentsForEval.length,
+      excludedHistoricalCount: selection.excludedCount,
+      selectionReason: selection.reason,
+      cutoffDate: selection.cutoffDate,
+    });
+
+    const totalAttempted = selectedDocumentsForEval.length;
+
+      // Procesar solo los documentos actuales SECUENCIALMENTE para evitar 503 por concurrencia
+      for (let docIndex = 0; docIndex < selectedDocumentsForEval.length; docIndex++) {
+        const doc = selectedDocumentsForEval[docIndex];
         const fileName = safeDecrypt(doc.name || doc.originalName || 'Documento');
         const s3Key = safeDecrypt(doc.key || '');
+        const docMimeType = inferDocumentMimeType(fileName, safeDecrypt(doc.type || ''));
+        const docUploadedAt = doc.uploadedAt ? new Date(doc.uploadedAt).toISOString() : undefined;
         if (!s3Key) continue;
 
         // FAIL-FAST: 2 intentos máximo (1 inicial + 1 reintento)
@@ -1334,6 +1379,7 @@ async function prepareAIInput(
                 docResult = {
                   title: fileName,
                   content: cachedAnalysis,
+                  uploadedAt: docUploadedAt,
                   processedAt: (cachedDoc.cachedAt as string) || new Date().toISOString(),
                   confidence: 1,
                   type: 'document',
@@ -1418,11 +1464,39 @@ async function prepareAIInput(
                 if (!s3Response.ok) throw new Error(`S3 download failed: ${s3Response.status}`);
 
                 const buffer = Buffer.from(await s3Response.arrayBuffer());
-                const extracted = await extractTextFromBuffer(buffer, fileName, 'application/pdf');
+                const isImageDoc = docMimeType.startsWith('image/');
+                let extractedText = '';
+                let extractedMethod = '';
 
-                if (extracted.text.trim()) {
-                  rawText = extracted.text;
-                  extractionMethod = extracted.method;
+                if (isImageDoc) {
+                  try {
+                    const paddleResult = await extractTextFromImageViaPaddleOCR(buffer, fileName, docMimeType);
+                    if (paddleResult.text.trim() && paddleResult.confidence >= 10) {
+                      extractedText = paddleResult.text;
+                      extractedMethod = 'paddle-ocr';
+                    }
+                  } catch {
+                    // PaddleOCR no disponible → fallback a Gemini multimodal
+                  }
+                  if (!extractedText.trim()) {
+                    extractedText = await extractTextFromImageViaGemini(buffer, fileName, docMimeType);
+                    extractedMethod = 'gemini-multimodal';
+                  }
+                } else {
+                  const extracted = await extractTextFromBuffer(buffer, fileName, docMimeType);
+                  extractedText = extracted.text;
+                  extractedMethod = extracted.method;
+
+                  if (!extractedText.trim() && docMimeType === 'application/pdf') {
+                    loggerWithContext.warn('AI', 'PDF escaneado sin texto bajo demanda — usando Gemini multimodal');
+                    extractedText = await extractTextFromImageViaGemini(buffer, fileName, 'application/pdf');
+                    extractedMethod = 'gemini-multimodal';
+                  }
+                }
+
+                if (extractedText.trim()) {
+                  rawText = extractedText;
+                  extractionMethod = extractedMethod;
                   geminiAnalysis = await sendTextToGemini(rawText, fileName, prompt);
                   loggerWithContext.info('AI', 'Texto extraído bajo demanda', {
                     fileName,
@@ -1430,9 +1504,9 @@ async function prepareAIInput(
                     chars: rawText.length,
                   });
                 } else {
-                  loggerWithContext.warn('AI', 'No se pudo extraer texto del PDF bajo demanda', {
+                  loggerWithContext.warn('AI', 'No se pudo extraer texto del documento bajo demanda', {
                     fileName,
-                    method: extracted.method,
+                    mimeType: docMimeType,
                   });
                   break;
                 }
@@ -1476,6 +1550,7 @@ async function prepareAIInput(
                 docResult = {
                   title: fileName,
                   content: JSON.stringify(parsedAnalysis),
+                  uploadedAt: docUploadedAt,
                   processedAt: new Date().toISOString(),
                   confidence: 1,
                   type: 'document',
@@ -1579,7 +1654,7 @@ async function prepareAIInput(
         }
 
         // Delay de 8 segundos entre documentos para priorizar estabilidad sobre velocidad
-        if (docIndex < client.medicalData.documents.length - 1) {
+        if (docIndex < selectedDocumentsForEval.length - 1) {
           await new Promise(r => setTimeout(r, 8000));
         }
       }
@@ -1627,8 +1702,8 @@ async function prepareAIInput(
 
   // Preparar historial de documentos (desde los archivos reales en S3)
   const documentHistory = [];
-  if (client.medicalData?.documents && Array.isArray(client.medicalData.documents)) {
-    const recentDocs = client.medicalData.documents
+  if (selectedDocumentsForEval.length > 0) {
+    const recentDocs = [...selectedDocumentsForEval]
       .sort((a: any, b: any) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime())
       .slice(0, 5);
     for (const doc of recentDocs) {
@@ -2184,7 +2259,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     // 4. Preparar datos para la IA incluyendo notas del coach
     loggerWithContext.info('AI_REGEN', '🔄 Preparando datos para regeneración');
 
-    const aiInput = await prepareAIInput(client, requestId, clientId);
+    const aiInput = await prepareAIInput(client, requestId, clientId, { excludeSessionId: sessionId });
 
     // Agregar notas del coach si las hay
     if (coachNotes && coachNotes.trim().length > 0) {
@@ -2230,6 +2305,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
         content: d.content || '',
         documentType: d.documentType || 'other',
         confidence: d.confidence || 0,
+        uploadedAt: d.uploadedAt,
       })),
       previousSessions: (aiInput.previousSessions || []) as any,
       coachNotes: aiInput.coachNotes || '',

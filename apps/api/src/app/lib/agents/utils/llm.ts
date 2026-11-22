@@ -12,7 +12,7 @@ import type { ExtractionResult } from "../../document-extractor";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 const GEMINI_REST_URL = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
+const GEMINI_DEFAULT_MODEL = "gemini-4-hydrogen";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash";
@@ -30,6 +30,10 @@ interface LLMOptions {
 }
 
 /** Devuelve el modelo configurado para el proveedor indicado (con log) */
+function isGemini4Model(model: string): boolean {
+  return model.startsWith("gemini-4");
+}
+
 function resolveModel(provider: LLMProvider = "gemini"): string {
   if (provider === "deepseek") {
     return process.env.DEEPSEEK_MODEL || DEEPSEEK_DEFAULT_MODEL;
@@ -88,31 +92,19 @@ function createLLM(options: LLMOptions = {}): ChatOpenAI {
   }) as any;
 }
 
-/**
- * Crea un LLM con fallback automático entre proveedores.
- *
- * Estrategia:
- *   1. Intenta con el provider primario (default: deepseek)
- *   2. Si falla y hay fallback disponible → intenta con el secundario (gemini)
- *   3. Logging claro de qué proveedor respondió
- */
-export async function createLLMWithFallback(
+function createSyncLLMWithFallback(
+  primaryProvider: LLMProvider,
   options: LLMOptions = {}
-): Promise<ChatOpenAI> {
-  const primaryProvider: LLMProvider = options.provider ?? "deepseek";
+): BaseChatModel {
   const fallbackProvider: LLMProvider = primaryProvider === "deepseek" ? "gemini" : "deepseek";
   const logCtx = logger.withContext({ feature: "llm-fallback" });
 
-  // Variables para capturar errores de ambos providers
+  let primaryLLM: ChatOpenAI | null = null;
+  let fallbackLLM: ChatOpenAI | null = null;
   let primaryMsg = "";
 
-  // 1. Intentar con el provider primario
   try {
-    const llm = createLLM({ ...options, provider: primaryProvider });
-    logCtx.info("AI", `LLM creado con provider primario: ${primaryProvider}`, {
-      model: resolveModel(primaryProvider),
-    });
-    return llm;
+    primaryLLM = createLLM({ ...options, provider: primaryProvider });
   } catch (primaryError) {
     primaryMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
     logCtx.warn("AI", `Provider primario ${primaryProvider} no disponible, intentando fallback a ${fallbackProvider}`, {
@@ -120,24 +112,53 @@ export async function createLLMWithFallback(
     });
   }
 
-  // 2. Fallback al provider secundario
   try {
-    const llm = createLLM({ ...options, provider: fallbackProvider });
-    logCtx.info("AI", `LLM creado con provider fallback: ${fallbackProvider}`, {
-      model: resolveModel(fallbackProvider),
-    });
-    return llm;
+    fallbackLLM = createLLM({ ...options, provider: fallbackProvider });
   } catch (fallbackError) {
     const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-    logCtx.error("AI", `Ambos providers fallaron (${primaryProvider} → ${fallbackProvider})`, undefined, {
-      primaryError: primaryMsg.substring(0, 200),
-      fallbackError: fallbackMsg.substring(0, 200),
+    if (!primaryLLM) {
+      logCtx.error("AI", `Ambos providers fallaron (${primaryProvider} → ${fallbackProvider})`, undefined, {
+        primaryError: primaryMsg.substring(0, 200),
+        fallbackError: fallbackMsg.substring(0, 200),
+      });
+      throw new Error(
+        `Todos los proveedores LLM fallaron. Primario: ${primaryProvider}, Fallback: ${fallbackProvider}. ` +
+        `Error fallback: ${fallbackMsg}`
+      );
+    }
+    logCtx.warn("AI", `Fallback ${fallbackProvider} no configurado; operando solo con ${primaryProvider}`, {
+      error: fallbackMsg.substring(0, 200),
     });
-    throw new Error(
-      `Todos los proveedores LLM fallaron. Primario: ${primaryProvider}, Fallback: ${fallbackProvider}. ` +
-      `Error fallback: ${fallbackMsg}`
-    );
   }
+
+  if (primaryLLM && fallbackLLM) {
+    logCtx.info("AI", `LLM configurado con fallback en ejecución: ${primaryProvider} → ${fallbackProvider}`, {
+      primaryModel: resolveModel(primaryProvider),
+      fallbackModel: resolveModel(fallbackProvider),
+    });
+    return primaryLLM.withFallbacks({ fallbacks: [fallbackLLM] }) as unknown as BaseChatModel;
+  }
+
+  if (primaryLLM) {
+    return primaryLLM as unknown as BaseChatModel;
+  }
+
+  return fallbackLLM as unknown as BaseChatModel;
+}
+
+/**
+ * Crea un LLM con fallback automático en tiempo de ejecución entre proveedores.
+ *
+ * Estrategia:
+ *   1. Intenta con el provider primario (default: deepseek)
+ *   2. Si falla en instanciación O al invocar (error HTTP/timeout/red) → cae automáticamente al secundario (gemini-4-hydrogen)
+ *   3. Logging claro de qué proveedor respondió
+ */
+export async function createLLMWithFallback(
+  options: LLMOptions = {}
+): Promise<BaseChatModel> {
+  const primaryProvider: LLMProvider = options.provider ?? "deepseek";
+  return createSyncLLMWithFallback(primaryProvider, options);
 }
 
 // ─────────────────────────────────────────────
@@ -145,61 +166,81 @@ export async function createLLMWithFallback(
 // ─────────────────────────────────────────────
 
 /**
- * Crea un LLM que intenta DeepSeek primero, y si falla, Gemini.
+ * Crea un LLM que intenta DeepSeek primero, con fallback automático en ejecución a Gemini.
  * Sincrónico — se usa para instancias que no requieren async.
  */
 export function createDeepSeekLLM(options: LLMOptions = {}): BaseChatModel {
-  try {
-    return createLLM({ ...options, provider: "deepseek" }) as unknown as BaseChatModel;
-  } catch {
-    logger.warn("AI", "createDeepSeekLLM: DeepSeek no disponible, usando Gemini");
-    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
-  }
+  return createSyncLLMWithFallback("deepseek", options);
 }
 
 /**
- * Crea un LLM con fallback (Gemini → DeepSeek real).
- * Es async porque internamente usa createLLMWithFallback.
+ * Crea un LLM con fallback real (DeepSeek → Gemini 4 Hydrogen).
+ * Es async para mantener compatibilidad con los llamadores del grafo/pipeline.
  * @param options.maxTokens Presupuesto de salida de ESTA llamada. Cada fase del
  *        pipeline puede pasar su propio valor (el modelo deepseek razona y el
  *        razonamiento consume del maxTokens — ver FASE 2/3 cortadas con
  *        finish_reason='length').
  */
 export async function createDeepSeekJSONLLM(options: { maxTokens?: number } = {}): Promise<BaseChatModel> {
-  const llm = await createLLMWithFallback({ temperature: 0.3, maxTokens: options.maxTokens ?? 16000 });
-  return llm as unknown as BaseChatModel;
+  return createLLMWithFallback({ temperature: 0.3, maxTokens: options.maxTokens ?? 16000 });
 }
 
 export function createDeepSeekAnalyticalLLM(options: LLMOptions = {}): BaseChatModel {
-  try {
-    return createLLM({ ...options, provider: "deepseek", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
-  } catch {
-    logger.warn("AI", "createDeepSeekAnalyticalLLM: DeepSeek no disponible, usando Gemini");
-    return createLLM({ ...options, provider: "gemini", temperature: 0.8, maxTokens: 3000 }) as unknown as BaseChatModel;
-  }
+  return createSyncLLMWithFallback("deepseek", { ...options, temperature: 0.8, maxTokens: 3000 });
 }
 
 export function createDeepSeekWithTools(
   tools: StructuredToolInterface[],
   options: LLMOptions = {}
 ): BaseChatModel {
-  const llm = createDeepSeekLLM({
+  const toolOpts: LLMOptions = {
     temperature: options.temperature ?? 0.5,
     maxTokens: options.maxTokens ?? 6000,
-  });
+  };
 
-  const bound = (llm as unknown as Record<string, unknown>).bindTools as
-    | ((t: StructuredToolInterface[]) => unknown)
-    | undefined;
-  if (!bound) {
-    logger.error("AI", "bindTools no disponible en Gemini. Verifica compatibilidad del endpoint OpenAI.", {
-      model: resolveModel(),
+  const tryBind = (provider: LLMProvider) => {
+    try {
+      const instance = createLLM({ ...toolOpts, provider });
+      const boundFn = (instance as unknown as Record<string, unknown>).bindTools as
+        | ((t: StructuredToolInterface[]) => ChatOpenAI)
+        | undefined;
+      if (!boundFn) return null;
+      return boundFn.call(instance, tools);
+    } catch {
+      return null;
+    }
+  };
+
+  const primaryBound = tryBind("deepseek");
+  const fallbackBound = tryBind("gemini");
+
+  if (primaryBound && fallbackBound) {
+    logger.debug("AI", "Tools bindeadas con fallback en ejecución (deepseek → gemini)", {
+      toolCount: tools.length,
+      primaryModel: resolveModel("deepseek"),
+      fallbackModel: resolveModel("gemini"),
     });
-    throw new Error("bindTools is not available on this model — Gemini OpenAI compat endpoint may not support function calling");
+    return primaryBound.withFallbacks({ fallbacks: [fallbackBound] }) as unknown as BaseChatModel;
   }
 
-  logger.debug("AI", "Tools bindeadas a LLM Gemini", { toolCount: tools.length });
-  return bound.call(llm, tools) as unknown as BaseChatModel;
+  if (primaryBound) {
+    logger.debug("AI", "Tools bindeadas a DeepSeek (sin fallback Gemini)", { toolCount: tools.length });
+    return primaryBound as unknown as BaseChatModel;
+  }
+
+  if (fallbackBound) {
+    logger.warn("AI", "DeepSeek no disponible para tools; usando Gemini", {
+      toolCount: tools.length,
+      model: resolveModel("gemini"),
+    });
+    return fallbackBound as unknown as BaseChatModel;
+  }
+
+  logger.error("AI", "bindTools no disponible en ningún proveedor LLM.", {
+    deepseekModel: resolveModel("deepseek"),
+    geminiModel: resolveModel("gemini"),
+  });
+  throw new Error("bindTools is not available on DeepSeek or Gemini");
 }
 
 // ─────────────────────────────────────────────
@@ -207,12 +248,7 @@ export function createDeepSeekWithTools(
 // ─────────────────────────────────────────────
 
 export function createGeminiLLM(options: LLMOptions = {}): BaseChatModel {
-  try {
-    return createLLM({ ...options, provider: "gemini" }) as unknown as BaseChatModel;
-  } catch {
-    logger.warn("AI", "createGeminiLLM: Gemini no disponible, usando DeepSeek real");
-    return createLLM({ ...options, provider: "deepseek" }) as unknown as BaseChatModel;
-  }
+  return createSyncLLMWithFallback("gemini", options);
 }
 
 export async function createGeminiJSONLLM(): Promise<BaseChatModel> {
@@ -310,8 +346,8 @@ function parseGeminiResponse(
 
   const candidate = candidates[0];
   const finishReason = candidate.finishReason as string | undefined;
-  const parts = (candidate.content as Record<string, unknown> | undefined)?.parts as Array<{ text: string }> | undefined;
-  const text = parts?.[0]?.text || "";
+  const parts = (candidate.content as Record<string, unknown> | undefined)?.parts as Array<{ text?: string; thought?: boolean }> | undefined;
+  const text = parts?.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text!).join("") || "";
 
   // Log finishReason si no es STOP
   if (finishReason && finishReason !== "STOP") {
@@ -646,6 +682,7 @@ async function sendTextToGeminiREST(
       temperature: 0.2,
       maxOutputTokens: 16000,
       responseMimeType: "application/json",
+      ...(isGemini4Model(model) ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
     },
   };
 
@@ -822,6 +859,7 @@ async function sendImageToGeminiREST(
       temperature: 0.2,
       maxOutputTokens: 16000,
       responseMimeType: "application/json",
+      ...(isGemini4Model(model) ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
     },
   };
 
@@ -861,11 +899,16 @@ export async function extractTextFromImageViaGemini(
 
   const base64Image = imageBuffer.toString('base64');
 
+  const isPdf = mimeType === 'application/pdf';
+  const promptText = isPdf
+    ? `Extrae TODO el texto visible en este documento PDF ("${fileName}"). Preserva la estructura original: respeta saltos de línea, tablas de laboratorio, unidades, rangos de referencia y listas. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto. Si no hay texto legible, devuelve una cadena vacía.`
+    : `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`;
+
   const body: Record<string, unknown> = {
     contents: [{
       parts: [
         {
-          text: `Extrae TODO el texto visible en esta imagen del archivo "${fileName}". Preserva la estructura original: respeta saltos de línea, tablas, listas y cualquier formato. No agregues comentarios, no resumas, no interpretes — SOLO transcribe el texto exacto que ves. Si la imagen no contiene texto legible, devuelve una cadena vacía.`,
+          text: promptText,
         },
         {
           inline_data: {
@@ -878,6 +921,7 @@ export async function extractTextFromImageViaGemini(
     generationConfig: {
       temperature: 0.1,
       maxOutputTokens: 8192,
+      ...(isGemini4Model(model) ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
     },
   };
 
@@ -948,8 +992,8 @@ export async function analyzeS3FileWithGemini(
       };
     }
 
-    // ── Ruta para documentos (PDF, DOCX, texto): extracción local + texto ──
-    const extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
+    // ── Ruta para documentos (PDF, DOCX, texto): extracción local + OCR Gemini si es PDF escaneado ──
+    let extracted: ExtractionResult = await extractTextFromBuffer(buffer, fileName, mimeType);
     logCtx.info('AI', `[${caller}] Texto extraído localmente`, {
       method: extracted.method,
       chars: extracted.text.length,
@@ -957,7 +1001,19 @@ export async function analyzeS3FileWithGemini(
       ocrConfidence: extracted.ocrConfidence,
     });
 
-    // Enviar texto extraído directamente a Gemini (sin re-extraer)
+    if (!extracted.text.trim() && (fileType === 'pdf' || mimeType === 'application/pdf')) {
+      logCtx.warn('AI', `[${caller}] PDF sin capa de texto (escaneado) — extrayendo con Gemini multimodal`);
+      const ocrText = await extractTextFromImageViaGemini(buffer, fileName, 'application/pdf');
+      if (ocrText.trim()) {
+        extracted = {
+          text: ocrText,
+          method: 'gemini-multimodal',
+          pages: extracted.pages,
+        };
+      }
+    }
+
+    // Enviar texto extraído directamente a análisis clínico (DeepSeek primario → Gemini fallback)
     const analysis = await sendTextToGemini(extracted.text, fileName, analysisContext);
 
     return {
@@ -1010,6 +1066,12 @@ interface GeminiGenerateContentParams {
   temperature?: number;
   maxOutputTokens?: number;
   responseMimeType?: string;
+  thinkingLevel?: "low" | "medium" | "high" | "xhigh";
+}
+
+interface GeminiImageContentParams extends GeminiGenerateContentParams {
+  imageBase64: string;
+  mimeType: string;
 }
 
 interface GeminiGenerateContentResponse {
@@ -1049,6 +1111,12 @@ export async function callGeminiAPI(
       params.responseMimeType;
   }
 
+  if (isGemini4Model(model) && params.thinkingLevel) {
+    (body.generationConfig as Record<string, unknown>).thinkingConfig = {
+      thinkingLevel: params.thinkingLevel,
+    };
+  }
+
   logCtx.debug("AI", `[${caller}] Llamando a Gemini`, {
     model,
     temperature: params.temperature ?? 0.7,
@@ -1070,6 +1138,82 @@ export async function callGeminiAPI(
     throw new Error(
       `Gemini returned empty text. finishReason: ${result.finishReason || "unknown"}. ` +
       "Possible causes: content filtered, max_tokens too low, or model error."
+    );
+  }
+
+  return { text: result.text, rawResponse: result.rawResponse };
+}
+
+
+export async function callGeminiImageAPI(
+  params: GeminiImageContentParams
+): Promise<GeminiGenerateContentResponse> {
+  const caller = "callGeminiImageAPI";
+  const logCtx = logger.withContext({ caller, mimeType: params.mimeType });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    logCtx.error("AI", "GEMINI_API_KEY no configurada");
+    throw new Error("GEMINI_API_KEY is required");
+  }
+
+  const model = resolveModel();
+  const url = `${GEMINI_REST_URL}/models/${model}:generateContent?key=${apiKey}`;
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: params.temperature ?? 0.3,
+    maxOutputTokens: params.maxOutputTokens ?? 4096,
+  };
+
+  if (params.responseMimeType) {
+    generationConfig.responseMimeType = params.responseMimeType;
+  }
+
+  if (isGemini4Model(model)) {
+    generationConfig.thinkingConfig = {
+      thinkingLevel: params.thinkingLevel ?? "low",
+    };
+  }
+
+  const body: Record<string, unknown> = {
+    contents: [
+      {
+        parts: [
+          { text: params.userPrompt },
+          {
+            inline_data: {
+              mime_type: params.mimeType,
+              data: params.imageBase64,
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig,
+  };
+
+  if (params.systemPrompt) {
+    body.systemInstruction = { parts: [{ text: params.systemPrompt }] };
+  }
+
+  logCtx.info("AI", `[${caller}] Analizando imagen con Gemini`, {
+    model,
+    mimeType: params.mimeType,
+    imageBase64Length: params.imageBase64.length,
+    thinkingLevel: isGemini4Model(model) ? (params.thinkingLevel ?? "low") : "n/a",
+  });
+
+  const result = await fetchGeminiREST(url, body, logCtx, caller);
+
+  if (result.safetyBlocked) {
+    throw new Error(
+      "Gemini blocked the image analysis response due to safety filters."
+    );
+  }
+
+  if (!result.text) {
+    throw new Error(
+      `Gemini returned empty text for image analysis. finishReason: ${result.finishReason || "unknown"}.`
     );
   }
 
@@ -1130,7 +1274,9 @@ export async function testGeminiConnection(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: "Hello" }] }],
-        generationConfig: { maxOutputTokens: 1 },
+        generationConfig: isGemini4Model(model)
+          ? { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } }
+          : { maxOutputTokens: 1 },
       }),
     });
 

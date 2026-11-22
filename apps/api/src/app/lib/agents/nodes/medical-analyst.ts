@@ -55,7 +55,7 @@ export async function analyzeMedicalData(
 
     logCtx.debug("AI", "Invoking LLM for medical analysis", {
       promptLength: systemPrompt.length + userPrompt.length,
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-4-hydrogen",
     });
 
     // Usar guardrails para análisis médico
