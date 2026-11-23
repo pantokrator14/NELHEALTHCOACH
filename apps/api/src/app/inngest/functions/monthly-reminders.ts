@@ -1,19 +1,21 @@
 // apps/api/src/app/inngest/functions/monthly-reminders.ts
 //
 // Función Inngest que se ejecuta cada sábado a las 10:00 AM (cron: 0 10 * * 6)
-// para enviar recordatorios motivacionales a los clientes:
+// para enviar recordatorios motivacionales a los clientes y verificar cierres de programa:
 //
 // Semana 1-3: Emails motivacionales con tips de salud, nutrición y hábitos.
 // Semana 4 (o 4to email): Incluye CTA "Solicitar mi siguiente sesión".
+// Adicionalmente: verifica clientes cuyo plan cumplió su duración para enviar el resumen de felicitación.
 //
 // El seguimiento se hace por clientId + mes (YYYY-MM) en la colección monthly_reminders.
 
 import { inngest } from '../client';
-import { getHealthFormsCollection, connectToDatabase } from '@/app/lib/database';
+import { getHealthFormsCollection, connectToDatabase, connectMongoose } from '@/app/lib/database';
 import { EmailService } from '@/app/lib/email-service';
 import { decrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
-import { ObjectId } from 'mongodb';
+import ClientAccount from '@/app/models/ClientAccount';
+import { checkAndSendProgramCompletionEmail } from '@/app/lib/program-completion';
 
 // ─────────────────────────────────────────────
 // Constantes
@@ -162,7 +164,7 @@ function generateMotivationalEmailHTML(data: {
 
     <!-- Footer -->
     <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
-            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+      <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
         Ayudándote a descubrir el verdadero potencial de tu cuerpo.
       </div>
       <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
@@ -194,7 +196,7 @@ export const monthlyRemindersFn = inngest.createFunction(
     name: 'Enviar recordatorios motivacionales mensuales',
     triggers: [{ cron: '0 10 * * 6' }], // Sábados a las 10:00 AM
   },
-  async ({ step }) => {
+  async () => {
     const emailService = EmailService.getInstance();
     const collection = await getHealthFormsCollection();
     const { db } = await connectToDatabase();
@@ -202,6 +204,7 @@ export const monthlyRemindersFn = inngest.createFunction(
     const currentMonth = new Date().toISOString().slice(0, 7); // "2026-06"
     let sentCount = 0;
     let skippedCount = 0;
+    let completionEmailsSent = 0;
 
     logger.info('REMINDER', 'Ejecutando recordatorios motivacionales mensuales', { currentMonth });
 
@@ -312,7 +315,37 @@ export const monthlyRemindersFn = inngest.createFunction(
       }
     }
 
-    logger.info('REMINDER', 'Recordatorios motivacionales completados', { sentCount, skippedCount });
-    return { sentCount, skippedCount, currentMonth };
+    // Verificar clientes cuyo tiempo de programa ya concluyó para enviar felicitación y resumen
+    try {
+      await connectMongoose();
+      const candidateAccounts = await ClientAccount.find({
+        emailVerified: true,
+        isActive: true,
+        healthFormId: { $nin: [null, ''] },
+        'purchasedPlans.status': 'paid',
+      })
+        .select('_id')
+        .lean() as Array<{ _id: { toString(): string } }>;
+
+      for (const acc of candidateAccounts) {
+        const res = await checkAndSendProgramCompletionEmail({
+          clientAccountId: acc._id.toString(),
+          trigger: 'time_elapsed',
+        });
+        if (res.sent) {
+          completionEmailsSent++;
+        }
+      }
+    } catch (completionErr: unknown) {
+      const msg = completionErr instanceof Error ? completionErr.message : 'Error desconocido';
+      logger.error('REMINDER', `Error verificando cierres de programa: ${msg}`);
+    }
+
+    logger.info('REMINDER', 'Recordatorios motivacionales completados', {
+      sentCount,
+      skippedCount,
+      completionEmailsSent,
+    });
+    return { sentCount, skippedCount, completionEmailsSent, currentMonth };
   }
 ) as unknown as ReturnType<typeof inngest.createFunction<never>>;

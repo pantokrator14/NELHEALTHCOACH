@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { freeSessionsSchema } from '@/app/lib/schemas';
+import { freeSessionsSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';

@@ -12,20 +12,28 @@ export type {
 
 export {
   leadSchema,
+  consultCheckoutSchema,
 } from './leads';
 export type {
   LeadInput,
+  ConsultCheckoutInput,
 } from './leads';
 
 export {
   loginSchema,
   registerSchema,
   changePasswordSchema,
+  clientRegisterSchema,
+  clientVerifyCodeSchema,
+  clientResendCodeSchema,
 } from './auth';
 export type {
   LoginInput,
   RegisterInput,
   ChangePasswordInput,
+  ClientRegisterInput,
+  ClientVerifyCodeInput,
+  ClientResendCodeInput,
 } from './auth';
 
 export {
@@ -65,3 +73,6 @@ export type {
 
 export { waitlistSchema, freeSessionsSchema, WAITLIST_SOURCES } from './waitlist';
 export type { WaitlistInput, FreeSessionsInput } from './waitlist';
+
+export { PLAN_IDS, planQuotaUpdateSchema } from './plans';
+export type { PlanQuotaUpdateInput } from './plans';

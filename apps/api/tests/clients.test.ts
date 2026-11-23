@@ -134,7 +134,7 @@ async function main() {
   const items = list?.data || list?.clients || [];
   check('lista es un array', Array.isArray(items));
   if (Array.isArray(items)) {
-    const allMine = items.every((c: any) => c.coachId === coachId || c.coachId?.toString() === coachId);
+    const allMine = items.every((c: { coachId?: string | { toString(): string } }) => c.coachId === coachId || c.coachId?.toString() === coachId);
     check('todos los clientes visibles son del coach', allMine, `items=${items.length}`);
   }
 

@@ -8,7 +8,7 @@ import { getHealthFormsCollection, getMedicalDocumentCacheCollection } from '@/a
 import { S3Service, getPresignedUrlForAnalysis } from '@/app/lib/s3';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, encryptFileObject, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, requireAnyAuth, type AnyAuthPayload } from '@/app/lib/auth';
 import { extractTextFromBuffer } from '@/app/lib/document-extractor';
 import type { ExtractionResult } from '@/app/lib/document-extractor';
 import { extractTextFromImageViaGemini } from '@/app/lib/agents/utils/llm';
@@ -27,26 +27,48 @@ const JWT_SECRET = process.env.JWT_SECRET!;
  * NOTA: Los throw usan objetos con {status, message} para que los catch blocks
  * los distingan de errores inesperados (Error sin .status).
  */
-async function authorizeCoachForClient(request: NextRequest, clientId: string): Promise<{ auth: any, client: any }> {
-  let auth;
+interface ApiStatusError {
+  status?: number;
+  message?: string;
+}
+
+function getApiStatusError(err: unknown): ApiStatusError {
+  return (typeof err === 'object' && err !== null ? err : {}) as ApiStatusError;
+}
+
+async function authorizeCoachForClient(
+  request: NextRequest,
+  clientId: string,
+  options: { allowClient?: boolean } = {}
+): Promise<{ auth: AnyAuthPayload | null; client: Record<string, unknown> }> {
+  let auth: AnyAuthPayload | null;
   try {
-    auth = requireCoachAuth(request);
-  } catch {
-    // Si no hay auth de coach, intentar con token de upload temporal
+    auth = options.allowClient ? requireAnyAuth(request) : requireCoachAuth(request);
+  } catch (err: unknown) {
+    if (getApiStatusError(err).status === 403) {
+      throw { status: 403, message: 'No autorizado' };
+    }
+    // Si no hay auth de coach/cliente, intentar con token de upload temporal
     auth = null;
   }
 
   const healthForms = await getHealthFormsCollection();
   const client = await healthForms.findOne(
     { _id: new ObjectId(clientId) },
-    { projection: { coachId: 1 } }
+    { projection: { coachId: 1, clientAccountId: 1 } }
   );
   if (!client) {
     throw { status: 404, message: 'Cliente no encontrado' };
   }
 
-  // Si hay auth de coach, verificar permisos
+  // Si hay auth, verificar permisos
   if (auth) {
+    if (auth.role === 'client') {
+      if (!options.allowClient || (client.clientAccountId !== auth.clientAccountId && auth.clientId !== clientId)) {
+        throw { status: 403, message: 'No tienes permiso para modificar este cliente' };
+      }
+      return { auth, client };
+    }
     if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
       throw { status: 403, message: 'No tienes permiso para modificar este cliente' };
     }
@@ -65,8 +87,8 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string): 
       throw { status: 401, message: 'Token de upload inválido' };
     }
     return { auth: null, client };
-  } catch (e: any) {
-    if (e?.status) throw e;
+  } catch (e: unknown) {
+    if (getApiStatusError(e).status) throw e;
     throw { status: 401, message: 'Token de upload inválido o expirado' };
   }
 }
@@ -80,7 +102,7 @@ async function getHandler(
   let fileKey: string | null = null;
   try {
     const { id } = await params;
-    await authorizeCoachForClient(request, id);
+    await authorizeCoachForClient(request, id, { allowClient: true });
 
     fileKey = request.nextUrl.searchParams.get('fileKey');
     if (!fileKey) {
@@ -132,9 +154,10 @@ async function getHandler(
     const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
     const downloadURL = await getSignedUrl(s3, command, { expiresIn: 3600 });
     return NextResponse.json({ success: true, data: { downloadURL } });
-  } catch (error: any) {
-    if (error?.status) {
-      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+  } catch (error: unknown) {
+    const apiError = getApiStatusError(error);
+    if (apiError.status) {
+      return NextResponse.json({ success: false, message: apiError.message }, { status: apiError.status });
     }
     logger.error('UPLOAD', 'Error generando URL de descarga', error as Error, { fileKey });
     return NextResponse.json(
@@ -159,7 +182,7 @@ async function postHandler(
       const { id } = await params;
 
       // Verificar autenticación + ownership
-      await authorizeCoachForClient(request, id);
+      await authorizeCoachForClient(request, id, { allowClient: true });
       
       console.log('🔑 Solicitando URL de upload para cliente:', id);
       logger.info('UPLOAD', `Solicitando URL de upload para cliente: ${id}`);
@@ -240,9 +263,10 @@ async function postHandler(
         }
       });
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiError = getApiStatusError(error);
+      if (apiError.status) {
+        return NextResponse.json({ success: false, message: apiError.message }, { status: apiError.status });
       }
       console.error('❌ Error en POST /upload:', error);
       logger.error('UPLOAD', 'Error generando URL de upload', error, undefined, {
@@ -272,7 +296,7 @@ async function putHandler(
       const { id } = await params;
 
       // Verificar autenticación + ownership
-      const { auth } = await authorizeCoachForClient(request, id);
+      const { auth } = await authorizeCoachForClient(request, id, { allowClient: true });
 
       body = await request.json();
       const fileKey = (body?.fileKey || '') as string;
@@ -360,7 +384,7 @@ async function putHandler(
       // ✅ ENCRIPTAR EL NUEVO ARCHIVO
       let encryptedFile = encryptFileObject(uploadedFile);
 
-      let updateData: any = {};
+      let updateData: { $set: Record<string, unknown> };
 
       if (fileCategory === 'profile') {
         updateData = { 
@@ -371,7 +395,7 @@ async function putHandler(
         };
       } else {
         let existingDocuments = client.medicalData?.documents;
-        let documentsArray: any[] = [];
+        let documentsArray: unknown[] = [];
 
         if (typeof existingDocuments === 'string') {
           // Desencriptar y parsear string
@@ -442,9 +466,10 @@ async function putHandler(
         data: uploadedFile
       });
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiError = getApiStatusError(error);
+      if (apiError.status) {
+        return NextResponse.json({ success: false, message: apiError.message }, { status: apiError.status });
       }
       const err = error as Error;
       console.error('❌ Error en PUT /upload:', err);
@@ -726,9 +751,10 @@ async function deleteHandler(
         message: 'Documento eliminado exitosamente'
       });
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiError = getApiStatusError(error);
+      if (apiError.status) {
+        return NextResponse.json({ success: false, message: apiError.message }, { status: apiError.status });
       }
       console.error('❌ Error en DELETE /upload:', error);
       logger.error('UPLOAD', '💥 Error eliminando documento', error, undefined, {
@@ -774,9 +800,10 @@ async function patchHandler(
       { status: 400 }
     );
     
-  } catch (error: any) {
-    if (error?.status) {
-      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+  } catch (error: unknown) {
+    const apiError = getApiStatusError(error);
+    if (apiError.status) {
+      return NextResponse.json({ success: false, message: apiError.message }, { status: apiError.status });
     }
     logger.error('REPAIR', 'Error en endpoint de reparación', error as Error);
     return NextResponse.json(
@@ -802,7 +829,7 @@ async function repairCorruptedDocuments(clientId: string) {
     }
     
     const documents = client.medicalData.documents;
-    const repairedDocs = documents.map((doc: any) => {
+    const repairedDocs = documents.map((doc: unknown) => {
       // Si es un string que parece encriptado (v2 o legacy)
       if (typeof doc === 'string' && isEncrypted(doc)) {
         try {
@@ -833,20 +860,24 @@ async function repairCorruptedDocuments(clientId: string) {
       
       // Si ya es objeto, asegurarse de que los campos estén encriptados
       if (typeof doc === 'object' && doc !== null) {
+        const docObj = doc as Record<string, unknown>;
+        const docName = typeof docObj.name === 'string' ? docObj.name : '';
+        const docKey = typeof docObj.key === 'string' ? docObj.key : '';
+        const docType = typeof docObj.type === 'string' ? docObj.type : '';
         // Verificar si los campos necesitan encriptación (v2 o legacy)
-        const needsEncryption = doc.name && !isEncrypted(doc.name);
+        const needsEncryption = Boolean(docName) && !isEncrypted(docName);
         
         if (needsEncryption) {
           return {
-            ...doc,
-            name: encrypt(doc.name),
-            key: encrypt(doc.key || ''),
-            type: encrypt(doc.type || ''),
+            ...docObj,
+            name: encrypt(docName),
+            key: encrypt(docKey),
+            type: encrypt(docType),
             // size y uploadedAt se mantienen igual
           };
         }
         
-        return doc; // Ya está bien
+        return docObj; // Ya está bien
       }
       
       return doc; // No se puede determinar

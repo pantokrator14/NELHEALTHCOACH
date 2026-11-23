@@ -5,29 +5,29 @@
 // Implementación propia mientras se resuelve la instalación de @openai/guardrails
 
 // Definiciones de tipos
-interface Rule {
+interface Rule<I = unknown> {
   name: string;
   description: string;
-  validate: (input: any) => Promise<boolean>;
+  validate: (input: I) => Promise<boolean>;
 }
 
 class InputGuard {
   constructor(
     public config: {
-      rules: Rule[];
-      onFailure: (input: string | object, rule: Rule) => void;
+      rules: Rule<unknown>[];
+      onFailure: (input: unknown, rule: Rule<unknown>) => void;
     }
   ) {}
 
-  get rules(): Rule[] {
+  get rules(): Rule<unknown>[] {
     return this.config.rules;
   }
 
-  get onFailure(): (input: string | object, rule: Rule) => void {
+  get onFailure(): (input: unknown, rule: Rule<unknown>) => void {
     return this.config.onFailure;
   }
 
-  async validate(input: any): Promise<any> {
+  async validate<T>(input: T): Promise<T> {
     for (const rule of this.config.rules) {
       const isValid = await rule.validate(input);
       if (!isValid) {
@@ -42,16 +42,16 @@ class InputGuard {
 class OutputGuard {
   constructor(
     public config: {
-      rules: Rule[];
-      onFailure: (output: string, rule: Rule) => string;
+      rules: Rule<string>[];
+      onFailure: (output: string, rule: Rule<string>) => string;
     }
   ) {}
 
-  get rules(): Rule[] {
+  get rules(): Rule<string>[] {
     return this.config.rules;
   }
 
-  get onFailure(): (output: string, rule: Rule) => string {
+  get onFailure(): (output: string, rule: Rule<string>) => string {
     return this.config.onFailure;
   }
 
@@ -102,10 +102,11 @@ import { logger } from '../logger';
  * Regla: Prevención de prompt injection
  * Detecta intentos de manipular el comportamiento del LLM
  */
-const promptInjectionRule: Rule = {
+const promptInjectionRule: Rule<unknown> = {
   name: 'prevent-prompt-injection',
   description: 'Previene intentos de inyección de prompt en entradas de usuario',
-  validate: async (input: string): Promise<boolean> => {
+  validate: async (input: unknown): Promise<boolean> => {
+    if (typeof input !== 'string') return true;
     const blockedPatterns = [
       // ── Ignorar / sobrescribir instrucciones ──
       /ignore.*previous|forget.*instructions|disregard.*system/i,
@@ -154,22 +155,23 @@ const promptInjectionRule: Rule = {
  * Regla: Validación de datos médicos
  * Asegura que los datos médicos tengan formato apropiado
  */
-const medicalDataRule: Rule = {
+const medicalDataRule: Rule<unknown> = {
   name: 'validate-medical-data',
   description: 'Valida que los datos médicos tengan formato apropiado',
-  validate: async (input: any): Promise<boolean> => {
+  validate: async (input: unknown): Promise<boolean> => {
     // Si no es un objeto, no es datos médicos estructurados
     if (typeof input !== 'object' || input === null) {
       return true;
     }
 
+    const record = input as Record<string, unknown>;
     // Validar campos médicos comunes
     const medicalFields = ['allergies', 'medications', 'conditions', 'symptoms'];
     for (const field of medicalFields) {
-      if (input[field] && typeof input[field] !== 'string') {
+      if (record[field] && typeof record[field] !== 'string') {
         logger.warn('GUARDRAILS', `Campo médico '${field}' con tipo inválido`, {
-          type: typeof input[field],
-          value: JSON.stringify(input[field]).substring(0, 100),
+          type: typeof record[field],
+          value: JSON.stringify(record[field]).substring(0, 100),
         });
         return false;
       }
@@ -190,7 +192,7 @@ const medicalDataRule: Rule = {
  * Regla: Validación de seguridad en ejercicios
  * Previene recomendaciones de ejercicios peligrosos
  */
-const exerciseSafetyRule: Rule = {
+const exerciseSafetyRule: Rule<string> = {
   name: 'exercise-safety-validation',
   description: 'Valida que los ejercicios sean seguros y apropiados',
   validate: async (output: string): Promise<boolean> => {
@@ -223,7 +225,7 @@ const exerciseSafetyRule: Rule = {
  * Regla: Validación de hábitos saludables
  * Asegura que los hábitos recomendados sean apropiados
  */
-const healthyHabitsRule: Rule = {
+const healthyHabitsRule: Rule<string> = {
   name: 'healthy-habits-validation',
   description: 'Valida que los hábitos recomendados sean saludables y apropiados',
   validate: async (output: string): Promise<boolean> => {
@@ -255,7 +257,7 @@ const healthyHabitsRule: Rule = {
  * Regla: Validación de ingredientes seguros
  * Previene recomendaciones de ingredientes peligrosos o alérgenos comunes
  */
-const safeIngredientsRule: Rule = {
+const safeIngredientsRule: Rule<string> = {
   name: 'safe-ingredients-validation',
   description: 'Valida que los ingredientes sean seguros y apropiados',
   validate: async (output: string): Promise<boolean> => {
@@ -281,7 +283,7 @@ const safeIngredientsRule: Rule = {
     return true;
   },
 };
-const medicalDisclaimerRule: Rule = {
+const medicalDisclaimerRule: Rule<string> = {
   name: 'require-medical-disclaimer',
   description: 'Requiere disclaimer médico en todas las recomendaciones',
   validate: async (output: string): Promise<boolean> => {
@@ -308,7 +310,7 @@ const medicalDisclaimerRule: Rule = {
  * Regla: Prohibición de recomendaciones de medicamentos
  * Previene que la IA recomiende medicamentos específicos
  */
-const noMedicationRecommendationRule: Rule = {
+const noMedicationRecommendationRule: Rule<string> = {
   name: 'no-medication-recommendations',
   description: 'Prohíbe recomendaciones de medicamentos específicos',
   validate: async (output: string): Promise<boolean> => {
@@ -339,7 +341,7 @@ const noMedicationRecommendationRule: Rule = {
  * Regla: Validación de formato JSON
  * Asegura que las respuestas estructuradas sean JSON válido
  */
-const jsonValidationRule: Rule = {
+const jsonValidationRule: Rule<string> = {
   name: 'validate-json-structure',
   description: 'Valida que las respuestas JSON tengan estructura correcta',
   validate: async (output: string): Promise<boolean> => {
@@ -389,7 +391,7 @@ export const nutritionPlannerGuard = new Guard({
   // Reglas para entradas
   inputGuard: new InputGuard({
     rules: [promptInjectionRule, medicalDataRule],
-    onFailure: (input: string | object, rule: Rule) => {
+    onFailure: (input: unknown, rule: Rule<unknown>) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para nutrición`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -401,7 +403,7 @@ export const nutritionPlannerGuard = new Guard({
   // Reglas para salidas
   outputGuard: new OutputGuard({
     rules: [medicalDisclaimerRule, noMedicationRecommendationRule, safeIngredientsRule, jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para nutrición`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -427,7 +429,7 @@ export const medicalAnalystGuard = new Guard({
 
   inputGuard: new InputGuard({
     rules: [promptInjectionRule, medicalDataRule],
-    onFailure: (input: string | object, rule: Rule) => {
+    onFailure: (input: unknown, rule: Rule<unknown>) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para análisis médico`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -438,7 +440,7 @@ export const medicalAnalystGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [medicalDisclaimerRule, noMedicationRecommendationRule, jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para análisis médico`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -466,7 +468,7 @@ export const clientAnalyzerGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule, medicalDataRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para análisis de cliente`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -477,7 +479,7 @@ export const clientAnalyzerGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [medicalDisclaimerRule, jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para análisis de cliente`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -509,7 +511,7 @@ export const exercisePlannerGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule, medicalDataRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para planificación de ejercicios`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -520,7 +522,7 @@ export const exercisePlannerGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [medicalDisclaimerRule, noMedicationRecommendationRule, exerciseSafetyRule, jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para planificación de ejercicios`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -546,7 +548,7 @@ export const habitDesignerGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para diseño de hábitos`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -557,7 +559,7 @@ export const habitDesignerGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [medicalDisclaimerRule, healthyHabitsRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para diseño de hábitos`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -583,7 +585,7 @@ export const qualityValidatorGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para validación de calidad`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -594,7 +596,7 @@ export const qualityValidatorGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para validación de calidad`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -619,7 +621,7 @@ export const shoppingListGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para lista de compras`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -630,7 +632,7 @@ export const shoppingListGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para lista de compras`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -655,7 +657,7 @@ export const recipeMatcherGuard = new Guard({
   
   inputGuard: new InputGuard({
     rules: [promptInjectionRule],
-    onFailure: (input: string | object, rule) => {
+    onFailure: (input: unknown, rule) => {
       logger.error('GUARDRAILS', `Validación de entrada falló para emparejamiento de recetas`, {
         rule: rule.name,
         input: typeof input === 'string' ? input.substring(0, 100) : 'Object',
@@ -666,7 +668,7 @@ export const recipeMatcherGuard = new Guard({
 
   outputGuard: new OutputGuard({
     rules: [jsonValidationRule],
-    onFailure: (output: string, rule: Rule) => {
+    onFailure: (output: string, rule: Rule<string>) => {
       logger.error('GUARDRAILS', `Validación de salida falló para emparejamiento de recetas`, {
         rule: rule.name,
         output: output.substring(0, 150),
@@ -709,38 +711,39 @@ export function getGuardForAgent(agentName: string): Guard {
 /**
  * Función helper para aplicar guardrails a cualquier agente
  */
-export async function applyGuardrails<T>(
+export async function applyGuardrails<T, I = unknown>(
   guard: Guard,
-  input: any,
-  processFn: (validatedInput: any) => Promise<T>
+  input: I,
+  processFn: (validatedInput: I) => Promise<T>
 ): Promise<T> {
   try {
     // Validar entrada
     const validatedInput = await guard.inputGuard.validate(input);
-    
+
     // Procesar con la función del agente
     const output = await processFn(validatedInput);
-    
+
     // Validar salida
     const validatedOutput = await guard.outputGuard.validate(
       typeof output === 'string' ? output : JSON.stringify(output)
     );
-    
+
     // Devolver salida validada
-    return typeof output === 'string' 
-      ? validatedOutput as T
-      : JSON.parse(validatedOutput);
-      
-  } catch (error: any) {
-    logger.error('GUARDRAILS', 'Error aplicando guardrails', error);
-    
+    return typeof output === 'string'
+      ? (validatedOutput as T)
+      : (JSON.parse(validatedOutput) as T);
+
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error('GUARDRAILS', 'Error aplicando guardrails', err);
+
     // Si el error ya es de guardrails, propagarlo
-    if (error.message.includes('Validación de seguridad')) {
-      throw error;
+    if (err.message.includes('Validación de seguridad')) {
+      throw err;
     }
-    
+
     // Para otros errores, devolver respuesta segura
-    throw new Error(`Error de seguridad en procesamiento: ${error.message}`);
+    throw new Error(`Error de seguridad en procesamiento: ${err.message}`);
   }
 }
 
@@ -786,8 +789,8 @@ export function logGuardrailEvent(
   data: {
     guardName: string;
     success: boolean;
-    input?: any;
-    output?: any;
+    input?: unknown;
+    output?: unknown;
     rule?: string;
     error?: string;
   }

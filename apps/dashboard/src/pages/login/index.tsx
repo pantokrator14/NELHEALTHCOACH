@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Head from 'next/head'
 import Image from 'next/image'
-import { apiClient } from '@/lib/api';
+import { apiClient, type ApiClientError } from '@/lib/api';
 import { setAuthToken } from '@/lib/authSession';
 import PasswordInput from '@/components/PasswordInput';
 import { useToast } from '../../components/ui/Toast';
@@ -16,12 +16,36 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verifiedBanner, setVerifiedBanner] = useState(false)
+
+  // Flujo inline de verificación OTP para clientes pendientes de verificar email
+  const [clientOtpEmail, setClientOtpEmail] = useState('')
+  const [clientOtpCode, setClientOtpCode] = useState('')
+  const [otpSubmitting, setOtpSubmitting] = useState(false)
+  const [otpResending, setOtpResending] = useState(false)
+
   const router = useRouter()
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const isVerified = router.query.verified === '1';
+    const queryEmail = typeof router.query.email === 'string' ? router.query.email : '';
+    void (async () => {
+      await Promise.resolve();
+      if (isVerified) {
+        setVerifiedBanner(true);
+      }
+      if (queryEmail) {
+        setEmail((prev) => prev || queryEmail);
+      }
+    })();
+  }, [router.isReady, router.query.verified, router.query.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setClientOtpEmail('')
 
     try {
       const result = await apiClient.login({ email, password });
@@ -29,13 +53,15 @@ export default function Login() {
       setAuthToken(result.token);
       router.push('/dashboard');
     } catch (err: unknown) {
-      // Mostrar el mensaje real del backend (ej. "Debes verificar tu email antes de iniciar sesión")
+      const typedErr = err as ApiClientError;
       const message = err instanceof Error ? err.message : 'Error de conexión. Intenta nuevamente.';
 
-      // SEC-13: si el backend devuelve 503 (fail-closed — MongoDB no disponible),
-      // mostrar el mensaje traducido (i18n) y avisar con toast de warning para que
-      // el usuario sepa que es un problema temporal del servicio, no de sus credenciales.
-      if (message.includes('temporalmente no disponible')) {
+      if (typedErr?.needsEmailVerification && typedErr?.accountType === 'client') {
+        setClientOtpEmail(typedErr.email || email.trim().toLowerCase());
+        setError(message);
+      } else if (message.includes('temporalmente no disponible')) {
+        // SEC-13: si el backend devuelve 503 (fail-closed — MongoDB no disponible),
+        // mostrar el mensaje traducido (i18n) y avisar con toast de warning.
         setError(t('register.errors.serviceUnavailable'));
         showToast(t('register.errors.serviceUnavailable'), 'warning');
       } else {
@@ -45,6 +71,46 @@ export default function Login() {
       setLoading(false)
     }
   }
+
+  const handleVerifyClientOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = clientOtpCode.replace(/\D/g, '');
+    if (cleanCode.length !== 6) {
+      setError('Ingresa el código de 6 dígitos enviado a tu correo.');
+      return;
+    }
+
+    setOtpSubmitting(true);
+    setError('');
+    try {
+      await apiClient.verifyClientCode({
+        email: clientOtpEmail,
+        code: cleanCode,
+      });
+      showToast('Correo verificado. Iniciando sesión...', 'success');
+      const result = await apiClient.login({ email: clientOtpEmail, password });
+      setAuthToken(result.token);
+      router.push('/dashboard');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Código inválido o expirado.');
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
+  const handleResendClientOtp = async () => {
+    if (!clientOtpEmail || otpResending) return;
+    setOtpResending(true);
+    setError('');
+    try {
+      await apiClient.resendClientCode({ email: clientOtpEmail });
+      showToast('Nuevo código de 6 dígitos enviado a tu correo.', 'success');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'No pudimos reenviar el código.');
+    } finally {
+      setOtpResending(false);
+    }
+  };
 
   return (
     <>
@@ -83,6 +149,12 @@ export default function Login() {
                 Iniciar Sesión
               </h1>
             </div>
+
+            {verifiedBanner && (
+              <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg text-sm">
+                ✅ Correo verificado exitosamente. Ingresa tu correo y contraseña para acceder a tu portal.
+              </div>
+            )}
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -131,7 +203,7 @@ export default function Login() {
                     </svg>
                     {error}
                   </div>
-                  {error.toLowerCase().includes('verificar') && (
+                  {!clientOtpEmail && error.toLowerCase().includes('verificar') && (
                     <button
                       type="button"
                       onClick={async () => {
@@ -181,19 +253,56 @@ export default function Login() {
                   </>
                 )}
               </button>
+            </form>
 
-              {/* Links de navegación */}
-              <div className="mt-6 text-center space-y-3">
-                <div>
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm text-blue-600 hover:text-blue-800 transition duration-200"
+            {/* Verificación OTP inline para clientes sin verificar */}
+            {clientOtpEmail && (
+              <form onSubmit={handleVerifyClientOtp} className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-emerald-800">
+                  Verifica tu cuenta de cliente ({clientOtpEmail})
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={clientOtpCode}
+                  onChange={(e) => setClientOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Código de 6 dígitos"
+                  className="w-full px-3 py-2 text-center font-mono text-lg tracking-widest border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 bg-white"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={otpSubmitting || clientOtpCode.length !== 6}
+                    className="flex-1 bg-emerald-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    ¿Olvidaste tu contraseña?
-                  </Link>
+                    {otpSubmitting ? 'Verificando...' : 'Verificar y entrar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendClientOtp}
+                    disabled={otpResending}
+                    className="px-3 py-2 text-xs font-medium text-emerald-700 hover:text-emerald-900 underline"
+                  >
+                    {otpResending ? 'Enviando...' : 'Reenviar código'}
+                  </button>
                 </div>
-                <div className="border-t border-gray-200 pt-4">
-                  <p className="text-sm text-gray-700 mb-2">¿Aún no tienes cuenta?</p>
+              </form>
+            )}
+
+            {/* Links de navegación */}
+            <div className="mt-6 text-center space-y-3">
+              <div>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-blue-600 hover:text-blue-800 transition duration-200"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+              <div className="border-t border-gray-200 pt-4 space-y-3">
+                <div>
+                  <p className="text-sm text-gray-700 mb-2">¿Aún no tienes cuenta de asesor?</p>
                   <Link
                     href="/register"
                     className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
@@ -207,8 +316,17 @@ export default function Login() {
                     Sin costo ahora. $1 reembolsable para verificar tu tarjeta.
                   </p>
                 </div>
+
+                <div className="pt-2 border-t border-gray-100">
+                  <Link
+                    href="/register/client"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Soy cliente — Crear cuenta para planes de salud
+                  </Link>
+                </div>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </div>

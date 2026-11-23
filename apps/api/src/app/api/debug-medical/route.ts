@@ -36,7 +36,7 @@ async function getHandler(request: NextRequest) {
       'sleepHygiene', 'electrosmogExposure', 'generalToxicity', 'microbiotaHealth'
     ];
 
-    const medicalDebug: any = {};
+    const medicalDebug: Record<string, unknown> = {};
     
     arrayFields.forEach(field => {
       const fieldData = medicalData[field];
@@ -53,7 +53,7 @@ async function getHandler(request: NextRequest) {
       medicalData: medicalDebug,
       rawMedicalData: medicalData
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({ 
       error: 'Error obteniendo datos médicos',
       ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })

@@ -118,7 +118,7 @@ check('"es" válido', normalizeClientLang('es') === 'es');
 check('idioma no soportado → es', normalizeClientLang('ja') === 'es');
 check('undefined → es (clientes existentes)', normalizeClientLang(undefined) === 'es');
 check('null → es', normalizeClientLang(null) === 'es');
-check('número → es', normalizeClientLang(42 as any) === 'es');
+check('número → es', normalizeClientLang(42 as unknown) === 'es');
 for (const lang of SUPPORTED_LANGS) {
   check(`"${lang}" pasa el round-trip`, normalizeClientLang(lang) === lang);
 }

@@ -1,7 +1,16 @@
 // apps/api/src/app/lib/schemas/auth.ts
-// Zod schemas para validación de autenticación (login, register, change-password)
+// Zod schemas para validación de autenticación (login, register, change-password, client OTP)
 
 import { z } from 'zod';
+
+const strongPasswordSchema = z
+  .string()
+  .min(12, 'La contraseña debe tener al menos 12 caracteres')
+  .max(128)
+  .regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{}|;':",.<>/?`~])/,
+    'La contraseña debe contener mayúscula, minúscula, número y carácter especial',
+  );
 
 export const loginSchema = z.object({
   email: z
@@ -34,14 +43,7 @@ export const registerSchema = z.object({
     .max(50)
     .optional()
     .default(''),
-  password: z
-    .string()
-    .min(12, 'La contraseña debe tener al menos 12 caracteres')
-    .max(128)
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{}|;':",.<>/?`~])/,
-      'La contraseña debe contener mayúscula, minúscula, número y carácter especial',
-    ),
+  password: strongPasswordSchema,
   professionalTitle: z
     .string()
     .max(200)
@@ -77,14 +79,44 @@ export const changePasswordSchema = z.object({
     .string()
     .min(1, 'La contraseña actual es requerida')
     .max(128),
-  newPassword: z
-    .string()
-    .min(12, 'La nueva contraseña debe tener al menos 12 caracteres')
-    .max(128)
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=[\]{}|;':",.<>/?`~])/,
-      'La nueva contraseña debe contener mayúscula, minúscula, número y carácter especial',
-    ),
+  newPassword: strongPasswordSchema,
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// ─── Client Self-Registration & 6-Digit OTP Verification ───
+
+export const clientRegisterSchema = z.object({
+  email: z
+    .string()
+    .email('Email inválido')
+    .max(200),
+  password: strongPasswordSchema,
+  planId: z
+    .enum(['consult_1on1', 'reto_tres_nel', 'plan_1_reinicio', 'plan_2_transformacion', 'plan_3_maestria'])
+    .optional(),
+});
+
+export type ClientRegisterInput = z.infer<typeof clientRegisterSchema>;
+
+export const clientVerifyCodeSchema = z.object({
+  email: z
+    .string()
+    .email('Email inválido')
+    .max(200),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'El código debe tener exactamente 6 dígitos numéricos'),
+});
+
+export type ClientVerifyCodeInput = z.infer<typeof clientVerifyCodeSchema>;
+
+export const clientResendCodeSchema = z.object({
+  email: z
+    .string()
+    .email('Email inválido')
+    .max(200),
+});
+
+export type ClientResendCodeInput = z.infer<typeof clientResendCodeSchema>;

@@ -16,16 +16,36 @@ export interface CoachJwtPayload {
   role: 'admin' | 'coach';
 }
 
-export function verifyToken(token: string): CoachJwtPayload {
+export interface ClientJwtPayload {
+  clientAccountId: string;
+  clientId?: string | null;
+  coachId: string;
+  email: string;
+  role: 'client';
+}
+
+export type AnyAuthPayload = CoachJwtPayload | ClientJwtPayload;
+
+export function verifyAnyToken(token: string): AnyAuthPayload {
   try {
     logger.debug('AUTH', 'Verificando token JWT');
-    const decoded = jwt.verify(token, JWT_SECRET) as CoachJwtPayload;
-    logger.debug('AUTH', 'Token JWT verificado exitosamente', { coachId: decoded.coachId });
+    const decoded = jwt.verify(token, JWT_SECRET) as AnyAuthPayload;
     return decoded;
   } catch (error) {
     logger.error('AUTH', 'Error verificando token JWT', error as Error);
     throw error;
   }
+}
+
+export function verifyToken(token: string): CoachJwtPayload {
+  const decoded = verifyAnyToken(token);
+  if (decoded.role !== 'admin' && decoded.role !== 'coach') {
+    throw Object.assign(new Error('Token inválido para asesor'), {
+      status: 403,
+      message: 'Acceso restringido a asesores',
+    });
+  }
+  return decoded;
 }
 
 /**
@@ -51,12 +71,7 @@ export function requireAuth(token?: string): void {
 
 /**
  * Verifica el token JWT y devuelve los datos del coach autenticado.
- * Usar en rutas que necesiten coachId + role.
- *
- * SEC: lanza un error ESTRUCTURADO con `.status = 401` (patrón
- * `throw { status, message }`). Los handlers que hacen
- * `if (apiError?.status) return ... status` devuelven 401 correctamente;
- * antes lanzaba un Error plano y esos handlers caían al 500 genérico.
+ * Fail-closed: rechaza tokens de tipo 'client' con 403.
  */
 export function requireCoachAuth(request: NextRequest): CoachJwtPayload {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -67,18 +82,89 @@ export function requireCoachAuth(request: NextRequest): CoachJwtPayload {
   }
 
   try {
-    const decoded = verifyToken(token);
+    const decoded = verifyAnyToken(token);
+    if (decoded.role !== 'admin' && decoded.role !== 'coach') {
+      logger.warn('AUTH', 'Token de cliente intentó acceder a ruta exclusiva de coach', {
+        role: (decoded as { role?: string }).role,
+      });
+      throw Object.assign(new Error('Token inválido para asesor'), {
+        status: 403,
+        message: 'Acceso restringido a asesores',
+      });
+    }
     logger.debug('AUTH', 'Coach autenticado', { coachId: decoded.coachId, role: decoded.role });
     return decoded;
   } catch (error) {
+    const structured = error as { status?: number };
+    if (structured?.status === 403) {
+      throw error;
+    }
     logger.error('AUTH', 'Autenticación fallida', error as Error);
+    throw { status: 401, message: 'No autorizado', detail: 'Token inválido o expirado' };
+  }
+}
+
+/**
+ * Verifica el token JWT y exige rol 'client'.
+ */
+export function requireClientAuth(request: NextRequest): ClientJwtPayload {
+  const token = request.headers.get('authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    logger.warn('AUTH', 'Intento de acceso cliente sin token');
+    throw { status: 401, message: 'No autorizado', detail: 'Token de autorización requerido' };
+  }
+
+  try {
+    const decoded = verifyAnyToken(token);
+    if (decoded.role !== 'client' || !decoded.clientAccountId) {
+      throw Object.assign(new Error('Token inválido para cliente'), {
+        status: 403,
+        message: 'Acceso exclusivo para cuentas de cliente',
+      });
+    }
+    return decoded;
+  } catch (error) {
+    const structured = error as { status?: number };
+    if (structured?.status === 403) {
+      throw error;
+    }
+    logger.error('AUTH', 'Autenticación cliente fallida', error as Error);
+    throw { status: 401, message: 'No autorizado', detail: 'Token inválido o expirado' };
+  }
+}
+
+/**
+ * Verifica el token JWT aceptando roles 'admin', 'coach' o 'client'.
+ */
+export function requireAnyAuth(request: NextRequest): AnyAuthPayload {
+  const token = request.headers.get('authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    throw { status: 401, message: 'No autorizado', detail: 'Token de autorización requerido' };
+  }
+
+  try {
+    const decoded = verifyAnyToken(token);
+    if (decoded.role !== 'admin' && decoded.role !== 'coach' && decoded.role !== 'client') {
+      throw { status: 401, message: 'No autorizado' };
+    }
+    return decoded;
+  } catch (error) {
+    const structured = error as { status?: number };
+    if (structured?.status) {
+      throw error;
+    }
     throw { status: 401, message: 'No autorizado', detail: 'Token inválido o expirado' };
   }
 }
 
 export function generateToken(payload: Record<string, unknown>): string {
   try {
-    logger.debug('AUTH', 'Generando nuevo token JWT', { coachId: payload.coachId });
+    logger.debug('AUTH', 'Generando nuevo token JWT', {
+      coachId: payload.coachId,
+      role: payload.role,
+    });
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
     logger.debug('AUTH', 'Token JWT generado exitosamente');
     return token;

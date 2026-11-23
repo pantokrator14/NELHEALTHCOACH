@@ -61,11 +61,11 @@ async function getHandler(request: NextRequest) {
         pendingProposals,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error fetching stats:', error);
     logger.error('API', 'Error obteniendo estadísticas', error);
 
-    if (error.message?.includes('Token')) {
+    if (error instanceof Error && error.message.includes('Token')) {
       return NextResponse.json(
         { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
         { status: 401 }

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import { useUserRole } from '@/lib/client-hooks';
 import { useTranslation } from 'react-i18next';
 import Layout from '../../../components/dashboard/Layout';
 import Head from 'next/head';
@@ -36,6 +38,8 @@ type StatusFilter = 'all' | 'active' | 'inactive' | 'suspended';
 type StripeFilter = 'all' | 'connected' | 'not_connected';
 
 export default function CoachesPage() {
+  const router = useRouter();
+  const userRole = useUserRole();
   const { t } = useTranslation();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,11 +120,16 @@ export default function CoachesPage() {
   // Carga inicial (frontera async: la regla react-hooks/set-state-in-effect
   // prohíbe el setState síncrono del prefijo de loadCoaches en el effect)
   useEffect(() => {
+    if (userRole === 'client') {
+      router.replace('/dashboard');
+      return;
+    }
+    if (!userRole) return;
     void (async () => {
       await Promise.resolve();
       loadCoaches();
     })();
-  }, []);
+  }, [router, userRole]);
 
   const handleDeleteCoach = async (coach: Coach, e: React.MouseEvent) => {
     e.stopPropagation();

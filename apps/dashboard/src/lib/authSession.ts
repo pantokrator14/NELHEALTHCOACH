@@ -1,5 +1,5 @@
 /**
- * Gestión de la sesión del coach en el dashboard.
+ * Gestión de la sesión en el dashboard.
  *
  * El token debe persistirse en DOS sitios:
  *  1. localStorage  -> lo usa `getAuthHeaders()` en `lib/api.ts` para el
@@ -15,6 +15,7 @@
 
 export const AUTH_COOKIE_NAME = 'token';
 export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24; // 24 horas, coherente con el JWT
+export const AUTH_CHANGE_EVENT = 'nel-auth-changed';
 
 /** Escribe el token en localStorage + cookie legible por el middleware de Next. */
 export function setAuthToken(token: string) {
@@ -26,6 +27,8 @@ export function setAuthToken(token: string) {
   document.cookie =
     `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; ` +
     `Path=/; Max-Age=${AUTH_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 }
 
 /** Elimina el token de localStorage y de la cookie (logout o sesión vencida). */
@@ -34,4 +37,6 @@ export function clearAuthToken() {
 
   localStorage.removeItem('token');
   document.cookie = `${AUTH_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 }

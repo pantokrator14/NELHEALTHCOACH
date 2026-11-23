@@ -17,6 +17,8 @@ const suites = [
   'security-gate.test.ts',      // gate de seguridad (inicio)
   'auth.test.ts',               // auth + rate limit + validación
   'clients.test.ts',            // clients CRUD + ownership
+  'client-plans-flow.test.ts',  // 5 planes + OTP cliente + gate pago + aislamiento Manuel + autoedición
+  'plan-quotas.test.ts',        // cupos por plan (permisos, 409 QUOTA_FULL, idempotencia, planId en clients)
   'content.test.ts',            // recipes + exercises CRUD + roles
   'blog.test.ts',               // blog CRUD + roles + traducción (mock LLM)
   'notifications.test.ts',      // notifications + misc

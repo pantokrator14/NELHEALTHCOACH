@@ -35,19 +35,25 @@ export function constructStripeEvent(
 export function extractCheckoutMetadata(
   session: Record<string, unknown>
 ): {
-  type: 'coach_subscription' | 'client_session' | 'client_onboarding' | 'trial_verification' | 'unknown';
+  type: 'coach_subscription' | 'client_session' | 'client_onboarding' | 'client_plan_purchase' | 'consult_1on1_lead' | 'trial_verification' | 'unknown';
   coachEmail?: string;
   clientId?: string;
   pendingCoachToken?: string;
   pendingSessionId?: string;
   clientEmail?: string;
   coachId?: string;
+  clientAccountId?: string;
+  planId?: string;
+  leadId?: string;
+  clientName?: string;
 } {
   const metadata = (session.metadata as Record<string, string>) || {};
   const type = (metadata.type as
     | 'coach_subscription'
     | 'client_session'
     | 'client_onboarding'
+    | 'client_plan_purchase'
+    | 'consult_1on1_lead'
     | 'trial_verification'
     | 'unknown') || 'unknown';
 
@@ -59,6 +65,10 @@ export function extractCheckoutMetadata(
     pendingSessionId: metadata.pendingSessionId || undefined,
     clientEmail: metadata.clientEmail || undefined,
     coachId: metadata.coachId || undefined,
+    clientAccountId: metadata.clientAccountId || undefined,
+    planId: metadata.planId || undefined,
+    leadId: metadata.leadId || undefined,
+    clientName: metadata.clientName || undefined,
   };
 }
 
@@ -87,6 +97,20 @@ export async function handleCheckoutCompleted(
     case 'client_onboarding':
       await handleClientOnboardingCheckout(session, metadata, customerId);
       break;
+    case 'client_plan_purchase':
+      if (metadata.clientAccountId && metadata.planId) {
+        const { recordClientPlanPurchase } = await import('@/app/lib/plan-fulfillment');
+        await recordClientPlanPurchase({
+          clientAccountId: metadata.clientAccountId,
+          planId: metadata.planId,
+          stripeSessionId: String(session.id || ''),
+          amountCents: typeof session.amount_total === 'number' ? session.amount_total : undefined,
+        });
+      }
+      break;
+    case 'consult_1on1_lead':
+      await handleConsultLeadCheckout(session, metadata);
+      break;
     case 'trial_verification':
       await handleTrialVerificationCheckout(session, metadata, customerId);
       break;
@@ -98,6 +122,110 @@ export async function handleCheckoutCompleted(
 // ─────────────────────────────────────────────
 // Handlers específicos
 // ─────────────────────────────────────────────
+
+async function handleConsultLeadCheckout(
+  session: Record<string, unknown>,
+  metadata: ReturnType<typeof extractCheckoutMetadata>
+): Promise<void> {
+  const { leadId, clientEmail, clientName } = metadata;
+  const { getLeadsCollection } = await import('@/app/lib/database');
+  const { ObjectId } = await import('mongodb');
+  const { DEFAULT_CALENDLY_URL } = await import('@/app/lib/plans');
+
+  const leadsCollection = await getLeadsCollection();
+  let leadDoc: Record<string, unknown> | null = null;
+
+  if (leadId && ObjectId.isValid(leadId)) {
+    const transitionedLead = await leadsCollection.findOneAndUpdate(
+      { _id: new ObjectId(leadId), paymentStatus: { $ne: 'paid' } },
+      {
+        $set: {
+          paymentStatus: 'paid',
+          stripeSessionId: String(session.id || ''),
+          paidAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (transitionedLead) {
+      leadDoc = transitionedLead as unknown as Record<string, unknown>;
+      try {
+        const { incrementPlanQuotaUsage } = await import('@/app/lib/plan-quotas');
+        await incrementPlanQuotaUsage('consult_1on1');
+      } catch (quotaErr) {
+        logger.warn('PAYMENTS', 'No se pudo incrementar cupo usado de consult_1on1', quotaErr as Error);
+      }
+    } else {
+      leadDoc = (await leadsCollection.findOne({ _id: new ObjectId(leadId) })) as Record<string, unknown> | null;
+    }
+  }
+
+  const recipientEmail = clientEmail || (typeof leadDoc?.email === 'string' ? leadDoc.email : '');
+  const recipientName = clientName || (typeof leadDoc?.name === 'string' ? leadDoc.name : 'Cliente');
+  const calendlyUrl = DEFAULT_CALENDLY_URL;
+  const esc = (v: unknown): string => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+  if (process.env.EMAIL_ENABLED !== 'false' && recipientEmail) {
+    try {
+      const emailService = (await import('@/app/lib/email-service')).EmailService.getInstance();
+      await emailService.sendEmail({
+        to: [recipientEmail],
+        subject: '✅ Consulta Privada 1 a 1 confirmada — Agenda tu horario | NELHEALTHCOACH',
+        htmlBody: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;">
+            <h1 style="color: #1e3a8a; font-size: 22px; margin-bottom: 12px;">¡Pago confirmado, ${esc(recipientName)}!</h1>
+            <p style="color: #475569; line-height: 1.6;">
+              Tu <strong>Consulta Privada de Diagnóstico 1 a 1 (45 min)</strong> con Manuel Martínez está confirmada.
+            </p>
+            <p style="color: #475569; line-height: 1.6;">
+              El siguiente paso es elegir el día y horario que mejor te convenga para tu videollamada privada:
+            </p>
+            <p style="text-align: center; margin: 24px 0;">
+              <a href="${calendlyUrl}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 700;">
+                📅 Agendar horario de sesión →
+              </a>
+            </p>
+          </div>
+        `,
+      });
+
+      const contactEmail = process.env.CONTACT_EMAIL;
+      if (contactEmail) {
+        await emailService.sendEmail({
+          to: [contactEmail],
+          subject: `💰 Nueva Consulta 1 a 1 pagada — ${recipientName}`,
+          htmlBody: `
+            <div style="font-family: sans-serif; padding: 16px;">
+              <h2>Nueva Consulta Privada 1 a 1 ($60 USD)</h2>
+              <p><strong>Nombre:</strong> ${esc(recipientName)}</p>
+              <p><strong>Email:</strong> ${esc(recipientEmail)}</p>
+              <p><strong>Teléfono:</strong> ${esc(typeof leadDoc?.phone === 'string' && leadDoc.phone ? leadDoc.phone : 'No indicado')}</p>
+              <p><strong>Objetivo:</strong> ${esc(typeof leadDoc?.objective === 'string' && leadDoc.objective ? leadDoc.objective : 'No indicado')}</p>
+            </div>
+          `,
+        });
+      }
+    } catch (emailErr) {
+      logger.error('PAYMENTS', 'Error enviando emails de Consulta 1 a 1', emailErr as Error);
+    }
+  }
+
+  try {
+    const { resolveDefaultCoach } = await import('@/app/lib/default-coach');
+    const defaultCoach = await resolveDefaultCoach();
+    await createNotification({
+      coachId: defaultCoach.coachId,
+      type: 'session_paid',
+      title: '💰 Consulta Privada 1 a 1 pagada ($60)',
+      message: `${recipientName} (${recipientEmail}) pagó su consulta diagnóstica 1 a 1 y recibió el enlace para agendar.`,
+      link: '/dashboard/clients',
+    });
+  } catch (notifErr) {
+    logger.error('NOTIFICATIONS', 'Error creando notificación de consulta 1 a 1', notifErr as Error);
+  }
+}
+
 
 async function handleCoachSubscriptionCheckout(
   session: Record<string, unknown>,

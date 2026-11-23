@@ -1,20 +1,28 @@
 // apps/api/src/app/api/video/rooms/route.ts
 //
-// POST: Crea una solicitud de sesión pendiente de pago.
-// El coach selecciona fecha/hora → se crea PendingSession → cliente paga → se crea sala.
+// POST: Agenda una videollamada LiveKit.
+// Si el cliente tiene créditos de LiveKit incluidos en su plan activo (Reto Tres NEL, Plan 2, Plan 3),
+// consume 1 crédito y agenda la sala LiveKit inmediatamente sin cobrar de nuevo.
+// Si no tiene créditos incluidos, crea PendingSession y envía link de pago al cliente.
 // GET: Lista las sesiones pendientes (para que el coach vea estado de pagos).
-//
-// Solo accesible por el coach autenticado.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCoachAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import PendingSession from '@/app/models/PendingSession';
-import { encrypt } from '@/app/lib/encryption';
+import ClientAccount from '@/app/models/ClientAccount';
+import { encrypt, decrypt } from '@/app/lib/encryption';
 import { EmailService } from '@/app/lib/email-service';
-import { generatePaymentRequestEmailHTML } from '@/app/lib/email-templates';
+import {
+  generatePaymentRequestEmailHTML,
+  generateSessionInviteHTML,
+} from '@/app/lib/email-templates';
 import { createNotification } from '@/app/lib/create-notification';
+import {
+  createVideoSession,
+  generateClientSessionLink,
+} from '@/app/lib/video-service';
 import { apiHandler } from '@/app/lib/apiHandler';
 
 interface CreateRoomRequestBody {
@@ -29,7 +37,6 @@ interface CreateRoomRequestBody {
 
 async function postHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    // Verificar autenticación del coach
     const coachPayload = requireCoachAuth(request);
 
     await connectMongoose();
@@ -50,7 +57,6 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validar fecha
     const scheduledDate = new Date(body.scheduledAt);
     if (isNaN(scheduledDate.getTime())) {
       return NextResponse.json(
@@ -66,7 +72,116 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Verificar que no haya un pending activo para este cliente
+    // Obtener datos del coach para el email
+    let coachName = 'Tu asesor';
+    let coachEmail: string | undefined;
+    try {
+      const { default: Coach } = await import('@/app/models/Coach');
+      const coachDoc = await Coach.findById(coachPayload.coachId).lean() as Record<string, unknown> | null;
+      if (coachDoc?.firstName) {
+        coachName = decrypt(coachDoc.firstName as string);
+      }
+      if (coachDoc?.email) {
+        const decryptedEmail = decrypt(coachDoc.email as string);
+        if (decryptedEmail && decryptedEmail.includes('@')) {
+          coachEmail = decryptedEmail;
+        }
+      }
+    } catch {
+      // fallback al nombre genérico
+    }
+
+    // ── Verificar si el cliente tiene créditos LiveKit incluidos en su plan ──
+    const clientAccount = await ClientAccount.findOne({ healthFormId: body.clientId });
+    if (clientAccount) {
+      const creditIndex = (clientAccount.purchasedPlans || []).findIndex(
+        (p: { status: string; livekitCreditsTotal: number; livekitCreditsUsed: number }) =>
+          p.status === 'paid' && (p.livekitCreditsTotal || 0) > (p.livekitCreditsUsed || 0)
+      );
+
+      if (creditIndex !== -1) {
+        const duration = body.durationMinutes ?? 60;
+        const result = await createVideoSession(
+          body.clientId,
+          scheduledDate.toISOString(),
+          duration,
+          body.coachNotes || undefined,
+          body.timezone || undefined
+        );
+
+        clientAccount.purchasedPlans[creditIndex].livekitCreditsUsed =
+          (clientAccount.purchasedPlans[creditIndex].livekitCreditsUsed || 0) + 1;
+        await clientAccount.save();
+
+        const { joinLink } = generateClientSessionLink(
+          body.clientId,
+          result.session.sessionId,
+          body.clientEmail
+        );
+
+        try {
+          const emailService = EmailService.getInstance();
+          const formattedDate = scheduledDate.toLocaleDateString('es-MX', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          const timeStr = scheduledDate.toLocaleTimeString('es-MX', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          await emailService.sendEmail({
+            to: [body.clientEmail],
+            subject: `📹 Sesión #${result.session.sessionNumber} Agendada — ${formattedDate} | NELHealthCoach`,
+            htmlBody: generateSessionInviteHTML({
+              clientName: body.clientName,
+              sessionNumber: result.session.sessionNumber,
+              scheduledDate,
+              scheduledTime: timeStr,
+              durationMinutes: duration,
+              joinLink,
+              timeZone: body.timezone || undefined,
+            }),
+          });
+        } catch (emailError) {
+          logger.error('VIDEO', 'Error enviando email de invitación de videollamada', emailError as Error);
+        }
+
+        try {
+          await createNotification({
+            coachId: coachPayload.coachId,
+            type: 'session_scheduled',
+            title: '📹 Videollamada agendada (plan incluido)',
+            message: `Agendaste una sesión incluida con ${body.clientName} para el ${scheduledDate.toLocaleDateString('es-MX')}.`,
+            link: `/dashboard/clients/${body.clientId}`,
+          });
+        } catch (notifError) {
+          logger.error('NOTIFICATIONS', 'Error creando notificación de sesión incluida', notifError as Error);
+        }
+
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              pendingSessionId: result.session.sessionId,
+              sessionId: result.session.sessionId,
+              roomName: result.roomName,
+              status: 'scheduled',
+              usedPlanCredit: true,
+              proposedDate: body.scheduledAt,
+              duration,
+              joinLink,
+              message: 'Videollamada agendada usando crédito incluido en el plan del cliente.',
+            },
+          },
+          { status: 201 }
+        );
+      }
+    }
+
+    // ── Flujo legacy: crear PendingSession con cobro por sesión ──
     const existingPending = await PendingSession.findOne({
       clientId: body.clientId,
       status: 'awaiting_payment',
@@ -85,7 +200,6 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Crear PendingSession (en lugar de crear la sala directamente)
     const pending = await PendingSession.create({
       clientId: body.clientId,
       clientName: body.clientName,
@@ -97,30 +211,9 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       timezone: body.timezone || '',
       status: 'awaiting_payment',
       requestedBy: 'coach',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h para pagar
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
-    // Obtener datos del coach para el email
-    let coachName = 'Tu asesor';
-    let coachEmail: string | undefined;
-    try {
-      const { default: Coach } = await import('@/app/models/Coach');
-      const { decrypt } = await import('@/app/lib/encryption');
-      const coachDoc = await Coach.findById(coachPayload.coachId).lean() as Record<string, unknown> | null;
-      if (coachDoc?.firstName) {
-        coachName = decrypt(coachDoc.firstName as string);
-      }
-      if (coachDoc?.email) {
-        const decryptedEmail = decrypt(coachDoc.email as string);
-        if (decryptedEmail && decryptedEmail.includes('@')) {
-          coachEmail = decryptedEmail;
-        }
-      }
-    } catch {
-      // fallback al nombre genérico
-    }
-
-    // Enviar email al cliente con botón "Proceder al pago"
     try {
       const emailService = EmailService.getInstance();
       const formUrl = process.env.FORM_URL || 'http://localhost:3002';
@@ -149,7 +242,6 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       logger.error('VIDEO', 'Error enviando email de solicitud de pago', emailError as Error);
     }
 
-    // Notificación in-app para el coach
     try {
       await createNotification({
         coachId: coachPayload.coachId,
@@ -183,6 +275,18 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
       { status: 201 }
     );
   } catch (error: unknown) {
+    const structured = error as { status?: number; message?: string };
+    if (structured?.status === 401 || structured?.status === 403) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: structured.message || 'No autorizado',
+          code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+        },
+        { status: structured.status }
+      );
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
 
     if (errorMessage.includes('Token')) {
@@ -208,12 +312,6 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
 
 export const POST = apiHandler(postHandler);
 
-/**
- * GET /api/video/rooms?clientId=xxx
- *
- * Lista las sesiones pendientes de pago para un cliente.
- * Útil para que el coach vea el estado.
- */
 async function getHandler(request: NextRequest): Promise<NextResponse> {
   try {
     requireCoachAuth(request);
@@ -237,6 +335,17 @@ async function getHandler(request: NextRequest): Promise<NextResponse> {
       data: pendings,
     });
   } catch (error: unknown) {
+    const structured = error as { status?: number; message?: string };
+    if (structured?.status === 401 || structured?.status === 403) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: structured.message || 'No autorizado',
+          code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+        },
+        { status: structured.status }
+      );
+    }
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     return NextResponse.json(
       {

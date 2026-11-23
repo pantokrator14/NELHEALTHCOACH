@@ -17,7 +17,7 @@ export interface EmailTemplateData {
       checklistItems: Array<{
         description: string;
         type?: string;
-        details?: any;
+        details?: Record<string, unknown>;
       }>;
       shoppingList: Array<{
         item: string;
@@ -30,7 +30,7 @@ export interface EmailTemplateData {
       checklistItems: Array<{
         description: string;
         type?: string;
-        details?: any;
+        details?: Record<string, unknown>;
       }>;
       equipment?: string[];
     };
@@ -1131,6 +1131,142 @@ export function generateVerificationEmailHTML(data: {
     </div>
 </body>
 </html>`;
+}
+
+/**
+ * Email de verificación de cuenta mediante código OTP de 6 dígitos (clientes).
+ * Mantiene la misma estructura visual que los demás correos de NELHEALTHCOACH.
+ */
+export function generateVerificationCodeEmailHTML(data: {
+  code: string;
+  expiresMinutes?: number;
+  logoWhiteUrl?: string;
+}): string {
+  const y = new Date().getFullYear();
+  const expiresMinutes = data.expiresMinutes ?? 15;
+  const logoWhite = data.logoWhiteUrl || 'https://app.nelhealthcoach.com/logo.png';
+
+  const escapeHtml = (text: string): string =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const safeDigits = data.code
+    .replace(/\D/g, '')
+    .slice(0, 6)
+    .padEnd(6, '•')
+    .split('');
+
+  const digitCellsHtml = safeDigits
+    .map(
+      (digit) => `
+                        <td style="padding: 0 4px;">
+                            <div style="width: 42px; height: 52px; line-height: 52px; background: #ffffff; border: 1.5px solid #90CAF9; border-radius: 8px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 26px; font-weight: 700; color: #1565C0; text-align: center; box-shadow: 0 2px 6px rgba(25,118,210,0.08);">
+                                ${escapeHtml(digit)}
+                            </div>
+                        </td>`
+    )
+    .join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Código de verificación - NELHEALTHCOACH</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
+    <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
+            <img src="${logoWhite}" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
+        </div>
+        <div style="padding: 30px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🔐</div>
+                <h1 style="margin: 0; font-size: 22px; color: #1976D2;">Verifica tu cuenta</h1>
+            </div>
+            <p style="font-size: 16px; color: #333;">
+                Hola,
+            </p>
+            <p style="color: #555; line-height: 1.6;">
+                Gracias por registrarte en NELHEALTHCOACH. Ingresa el siguiente código de 6 dígitos para confirmar tu correo electrónico y continuar con tu cuenta:
+            </p>
+
+            <!-- Caja del código OTP de 6 dígitos -->
+            <div style="background: #f8fbff; border: 2px dashed #2196F3; border-radius: 12px; padding: 22px 12px; margin: 25px 0; text-align: center;">
+                <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #1976D2; text-transform: uppercase; margin-bottom: 14px;">
+                    Código de verificación
+                </div>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                    <tr>${digitCellsHtml}
+                    </tr>
+                </table>
+                <div style="font-size: 12px; color: #1565C0; margin-top: 14px;">
+                    ⏱️ Este código expira en <strong>${expiresMinutes} minutos</strong>
+                </div>
+            </div>
+
+            <!-- Aviso de seguridad -->
+            <div style="background: #e3f2fd; border-radius: 10px; padding: 15px; margin: 20px 0; border-left: 4px solid #2196F3;">
+                <p style="margin: 0; color: #1565C0; font-size: 13px; line-height: 1.5;">
+                    🔒 Por tu seguridad, nunca compartas este código con nadie. Nuestro equipo jamás te lo solicitará por teléfono o WhatsApp.
+                </p>
+            </div>
+
+            <p style="color: #999; font-size: 13px; margin-bottom: 0;">
+                Si no creaste esta cuenta, puedes ignorar este mensaje.
+            </p>
+        </div>
+        <div style="background: #263238; color: white; padding: 30px; text-align: center; font-size: 14px;">
+            <div style="margin-bottom: 10px; opacity: 0.8; max-width: 400px; margin-left: auto; margin-right: auto;">
+                Ayudándote a descubrir el verdadero potencial de tu cuerpo.
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.6; font-size: 12px;">
+                <a href="https://nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">nelhealthcoach.com</a>
+            </div>
+            <div style="margin-bottom: 8px; opacity: 0.5; font-size: 11px;">
+                33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
+            </div>
+            <div style="margin-bottom: 15px; opacity: 0.5; font-size: 11px;">
+                📧 <a href="mailto:contact@nelhealthcoach.com" style="color: #90CAF9; text-decoration: none;">contact@nelhealthcoach.com</a>
+                &nbsp;|&nbsp; 📞 +1 (442) 342-5050
+            </div>
+            <div style="opacity: 0.6;">
+                &copy; ${y} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+export function generateVerificationCodeEmailText(data: {
+  code: string;
+  expiresMinutes?: number;
+}): string {
+  const expiresMinutes = data.expiresMinutes ?? 15;
+  const greeting = `Hola,`;
+
+  return `NELHEALTHCOACH - Código de verificación
+========================================
+
+${greeting}
+
+Gracias por registrarte en NELHEALTHCOACH. Ingresa el siguiente código de 6 dígitos para confirmar tu correo electrónico:
+
+CÓDIGO: ${data.code}
+
+Este código expira en ${expiresMinutes} minutos.
+Por tu seguridad, no lo compartas con nadie.
+
+Si no creaste esta cuenta, puedes ignorar este mensaje.
+
+© ${new Date().getFullYear()} NELHEALTHCOACH, LLC. Todos los derechos reservados.
+`;
 }
 
 /**

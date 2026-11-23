@@ -12,7 +12,29 @@ import { decrypt, safeDecrypt } from '../src/app/lib/encryption';
 import {
   detectLanguage, translateSessionContent, translatePDFContent, encryptSessionFields,
   normalizeClientLang, LANG_LABELS,
+  type PDFRecipeContent, type PDFExerciseContent,
 } from '../src/app/lib/recommendation-translator';
+
+interface LeanIngredientObj {
+  name: string;
+  quantity: string;
+  notes?: string;
+}
+
+interface LeanRecipeDoc {
+  _id: { toString(): string };
+  title: string;
+  ingredients?: Array<string | LeanIngredientObj>;
+  instructions?: string[];
+}
+
+interface LeanExerciseDoc {
+  _id: { toString(): string };
+  name: string;
+  description?: string;
+  instructions?: string[];
+  equipment?: string[];
+}
 
 const URI = process.env.MONGODB_URI!;
 let failures = 0, passes = 0;
@@ -27,15 +49,14 @@ async function main() {
   const db = client.db();
 
   // ── 1. Datos reales ──
-  const recipes = await db.collection('recipes').find({}).limit(2).toArray();
-  const exercises = await db.collection('exercises').find({}).limit(2).toArray();
-  const recipeById: Record<string, any> = {};
+  const recipes = (await db.collection('recipes').find({}).limit(2).toArray()) as unknown as LeanRecipeDoc[];
+  const exercises = (await db.collection('exercises').find({}).limit(2).toArray()) as unknown as LeanExerciseDoc[];
+  const recipeById: Record<string, LeanRecipeDoc> = {};
   for (const r of recipes) recipeById[r._id.toString()] = r;
-  const exerciseById: Record<string, any> = {};
+  const exerciseById: Record<string, LeanExerciseDoc> = {};
   for (const ex of exercises) exerciseById[ex._id.toString()] = ex;
 
   const recipe1 = recipeById[Object.keys(recipeById)[0]];
-  const recipe2 = recipeById[Object.keys(recipeById)[1]];
   const ex1 = exerciseById[Object.keys(exerciseById)[0]];
 
   console.log('Recetas/ejercicios cargados:', Object.keys(recipeById).length, '/', Object.keys(exerciseById).length);
@@ -86,7 +107,7 @@ async function main() {
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
   check(`traducción completada en ${elapsed}s`, true);
-  check('summary traducido al inglés', /english|inglés|\[TR\]/.test('x') === false && translated.summary !== sessionPlain.summary && /[a-zA-Z]{3}/.test(translated.summary), `→ ${String(translated.summary).slice(0, 60)}`);
+  check('summary traducido al inglés', /english|inglés|\[TR\]/.test('x') === false && translated.summary !== sessionPlain.summary && /[a-zA-Z]{3}/.test(String(translated.summary ?? '')), `→ ${String(translated.summary).slice(0, 60)}`);
   check('summary no contiene acentos españoles típicos', !/[áéíóúñ¿¡]/.test(String(translated.summary)), String(translated.summary).slice(0, 80));
   check('vision traducido', translated.vision !== sessionPlain.vision, String(translated.vision).slice(0, 60));
   check('medicalSummary traducido', translated.medicalSummary !== sessionPlain.medicalSummary);
@@ -120,21 +141,21 @@ async function main() {
   check('summary cifrado', encrypted.summary !== translated.summary);
   check('translation meta sin cifrar', JSON.stringify(encrypted.translation) === JSON.stringify({ targetLang: 'en', sourceLang: 'es' }));
   check('checklist en plano', Array.isArray(encrypted.checklist));
-  const decryptedSummary = decrypt(encrypted.summary);
+  const decryptedSummary = decrypt(String(encrypted.summary ?? ''));
   check('decrypt(summary) = texto traducido', decryptedSummary === translated.summary);
 
   // ── 5. translatePDFContent REAL ──
   console.log('\n═══ translatePDFContent → en (LLM REAL) ═══');
-  const pdfRecipes: Record<string, any> = {};
-  for (const r of Object.values(recipeById) as any[]) {
+  const pdfRecipes: Record<string, PDFRecipeContent> = {};
+  for (const r of Object.values(recipeById)) {
     pdfRecipes[r._id.toString()] = {
       title: safeDecrypt(r.title) || r.title,
-      ingredients: (r.ingredients || []).map((ing: any) => typeof ing === 'string' ? (safeDecrypt(ing) || ing) : { name: safeDecrypt(ing.name) || ing.name, quantity: safeDecrypt(ing.quantity) || ing.quantity, notes: ing.notes ? safeDecrypt(ing.notes) : undefined }),
+      ingredients: (r.ingredients || []).map((ing) => typeof ing === 'string' ? (safeDecrypt(ing) || ing) : { name: safeDecrypt(ing.name) || ing.name, quantity: safeDecrypt(ing.quantity) || ing.quantity, notes: ing.notes ? safeDecrypt(ing.notes) : undefined }),
       instructions: (r.instructions || []).map((i: string) => safeDecrypt(i) || i),
     };
   }
-  const pdfExercises: Record<string, any> = {};
-  for (const e of Object.values(exerciseById) as any[]) {
+  const pdfExercises: Record<string, PDFExerciseContent> = {};
+  for (const e of Object.values(exerciseById)) {
     pdfExercises[e._id.toString()] = {
       name: safeDecrypt(e.name) || e.name,
       description: e.description ? safeDecrypt(e.description) || e.description : undefined,
@@ -149,7 +170,7 @@ async function main() {
   const firstEid = Object.keys(pdfOut.exercises)[0];
   check('receta título traducido', pdfOut.recipes[firstRid].title !== pdfRecipes[firstRid].title, `→ ${String(pdfOut.recipes[firstRid].title).slice(0, 60)}`);
   check('receta instrucciones traducidas', pdfOut.recipes[firstRid].instructions?.[0] !== pdfRecipes[firstRid].instructions[0]);
-  check('receta cantidad intacta', typeof pdfOut.recipes[firstRid].ingredients[0] === 'object' ? (pdfOut.recipes[firstRid].ingredients[0].quantity === pdfRecipes[firstRid].ingredients[0].quantity) : true);
+  check('receta cantidad intacta', typeof pdfOut.recipes[firstRid].ingredients[0] === 'object' && typeof pdfRecipes[firstRid].ingredients[0] === 'object' ? (pdfOut.recipes[firstRid].ingredients[0].quantity === pdfRecipes[firstRid].ingredients[0].quantity) : true);
   check('ejercicio nombre traducido', pdfOut.exercises[firstEid].name !== pdfExercises[firstEid].name, `→ ${String(pdfOut.exercises[firstEid].name).slice(0, 60)}`);
   check('ejercicio equipment traducido', pdfOut.exercises[firstEid].equipment?.[0] !== pdfExercises[firstEid].equipment?.[0]);
   check('claves de recetas intactas (IDs)', Object.keys(pdfOut.recipes).join(',') === Object.keys(pdfRecipes).join(','));

@@ -152,9 +152,9 @@ async function postHandler(
           }
         });
 
-      } catch (s3Error: any) {
+      } catch (s3Error: unknown) {
         console.error('❌ Error en S3Service.generateUploadURL:', s3Error);
-        logger.error('RECIPE_UPLOAD', 'Error en S3Service.generateUploadURL', s3Error, {
+        logger.error('RECIPE_UPLOAD', 'Error en S3Service.generateUploadURL', s3Error instanceof Error ? s3Error : new Error(String(s3Error)), {
           fileName,
           fileType,
           fileSize
@@ -164,14 +164,15 @@ async function postHandler(
           { 
             success: false, 
             message: 'Error generando URL de upload',
-            ...(process.env.NODE_ENV === 'development' && { detail: s3Error.message || 'Error de S3' }), code: 'INTERNAL'},
+            ...(process.env.NODE_ENV === 'development' && { detail: s3Error instanceof Error ? s3Error.message : 'Error de S3' }), code: 'INTERNAL'},
           { status: 500 }
         );
       }
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiErr = (typeof error === 'object' && error !== null ? error : {}) as { status?: number; message?: string };
+      if (apiErr.status) {
+        return NextResponse.json({ success: false, message: apiErr.message }, { status: apiErr.status });
       }
       console.error('❌ Error en POST /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error generando URL de upload para receta', error, undefined, {
@@ -332,7 +333,14 @@ async function putHandler(
 
       // ✅ ENCRIPTAR LA NUEVA IMAGEN
       console.log('🔐 Encriptando imagen...');
-      let encryptedImage;
+      let encryptedImage: {
+        url: string;
+        key: string;
+        name: string;
+        type: string;
+        size?: unknown;
+        uploadedAt?: unknown;
+      };
       try {
         encryptedImage = encryptFileObject(uploadedFile);
         console.log('✅ Imagen encriptada:', {
@@ -392,9 +400,10 @@ async function putHandler(
         data: uploadedFile // Devolvemos los datos sin encriptar para el frontend
       });
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiErr = (typeof error === 'object' && error !== null ? error : {}) as { status?: number; message?: string };
+      if (apiErr.status) {
+        return NextResponse.json({ success: false, message: apiErr.message }, { status: apiErr.status });
       }
       console.error('❌ Error en PUT /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error guardando imagen en receta', error, {
@@ -565,9 +574,10 @@ async function deleteHandler(
         message: 'Imagen eliminada exitosamente'
       });
 
-    } catch (error: any) {
-      if (error?.status) {
-        return NextResponse.json({ success: false, message: error.message }, { status: error.status });
+    } catch (error: unknown) {
+      const apiErr = (typeof error === 'object' && error !== null ? error : {}) as { status?: number; message?: string };
+      if (apiErr.status) {
+        return NextResponse.json({ success: false, message: apiErr.message }, { status: apiErr.status });
       }
       console.error('❌ Error en DELETE /recipes/[id]/upload:', error);
       logger.error('RECIPE_UPLOAD', 'Error eliminando imagen de receta', error, undefined, {
@@ -679,10 +689,11 @@ async function patchHandler(
       { status: 400 }
     );
     
-  } catch (error: any) {
-    if (error?.status) {
-      return NextResponse.json({ success: false, message: error.message }, { status: error.status });
-    }
+  } catch (error: unknown) {
+      const apiErr = (typeof error === 'object' && error !== null ? error : {}) as { status?: number; message?: string };
+      if (apiErr.status) {
+        return NextResponse.json({ success: false, message: apiErr.message }, { status: apiErr.status });
+      }
     console.error('❌ Error en PATCH /recipes/[id]/upload:', error);
     logger.error('RECIPE_UPLOAD', 'Error en endpoint PATCH', error as Error);
     return NextResponse.json(

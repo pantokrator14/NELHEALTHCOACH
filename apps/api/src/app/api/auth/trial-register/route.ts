@@ -13,7 +13,7 @@ import { logger } from '@/app/lib/logger';
 import { encrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
 import { requireServiceAvailable } from '@/app/lib/security/routeGuard';
-import { registerSchema } from '@/app/lib/schemas';
+import { registerSchema } from '@/app/lib/schemas/index';
 
 import { uploadBufferToS3 } from '@/app/lib/s3';
 import { apiHandler } from '@/app/lib/apiHandler';

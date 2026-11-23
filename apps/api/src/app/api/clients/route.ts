@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ObjectId } from 'mongodb';
+import type { z } from 'zod';
 import { getHealthFormsCollection, getLeadsCollection, connectMongoose } from '@/app/lib/database';
-import { encrypt, decrypt, decryptFileObject, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
+import { encrypt, decrypt, decryptFileObject, isEncrypted } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth, generateToken } from '@/app/lib/auth';
 import { secureRoute } from '@/app/lib/security/index';
-import { clientFormSchema } from '@/app/lib/schemas';
+import { clientFormSchema } from '@/app/lib/schemas/index';
 import Coach from '@/app/models/Coach';
+import ClientAccount from '@/app/models/ClientAccount';
+import { getPlanById, type PlanId } from '@/app/lib/plans';
 import { EmailService } from '@/app/lib/email-service';
 import {
   generateNewClientClientNotificationHTML,
@@ -14,71 +18,10 @@ import {
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
-interface MedicalData {
-  mainComplaint: string;
-  medications: string;
-  supplements: string;
-  currentPastConditions: string;
-  additionalMedicalHistory: string;
-  employmentHistory: string;
-  hobbies: string;
-  allergies: string;
-  surgeries: string;
-  housingHistory: string;
-  carbohydrateAddiction: string;
-  leptinResistance: string;
-  circadianRhythms: string;
-  sleepHygiene: string;
-  electrosmogExposure: string;
-  generalToxicity: string;
-  microbiotaHealth: string;
-  mentalHealthEmotionIdentification: string;
-  mentalHealthEmotionIntensity: string;
-  mentalHealthUncomfortableEmotion: string;
-  mentalHealthInternalDialogue: string;
-  mentalHealthStressStrategies: string;
-  mentalHealthSayingNo: string;
-  mentalHealthRelationships: string;
-  mentalHealthExpressThoughts: string;
-  mentalHealthEmotionalDependence: string;
-  mentalHealthPurpose: string;
-  mentalHealthFailureReaction: string;
-  mentalHealthSelfConnection: string;
-  mentalHealthSelfRelationship: string;
-  mentalHealthLimitingBeliefs: string;
-  mentalHealthIdealBalance: string;
-  // Nuevos campos
-  typicalWeekday?: string;
-  typicalWeekend?: string;
-  whoCooks?: string;
-  currentActivityLevel?: string;
-  physicalLimitations?: string;
-  gymAccess?: string;
-  gymAccessDetails?: string;
-  preferredExerciseTypes?: string;
-  exerciseTimeAvailability?: string;
-  documents?: unknown[];
-}
-
-interface PersonalData {
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  birthDate: string;
-  gender: string;
-  age: string;
-  weight: string;
-  height: string;
-  maritalStatus: string;
-  education: string;
-  occupation: string;
-}
-
-interface ClientFormData {
-  personalData: PersonalData;
-  medicalData: MedicalData;
-  contractAccepted: boolean;
+interface ClientAccountPlanRow {
+  _id: ObjectId | string;
+  activePlanId?: string | null;
+  healthFormId?: string | null;
 }
 
 // GET: Listar clientes (dashboard, filtrado por coach)
@@ -115,6 +58,43 @@ async function getHandler(request: NextRequest) {
         firstClientId: clients[0]?._id?.toString()
       });
 
+      // Resolver plan activo por lotes desde ClientAccount (manteniendo compatibilidad con healthforms.planId)
+      const byAccountId = new Map<string, ClientAccountPlanRow>();
+      const byHealthFormId = new Map<string, ClientAccountPlanRow>();
+      if (clients.length > 0) {
+        try {
+          await connectMongoose();
+          const accountIds = clients
+            .map((c) => (typeof c.clientAccountId === 'string' ? c.clientAccountId : ''))
+            .filter((id) => ObjectId.isValid(id))
+            .map((id) => new ObjectId(id));
+          const healthFormIds = clients.map((c) => c._id.toString());
+
+          const orFilters: Record<string, unknown>[] = [];
+          if (accountIds.length > 0) {
+            orFilters.push({ _id: { $in: accountIds } });
+          }
+          if (healthFormIds.length > 0) {
+            orFilters.push({ healthFormId: { $in: healthFormIds } });
+          }
+
+          if (orFilters.length > 0) {
+            const accountRows = (await ClientAccount.find({ $or: orFilters })
+              .select('_id activePlanId healthFormId')
+              .lean()) as ClientAccountPlanRow[];
+
+            for (const row of accountRows) {
+              byAccountId.set(String(row._id), row);
+              if (row.healthFormId) {
+                byHealthFormId.set(String(row.healthFormId), row);
+              }
+            }
+          }
+        } catch (planErr) {
+          logger.warn('CLIENTS', 'No se pudo resolver planId en lote desde ClientAccount', planErr as Error);
+        }
+      }
+
       // ✅ FUNCIÓN MEJORADA PARA DESENCRIPTAR CAMPOS DE TEXTO
       // Soporta el formato v2 (AES-256-GCM, prefijo "v2:") y el legacy
       // (CryptoJS, prefijo "U2FsdGVkX1"). decrypt() ya detecta ambos,
@@ -126,6 +106,15 @@ async function getHandler(request: NextRequest) {
 
       // Procesar y desencriptar clientes
       const clientList = clients.map(client => {
+        const linkedAccount =
+          (typeof client.clientAccountId === 'string' ? byAccountId.get(client.clientAccountId) : undefined) ??
+          byHealthFormId.get(client._id.toString());
+        const candidatePlanId =
+          linkedAccount?.activePlanId || (typeof client.planId === 'string' ? client.planId : '');
+        const resolvedPlan = candidatePlanId ? getPlanById(candidatePlanId) : null;
+        const planId: PlanId | null = resolvedPlan ? resolvedPlan.id : null;
+        const planName: string | null = resolvedPlan ? resolvedPlan.name : null;
+
         try {
           // ✅ USAR decryptTextField EN LUGAR DE smartDecrypt PARA CAMPOS DE TEXTO
           const decryptedName = decryptTextField(client.personalData?.name || '');
@@ -149,7 +138,9 @@ async function getHandler(request: NextRequest) {
             email: decryptTextField(client.personalData?.email || ''),
             phone: decryptTextField(client.personalData?.phone || ''),
             createdAt: client.submissionDate,
-            profilePhoto: decryptedProfilePhoto
+            profilePhoto: decryptedProfilePhoto,
+            planId,
+            planName,
           };
 
           // ✅ LOG PARA VERIFICAR DESENCRIPTACIÓN
@@ -175,7 +166,9 @@ async function getHandler(request: NextRequest) {
             email: 'error@example.com',
             phone: 'N/A',
             createdAt: client.submissionDate,
-            profilePhoto: null
+            profilePhoto: null,
+            planId,
+            planName,
           };
         }
       });
@@ -335,7 +328,7 @@ async function postHandler(request: NextRequest) {
       const firstError = parsed.error.issues[0];
       // Log detallado al servidor
       console.error('❌ Validación Zod fallida al crear cliente:', JSON.stringify({
-        issues: parsed.error.issues.map(i => ({
+        issues: parsed.error.issues.map((i: z.core.$ZodIssue) => ({
           field: i.path.join('.'),
           message: i.message,
           code: i.code,
@@ -352,7 +345,7 @@ async function postHandler(request: NextRequest) {
         {
           success: false,
           message: firstError?.message ?? 'Datos del formulario inválidos',
-          errors: parsed.error.issues.map((i) => ({
+          errors: parsed.error.issues.map((i: z.core.$ZodIssue) => ({
             field: i.path.join('.'),
             message: i.message,
           })),

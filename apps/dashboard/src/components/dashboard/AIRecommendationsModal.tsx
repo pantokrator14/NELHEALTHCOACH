@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useLocalStorageValue } from '@/lib/client-hooks';
 import React from 'react';
-import { apiClient, Exercise } from '@/lib/api';
+import { apiClient, Exercise, type ClientPlanSummary } from '@/lib/api';
 import { translateApiError, withSupportHint } from '@/lib/apiErrorText';
 
 import RecipeSearchModal from './RecipeSearchModal';
@@ -268,6 +268,8 @@ interface AIRecommendationsModalProps {
   // El padre notifica al modal cuándo la generación asíncrona terminó o falló
   generationStatus?: 'idle' | 'queued' | 'ready';
   generationError?: string | null;
+  readOnlyClientMode?: boolean;
+  planSummary?: ClientPlanSummary | null;
 }
 
 interface EditingField {
@@ -343,6 +345,8 @@ export default function AIRecommendationsModal({
   onRecommendationsGenerated,
   generationStatus = 'idle',
   generationError = null,
+  readOnlyClientMode = false,
+  planSummary = null,
 }: AIRecommendationsModalProps) {
   const { t } = useTranslation();
   const { showToast, ToastComponent } = useToast();
@@ -639,12 +643,15 @@ export default function AIRecommendationsModal({
         });
       }
     } else {
-      // 4-week session: single month
+      // 3-week challenge or 4-week single month
       const startWeek = activeSession.weeks[0]?.weekNumber || 1;
       const endWeek = activeSession.weeks[activeSession.weeks.length - 1]?.weekNumber || activeSession.weeks.length;
+      const periodLabel = activeSession.totalWeeks === 3
+        ? '3 Semanas (Reto)'
+        : `Mes ${activeSession.monthNumber}`;
       months.push({
         monthNumber: activeSession.monthNumber,
-        label: `Mes ${activeSession.monthNumber}`,
+        label: periodLabel,
         weeks: activeSession.weeks.map((week, originalIndex) => ({ week, originalIndex })),
         startWeek,
         endWeek,
@@ -736,6 +743,7 @@ export default function AIRecommendationsModal({
   }, [activeSession?.sessionId]);
 
   const handleGenerateRecommendations = useCallback(async (monthNumber: number = 1) => {
+    if (readOnlyClientMode) return;
     try {
       setGenerating(true);
       const response = await apiClient.generateAIRecommendations(clientId, monthNumber, false, coachNotes);
@@ -760,14 +768,16 @@ export default function AIRecommendationsModal({
       } else {
         throw new Error(response.message);
       }
-    } catch {
-      showToast(t('ai.errorGenerating'), 'error');
+    } catch (err: unknown) {
+      const serverMsg = err instanceof Error && err.message ? err.message : t('ai.errorGenerating');
+      setDisplayError(serverMsg);
+      showToast(serverMsg, 'error');
       // En caso de error de red o del servidor, detener el estado "generando"
       setGenerating(false);
     }
     // No usamos finally para setGenerating(false) porque cuando la respuesta
     // es 'queued', el padre controla el estado generating vía generationStatus prop.
-  }, [clientId, coachNotes, loadAIProgress, onRecommendationsGenerated, showToast, t]);
+  }, [clientId, coachNotes, loadAIProgress, onRecommendationsGenerated, readOnlyClientMode, showToast, t]);
 
   // ===== EFECTOS =====
   useEffect(() => {
@@ -894,7 +904,7 @@ export default function AIRecommendationsModal({
 
   // ===== MANEJADORES DE CHECKLIST (CON SINCRONIZACIÓN POST-OPERACIÓN) =====
   const handleChecklistChange = useCallback(async (sessionId: string, itemId: string, completed: boolean) => {
-    if (!aiProgress) return;
+    if (readOnlyClientMode || !aiProgress) return;
     const sessionIndex = aiProgress.sessions.findIndex(s => s.sessionId === sessionId);
     if (sessionIndex === -1) return;
     const session = aiProgress.sessions[sessionIndex];
@@ -925,16 +935,16 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [aiProgress, clientId, loadAIProgress, showToast, t]);
+  }, [aiProgress, clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   const updateItemViaFullChecklist = useCallback(async (sessionId: string, updatedChecklist: ChecklistItem[]) => {
+    if (readOnlyClientMode || !aiProgress) return;
     console.log('updateItemViaFullChecklist - checklist recibido:', updatedChecklist.map(item => ({
       id: item.id,
       groupId: item.groupId,
       description: item.description,
       weekNumber: item.weekNumber
     })));
-    if (!aiProgress) return;
     try {
       const response = await apiClient.updateSessionItems(clientId, sessionId, updatedChecklist);
       if (response.success && (response.data as { session?: AIRecommendationSession }).session) {
@@ -955,7 +965,7 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [aiProgress, clientId, loadAIProgress, showToast, t]);
+  }, [aiProgress, clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   // ===== MANEJADORES DE EDICIÓN =====
   const handleStartEdit = useCallback((
@@ -967,6 +977,7 @@ export default function AIRecommendationsModal({
     category?: 'nutrition' | 'exercise' | 'habit' | 'medical' | 'supplement',
     examIndex?: number
   ) => {
+    if (readOnlyClientMode) return;
     setEditMode(true);
     setEditingField({ sessionId, type, itemId, weekIndex, examIndex, category, currentValue });
     if (type === 'checklistItem' && itemId) {
@@ -975,7 +986,7 @@ export default function AIRecommendationsModal({
     } else {
       setEditText(typeof currentValue === 'string' ? currentValue : '');
     }
-  }, [activeSession]);
+  }, [activeSession, readOnlyClientMode]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editMode || !editingField || !aiProgress) return;
@@ -1135,7 +1146,7 @@ export default function AIRecommendationsModal({
   }, [loadAIProgress]);
 
   const handleUpdateWeeklyPlan = useCallback(async () => {
-    if (!activeSession) return;
+    if (readOnlyClientMode || !activeSession) return;
     try {
       setLoadingWeeklyPlan(true);
 
@@ -1174,11 +1185,11 @@ export default function AIRecommendationsModal({
     } finally {
       setLoadingWeeklyPlan(false);
     }
-  }, [clientId, activeSession, setAiProgress, showToast, t]);
+  }, [clientId, activeSession, readOnlyClientMode, setAiProgress, showToast, t]);
 
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
-    if (!activeSession || !aiProgress) return;
+    if (readOnlyClientMode || !activeSession || !aiProgress) return;
     const item = activeSession.checklist.find(i => i.id === itemId);
     if (!item) return;
 
@@ -1210,10 +1221,10 @@ export default function AIRecommendationsModal({
       showToast(t('common.error'), 'error');
       await loadAIProgress();
     }
-  }, [activeSession, aiProgress, clientId, loadAIProgress, showToast, t]);
+  }, [activeSession, aiProgress, clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   const handleSaveNewItem = useCallback(async (data: NewItemData) => {
-    if (!activeSession || !aiProgress) return;
+    if (readOnlyClientMode || !activeSession || !aiProgress) return;
 
     // Solo añadimos a la semana actual (searchWeek)
     const week = searchWeek;
@@ -1313,7 +1324,7 @@ export default function AIRecommendationsModal({
       await loadAIProgress();
       setAddingAlternative(false);
     }
-  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative, newHabitType, searchDay, showToast, t]);
+  }, [activeSession, aiProgress, clientId, searchWeek, searchCategory, loadAIProgress, addingAlternative, newHabitType, readOnlyClientMode, searchDay, showToast, t]);
 
   const handleUpdateItem = useCallback(async (
     itemId: string,
@@ -1321,7 +1332,7 @@ export default function AIRecommendationsModal({
     weekNumber: number,
     category: 'exercise' | 'habit'
   ) => {
-    if (!activeSession || !aiProgress) return;
+    if (readOnlyClientMode || !activeSession || !aiProgress) return;
 
     const originalItem = activeSession.checklist.find(item => item.id === itemId);
     if (!originalItem) return;
@@ -1354,10 +1365,10 @@ export default function AIRecommendationsModal({
 
     setShowEditItemModal(false);
     setEditingItem(null);
-  }, [activeSession, aiProgress, updateItemViaFullChecklist]);
+  }, [activeSession, aiProgress, readOnlyClientMode, updateItemViaFullChecklist]);
 
   const handleSaveAIRecipe = useCallback(async (data: AIRecipeData) => {
-    if (!activeSession || !editingAIRecipe) return;
+    if (readOnlyClientMode || !activeSession || !editingAIRecipe) return;
 
     const originalItem = editingAIRecipe.item;
 
@@ -1403,20 +1414,21 @@ export default function AIRecommendationsModal({
 
     setShowAIRecipeEditModal(false);
     setEditingAIRecipe(null);
-  }, [activeSession, editingAIRecipe, updateItemViaFullChecklist]);
+  }, [activeSession, editingAIRecipe, readOnlyClientMode, updateItemViaFullChecklist]);
 
   // ===== MANEJADORES DE ACCIONES =====
   const handleApproveSession = useCallback(async (sessionId: string) => {
+    if (readOnlyClientMode) return;
     try {
       await apiClient.approveAISession(clientId, sessionId);
       await loadAIProgress();
     } catch (e) {
       showToast(translateApiError(e, t, 'common.error'), 'error');
     }
-  }, [clientId, loadAIProgress, showToast, t]);
+  }, [clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   const handleRegenerate = useCallback(async () => {
-    if (!activeSession) return;
+    if (readOnlyClientMode || !activeSession) return;
     setLoading(true);
     const notes = prompt(t('ai.regenerationPrompt'), '');
     const oldSessionId = activeSession.sessionId;
@@ -1468,9 +1480,10 @@ export default function AIRecommendationsModal({
       showToast(translateApiError(e, t, 'ai.errorGenerating'), 'error');
       setLoading(false);
     }
-  }, [activeSession, clientId, loadAIProgress, showToast, t]);
+  }, [activeSession, clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   const handleSendToClient = useCallback(async (sessionId: string) => {
+    if (readOnlyClientMode) return;
     setLoading(true);
     try {
       await apiClient.sendAISessionToClient(clientId, sessionId);
@@ -1481,7 +1494,7 @@ export default function AIRecommendationsModal({
     } finally {
       setLoading(false);
     }
-  }, [clientId, loadAIProgress, showToast, t]);
+  }, [clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   // ===== HANDLERS DE VIDEOLlAMADA =====
 
@@ -1490,8 +1503,9 @@ export default function AIRecommendationsModal({
    * Solo disponible cuando hay una sesión activa enviada al cliente.
    */
   const handleOpenScheduler = useCallback(() => {
+    if (readOnlyClientMode) return;
     setShowSessionScheduler(true);
-  }, []);
+  }, [readOnlyClientMode]);
 
   /**
    * Envía la invitación por email al cliente y notificación al coach
@@ -1543,6 +1557,7 @@ export default function AIRecommendationsModal({
    * más detallados (como los generados por explainTranscriptionError).
    */
   const handleRetryTranscription = useCallback(async (sessionId: string) => {
+    if (readOnlyClientMode) return;
     let toastShown = false; // evita doble toast si la rama success=false ya mostró el error
     try {
       const token = localStorage.getItem('token');
@@ -1582,7 +1597,7 @@ export default function AIRecommendationsModal({
         showToast(`${t('common.error')}: ${message}`, 'error');
       }
     }
-  }, [showToast, t]);
+  }, [readOnlyClientMode, showToast, t]);
 
   /**
    * Copia el enlace del cliente al portapapeles.
@@ -1599,6 +1614,7 @@ export default function AIRecommendationsModal({
   }, [clientSessionLink, showToast, t]);
 
   const handleFileUpload = useCallback(async (file: File) => {
+    if (readOnlyClientMode) return;
     setUploadingFile(true);
     setUploadError(null);
 
@@ -1706,7 +1722,7 @@ export default function AIRecommendationsModal({
     } finally {
       setUploadingFile(false);
     }
-  }, [clientId, loadAIProgress, showToast, t]);
+  }, [clientId, loadAIProgress, readOnlyClientMode, showToast, t]);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -1746,12 +1762,20 @@ export default function AIRecommendationsModal({
   const isFirstSession = !hasExistingSessions;
 
   // latestCompletedVideoSession se computa via useMemo antes del early return
-  const canGenerateNewEvaluation = isFirstSession ||
+  const planLimitReached = Boolean(
+    planSummary &&
+    planSummary.maxMonths > 0 &&
+    (aiProgress?.sessions.length ?? 0) >= planSummary.maxMonths
+  );
+
+  const canGenerateNewEvaluation = !planLimitReached && (
+    isFirstSession ||
     latestCompletedVideoSession?.transcriptStatus === 'completed' ||
     // Fallback: sesión de video completada sin transcriptStatus (datos legacy anteriores a la feature)
     (latestCompletedVideoSession !== null && !latestCompletedVideoSession.transcriptStatus) ||
     // Fallback: hay sesiones de IA pero no hay sesiones de video (legacy), permitir
-    (hasExistingSessions && videoSessions.length === 0);
+    (hasExistingSessions && videoSessions.length === 0)
+  );
 
   return (
     <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${
@@ -1843,15 +1867,17 @@ export default function AIRecommendationsModal({
                   </details>
                 )}
                 <div className="flex gap-3 mt-3">
-                  <button
-                    onClick={() => {
-                      setDisplayError(null);
-                      handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1);
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    🔄 Reintentar
-                  </button>
+                  {!readOnlyClientMode && (
+                    <button
+                      onClick={() => {
+                        setDisplayError(null);
+                        handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                    >
+                      🔄 Reintentar
+                    </button>
+                  )}
                   <button
                     onClick={() => setDisplayError(null)}
                     className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm"
@@ -1896,7 +1922,7 @@ export default function AIRecommendationsModal({
           </div>
         )}
 
-        {aiProgress?.generationError && (
+        {!readOnlyClientMode && aiProgress?.generationError && (
           (() => {
             // Un generationError de nivel superior es relevante si:
             //  a) NO hay sesión activa (fallo total de la generación), o
@@ -1922,7 +1948,7 @@ export default function AIRecommendationsModal({
           })()
         )}
 
-        {activeSession?.sessionId?.startsWith('fallback_') && (
+        {!readOnlyClientMode && activeSession?.sessionId?.startsWith('fallback_') && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
             <div className="flex items-center"><svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg><span className="text-yellow-700 font-medium">{t('ai.offlineMode')}</span></div>
               <p className="text-yellow-600 text-sm mt-1">{t('ai.offlineModeDesc')}</p>
@@ -1944,7 +1970,9 @@ export default function AIRecommendationsModal({
                    >
                      {tab.label}
                      <span className={`ml-2 text-xs px-2 py-1 rounded-full ${session.status === 'approved' ? 'bg-green-100 text-green-800' : session.status === 'sent' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                       {session.status === 'draft' ? 'Borrador' : session.status === 'approved' ? 'Aprobado' : 'Enviado'}
+                       {readOnlyClientMode
+                         ? (session.status === 'sent' ? 'Enviado' : 'Disponible')
+                         : (session.status === 'draft' ? 'Borrador' : session.status === 'approved' ? 'Aprobado' : 'Enviado')}
                      </span>
                    </button>
                  );
@@ -1955,23 +1983,33 @@ export default function AIRecommendationsModal({
 
         <div ref={modalContentRef} className="flex-1 overflow-y-auto p-6 bg-green-50">
           {!aiProgress || aiProgress.sessions.length === 0 ? (
-            <div className="text-center py-12">
-              <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-              <h3 className="text-xl font-bold text-gray-700 mb-2">{t('ai.noRecommendations')}</h3>
-              <p className="text-gray-600 mb-6">{t('ai.noRecommendationsDesc')}</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">{t('ai.generateFirst')}</button>
-                <button onClick={triggerFileInput} disabled={uploadingFile} className="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                  {uploadingFile ? 'Subiendo...' : 'Subir Archivo de Recomendaciones'}
-                </button>
+            readOnlyClientMode ? (
+              <div className="text-center py-12 max-w-lg mx-auto">
+                <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                <h3 className="text-xl font-bold text-gray-700 mb-2">Tu plan personalizado está en preparación</h3>
+                <p className="text-gray-600 mb-6">
+                  Tu asesor Manuel Martínez está revisando tu perfil y estudios médicos. Cuando apruebe tu plan personalizado, podrás verlo aquí.
+                </p>
               </div>
-              {uploadError && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-700 text-sm">Error: {uploadError}</p>
+            ) : (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                <h3 className="text-xl font-bold text-gray-700 mb-2">{t('ai.noRecommendations')}</h3>
+                <p className="text-gray-600 mb-6">{t('ai.noRecommendationsDesc')}</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">{t('ai.generateFirst')}</button>
+                  <button onClick={triggerFileInput} disabled={uploadingFile} className="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    {uploadingFile ? 'Subiendo...' : 'Subir Archivo de Recomendaciones'}
+                  </button>
                 </div>
-              )}
-                <p className="text-gray-700 text-sm mt-4">{t('ai.acceptedFormats')}</p>
-            </div>
+                {uploadError && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">Error: {uploadError}</p>
+                  </div>
+                )}
+                  <p className="text-gray-700 text-sm mt-4">{t('ai.acceptedFormats')}</p>
+              </div>
+            )
           ) : !activeSession ? (
              <div className="text-center py-12"><p className="text-gray-600">{t('ai.sessionNotFound')}</p></div>
           ) : (
@@ -1987,7 +2025,7 @@ export default function AIRecommendationsModal({
                         <span className="mr-2">🔍</span>
                         Resumen del Estado Actual
                       </h4>
-                      {!editMode && activeSession.status === 'draft' && (
+                      {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                         <button
                           onClick={() => handleStartEdit(activeSession.sessionId, 'summary', activeSession.summary)}
                           className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
@@ -2036,9 +2074,9 @@ export default function AIRecommendationsModal({
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-gray-700 flex items-center text-sm md:text-base">
                         <span className="mr-2">🎯</span>
-                        Visión para el siguiente mes
+                        {activeSession.totalWeeks === 3 ? 'Visión para las 3 semanas' : 'Visión para el siguiente mes'}
                       </h4>
-                      {!editMode && activeSession.status === 'draft' && (
+                      {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                         <button
                           onClick={() => handleStartEdit(activeSession.sessionId, 'vision', activeSession.vision)}
                           className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
@@ -2105,6 +2143,21 @@ export default function AIRecommendationsModal({
                 </div>
                 {expandedMonths.includes('accordion-medical') && activeSession.weeks.length > 0 && (
                   <div className="p-4 space-y-4">
+                    {/* ===== COMPARATIVA CONTINUA DE BIOMARCADORES (Mes 2+) ===== */}
+                    {activeSession.medicalComparativeAnalysis &&
+                      activeSession.medicalComparativeAnalysis.trim() !== '' &&
+                      !activeSession.medicalComparativeAnalysis.startsWith('U2FsdGVkX1') &&
+                      !activeSession.medicalComparativeAnalysis.startsWith('v2:') && (
+                        <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
+                          <h5 className="font-semibold text-teal-900 text-sm flex items-center gap-2 mb-1.5">
+                            <span>📈</span> {t('ai.comparativeAnalysisTitle')}
+                          </h5>
+                          <p className="text-sm text-teal-950 whitespace-pre-line leading-relaxed">
+                            {activeSession.medicalComparativeAnalysis}
+                          </p>
+                        </div>
+                      )}
+
                     {/* ===== ANÁLISIS MÉDICO ESTRUCTURADO (nuevo formato) ===== */}
                     {activeSession.structuredMedicalAnalysis && activeSession.structuredMedicalAnalysis.exams.length > 0 ? (
                       <>
@@ -2114,7 +2167,7 @@ export default function AIRecommendationsModal({
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                               <div className="flex items-start justify-between">
                                 <p className="text-sm text-gray-800 leading-relaxed italic flex-1">{exam.intro}</p>
-                                {!editMode && activeSession.status === 'draft' && (
+                                {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                                   <button
                                     onClick={() => handleStartEdit(activeSession.sessionId, 'medicalIntro', exam.intro, undefined, undefined, undefined, examIdx)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2 flex-shrink-0"
@@ -2194,7 +2247,7 @@ export default function AIRecommendationsModal({
                                 <h5 className="font-semibold text-red-800 text-sm flex items-center gap-2">
                                   <span>🔬</span> Análisis Clínico
                                 </h5>
-                                {!editMode && activeSession.status === 'draft' && (
+                                {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                                   <button
                                     onClick={() => handleStartEdit(activeSession.sessionId, 'medicalAnalysis', exam.analysis, undefined, undefined, undefined, examIdx)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors flex-shrink-0"
@@ -2382,8 +2435,8 @@ export default function AIRecommendationsModal({
                               {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
                                 <div key={item.id} className="flex items-start gap-2 py-2 border-b border-amber-100 last:border-0">
                                   <div
-                                    onClick={async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
-                                    className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer flex-shrink-0 ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
+                                    onClick={readOnlyClientMode ? undefined : async (e) => { e.stopPropagation(); await handleChecklistChange(activeSession.sessionId, item.id, !item.completed); }}
+                                    className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${readOnlyClientMode ? '' : 'cursor-pointer '} ${item.completed ? 'bg-amber-500 border-amber-500' : 'bg-white border-amber-300'}`}
                                   >
                                     {item.completed && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                                   </div>
@@ -2485,17 +2538,18 @@ export default function AIRecommendationsModal({
                                     key={`${day}-${mealType}`}
                                     className={`group/nut relative rounded-lg border p-1.5 shadow-sm transition-all ${
                                       item
-                                        ? 'bg-white border-green-200 hover:shadow-md cursor-pointer cursor-grab active:cursor-grabbing'
+                                        ? `bg-white border-green-200 hover:shadow-md cursor-pointer ${readOnlyClientMode ? '' : 'cursor-grab active:cursor-grabbing'}`
                                         : 'bg-green-50/50 border-dashed border-green-300 min-h-[64px] flex flex-col items-center justify-center'
                                     }`}
-                                    draggable={!!item && activeSession.status === 'draft'}
+                                    draggable={!readOnlyClientMode && !!item && activeSession.status === 'draft'}
                                     onDragStart={(e) => {
-                                      if (!item) return;
+                                      if (readOnlyClientMode || !item) return;
                                       e.dataTransfer.setData('application/nutrition-drag', JSON.stringify({ day, mealType, itemId: item.id }));
                                       e.currentTarget.classList.add('opacity-50');
                                     }}
                                     onDragEnd={(e) => { e.currentTarget.classList.remove('opacity-50'); }}
                                     onDragOver={(e) => {
+                                      if (readOnlyClientMode) return;
                                       e.preventDefault();
                                       e.stopPropagation();
                                       (e.currentTarget as HTMLElement).classList.add('ring-2', 'ring-green-400');
@@ -2504,6 +2558,7 @@ export default function AIRecommendationsModal({
                                       (e.currentTarget as HTMLElement).classList.remove('ring-2', 'ring-green-400');
                                     }}
                                     onDrop={(e) => {
+                                      if (readOnlyClientMode) return;
                                       e.preventDefault();
                                       e.stopPropagation();
                                       (e.currentTarget as HTMLElement).classList.remove('ring-2', 'ring-green-400');
@@ -2546,11 +2601,13 @@ export default function AIRecommendationsModal({
                                     {item ? (
                                       <>
                                         {/* Delete on hover */}
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
-                                          className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/nut:opacity-100 transition-opacity text-[10px] z-10"
-                                          title="Eliminar"
-                                        >✕</button>
+                                        {!readOnlyClientMode && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                            className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/nut:opacity-100 transition-opacity text-[10px] z-10"
+                                            title="Eliminar"
+                                          >✕</button>
+                                        )}
                                         {/* Image placeholder */}
                                         <div
                                           onClick={async () => {
@@ -2593,7 +2650,7 @@ export default function AIRecommendationsModal({
                                           {mealIcons[mealType]} {mealLabels[mealType]}
                                         </p>
                                         <span className="text-[10px] text-gray-400 italic">{t('ai.empty')}</span>
-                                        {activeSession.status === 'draft' && (
+                                        {!readOnlyClientMode && activeSession.status === 'draft' && (
                                           <button
                                             onClick={() => { setSearchDay(day); setSearchMeal(mealType); setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
                                             className="mt-1 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-[10px]"
@@ -2621,7 +2678,7 @@ export default function AIRecommendationsModal({
                           .map((item, ai) => (
                             <div key={ai} className="group/alt relative bg-white rounded-lg border border-amber-200 p-2 w-36 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                               {/* Delete on hover */}
-                              {activeSession.status === 'draft' && (
+                              {!readOnlyClientMode && activeSession.status === 'draft' && (
                                 <button
                                   onClick={() => handleDeleteItem(item.id)}
                                   className="absolute top-1 right-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/alt:opacity-100 transition-opacity text-[10px] z-10"
@@ -2663,7 +2720,7 @@ export default function AIRecommendationsModal({
                             </div>
                           ))}
                         {/* Add button card-sized like items */}
-                        {activeSession.status === 'draft' && (
+                        {!readOnlyClientMode && activeSession.status === 'draft' && (
                           <button
                             onClick={() => { setAddingAlternative(true); setSearchCategory('nutrition'); setSearchWeek(1); setShowRecipeSearch(true); }}
                             className="h-[120px] w-36 rounded-lg border-2 border-dashed border-amber-300 p-2 text-xs flex flex-col items-center justify-center gap-1 text-amber-600 hover:text-amber-800 hover:border-amber-400 hover:bg-amber-100/50 transition-colors"
@@ -2672,7 +2729,7 @@ export default function AIRecommendationsModal({
                             <span>{t('ai.add')}</span>
                           </button>
                         )}
-                        {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && activeSession.status !== 'draft' && (
+                        {activeSession.checklist.filter(item => item.category === 'nutrition' && item.isRecurring).length === 0 && (readOnlyClientMode || activeSession.status !== 'draft') && (
                           <p className="text-xs text-amber-500 italic">{t('ai.noAlternatives')}</p>
                         )}
                       </div>
@@ -2684,21 +2741,23 @@ export default function AIRecommendationsModal({
                         <h4 className="font-semibold text-green-800 flex items-center gap-2">
                           <span>🛒</span> Lista de compras
                         </h4>
-                        <button
-                          onClick={() => handleUpdateWeeklyPlan()}
-                          disabled={loadingWeeklyPlan}
-                          className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
-                        >
-                          {loadingWeeklyPlan ? (
-                            <>
-                              <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                              </svg>
-                              Actualizando lista de ingredientes...
-                            </>
-                          ) : 'Actualizar'}
-                        </button>
+                        {!readOnlyClientMode && (
+                          <button
+                            onClick={() => handleUpdateWeeklyPlan()}
+                            disabled={loadingWeeklyPlan}
+                            className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {loadingWeeklyPlan ? (
+                              <>
+                                <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                                Actualizando lista de ingredientes...
+                              </>
+                            ) : 'Actualizar'}
+                          </button>
+                        )}
                       </div>
 
                       {/* Indicador de carga durante Fase 3 */}
@@ -2713,7 +2772,9 @@ export default function AIRecommendationsModal({
                       )}
 
                       {flatShoppingList.length === 0 && !loadingWeeklyPlan && (
-                        <p className="text-sm text-green-700 italic">{t('ai.pressUpdate')}</p>
+                        <p className="text-sm text-green-700 italic">
+                          {readOnlyClientMode ? 'La lista de compras aún no ha sido generada.' : t('ai.pressUpdate')}
+                        </p>
                       )}
 
                       {/* Grid único de items */}
@@ -2781,9 +2842,10 @@ export default function AIRecommendationsModal({
                                 <div
                                   key={day}
                                   className={`flex-shrink-0 ${isMaximized ? 'w-64' : 'w-36'} flex flex-col group/col`}
-                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-blue-400'); }}
+                                  onDragOver={(e) => { if (readOnlyClientMode) return; e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-blue-400'); }}
                                   onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-blue-400'); }}
                                   onDrop={(e) => {
+                                    if (readOnlyClientMode) return;
                                     e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
                                     const dragId = e.dataTransfer.getData('text/plain');
                                     if (!dragId || !activeSession) return;
@@ -2821,13 +2883,15 @@ export default function AIRecommendationsModal({
                                     {items.map((item) => (
                                       <div
                                         key={item.id}
-                                        draggable={activeSession.status === 'draft'}
+                                        draggable={!readOnlyClientMode && activeSession.status === 'draft'}
                                         onDragStart={(e) => {
+                                          if (readOnlyClientMode) return;
                                           e.dataTransfer.setData('text/plain', item.id);
                                           e.currentTarget.classList.add('opacity-50');
                                         }}
                                         onDragEnd={(e) => { e.currentTarget.classList.remove('opacity-50'); }}
                                         onDragOver={(e) => {
+                                          if (readOnlyClientMode) return;
                                           e.preventDefault();
                                           e.stopPropagation();
                                           (e.currentTarget as HTMLElement).classList.add('border-t-2', 'border-blue-500', '-mt-0.5');
@@ -2836,6 +2900,7 @@ export default function AIRecommendationsModal({
                                           (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-blue-500', '-mt-0.5');
                                         }}
                                         onDrop={(e) => {
+                                          if (readOnlyClientMode) return;
                                           e.stopPropagation();
                                           (e.currentTarget as HTMLElement).classList.remove('border-t-2', 'border-blue-500', '-mt-0.5');
                                           const dragId = e.dataTransfer.getData('text/plain');
@@ -2871,14 +2936,16 @@ export default function AIRecommendationsModal({
                                             }
                                           }).catch(() => {});
                                         }}
-                                        className="group/ex relative bg-white rounded-lg border border-blue-200 p-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer cursor-grab active:cursor-grabbing"
+                                        className={`group/ex relative bg-white rounded-lg border border-blue-200 p-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer ${readOnlyClientMode ? '' : 'cursor-grab active:cursor-grabbing'}`}
                                       >
                                         {/* Delete on hover */}
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
-                                          className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/ex:opacity-100 transition-opacity text-[10px] z-10"
-                                          title="Eliminar"
-                                        >✕</button>
+                                        {!readOnlyClientMode && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                            className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/ex:opacity-100 transition-opacity text-[10px] z-10"
+                                            title="Eliminar"
+                                          >✕</button>
+                                        )}
                                         {/* Title (click to open detail) */}
                                         <p
                                           onClick={async () => {
@@ -2914,7 +2981,7 @@ export default function AIRecommendationsModal({
                                       </div>
                                     ))}
                                     {/* Add exercise button */}
-                                    {activeSession.status === 'draft' && (
+                                    {!readOnlyClientMode && activeSession.status === 'draft' && (
                                       <button
                                         onClick={() => { setSearchCategory('exercise'); setSearchWeek(week.weekNumber); setSearchDay(day); setShowExerciseSearch(true); }}
                                         className="w-full py-1 border border-dashed border-blue-300 rounded text-blue-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-100 transition-colors text-[10px] font-medium flex items-center justify-center gap-0.5"
@@ -2977,7 +3044,7 @@ export default function AIRecommendationsModal({
                       const eliminateItems = activeSession.checklist.filter(
                         item => item.category === 'habit' && item.weekNumber === week.weekNumber && item.type === 'toEliminate'
                       );
-                      const hasHabits = adoptItems.length > 0 || eliminateItems.length > 0 || activeSession.status === 'draft';
+                      const hasHabits = adoptItems.length > 0 || eliminateItems.length > 0 || (!readOnlyClientMode && activeSession.status === 'draft');
 
                       if (!hasHabits) return null;
 
@@ -2993,28 +3060,34 @@ export default function AIRecommendationsModal({
                               <div className="space-y-1.5">
                                 {adoptItems.length > 0 ? adoptItems.map((item, hi) => (
                                   <div key={hi} className="flex items-center justify-between bg-purple-50 rounded px-2.5 py-1.5 group border border-purple-100">
-                                    <button
-                                      onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
-                                      className="text-left flex-1 text-sm text-gray-900 hover:text-purple-700 leading-snug"
-                                    >{item.description}</button>
-                                    <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {readOnlyClientMode ? (
+                                      <span className="text-left flex-1 text-sm text-gray-900 leading-snug">{item.description}</span>
+                                    ) : (
                                       <button
                                         onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
-                                        className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title={t('ai.editHabit')}
-                                      >✏️</button>
-                                      <button
-                                        onClick={() => handleDeleteItem(item.id)}
-                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title={t('ai.deleteHabit')}
-                                      >✕</button>
-                                    </div>
+                                        className="text-left flex-1 text-sm text-gray-900 hover:text-purple-700 leading-snug"
+                                      >{item.description}</button>
+                                    )}
+                                    {!readOnlyClientMode && (
+                                      <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                          className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                          title={t('ai.editHabit')}
+                                        >✏️</button>
+                                        <button
+                                          onClick={() => handleDeleteItem(item.id)}
+                                          className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                          title={t('ai.deleteHabit')}
+                                        >✕</button>
+                                      </div>
+                                    )}
                                   </div>
                                 )) : (
                                   <p className="text-xs text-gray-600 italic py-2">{t('ai.noHabitsToAdopt')}</p>
                                 )}
                                 {/* Add item at end of list */}
-                                {activeSession.status === 'draft' && (
+                                {!readOnlyClientMode && activeSession.status === 'draft' && (
                                   <button
                                     onClick={() => { setNewHabitType('toAdopt'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-purple-300 text-purple-500 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-colors text-xs"
@@ -3033,28 +3106,34 @@ export default function AIRecommendationsModal({
                               <div className="space-y-1.5">
                                 {eliminateItems.length > 0 ? eliminateItems.map((item, hi) => (
                                   <div key={hi} className="flex items-center justify-between bg-red-50 rounded px-2.5 py-1.5 group border border-red-100">
-                                    <button
-                                      onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
-                                      className="text-left flex-1 text-sm text-gray-900 hover:text-red-700 leading-snug"
-                                    >{item.description}</button>
-                                    <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {readOnlyClientMode ? (
+                                      <span className="text-left flex-1 text-sm text-gray-900 leading-snug">{item.description}</span>
+                                    ) : (
                                       <button
                                         onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
-                                        className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title={t('ai.editHabit')}
-                                      >✏️</button>
-                                      <button
-                                        onClick={() => handleDeleteItem(item.id)}
-                                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                                        title={t('ai.deleteHabit')}
-                                      >✕</button>
-                                    </div>
+                                        className="text-left flex-1 text-sm text-gray-900 hover:text-red-700 leading-snug"
+                                      >{item.description}</button>
+                                    )}
+                                    {!readOnlyClientMode && (
+                                      <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => { setEditingItem({ item, weekNumber: week.weekNumber, category: 'habit' }); setSearchCategory('habit'); setShowEditItemModal(true); }}
+                                          className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                          title={t('ai.editHabit')}
+                                        >✏️</button>
+                                        <button
+                                          onClick={() => handleDeleteItem(item.id)}
+                                          className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                          title={t('ai.deleteHabit')}
+                                        >✕</button>
+                                      </div>
+                                    )}
                                   </div>
                                 )) : (
                                   <p className="text-xs text-gray-600 italic py-2">{t('ai.noHabitsToEliminate')}</p>
                                 )}
                                 {/* Add item at end of list */}
-                                {activeSession.status === 'draft' && (
+                                {!readOnlyClientMode && activeSession.status === 'draft' && (
                                   <button
                                     onClick={() => { setNewHabitType('toEliminate'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-red-300 text-red-500 hover:text-red-700 hover:border-red-400 hover:bg-red-50 transition-colors text-xs"
@@ -3090,7 +3169,7 @@ export default function AIRecommendationsModal({
             </div>
           )}
 
-          {showNewEvaluationForm && (
+          {!readOnlyClientMode && showNewEvaluationForm && (
             <div className="bg-white rounded-xl p-6 border border-green-200 shadow-sm mt-6">
                <h3 className="text-xl font-bold text-green-700 mb-4">{t('ai.newEvaluationTitle', { number: aiProgress ? aiProgress.sessions.length + 1 : 1 })}</h3>
               <div className="space-y-4">
@@ -3110,19 +3189,40 @@ export default function AIRecommendationsModal({
               {activeSession ? (
                 <div className="flex flex-col md:flex-row md:items-center">
                   <div className="flex items-center"><span className="text-sm text-gray-700">{t('ai.status')}: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente'}
+                    {readOnlyClientMode
+                      ? (activeSession.status === 'sent' ? 'Enviado' : 'Aprobado')
+                      : (activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente')}
                   </span></div>
                    <span className="text-sm text-gray-700 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
                 </div>
-              ) : <span className="text-sm text-gray-700">{t('ai.noActiveSessions')}</span>}
-              <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">
-                <svg className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-              </button>
+              ) : <span className="text-sm text-gray-700">{readOnlyClientMode ? 'Esperando aprobación de tu asesor' : t('ai.noActiveSessions')}</span>}
+              {!readOnlyClientMode && (
+                <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">
+                  <svg className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                </button>
+              )}
             </div>
+            {readOnlyClientMode ? (
+              <div className="flex justify-end w-full md:w-auto">
+                <button
+                  onClick={onClose}
+                  className="w-full md:w-auto px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base"
+                >
+                  {t('common.close') || 'Cerrar'}
+                </button>
+              </div>
+            ) : (
             <div className={`${footerExpanded ? 'flex' : 'hidden'} md:flex flex-col md:flex-row gap-2 justify-end w-full md:w-auto transition-all`}>
               {!showNewEvaluationForm && (
                 <>
-                  {canGenerateNewEvaluation ? (
+                  {planLimitReached && planSummary ? (
+                    <span
+                      className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-600 border border-gray-200 rounded-lg text-xs md:text-sm font-medium text-center"
+                      title={`El plan ${planSummary.name} permite hasta ${planSummary.maxMonths} evaluación(es).`}
+                    >
+                      Límite del plan ({planSummary.maxMonths}/{planSummary.maxMonths})
+                    </span>
+                  ) : canGenerateNewEvaluation ? (
                     <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">{t('ai.newEvaluation')}</button>
                   ) : hasExistingSessions && transcriptStatus === 'pending' ? (
                     <button disabled className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-amber-400 text-white rounded-lg font-medium text-sm md:text-base flex items-center justify-center gap-2 cursor-not-allowed opacity-80">
@@ -3236,12 +3336,13 @@ export default function AIRecommendationsModal({
                 </>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Modales */}
-      {showRecipeSearch && (
+      {!readOnlyClientMode && showRecipeSearch && (
         <RecipeSearchModal
           onSelect={async (recipe) => {
             try {
@@ -3276,7 +3377,7 @@ export default function AIRecommendationsModal({
         />
       )}
 
-      {showExerciseSearch && (
+      {!readOnlyClientMode && showExerciseSearch && (
         <ExerciseSearchModal
           onSelect={(exercise) => {
             const dayForItem = searchDay || '';
@@ -3300,6 +3401,7 @@ export default function AIRecommendationsModal({
       {showExerciseDetail && selectedExercise && (
         <ExerciseDetailModal
           exercise={selectedExercise}
+          readOnly={readOnlyClientMode}
           onClose={() => { setShowExerciseDetail(false); setSelectedExercise(null); }}
           onEdit={() => {}}
           onDelete={() => {}}
@@ -3310,7 +3412,7 @@ export default function AIRecommendationsModal({
         />
       )}
 
-      {showEditItemModal && (
+      {!readOnlyClientMode && showEditItemModal && (
         <SimpleItemModal
           category={editingItem ? editingItem.category : (searchCategory as 'exercise' | 'habit')}
           onSave={(data) => {
@@ -3336,7 +3438,7 @@ export default function AIRecommendationsModal({
         />
       )}
 
-      {showAIRecipeEditModal && editingAIRecipe && (
+      {!readOnlyClientMode && showAIRecipeEditModal && editingAIRecipe && (
         <AIRecipeEditModal
           initialData={{
             description: editingAIRecipe.item.description,
@@ -3357,6 +3459,7 @@ export default function AIRecommendationsModal({
       {showRecipeDetail && selectedRecipe && (
         <RecipeDetailModal
           recipe={selectedRecipe}
+          readOnly={readOnlyClientMode}
           onClose={() => setShowRecipeDetail(false)}
           onEdit={() => {
             setShowRecipeDetail(false);
@@ -3370,18 +3473,20 @@ export default function AIRecommendationsModal({
       )}
 
       {/* Input file oculto para subir archivos */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileInputChange}
-        accept=".txt,.json,.doc,.docx,.pdf"
-        className="hidden"
-      />
+      {!readOnlyClientMode && (
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          accept=".txt,.json,.doc,.docx,.pdf"
+          className="hidden"
+        />
+      )}
 
       {/* ===== MODALES DE VIDEOLlAMADA ===== */}
 
       {/* Modal para agendar sesión */}
-      {showSessionScheduler && (
+      {!readOnlyClientMode && showSessionScheduler && (
         <SessionScheduler
           clientId={clientId}
           clientName={_clientName}
@@ -3392,7 +3497,7 @@ export default function AIRecommendationsModal({
       )}
 
       {/* Ofrecimiento no-blocking para unirse a la sesión (solo si es ahora) */}
-      {joinNowOffer && (
+      {!readOnlyClientMode && joinNowOffer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
             <h3 className="text-lg font-bold text-gray-800 mb-2">{t('ai.sessionScheduled')}</h3>
@@ -3424,7 +3529,7 @@ export default function AIRecommendationsModal({
       {showVideoCall && videoRoomName && (
         <VideoCallRoom
           roomName={videoRoomName}
-          role="coach"
+          role={readOnlyClientMode ? 'client' : 'coach'}
           onLeave={handleCloseVideoCall}
           clientId={clientId}
         />

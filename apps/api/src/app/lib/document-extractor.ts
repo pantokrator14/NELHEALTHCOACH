@@ -14,6 +14,7 @@
 
 import Mammoth from 'mammoth';
 import { createWorker } from 'tesseract.js';
+import type { PaddleOcrService } from 'ppu-paddle-ocr';
 import { logger } from './logger';
 
 // ─────────────────────────────────────────────
@@ -132,6 +133,11 @@ async function extractFromPDF(
   return { text: '', method: 'pdf-parse', pages: 0 };
 }
 
+type PdfParseFn = (
+  buffer: Buffer,
+  options?: { max?: number }
+) => Promise<{ text?: string; numpages?: number }>;
+
 /**
  * Extrae texto plano de un PDF usando pdf-parse v1.
  * Internamente usa pdfjs-dist v2 con disableWorker=true.
@@ -142,8 +148,10 @@ async function extractWithPdfParseV1(
   logCtx: ReturnType<typeof logger.withContext>,
 ): Promise<ExtractionResult> {
   // pdf-parse v1 exports the function directly (not as default)
-  const pdfParseModule = await import('pdf-parse');
-  const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+  const pdfParseModule = (await import('pdf-parse')) as unknown as PdfParseFn & {
+    default?: PdfParseFn;
+  };
+  const pdfParse = pdfParseModule.default || pdfParseModule;
   const data = await pdfParse(buffer, { max: MAX_PDF_PAGES });
   const text = (data.text ?? '').trim();
   const pages = data.numpages ?? 0;
@@ -248,18 +256,18 @@ async function extractFromImage(
  * Se reusa entre invocaciones calientes (module cache de Vercel).
  * Los modelos ONNX se descargan una sola vez y se cachean en /tmp.
  */
-let _paddleOcrService: any | null = null;
+let _paddleOcrService: PaddleOcrService | null = null;
 let _paddleOcrInitializing: Promise<void> | null = null;
 
-async function getPaddleOcrService(): Promise<any> {
+async function getPaddleOcrService(): Promise<PaddleOcrService> {
   if (_paddleOcrService?.isInitialized?.()) {
     return _paddleOcrService;
   }
 
   if (!_paddleOcrInitializing) {
     _paddleOcrInitializing = (async () => {
-      const { PaddleOcrService } = await import('ppu-paddle-ocr');
-      const service = new PaddleOcrService({
+      const { PaddleOcrService: PaddleOcrServiceClass } = await import('ppu-paddle-ocr');
+      const service = new PaddleOcrServiceClass({
         session: {
           executionProviders: ['cpu'],
           graphOptimizationLevel: 'all',
@@ -289,7 +297,7 @@ export async function extractTextFromImageViaPaddleOCR(
 
   try {
     const service = await getPaddleOcrService();
-    const result = await service.recognize(buffer.buffer);
+    const result = await service.recognize(Uint8Array.from(buffer).buffer);
 
     const text = (result?.text ?? '').trim();
     const confidence = typeof result?.confidence === 'number' ? Math.round(result.confidence * 100) : 0;

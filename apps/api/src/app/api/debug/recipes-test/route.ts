@@ -71,8 +71,9 @@ async function getHandler(request: NextRequest) {
         count,
         message: 'Lectura exitosa. El problema está probablemente en la configuración de Mongoose en tu app principal.'
       });
-    } catch (countError: any) {
-      console.error('❌ COUNTDocuments FALLÓ:', countError.message);
+    } catch (countError: unknown) {
+      const countMsg = countError instanceof Error ? countError.message : String(countError);
+      console.error('❌ COUNTDocuments FALLÓ:', countMsg);
       // 5. Prueba de "último recurso": ¿Podemos INSERTAR un documento? (permiso de escritura)
       try {
         const testDoc = { 
@@ -88,19 +89,20 @@ async function getHandler(request: NextRequest) {
         return NextResponse.json({ 
           success: false, 
           error: `COUNT falló pero INSERT funcionó. Esto SUGIERE UN PROBLEMA DE PERMISOS: El usuario NO tiene permiso de LECTURA (find, count) pero sí de ESCRITURA en "recipes".`,
-          countError: countError.message, code: 'FORBIDDEN'}, { status: 403 });
-      } catch (insertError: any) {
-        console.error('❌ INSERTOne también FALLÓ:', insertError.message);
+          countError: countMsg, code: 'FORBIDDEN'}, { status: 403 });
+      } catch (insertError: unknown) {
+        const insertMsg = insertError instanceof Error ? insertError.message : String(insertError);
+        console.error('❌ INSERTOne también FALLÓ:', insertMsg);
         return NextResponse.json({ 
           success: false, 
           error: `COUNT e INSERT fallaron. Problema grave de permisos o de red.`,
-          countError: countError.message,
-          insertError: insertError.message, code: 'FORBIDDEN'}, { status: 403 });
+          countError: countMsg,
+          insertError: insertMsg, code: 'FORBIDDEN'}, { status: 403 });
       }
     }
     
-  } catch (error: any) {
-    console.error('💥 Error general en prueba de diagnóstico:', error.message);
+  } catch (error: unknown) {
+    console.error('💥 Error general en prueba de diagnóstico:', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ 
       success: false, 
       error: 'Error de conexión o tiempo de espera.',

@@ -20,6 +20,8 @@ const DEFAULT_CONFIG: Readonly<RateLimitConfig> = {
 const PATH_CONFIGS: Readonly<Record<string, Readonly<RateLimitConfig>>> = {
   '/api/clients': { windowSeconds: 10, maxRequests: 10 },
   '/api/leads': { windowSeconds: 10, maxRequests: 5 },
+  '/api/payments/create-consult-checkout': { windowSeconds: 60, maxRequests: 10 },
+  '/api/payments/create-plan-checkout': { windowSeconds: 60, maxRequests: 15 },
   '/api/auth/login': { windowSeconds: 60, maxRequests: 5 },
   '/api/auth/register': { windowSeconds: 60, maxRequests: 3 },
   '/api/health': { windowSeconds: 10, maxRequests: 20 },
@@ -29,8 +31,10 @@ const PATH_CONFIGS: Readonly<Record<string, Readonly<RateLimitConfig>>> = {
   // LLM (coste real) → límite por IP + ruta, suficiente para navegar normal.
   // Lista de espera (libro + sesiones): escritura pública poco frecuente
   '/api/waitlist': { windowSeconds: 60, maxRequests: 5 },
-  // Sesiones gratuitas: disponibilidad pública + control del coach
+  // Sesiones gratuitas y cupos por plan: disponibilidad pública + control del coach
   '/api/free-sessions': { windowSeconds: 60, maxRequests: 60 },
+  '/api/plan-quotas': { windowSeconds: 60, maxRequests: 60 },
+  '/api/plans': { windowSeconds: 60, maxRequests: 120 },
   // IMPORTANTE: el orden importa (la primera coincidencia gana), por eso el
   // prefijo más específico de comentarios va ANTES que '/api/blog'.
   '/api/blog/comments': { windowSeconds: 60, maxRequests: 10 },

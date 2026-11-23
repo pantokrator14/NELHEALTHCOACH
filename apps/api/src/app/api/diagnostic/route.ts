@@ -64,19 +64,21 @@ async function getHandler(request: NextRequest) {
       }
     });
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error en diagnóstico:', error);
     logger.error('DATABASE', 'Error en diagnóstico', error);
-    
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    const errCode = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+
     return NextResponse.json({
       success: false,
       error: {
         // SEC (A10): detalles internos solo en desarrollo
         ...(process.env.NODE_ENV === 'development' && {
-          name: error.name,
-          message: error.message,
-          code: error.code,
-          stack: error.stack,
+          name: errObj.name,
+          message: errObj.message,
+          code: errCode,
+          stack: errObj.stack,
         }),
       },
       environment: {

@@ -12,7 +12,7 @@ import type {
   ChecklistItem,
 } from "../../../../../../packages/types";
 import { logger } from "@/app/lib/logger";
-import { selectCurrentEvaluationDocuments } from "@/app/lib/document-selection";
+import { selectCurrentEvaluationDocuments, type DocumentSelectionSession } from "@/app/lib/document-selection";
 
 // ─────────────────────────────────────────────
 // Type-safe event data schema
@@ -323,7 +323,7 @@ async function fetchClientData(clientId: string): Promise<ClientData> {
   if (clientDocs && clientDocs.length > 0) {
     const selection = selectCurrentEvaluationDocuments(
       clientDocs,
-      (doc.aiProgress as { sessions?: Array<Record<string, unknown>> } | undefined)?.sessions as any
+      (doc.aiProgress as { sessions?: DocumentSelectionSession[] } | undefined)?.sessions
     );
     const pdfDocs = selection.selected.filter(
       (docItem) => docItem.name?.toLowerCase().endsWith('.pdf') || docItem.type?.includes('pdf')

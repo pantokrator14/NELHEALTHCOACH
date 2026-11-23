@@ -1,13 +1,15 @@
 // apps/api/src/app/api/clients/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { getHealthFormsCollection } from '@/app/lib/database';
+import { connectMongoose, getHealthFormsCollection } from '@/app/lib/database';
 import { decrypt, decryptFileObject, encrypt, encryptFileObject, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
-import { requireAuth, requireCoachAuth } from '@/app/lib/auth';
+import { requireAuth, requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { S3Service } from '@/app/lib/s3';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
+import { calculateTotalAllowedMonths, getPlanById } from '@/app/lib/plans';
+import ClientAccount from '@/app/models/ClientAccount';
 
 // GET: Obtener un cliente específico
 async function getHandler(
@@ -17,7 +19,7 @@ async function getHandler(
   return logger.time('CLIENTS', 'Obtener cliente específico', async () => {
     try {
       const { id } = await params;
-      
+
       logger.info('CLIENTS', 'Solicitud GET /api/clients/[id] recibida', undefined, {
         endpoint: `/api/clients/${id}`,
         method: 'GET',
@@ -27,7 +29,7 @@ async function getHandler(
       // Verificar autenticación con coachId
       let auth;
       try {
-        auth = requireCoachAuth(request);
+        auth = requireAnyAuth(request);
       } catch {
         // Legacy: usar requireAuth viejo
         const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -38,7 +40,7 @@ async function getHandler(
       const healthForms = await getHealthFormsCollection();
 
       // Verificar ownership si es coach no-admin
-      let filter: Record<string, unknown> = { _id: new ObjectId(id) };
+      const filter: Record<string, unknown> = { _id: new ObjectId(id) };
       if (auth && auth.role === 'coach') {
         filter.coachId = auth.coachId;
       }
@@ -54,6 +56,18 @@ async function getHandler(
           { status: 404 }
         );
       }
+
+      if (
+        auth &&
+        auth.role === 'client' &&
+        client.clientAccountId !== auth.clientAccountId &&
+        auth.clientId !== id
+      ) {
+        return NextResponse.json(
+          { success: false, message: 'No tienes permiso para ver este perfil', code: 'FORBIDDEN' },
+          { status: 403 }
+        );
+      }
       logger.debug('CLIENTS', 'Estructura del cliente en BD:', {
         clientId: client._id.toString(),
         personalDataKeys: Object.keys(client.personalData || {}),
@@ -66,7 +80,7 @@ async function getHandler(
           carbohydrateAddiction: {
             value: client.medicalData.carbohydrateAddiction,
             type: typeof client.medicalData.carbohydrateAddiction,
-            preview: typeof client.medicalData.carbohydrateAddiction === 'string' ? 
+            preview: typeof client.medicalData.carbohydrateAddiction === 'string' ?
               client.medicalData.carbohydrateAddiction.substring(0, 50) + '...' : 'N/A'
           }
         }
@@ -78,22 +92,22 @@ async function getHandler(
       });
 
       // Función para desencriptar objetos - MEJORADA
-      const decryptObject = (obj: Record<string, any>, path: string = ''): Record<string, any> => {
-        const decrypted: Record<string, any> = {};
-        
+      const decryptObject = (obj: Record<string, unknown>, path: string = ''): Record<string, unknown> => {
+        const decrypted: Record<string, unknown> = {};
+
         for (const [key, value] of Object.entries(obj)) {
           const currentPath = path ? `${path}.${key}` : key;
-          
+
           const isFileField = (
-            currentPath.includes('profilePhoto.url') || 
-            currentPath.includes('profilePhoto.key') || 
+            currentPath.includes('profilePhoto.url') ||
+            currentPath.includes('profilePhoto.key') ||
             currentPath.includes('documents.url') ||
             currentPath.includes('documents.key') ||
             (currentPath === 'profilePhoto.type') ||
             (currentPath === 'documents.type') ||
             currentPath.includes('uploadedAt')
           );
-          
+
           if (typeof value === 'string' && value.trim() !== '') {
             if (isFileField) {
               decrypted[key] = value;
@@ -102,36 +116,36 @@ async function getHandler(
               decrypted[key] = safeDecrypt(value);
             }
           } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            decrypted[key] = decryptObject(value, currentPath);
+            decrypted[key] = decryptObject(value as Record<string, unknown>, currentPath);
           } else {
             decrypted[key] = value;
           }
         }
-        
+
         return decrypted;
       };
 
       // Función para desencriptar arrays de objetos (como documents)
-      const decryptArray = (encryptedArray: string): any[] => {
+      const decryptArray = (encryptedArray: string): unknown[] => {
         if (!encryptedArray) return [];
-        
+
         try {
           // Primero desencriptar el string completo
           const decryptedString = decrypt(encryptedArray);
           // Luego parsear como JSON
           const parsedArray = JSON.parse(decryptedString);
-          
+
           if (!Array.isArray(parsedArray)) {
-            logger.warn('ENCRYPTION', 'El resultado desencriptado no es un array', { 
-              decryptedString: decryptedString.substring(0, 100) 
+            logger.warn('ENCRYPTION', 'El resultado desencriptado no es un array', {
+              decryptedString: decryptedString.substring(0, 100)
             });
             return [];
           }
-          
+
           // Desencriptar cada objeto en el array
           return parsedArray.map(item => {
             if (typeof item === 'object' && item !== null) {
-              const decryptedItem: any = {};
+              const decryptedItem: Record<string, unknown> = {};
               for (const [key, value] of Object.entries(item)) {
                 if (typeof value === 'string') {
                   try {
@@ -164,6 +178,92 @@ async function getHandler(
       delete rawMedicalData.documents;
       delete rawMedicalData.processedDocuments;
 
+      const rawAISessions = ((client.aiProgress as { sessions?: Array<{ sessionId?: string; status?: string; monthNumber?: number; createdAt?: Date | string }> })?.sessions || []);
+      const visibleAISessions = auth?.role === 'client'
+        ? rawAISessions.filter((s) => s.status === 'approved' || s.status === 'sent')
+        : rawAISessions;
+
+      let resolvedPlanId = typeof client.planId === 'string' ? client.planId : '';
+      let videoCreditsTotal = 0;
+      let videoCreditsUsed = 0;
+      let hasAccountCredits = false;
+      let accountPurchasedPlans: Array<{
+        planId?: string;
+        status?: string;
+        livekitCreditsTotal?: number;
+        livekitCreditsUsed?: number;
+      }> = [];
+
+      if (client.clientAccountId && ObjectId.isValid(String(client.clientAccountId))) {
+        try {
+          await connectMongoose();
+          const accountDoc = (await ClientAccount.findById(client.clientAccountId)
+            .select('activePlanId purchasedPlans')
+            .lean()) as {
+            activePlanId?: string;
+            purchasedPlans?: Array<{
+              planId?: string;
+              status?: string;
+              livekitCreditsTotal?: number;
+              livekitCreditsUsed?: number;
+            }>;
+          } | null;
+
+          if (accountDoc) {
+            if (accountDoc.activePlanId) {
+              resolvedPlanId = accountDoc.activePlanId;
+            }
+            accountPurchasedPlans = accountDoc.purchasedPlans || [];
+            const paidPurchases = accountPurchasedPlans.filter(
+              (p) => p.status === 'paid'
+            );
+            if (paidPurchases.length > 0) {
+              hasAccountCredits = true;
+              videoCreditsTotal = paidPurchases.reduce(
+                (sum, p) => sum + Number(p.livekitCreditsTotal || 0),
+                0
+              );
+              videoCreditsUsed = paidPurchases.reduce(
+                (sum, p) => sum + Number(p.livekitCreditsUsed || 0),
+                0
+              );
+            }
+          }
+        } catch {
+          // No bloquear la ficha del cliente si falla la consulta auxiliar de plan
+        }
+      }
+
+      const resolvedPlan = resolvedPlanId ? getPlanById(resolvedPlanId) : null;
+      if (resolvedPlan && !hasAccountCredits) {
+        videoCreditsTotal = resolvedPlan.livekitSessionsIncluded;
+      }
+
+      const hasPaidProgramPurchase = accountPurchasedPlans.some((p) => {
+        if (p.status !== 'paid' || !p.planId) return false;
+        const plan = getPlanById(p.planId);
+        return Boolean(plan && plan.maxMonths > 0);
+      });
+
+      const resolvedMaxMonths = resolvedPlan
+        ? resolvedPlan.maxMonths === 0 && !hasPaidProgramPurchase
+          ? 0
+          : calculateTotalAllowedMonths(accountPurchasedPlans, resolvedPlan.id)
+        : 0;
+
+      const planSummary = resolvedPlan
+        ? {
+            id: resolvedPlan.id,
+            name: resolvedPlan.name,
+            durationLabel: resolvedPlan.durationLabel,
+            totalWeeks: resolvedPlan.totalWeeks,
+            maxMonths: resolvedMaxMonths,
+            whatsappSupport: resolvedPlan.whatsappSupport,
+            videoCreditsTotal,
+            videoCreditsRemaining: Math.max(0, videoCreditsTotal - videoCreditsUsed),
+          }
+        : null;
+
       const decryptedClient = {
         _id: client._id.toString(),
         personalData: decryptObject(client.personalData),
@@ -174,7 +274,20 @@ async function getHandler(
         ipAddress: safeDecrypt(client.ipAddress),
         submissionDate: client.submissionDate,
         // Incluir sesiones de video para que el dashboard gestione transcripciones
+        planId: (resolvedPlanId || null) as string | null,
+        planSummary,
+        clientAccountId: (client.clientAccountId as string) || null,
         videoSessions: (client.videoSessions as Record<string, unknown>[]) || [],
+        aiProgress: client.aiProgress
+          ? {
+              sessions: visibleAISessions.map((s) => ({
+                sessionId: s.sessionId,
+                status: s.status,
+                monthNumber: s.monthNumber,
+                createdAt: s.createdAt,
+              })),
+            }
+          : undefined,
       };
 
       // Restaurar documents y processedDocuments para procesarlos aparte
@@ -186,8 +299,8 @@ async function getHandler(
         name: decryptedClient.personalData.name ? 'DESENCRIPTADO' : 'FALLO',
         email: decryptedClient.personalData.email ? 'DESENCRIPTADO' : 'FALLO',
         hasProfilePhoto: !!decryptedClient.personalData.profilePhoto,
-        profilePhotoUrl: decryptedClient.personalData.profilePhoto?.url ? 'EXISTS' : 'MISSING',
-        documentCount: decryptedClient.medicalData.documents?.length || 0
+        profilePhotoUrl: (decryptedClient.personalData.profilePhoto as { url?: string } | undefined)?.url ? 'EXISTS' : 'MISSING',
+        documentCount: Array.isArray(decryptedClient.medicalData.documents) ? decryptedClient.medicalData.documents.length : 0
       });
 
       // Procesar arrays en medicalData
@@ -197,19 +310,19 @@ async function getHandler(
       ];
 
       arrayFields.forEach(field => {
-        const fieldData = (decryptedClient.medicalData as any)[field];
-        
+        const fieldData = decryptedClient.medicalData[field];
+
         if (!fieldData) {
-          (decryptedClient.medicalData as any)[field] = [];
+          decryptedClient.medicalData[field] = [];
           return;
         }
 
         if (Array.isArray(fieldData)) {
-          (decryptedClient.medicalData as any)[field] = fieldData;
+          decryptedClient.medicalData[field] = fieldData;
         } else if (typeof fieldData === 'string') {
           // ✅ CORRECCIÓN: SOLO desencriptar si está encriptado
           let stringToParse = fieldData;
-          
+
           // Si está encriptado (formato v2 o legacy), desencriptar
           if (isEncrypted(fieldData)) {
             stringToParse = safeDecrypt(fieldData);
@@ -223,11 +336,11 @@ async function getHandler(
               wasEncrypted: false
             });
           }
-          
+
           try {
             const parsed = JSON.parse(stringToParse);
             if (Array.isArray(parsed)) {
-              (decryptedClient.medicalData as any)[field] = parsed;
+              decryptedClient.medicalData[field] = parsed;
               logger.debug('CLIENTS', `${field} procesado exitosamente`, {
                 clientId: id,
                 wasEncrypted: fieldData !== stringToParse,
@@ -241,10 +354,10 @@ async function getHandler(
               clientId: id,
               field
             });
-            (decryptedClient.medicalData as any)[field] = [];
+            decryptedClient.medicalData[field] = [];
           }
         } else {
-          (decryptedClient.medicalData as any)[field] = [];
+          decryptedClient.medicalData[field] = [];
         }
       });
 
@@ -265,10 +378,10 @@ async function getHandler(
             // Desencriptar el string completo
             const decryptedString = decrypt(decryptedClient.medicalData.documents);
             const parsedArray = JSON.parse(decryptedString);
-            
+
             if (Array.isArray(parsedArray)) {
               // Desencriptar cada archivo en el array
-              decryptedClient.medicalData.documents = parsedArray.map(file => 
+              decryptedClient.medicalData.documents = parsedArray.map(file =>
                 decryptFileObject(file)
               );
             } else {
@@ -280,7 +393,7 @@ async function getHandler(
           }
         } else if (Array.isArray(decryptedClient.medicalData.documents)) {
           // Si ya es array, desencriptar cada elemento
-          decryptedClient.medicalData.documents = decryptedClient.medicalData.documents.map(file => 
+          decryptedClient.medicalData.documents = decryptedClient.medicalData.documents.map(file =>
             decryptFileObject(file)
           );
         }
@@ -293,23 +406,24 @@ async function getHandler(
         data: decryptedClient
       });
 
-      
 
-    } catch (error: any) {
+
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error('CLIENTS', 'Error obteniendo cliente', error, {
         endpoint: `/api/clients/${(await params).id}`,
         method: 'GET',
         clientId: (await params).id
       });
-      
-      if (error.message.includes('Token')) {
+
+      if (errMsg.includes('Token')) {
         return NextResponse.json(
           { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
           { status: 401 }
         );
       }
 
-      if (error.message.includes('ObjectId')) {
+      if (errMsg.includes('ObjectId')) {
         return NextResponse.json(
           { success: false, message: 'ID de cliente inválido', code: 'VALIDATION'},
           { status: 400 }
@@ -317,8 +431,8 @@ async function getHandler(
       }
 
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
           ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }), code: 'INTERNAL'},
         { status: 500 }
@@ -337,7 +451,7 @@ async function putHandler(
   return logger.time('CLIENTS', 'Actualizar cliente', async () => {
     try {
       const { id } = await params;
-      
+
       logger.info('CLIENTS', 'Solicitud PUT /api/clients/[id] recibida', undefined, {
         endpoint: `/api/clients/${id}`,
         method: 'PUT',
@@ -374,10 +488,10 @@ async function putHandler(
         expectedLengths
       });
 
-      // Verificar autenticación + ownership
+      // Verificar autenticación + ownership (admin, coach dueño, o cliente dueño de su perfil)
       let auth;
       try {
-        auth = requireCoachAuth(request);
+        auth = requireAnyAuth(request);
       } catch {
         return NextResponse.json(
           { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
@@ -385,11 +499,10 @@ async function putHandler(
         );
       }
 
-      // Verificar ownership: solo admin o el coach dueño del cliente puede editar
       const healthForms = await getHealthFormsCollection();
       const existingClient = await healthForms.findOne(
         { _id: new ObjectId(id) },
-        { projection: { coachId: 1 } }
+        { projection: { coachId: 1, clientAccountId: 1, 'medicalData.documents': 1 } }
       );
 
       if (!existingClient) {
@@ -399,7 +512,14 @@ async function putHandler(
         );
       }
 
-      if (auth.role !== 'admin' && existingClient.coachId !== auth.coachId) {
+      if (auth.role === 'client') {
+        if (existingClient.clientAccountId !== auth.clientAccountId && auth.clientId !== id) {
+          return NextResponse.json(
+            { success: false, message: 'No tienes permiso para modificar este perfil', code: 'FORBIDDEN' },
+            { status: 403 }
+          );
+        }
+      } else if (auth.role !== 'admin' && existingClient.coachId !== auth.coachId) {
         logger.warn('CLIENTS', 'Intento de acceso no autorizado a cliente', {
           coachId: auth.coachId,
           clientId: id,
@@ -412,19 +532,19 @@ async function putHandler(
       }
 
       const data = await request.json();
-      
+
       const evaluationFields = arrayFields.map(field => ({
         field,
         value: data.medicalData?.[field],
         type: typeof data.medicalData?.[field],
         isArray: Array.isArray(data.medicalData?.[field])
       }));
-      
+
       logger.debug('CLIENTS', 'Datos recibidos para actualización', {
         clientId: id,
         personalDataKeys: Object.keys(data.personalData || {}),
         medicalDataKeys: Object.keys(data.medicalData || {}),
-        evaluationFields: evaluationFields as any
+        evaluationFields: evaluationFields as unknown as Record<string, unknown>
       });
 
       // Validar datos
@@ -439,13 +559,13 @@ async function putHandler(
       // ✅ ELIMINADA la función decryptObject duplicada - ya existe en el GET
 
       // Función para encriptar objetos de datos personales/médicos
-      const encryptObjectData = (obj: Record<string, any>): Record<string, any> => {
-        const encrypted: Record<string, any> = {};
-        
+      const encryptObjectData = (obj: Record<string, unknown>): Record<string, unknown> => {
+        const encrypted: Record<string, unknown> = {};
+
         for (const [key, value] of Object.entries(obj)) {
           // ✅ NO encriptar campos de archivos (ya se encriptan individualmente)
           const isFileField = key === 'profilePhoto' || key === 'documents';
-          
+
           if (typeof value === 'string' && value.trim() !== '') {
             // ✅ Solo encriptar si no está ya encriptado (v2 o legacy)
             if (isFileField || isEncrypted(value)) {
@@ -454,26 +574,26 @@ async function putHandler(
               encrypted[key] = encrypt(value);
             }
           } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            encrypted[key] = encryptObjectData(value);
+            encrypted[key] = encryptObjectData(value as Record<string, unknown>);
           } else {
             encrypted[key] = value;
           }
         }
-        
+
         return encrypted;
       };
 
       // ✅ Función específica para procesar y encriptar arrays de evaluaciones
-      const processAndEncryptArray = (field: string, arrayData: any[]): string => {
+      const processAndEncryptArray = (field: string, arrayData: unknown[]): string => {
         const expectedLength = expectedLengths[field];
-        
+
         if (!arrayData || !Array.isArray(arrayData)) {
           logger.warn('CLIENTS', `Array ${field} no válido, usando array vacío`, undefined, { clientId: id });
           return encrypt(JSON.stringify([]));
         }
 
         // ✅ CORREGIDO: Mantener los strings originales, no convertir a booleano
-        const cleanedArray = arrayData.map((value: any) => {
+        const cleanedArray = arrayData.map((value: unknown) => {
           if (typeof value === 'string') return value;
           if (typeof value === 'boolean') return value ? 'si' : 'no';
           if (typeof value === 'number') return value.toString();
@@ -501,30 +621,33 @@ async function putHandler(
 
         // ENCRIPTAR el array como string JSON
         const encryptedArray = encrypt(JSON.stringify(cleanedArray));
-        
+
         logger.debug('CLIENTS', `Array ${field} procesado y encriptado`, {
           clientId: id,
           finalLength: cleanedArray.length
         });
-        
+
         return encryptedArray;
       };
 
       // Procesar arrays en medicalData
       const processedMedicalData = { ...data.medicalData };
-      
+
       logger.debug('CLIENTS', 'Procesando arrays médicos para encriptación', {
         clientId: id,
         arrayFields
       });
 
       arrayFields.forEach(field => {
-        const arrayData = (processedMedicalData as any)[field];
-        (processedMedicalData as any)[field] = processAndEncryptArray(field, arrayData);
+        const arrayData = (processedMedicalData as Record<string, unknown[]>)[field];
+        (processedMedicalData as Record<string, unknown>)[field] = processAndEncryptArray(field, arrayData);
       });
 
       // ✅ Procesar profilePhoto para encriptación (usando encryptFileObject)
       const processedPersonalData = { ...data.personalData };
+      if (auth.role === 'client') {
+        processedPersonalData.email = auth.email;
+      }
       if (processedPersonalData.profilePhoto && typeof processedPersonalData.profilePhoto === 'object') {
         processedPersonalData.profilePhoto = encryptFileObject(processedPersonalData.profilePhoto);
         logger.debug('CLIENTS', 'ProfilePhoto procesado y encriptado', { clientId: id });
@@ -532,7 +655,7 @@ async function putHandler(
 
       // ✅ Procesar documents para encriptación (usando encryptFileObject en cada documento)
       if (processedMedicalData.documents && Array.isArray(processedMedicalData.documents)) {
-        processedMedicalData.documents = processedMedicalData.documents.map((doc: any) => 
+        processedMedicalData.documents = processedMedicalData.documents.map((doc: Record<string, unknown>) => 
           encryptFileObject(doc)
         );
         logger.debug('CLIENTS', 'Documents procesado y encriptado', {
@@ -545,9 +668,12 @@ async function putHandler(
 
       // Encriptar datos personales y médicos
       logger.debug('ENCRYPTION', 'Encriptando datos personales y médicos', { clientId: id });
-      
+
       const encryptedPersonalData = encryptObjectData(processedPersonalData);
       const encryptedMedicalData = encryptObjectData(processedMedicalData);
+      if (auth.role === 'client') {
+        encryptedMedicalData.documents = existingClient.medicalData?.documents || [];
+      }
 
       const updateData = {
         personalData: encryptedPersonalData,
@@ -568,7 +694,7 @@ async function putHandler(
         profilePhotoType: typeof encryptedPersonalData.profilePhoto,
         hasDocuments: !!encryptedMedicalData.documents,
         documentsIsArray: Array.isArray(encryptedMedicalData.documents),
-        documentsLength: Array.isArray(encryptedMedicalData.documents) ? 
+        documentsLength: Array.isArray(encryptedMedicalData.documents) ?
           encryptedMedicalData.documents.length : 'N/A'
       });
 
@@ -611,14 +737,15 @@ async function putHandler(
         message: 'Cliente actualizado exitosamente'
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error('CLIENTS', 'Error actualizando cliente', error, {
         endpoint: `/api/clients/${(await params).id}`,
         method: 'PUT',
         clientId: (await params).id
       });
-      
-      if (error.message.includes('Token')) {
+
+      if (errMsg.includes('Token')) {
         return NextResponse.json(
           { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
           { status: 401 }
@@ -630,7 +757,7 @@ async function putHandler(
           success: false, 
           message: 'Error interno del servidor',
           ...(process.env.NODE_ENV === 'development' && { 
-            error: error.message
+            error: errMsg
           }), code: 'INTERNAL'},
         { status: 500 }
       );
@@ -648,21 +775,26 @@ async function deleteHandler(
   return logger.time('CLIENTS', 'Eliminar cliente y archivos S3', async () => {
     try {
       const { id } = await params;
-      
+
       logger.info('CLIENTS', 'Solicitud DELETE /api/clients/[id] recibida', undefined, {
         endpoint: `/api/clients/${id}`,
         method: 'DELETE',
         clientId: id
       });
 
-      // Verificar autenticación + ownership
+      // Verificar autenticación + ownership (clientes NUNCA pueden eliminar su perfil)
       let auth;
       try {
         auth = requireCoachAuth(request);
-      } catch {
+      } catch (authErr: unknown) {
+        const status = (authErr as { status?: number })?.status === 403 ? 403 : 401;
         return NextResponse.json(
-          { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
-          { status: 401 }
+          {
+            success: false,
+            message: status === 403 ? 'Los clientes no pueden eliminar su perfil' : 'No autorizado',
+            code: status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status }
         );
       }
 
@@ -674,7 +806,7 @@ async function deleteHandler(
       };
 
       const healthForms = await getHealthFormsCollection();
-      
+
       // Primero obtener el cliente para extraer las claves de S3 y verificar ownership
       const client = await healthForms.findOne({ _id: new ObjectId(id) });
 
@@ -697,25 +829,27 @@ async function deleteHandler(
           { status: 403 }
         );
       }
-      
+
       // Función para extraer claves S3 de los archivos del cliente
-      const extractS3Keys = async (client: any): Promise<string[]> => {
+      const extractS3Keys = async (clientDoc: Record<string, unknown>): Promise<string[]> => {
         const keys: string[] = [];
-        
+        const personalDataObj = clientDoc.personalData as { profilePhoto?: unknown } | undefined;
+        const medicalDataObj = clientDoc.medicalData as { documents?: unknown } | undefined;
+
         try {
           // Extraer profilePhoto key si existe
-          if (client.personalData?.profilePhoto) {
+          if (personalDataObj?.profilePhoto) {
             try {
-              let profilePhoto = client.personalData.profilePhoto;
-              
+              let profilePhoto = personalDataObj.profilePhoto;
+
               // Si está encriptado como string, desencriptar y parsear
               if (typeof profilePhoto === 'string') {
                 const decrypted = safeDecrypt(profilePhoto);
                 profilePhoto = JSON.parse(decrypted);
-                
+
                 // Desencriptar campos internos si es necesario
                 if (typeof profilePhoto === 'object' && profilePhoto !== null) {
-                  const decryptedPhoto: any = {};
+                  const decryptedPhoto: Record<string, unknown> = {};
                   for (const [key, value] of Object.entries(profilePhoto)) {
                     if (typeof value === 'string') {
                       decryptedPhoto[key] = safeDecrypt(value);
@@ -726,12 +860,13 @@ async function deleteHandler(
                   profilePhoto = decryptedPhoto;
                 }
               }
-              
-              if (profilePhoto?.key) {
-                keys.push(profilePhoto.key);
+
+              const photoKey = (profilePhoto as { key?: unknown } | null)?.key;
+              if (typeof photoKey === 'string' && photoKey) {
+                keys.push(photoKey);
                 logger.debug('CLIENTS', 'ProfilePhoto key encontrada', {
                   clientId: id,
-                  key: profilePhoto.key
+                  key: photoKey
                 });
               }
             } catch (error) {
@@ -740,28 +875,28 @@ async function deleteHandler(
           }
 
           // Extraer documents keys si existen
-          if (client.medicalData?.documents) {
+          if (medicalDataObj?.documents) {
             try {
-              let documents = client.medicalData.documents;
-              
+              let documents = medicalDataObj.documents;
+
               // Si está encriptado como string, desencriptar y parsear
               if (typeof documents === 'string') {
                 const decrypted = safeDecrypt(documents);
                 documents = JSON.parse(decrypted);
               }
-              
+
               if (Array.isArray(documents)) {
-                documents.forEach((doc: any, index: number) => {
+                documents.forEach((doc: unknown, index: number) => {
                   try {
                     // Si el documento es un string (encriptado), desencriptarlo
                     if (typeof doc === 'string') {
                       const decryptedDoc = safeDecrypt(doc);
                       doc = JSON.parse(decryptedDoc);
                     }
-                    
+
                     // Desencriptar campos internos si es necesario
                     if (typeof doc === 'object' && doc !== null) {
-                      const decryptedDoc: any = {};
+                      const decryptedDoc: Record<string, unknown> = {};
                       for (const [key, value] of Object.entries(doc)) {
                         if (typeof value === 'string') {
                           decryptedDoc[key] = safeDecrypt(value);
@@ -771,13 +906,14 @@ async function deleteHandler(
                       }
                       doc = decryptedDoc;
                     }
-                    
-                    if (doc?.key) {
-                      keys.push(doc.key);
+
+                    const docKey = (doc as { key?: unknown } | null)?.key;
+                    if (typeof docKey === 'string' && docKey) {
+                      keys.push(docKey);
                       logger.debug('CLIENTS', 'Document key encontrada', {
                         clientId: id,
                         documentIndex: index,
-                        key: doc.key
+                        key: docKey
                       });
                     }
                   } catch (docError) {
@@ -795,7 +931,7 @@ async function deleteHandler(
         } catch (error) {
           logger.error('CLIENTS', 'Error general extrayendo S3 keys', error as Error, { clientId: id });
         }
-        
+
         return keys;
       };
 
@@ -827,10 +963,10 @@ async function deleteHandler(
         });
 
         const deleteResults = await Promise.all(deletePromises);
-        
+
         const successfulDeletes = deleteResults.filter(result => result.success).length;
         const failedDeletes = deleteResults.filter(result => !result.success).length;
-        
+
         logger.info('CLIENTS', 'Resultado eliminación archivos S3', {
           clientId: id,
           successful: successfulDeletes,
@@ -876,14 +1012,15 @@ async function deleteHandler(
         message: 'Cliente y archivos asociados eliminados exitosamente'
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.error('CLIENTS', 'Error eliminando cliente', error, {
         endpoint: `/api/clients/${(await params).id}`,
         method: 'DELETE',
         clientId: (await params).id
       });
-      
-      if (error.message.includes('Token')) {
+
+      if (errMsg.includes('Token')) {
         return NextResponse.json(
           { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
           { status: 401 }
@@ -895,7 +1032,7 @@ async function deleteHandler(
           success: false, 
           message: 'Error interno del servidor',
           ...(process.env.NODE_ENV === 'development' && { 
-            error: error.message
+            error: errMsg
           }), code: 'INTERNAL'},
         { status: 500 }
       );

@@ -81,7 +81,7 @@ async function main() {
       metrics: { nutritionAdherence: 0, exerciseConsistency: 0, habitFormation: 0 },
     },
   };
-  await db.collection('healthforms').insertOne(testClient as any);
+  await db.collection('healthforms').insertOne(testClient);
   registerClientWithJobs(testClient._id.toString());
   const clientId = testClient._id.toString();
   console.log('Healthform creado con sesión draft:', clientId);

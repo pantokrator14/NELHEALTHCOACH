@@ -2,12 +2,13 @@
 import { logger } from './logger';
 import { decryptFileObject, encrypt, safeDecrypt } from './encryption';
 import { getRecipesCollection } from './database';
-import { 
-  PersonalData, 
-  MedicalData, 
+import {
+  PersonalData,
+  MedicalData,
   AIRecommendationSession,
   AIRecommendationWeek,
-  ChecklistItem
+  ChecklistItem,
+  UploadedFile
 } from '../../../../../packages/types/src/healthForm';
 import { ObjectId } from 'mongodb';
 
@@ -21,6 +22,7 @@ interface AIResponseWeek {
   };
   exercise: {
     focus: string;
+    equipment?: string[];
     checklistItems: Array<{
       description: string;
       type?: string;
@@ -196,7 +198,18 @@ export class AIService {
         nutrition: bestMatch.nutrition,
         cookTime: bestMatch.cookTime,
         difficulty: safeDecrypt(bestMatch.difficulty),
-        image: bestMatch.image ? decryptFileObject(bestMatch.image) : null,
+        image: (() => {
+          const dec = bestMatch.image ? decryptFileObject(bestMatch.image) : null;
+          if (!dec) return null;
+          return {
+            url: dec.url,
+            key: dec.key,
+            name: dec.name,
+            type: dec.type,
+            size: typeof dec.size === 'number' ? dec.size : 0,
+            uploadedAt: typeof dec.uploadedAt === 'string' ? dec.uploadedAt : '',
+          };
+        })(),
         category: Array.isArray(bestMatch.category)
           ? bestMatch.category.map((cat: string) => safeDecrypt(cat))
           : [],
@@ -239,7 +252,7 @@ export class AIService {
         return null;
       }
       
-      const ingredientNames = recipe.ingredients.map((ing: any) => 
+      const ingredientNames = recipe.ingredients.map((ing) =>
         (ing.name || '').toLowerCase().trim()
       ).filter((name: string) => name.length > 0);
       
@@ -412,9 +425,10 @@ export class AIService {
         let aiResponse: string;
         try {
           aiResponse = await this.callDeepSeekAPI(prompt, metadata);
-        } catch (apiError: any) {
+        } catch (apiError: unknown) {
+           const msg = apiError instanceof Error ? apiError.message : String(apiError);
            console.log('=== DEBUG: Error en API, usando fallback ===');
-           console.log('Error:', apiError.message);
+           console.log('Error:', msg);
             return this.getFallbackRecommendations(input, monthNumber, metadata, totalWeeksToGenerate);
         }
 
@@ -426,9 +440,9 @@ export class AIService {
         let parsedResponse;
         try {
           parsedResponse = this.parseAIResponse(aiResponse, metadata);
-        } catch (parseError: any) {
+        } catch (parseError: unknown) {
            console.log('=== DEBUG: Error parseando respuesta, usando fallback ===');
-           loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', parseError);
+           loggerWithContext.error('AI_SERVICE', 'Error parseando respuesta de IA', parseError instanceof Error ? parseError : new Error(String(parseError)));
              return this.getFallbackRecommendations(input, monthNumber, metadata, totalWeeksToGenerate);
         }
 
@@ -500,10 +514,10 @@ export class AIService {
                 recipeId,
                 details: item.details ? (() => {
                   const { recipe, frequency, duration, equipment, ...additional } = item.details;
-                  const detailsObj: any = {};
+                  const detailsObj: NonNullable<ChecklistItem['details']> & { additionalDetails?: string } = {};
                   if (recipe) {
                     detailsObj.recipe = {
-                      ingredients: (recipe.ingredients || []).map((ing: any) => ({
+                      ingredients: (recipe.ingredients || []).map((ing) => ({
                         name: encrypt(ing.name || ''),
                         quantity: encrypt(ing.quantity || ''),
                         notes: ing.notes ? encrypt(ing.notes) : undefined
@@ -528,7 +542,7 @@ export class AIService {
 
           // ---- Ejercicio ----
           if (weekResp.exercise?.checklistItems && Array.isArray(weekResp.exercise.checklistItems)) {
-            (weekResp.exercise.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+            weekResp.exercise.checklistItems.forEach((item, itemIndex: number) => {
               const groupId = getOrCreateGroupId('exercise', itemIndex);
               allChecklistItems.push({
                 id: `exercise_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -540,7 +554,7 @@ export class AIService {
                 type: item.type || 'routine',
                 details: item.details ? (() => {
                   const { frequency, duration, equipment, ...additional } = item.details;
-                  const detailsObj: any = {};
+                  const detailsObj: NonNullable<ChecklistItem['details']> & { additionalDetails?: string } = {};
                   if (frequency) detailsObj.frequency = encrypt(frequency);
                   if (duration) detailsObj.duration = encrypt(duration);
                   if (equipment) detailsObj.equipment = equipment.map((eq: string) => encrypt(eq));
@@ -557,7 +571,7 @@ export class AIService {
 
           // ---- Hábitos ----
           if (weekResp.habits?.checklistItems && Array.isArray(weekResp.habits.checklistItems)) {
-            (weekResp.habits.checklistItems as any[]).forEach((item: any, itemIndex: number) => {
+            weekResp.habits.checklistItems.forEach((item, itemIndex: number) => {
               const groupId = getOrCreateGroupId('habit', itemIndex);
               allChecklistItems.push({
                 id: `habit_${weekIndex}_${itemIndex}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -577,11 +591,23 @@ export class AIService {
             weekNumber,
             nutrition: {
               focus: encrypt(weekResp.nutrition?.focus || 'Nutrición keto'),
-              shoppingList: (weekResp.nutrition?.shoppingList || []).map((item: any) => ({
-                item: encrypt(item.item || item.name || ''),
-                quantity: encrypt(item.quantity || item.amount || ''),
-                priority: item.priority || 'medium'
-              }))
+              shoppingList: ((weekResp.nutrition?.shoppingList || []) as Array<{
+                item?: string;
+                name?: string;
+                quantity?: string;
+                amount?: string;
+                priority?: string;
+              }>).map((item) => {
+                const prio: 'high' | 'medium' | 'low' =
+                  item.priority === 'high' || item.priority === 'medium' || item.priority === 'low'
+                    ? item.priority
+                    : 'medium';
+                return {
+                  item: encrypt(item.item || item.name || ''),
+                  quantity: encrypt(item.quantity || item.amount || ''),
+                  priority: prio,
+                };
+              })
             },
             exercise: {
               focus: encrypt(weekResp.exercise?.focus || 'Ejercicio adaptado'),
@@ -649,11 +675,12 @@ export class AIService {
 
         return session;
 
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
         console.log('=== DEBUG: Error en analyzeClientAndGenerateRecommendations ===');
-        console.log('Error:', error.message);
+        console.log('Error:', err.message);
         
-        loggerWithContext.error('AI_SERVICE', 'Error generando recomendaciones', error, {
+        loggerWithContext.error('AI_SERVICE', 'Error generando recomendaciones', err, {
           monthNumber,
           hasDocuments: input.documents?.length || 0
         });
@@ -789,7 +816,7 @@ Plan: ${isFullMonthPlan ? '4 semanas (1 mes) completo' : `Mes ${monthNumber} (se
       
       // Progreso general
       if (lastSession.checklist) {
-        const completed = lastSession.checklist.filter((item: any) => item.completed).length;
+        const completed = lastSession.checklist.filter((item) => item.completed).length;
         const total = lastSession.checklist.length;
         const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
         historyInfo += ` ${progress}% completado`;
@@ -797,9 +824,9 @@ Plan: ${isFullMonthPlan ? '4 semanas (1 mes) completo' : `Mes ${monthNumber} (se
       
       // Hábitos más difíciles (últimos 3 incompletos)
       const incomplete = lastSession.checklist
-        ?.filter((item: any) => !item.completed)
+        ?.filter((item) => !item.completed)
         ?.slice(0, 3)
-        ?.map((item: any) => {
+        ?.map((item) => {
           try {
             const desc = this.safeDecryptString(item.description) || '';
             return desc.substring(0, 30) + (desc.length > 30 ? '...' : '');
@@ -983,7 +1010,7 @@ ${responseSchema}
    */
   private static calculateExperienceLevel(
     previousSessions?: AIRecommendationSession[],
-    currentProgress?: { overallProgress: number; metrics?: any }
+    currentProgress?: AIAnalysisInput['currentProgress']
   ): 'principiante' | 'intermedio' | 'avanzado' {
     if (!previousSessions || previousSessions.length === 0) {
       return 'principiante';
@@ -1058,7 +1085,7 @@ ${responseSchema}
   /**
    * Helper para obtener valor booleano de campos que pueden ser boolean o string
    */
-  private static getBooleanValue(value: any): boolean {
+  private static getBooleanValue(value: unknown): boolean {
     if (typeof value === 'boolean') {
       return value;
     }
@@ -1442,7 +1469,7 @@ ${responseSchema}
   /**
    * Parsear respuesta JSON de la IA
    */
-  private static parseAIResponse(response: string, metadata?: { requestId?: string; clientId?: string }): any {
+  private static parseAIResponse(response: string, metadata?: { requestId?: string; clientId?: string }): AIResponse {
     // (Igual que antes)
     const loggerWithContext = metadata ? logger.withContext(metadata) : logger;
     
@@ -1451,8 +1478,8 @@ ${responseSchema}
       console.log('📝 Response length:', response.length);
       
       try {
-        return JSON.parse(response);
-      } catch (firstError) {
+        return JSON.parse(response) as AIResponse;
+      } catch {
         console.log('⚠️ Primer intento falló, intentando limpiar JSON...');
         
         let jsonString = response;
@@ -1469,11 +1496,11 @@ ${responseSchema}
         
         console.log('📝 JSON limpiado (first 300 chars):', jsonString.substring(0, 300));
         
-        return JSON.parse(jsonString);
+        return JSON.parse(jsonString) as AIResponse;
       }
       
-    } catch (error: any) {
-      console.error('❌ ERROR en parseAIResponse:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ ERROR en parseAIResponse:', error instanceof Error ? error.message : String(error));
       
       const fallback = this.extractPartialResponse(response);
       if (fallback) {
@@ -1730,7 +1757,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
   // ===== MÉTODOS AUXILIARES =====
 
-   private static safeDecryptString(value: any): string {
+   private static safeDecryptString(value: unknown): string {
      if (!value || typeof value !== 'string') return '';
      try {
        return safeDecrypt(value);
@@ -1739,7 +1766,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
      }
    }
 
-   private static safeDecryptAndParseArray(value: any): string[] {
+   private static safeDecryptAndParseArray(value: unknown): string[] {
      if (!value) return [];
      // If already an array (should not happen as stored encrypted, but just in case)
      if (Array.isArray(value)) {
@@ -1763,8 +1790,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
      return [];
    }
 
-  private static decryptPersonalData(data: PersonalData): any {
-    const decrypted: any = {};
+  private static decryptPersonalData(data: PersonalData): PersonalData {
+    const decrypted = { ...data } as unknown as Record<string, unknown>;
     for (const [key, value] of Object.entries(data)) {
       if (typeof value === 'string') {
         try {
@@ -1776,10 +1803,10 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         decrypted[key] = value;
       }
     }
-    return decrypted;
+    return decrypted as unknown as PersonalData;
   }
 
-  private static formatMedicalDataConcise(data: any): string {
+  private static formatMedicalDataConcise(data: MedicalData | null | undefined): string {
     if (!data) return '\nSin datos médicos';
     
     const criticalInfo = [];
@@ -1859,7 +1886,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   /**
    * Extrae información de estilo de vida y objetivos del cliente
    */
-  private static formatLifestyleAndObjectives(medicalData: any, personalData: any): string {
+  private static formatLifestyleAndObjectives(medicalData: MedicalData, personalData: PersonalData): string {
     if (!medicalData && !personalData) return '';
     
     const sections = [];
@@ -1867,9 +1894,11 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     // ---- OBJETIVOS ----
     const objectives = [];
     
+    const medicalLegacy = medicalData as unknown as Record<string, unknown>;
+
     // Motivación (puede ser un array de strings)
-    if (medicalData.motivation) {
-      const motivationArray = this.safeDecryptAndParseArray(medicalData.motivation);
+    if (medicalLegacy.motivation) {
+      const motivationArray = this.safeDecryptAndParseArray(medicalLegacy.motivation);
       if (motivationArray.length > 0) {
         // Map values to human-readable labels using valueLabels from formConstants
         // Since we don't have direct access to valueLabels, we can use the values as is
@@ -1880,7 +1909,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         objectives.push(`🎯 Motivación: ${readableMotivation}`);
       } else {
         // Fallback to string decryption for backward compatibility
-        const motivation = this.safeDecryptString(medicalData.motivation);
+        const motivation = this.safeDecryptString(medicalLegacy.motivation);
         if (motivation && motivation.toLowerCase() !== 'ninguna' && motivation.trim().length > 3) {
           objectives.push(`🎯 Motivación: ${motivation}`);
         }
@@ -1888,24 +1917,24 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     }
     
     // Nivel de compromiso (puede ser número o string)
-    if (medicalData.commitmentLevel) {
-      const commitment = this.safeDecryptString(medicalData.commitmentLevel);
+    if (medicalLegacy.commitmentLevel) {
+      const commitment = this.safeDecryptString(medicalLegacy.commitmentLevel);
       if (commitment && commitment.trim().length > 0) {
         objectives.push(`📊 Nivel compromiso: ${commitment}/10`);
       }
     }
     
     // Experiencia previa con coach (booleano o string)
-    if (medicalData.previousCoachExperience) {
-      const experience = this.safeDecryptString(medicalData.previousCoachExperience);
+    if (medicalLegacy.previousCoachExperience) {
+      const experience = this.safeDecryptString(medicalLegacy.previousCoachExperience);
       if (experience && experience.toLowerCase() !== 'no' && experience.toLowerCase() !== 'false') {
         objectives.push(`👥 Experiencia previa con coach: ${experience}`);
       }
     }
     
     // Fecha límite / evento importante
-    if (medicalData.targetDate) {
-      const target = this.safeDecryptString(medicalData.targetDate);
+    if (medicalLegacy.targetDate) {
+      const target = this.safeDecryptString(medicalLegacy.targetDate);
       if (target && target.toLowerCase() !== 'ninguna' && target.trim().length > 3) {
         objectives.push(`📅 Fecha límite/evento: ${target}`);
       }
@@ -2004,9 +2033,10 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     ];
     
     const mentalHealthIssues = [];
+    const medicalRecord = medicalData as unknown as Record<string, unknown>;
     for (const field of mentalHealthFields) {
-      if (medicalData[field]) {
-        const value = this.safeDecryptString(medicalData[field]);
+      if (medicalRecord[field]) {
+        const value = this.safeDecryptString(medicalRecord[field]);
         if (value && value.toLowerCase() !== 'ninguno' && value.trim().length > 0) {
           // Simplificar: solo mencionar si hay problemas significativos
           if (value.includes('a)') || value.includes('rara vez') || value.includes('dificultad')) {
@@ -2026,7 +2056,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   /**
    * Genera insights y recomendaciones basadas en las evaluaciones de salud
    */
-  private static formatHealthAssessmentInsights(medicalData: any): string {
+  private static formatHealthAssessmentInsights(medicalData: MedicalData): string {
     if (!medicalData) return '';
     
     const insights = [];
@@ -2070,15 +2100,16 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   /**
    * Analiza respuestas de salud mental y genera insights para hábitos
    */
-  private static formatMentalHealthInsights(medicalData: any): string {
+  private static formatMentalHealthInsights(medicalData: MedicalData): string {
     if (!medicalData) return '';
     
     const insights = [];
+    const medicalRecord = medicalData as unknown as Record<string, unknown>;
     
     // Función helper para extraer valor y categorizar
     const getValue = (field: string): string => {
-      if (!medicalData[field]) return '';
-      return this.safeDecryptString(medicalData[field]).toLowerCase().trim();
+      if (!medicalRecord[field]) return '';
+      return this.safeDecryptString(medicalRecord[field]).toLowerCase().trim();
     };
     
     // Análisis de cada campo
@@ -2169,7 +2200,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
     }
   }
 
-  private static extractPartialResponse(response: string): any {
+  private static extractPartialResponse(response: string): AIResponse | null {
     try {
       const summaryMatch = response.match(/"summary"\s*:\s*"([^"]*)"/);
       const visionMatch = response.match(/"vision"\s*:\s*"([^"]*)"/);
@@ -2256,7 +2287,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   /**
    * Calcular progreso basado en checklist
    */
-  static calculateProgress(checklist: any[] = []): number {
+  static calculateProgress(checklist: Array<{ completed?: boolean }> = []): number {
     if (!checklist.length) return 0;
     const completed = checklist.filter(item => item.completed).length;
     return Math.round((completed / checklist.length) * 100);
@@ -2310,8 +2341,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       console.log('Lista generada por IA:', JSON.stringify(parsed, null, 2));
       return parsed;
 
-    } catch (error: any) {
-      loggerWithContext.error('generateShoppingList', 'Error generando lista de compras con IA', error);
+    } catch (error: unknown) {
+      loggerWithContext.error('generateShoppingList', 'Error generando lista de compras con IA', error instanceof Error ? error : new Error(String(error)));
       // Fallback: usar cálculo simple si la IA falla
       return this.generateShoppingListFallback(recipesWithFrequency);
     }
@@ -2338,7 +2369,18 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         nutrition: recipe.nutrition,
         cookTime: recipe.cookTime,
         difficulty: safeDecrypt(recipe.difficulty),
-        image: recipe.image ? decryptFileObject(recipe.image) : null,
+        image: (() => {
+          const dec = recipe.image ? decryptFileObject(recipe.image) : null;
+          if (!dec) return null;
+          return {
+            url: dec.url,
+            key: dec.key,
+            name: dec.name,
+            type: dec.type,
+            size: typeof dec.size === 'number' ? dec.size : 0,
+            uploadedAt: typeof dec.uploadedAt === 'string' ? dec.uploadedAt : '',
+          };
+        })(),
         category: Array.isArray(recipe.category)
           ? recipe.category.map((cat: string) => safeDecrypt(cat))
           : [],
@@ -2470,7 +2512,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   static async generateShoppingListFromItems(
-    nutritionItems: any[] // Items ya desencriptados
+    nutritionItems: ChecklistItem[] // Items ya desencriptados
   ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
     const loggerWithContext = logger.withContext({ method: 'generateShoppingListFromItems' });
     
@@ -2495,8 +2537,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         }
 
         // ── Caso 2: Receta inline con ingredientes (details.recipe) ──
-        if (!recipeFound && item.details?.recipe?.ingredients?.length > 0) {
-          const ingredients = item.details.recipe.ingredients.map((ing: any) =>
+        if (!recipeFound && item.details?.recipe?.ingredients && item.details.recipe.ingredients.length > 0) {
+          const ingredients = item.details.recipe.ingredients.map((ing) =>
             `${ing.name}: ${ing.quantity}`
           );
           recipes.push({
@@ -2530,8 +2572,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       const aiResponse = await this.callDeepSeekAPI(prompt);
       return this.parseShoppingListResponse(aiResponse);
 
-    } catch (error: any) {
-      loggerWithContext.error('generateShoppingListFromItems', 'Error generando lista de compras con IA', error);
+    } catch (error: unknown) {
+      loggerWithContext.error('generateShoppingListFromItems', 'Error generando lista de compras con IA', error instanceof Error ? error : new Error(String(error)));
       return this.generateShoppingListFallbackFromItems(nutritionItems);
     }
   }
@@ -2559,7 +2601,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
   }
 
   private static async generateShoppingListFallbackFromItems(
-    nutritionItems: any[]
+    nutritionItems: ChecklistItem[]
   ): Promise<Array<{ item: string; quantity: string; priority: string }>> {
     const shoppingMap = new Map<string, { total: number; unit: string }>();
 
@@ -2574,7 +2616,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
         }
       } else if (item.details?.recipe) {
         // Convertir ingredientes de la receta IA a strings
-        ingredientsList = item.details.recipe.ingredients.map((ing: any) => 
+        ingredientsList = item.details.recipe.ingredients.map((ing) =>
           `${ing.name}: ${ing.quantity}`
         );
       }
@@ -2656,7 +2698,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       if (title.length > 100) title = title.substring(0, 100);
 
       // Ingredientes: convertir array de objetos a strings
-      const ingredients = recipe.ingredients.map((ing: any) => {
+      const ingredients = recipe.ingredients.map((ing) => {
         let str = `${ing.name || 'Ingrediente'}: ${ing.quantity || 'al gusto'}`;
         if (ing.notes && ing.notes.trim()) {
           str += ` (${ing.notes})`;
@@ -2724,7 +2766,22 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       }
 
       // Construir objeto de receta encriptado
-      const encryptedRecipeData: any = {
+      const encryptedRecipeData: {
+        title: string;
+        description: string;
+        category: string[];
+        ingredients: string[];
+        instructions: string[];
+        nutrition: { protein: number; carbs: number; fat: number; calories: number };
+        cookTime: number;
+        difficulty: string;
+        author: string;
+        isPublished: boolean;
+        tags: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        image: UploadedFile;
+      } = {
         title: encrypt(title),
         description: encrypt(recipe.tips ? `${preparation}\n\nConsejo: ${recipe.tips}` : preparation),
         category: category.map((cat: string) => encrypt(cat)),
@@ -2760,8 +2817,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
       return recipeId;
 
-    } catch (error: any) {
-      logger.error('AI_SERVICE', 'Error guardando receta generada por IA', error);
+    } catch (error: unknown) {
+      logger.error('AI_SERVICE', 'Error guardando receta generada por IA', error instanceof Error ? error : new Error(String(error)));
       return null;
     }
   }

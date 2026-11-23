@@ -9,7 +9,7 @@ import { ObjectId } from 'mongodb';
 import { getBlogCommentsCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { blogCommentModerationSchema } from '@/app/lib/schemas';
+import { blogCommentModerationSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';

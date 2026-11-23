@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { z } from 'zod';
 import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { MongoClient, ObjectId } from 'mongodb';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { recipeSchema } from '@/app/lib/schemas';
+import { recipeSchema } from '@/app/lib/schemas/index';
 import EditProposal from '@/app/models/EditProposal';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
@@ -134,7 +135,7 @@ async function postHandler(request: NextRequest) {
           {
             success: false,
             message: firstError?.message ?? 'Datos de receta inválidos',
-            errors: parsed.error.issues.map((i) => ({
+            errors: parsed.error.issues.map((i: z.core.$ZodIssue) => ({
               field: i.path.join('.'),
               message: i.message,
             })),

@@ -8,7 +8,7 @@
 
 type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
-type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'EXERCISE_UPLOAD' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION' | 'REMINDER' | 'PAYMENTS' | 'STRIPE_CONNECT' | 'TRIAL' | 'TRIAL_REMINDER' | 'ACCOUNT' | 'PROPOSAL' | 'FINANCES' | 'NOTIFICATIONS' | 'AUDIT' | 'COACHES' | 'TRANSLATE' | 'RECOMMENDATION_TRANSLATION' | 'BLOG' | 'BLOG_TRANSLATE';
+type LogContext = 'DATABASE' | 'AUTH' | 'ENCRYPTION' | 'API' | 'CLIENTS' | 'HEALTH' | 'MIDDLEWARE' | 'UPLOAD' | 'AI_SERVICE' | 'AI' | 'API_AI' | 'FRONTEND' | 'EMAIL' | 'PDF' | 'REPAIR' | 'AI_REGEN' | 'RECIPES' | 'RECIPE_UPLOAD' | 'NUTRITION_SERVICE' | 'NUTRITION_ANALYSIS' | 'generateShoppingList' | 'getRecipeById' | 'parseShoppingListResponse' | 'generateShoppingListFromItems' | 'LEAD' | 'OTHER' | 'EXERCISES' | 'EXERCISE_UPLOAD' | 'GUARDRAILS' | 'RATE_LIMITER' | 'PROMPT_INJECTION' | 'INICIO' | 'ERROR' | 'FIN' | 'VIDEO' | 'TRANSCRIPTION' | 'REMINDER' | 'PAYMENTS' | 'STRIPE_CONNECT' | 'TRIAL' | 'TRIAL_REMINDER' | 'ACCOUNT' | 'PROPOSAL' | 'FINANCES' | 'NOTIFICATIONS' | 'AUDIT' | 'COACHES' | 'TRANSLATE' | 'RECOMMENDATION_TRANSLATION' | 'BLOG' | 'BLOG_TRANSLATE' | 'CLIENT_PORTAL' | 'PLANS';
 
 import { sanitizeMessage } from './sanitize';
 
@@ -62,7 +62,7 @@ function contextColor(ctx: LogContext): string {
   const ai = ['AI', 'AI_SERVICE', 'API_AI', 'PROMPT_INJECTION'];
   const security = ['GUARDRAILS', 'RATE_LIMITER', 'SHIELD'];
   const media = ['VIDEO', 'UPLOAD', 'RECIPES', 'EXERCISES', 'RECIPE_UPLOAD', 'EXERCISE_UPLOAD'];
-  const finance = ['PAYMENTS', 'STRIPE_CONNECT', 'FINANCES'];
+  const finance = ['PAYMENTS', 'STRIPE_CONNECT', 'FINANCES', 'PLANS'];
   const email = ['EMAIL', 'NOTIFICATIONS'];
 
   if (auth.includes(ctx)) return C.magenta;

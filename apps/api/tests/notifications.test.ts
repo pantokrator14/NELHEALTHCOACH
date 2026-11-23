@@ -79,8 +79,8 @@ async function main() {
   const listBody = await res.json();
   check('GET lista → 200', res.status === 200, `status=${res.status}`);
   const items = listBody?.data || listBody?.notifications || [];
-  check('lista incluye la notificación propia', Array.isArray(items) && items.some((n: any) => (n._id || n.id)?.toString() === notifId));
-  check('lista NO incluye la de otro coach', Array.isArray(items) && !items.some((n: any) => (n._id || n.id)?.toString() === otherNotifId));
+  check('lista incluye la notificación propia', Array.isArray(items) && items.some((n: { _id?: { toString(): string }; id?: { toString(): string } }) => (n._id || n.id)?.toString() === notifId));
+  check('lista NO incluye la de otro coach', Array.isArray(items) && !items.some((n: { _id?: { toString(): string }; id?: { toString(): string } }) => (n._id || n.id)?.toString() === otherNotifId));
 
   // unread-count: 1 sin leer (la propia)
   res = await unreadCount(authedRequest(`${base}/notifications/unread-count`, 'GET', token), { params: Promise.resolve({}) });

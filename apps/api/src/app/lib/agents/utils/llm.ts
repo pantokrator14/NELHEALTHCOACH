@@ -81,7 +81,6 @@ function createLLM(options: LLMOptions = {}): ChatOpenAI {
     endpoint: baseURL,
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new ChatOpenAI({
     modelName: model,
     temperature: options.temperature ?? 0.7,
@@ -89,7 +88,7 @@ function createLLM(options: LLMOptions = {}): ChatOpenAI {
     streaming: options.streaming ?? false,
     apiKey,
     configuration: { baseURL },
-  }) as any;
+  });
 }
 
 function createSyncLLMWithFallback(
@@ -630,8 +629,8 @@ async function sendTextToDeepSeekREST(
     duration,
     textLength: resultText.length,
     finishReason,
-    reasoningTokens: (content as any)?.reasoning_content
-      ? ((content as any).reasoning_content as string).length
+    reasoningTokens: typeof content?.reasoning_content === "string"
+      ? content.reasoning_content.length
       : 0,
   });
 

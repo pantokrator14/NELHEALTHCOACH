@@ -139,7 +139,7 @@ export interface PDFRecommendationData {
     index?: number;
     labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
     structuredMedicalAnalysis?: {
-      exams: Array<{ intro: string; table: Array<any>; analysis: string; }>;
+      exams: Array<{ intro: string; table: Array<{ biomarcador: string; valor: string; rango_normal: string; estado: string }>; analysis: string; }>;
       supplements: Array<{ name: string; dosage: string; timing: string; rationale: string; contraindications?: string; }>;
     };
   };
@@ -155,20 +155,21 @@ export interface PDFRecommendationData {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-function deeplyCleanEmojis(obj: any): any {
+function deeplyCleanEmojis<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'string') {
     let cleaned = obj.replace(/[^\x20-\x7E\xA0-\xFF\u0100-\u017F\u2013-\u201D\u2022\n\r]/g, '');
-    cleaned = cleaned.replace(/Ø[A-Z0-9=]+/g, '•'); 
-    cleaned = cleaned.replace(/&\s*[a-zA-Z]\b/g, ''); 
-    return cleaned.trim();
+    cleaned = cleaned.replace(/Ø[A-Z0-9=]+/g, '•');
+    cleaned = cleaned.replace(/&\s*[a-zA-Z]\b/g, '');
+    return cleaned.trim() as T;
   }
-  if (Array.isArray(obj)) return obj.map(deeplyCleanEmojis);
+  if (Array.isArray(obj)) return obj.map((item) => deeplyCleanEmojis(item)) as T;
   if (typeof obj === 'object') {
     if (Buffer.isBuffer(obj)) return obj;
-    const cleaned: any = {};
-    for (const key in obj) cleaned[key] = deeplyCleanEmojis(obj[key]);
-    return cleaned;
+    const cleaned: Record<string, unknown> = {};
+    const record = obj as Record<string, unknown>;
+    for (const key in record) cleaned[key] = deeplyCleanEmojis(record[key]);
+    return cleaned as T;
   }
   return obj;
 }
@@ -494,14 +495,24 @@ function buildMedicalAnalysisSection(doc: PDFKit.PDFDocument, data: PDFRecommend
   const hasStructured = data.session.structuredMedicalAnalysis && data.session.structuredMedicalAnalysis.exams.length > 0;
   const hasLabResults = data.session.labResults && data.session.labResults.length > 0;
   const hasMedicalText = data.session.medicalSummary;
+  const comparativeText = (data.session.medicalComparativeAnalysis || '').trim();
 
-  if (!hasStructured && !hasLabResults && !hasMedicalText) return doc.y;
+  if (!hasStructured && !hasLabResults && !hasMedicalText && !comparativeText) return doc.y;
 
   drawRect(doc, MARGIN, doc.y, USABLE_WIDTH, 20, '#C62828');
   doc.save().fillColor(COLORS.white).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle - 2);
   doc.text('Análisis de documentos médicos', MARGIN + 8, doc.y + 4);
   doc.restore();
   doc.y += 28;
+
+  if (comparativeText) {
+    doc.y = checkSpace(doc, doc.y, 24);
+    doc.save().fillColor('#0F766E').font('Helvetica-Bold').fontSize(FONT_SIZES.small);
+    doc.text('Comparativa evolutiva de biomarcadores', MARGIN, doc.y);
+    doc.restore();
+    doc.y += 12;
+    doc.y = buildHighlightBlock(doc, comparativeText, doc.y, '#0D9488', '#F0FDFA');
+  }
 
   if (hasStructured) {
     const structured = data.session.structuredMedicalAnalysis!;
