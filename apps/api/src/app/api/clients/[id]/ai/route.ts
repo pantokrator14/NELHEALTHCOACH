@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getHealthFormsCollection, getMedicalDocumentCacheCollection, connectMongoose } from '@/app/lib/database';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt, encrypt, isEncrypted, safeDecrypt } from '@/app/lib/encryption';
 import { AIService } from '@/app/lib/ai-service';
@@ -19,6 +19,9 @@ import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
 import Exercise from '@/app/models/Exercise';
 import { apiHandler } from '@/app/lib/apiHandler';
+import { calculateTotalAllowedMonths, getPlanById, type CommercialPlan } from '@/app/lib/plans';
+import { checkAndSendProgramCompletionEmail } from '@/app/lib/program-completion';
+import ClientAccount from '@/app/models/ClientAccount';
 
 // El pipeline de generación de IA toma ~60-240s con DeepSeek (medido en E2E
 // reales: 170s generate, 239s regen). El POST/PUT ya NO ejecuta el pipeline:
@@ -28,21 +31,200 @@ import { apiHandler } from '@/app/lib/apiHandler';
 // hacen FALLAR el build ("Builder returned invalid maxDuration").
 export const maxDuration = 300;
 
+interface ApiStatusError {
+  status?: number;
+  message?: string;
+}
+
+function getErrMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+function getErrStatus(err: unknown): number | undefined {
+  return (typeof err === 'object' && err !== null ? (err as ApiStatusError).status : undefined);
+}
+
+interface EncryptedDocMeta {
+  name?: string;
+  originalName?: string;
+  key?: string;
+  type?: string;
+  size?: number;
+  uploadedAt?: string | Date;
+  url?: string;
+  [key: string]: unknown;
+}
+
+interface ProcessedDocItem {
+  title: string;
+  content: string;
+  documentType?: string;
+  processedAt?: string;
+  uploadedAt?: string;
+  confidence?: number;
+  type?: string;
+  pageCount?: number;
+  language?: string;
+  medicalSummary?: string;
+  medicalComparativeAnalysis?: string;
+  labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
+  supplementRecommendations?: Array<{
+    name: string;
+    dosage: string;
+    timing: string;
+    rationale: string;
+    contraindications: string;
+  }>;
+}
+
+interface PreparedAIInput {
+  personalData: Record<string, unknown>;
+  medicalData: Record<string, unknown>;
+  healthAssessment: Record<string, string>;
+  mentalHealth: Record<string, string>;
+  documents: ProcessedDocItem[];
+  documentHistory: Array<{
+    processedAt: string | Date | undefined;
+    processedBy: string;
+    confidence: number;
+    status: string;
+  }>;
+  previousChecklistStatus: Array<{
+    month: number;
+    completedItems: Array<{ description: string; completed: boolean; completedDate?: Date }>;
+    totalItems: number;
+  }>;
+  previousSessions: AIRecommendationSession[];
+  currentProgress?: ClientAIProgress;
+  coachNotes?: string;
+  allLabResults: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
+  extractedMedicalSummary: string;
+  meta: {
+    totalProcessedDocuments: number;
+    hasDocumentHistory: boolean;
+    lastDocumentProcessed: unknown;
+  };
+  failedDocumentAnalyses: GenerationError[];
+}
+
+interface HealthFormClientDoc {
+  _id: ObjectId;
+  coachId?: string;
+  clientAccountId?: string;
+  planId?: string;
+  personalData?: Record<string, unknown>;
+  medicalData?: Record<string, unknown> & {
+    documents?: EncryptedDocMeta[];
+    lastDocumentProcessed?: unknown;
+  };
+  aiProgress?: ClientAIProgress;
+  [key: string]: unknown;
+}
+
+
+async function resolveClientPlanContext(client: HealthFormClientDoc): Promise<{
+  plan: CommercialPlan | null;
+  allowedMaxMonths: number;
+}> {
+  let account: {
+    activePlanId?: string | null;
+    purchasedPlans?: Array<{ planId?: string; status?: string }>;
+  } | null = null;
+
+  try {
+    await connectMongoose();
+    const query = client.clientAccountId && ObjectId.isValid(String(client.clientAccountId))
+      ? { _id: new ObjectId(String(client.clientAccountId)) }
+      : { healthFormId: client._id.toString() };
+    account = (await ClientAccount.findOne(query)
+      .select('activePlanId purchasedPlans')
+      .lean()) as {
+      activePlanId?: string | null;
+      purchasedPlans?: Array<{ planId?: string; status?: string }>;
+    } | null;
+  } catch {
+    // fallback silencioso para clientes sin cuenta vinculada
+  }
+
+  const activePlan = account?.activePlanId ? getPlanById(account.activePlanId) : null;
+  const directPlan = typeof client.planId === 'string' ? getPlanById(client.planId) : null;
+  const plan = activePlan || directPlan;
+
+  if (!plan) {
+    return { plan: null, allowedMaxMonths: 1 };
+  }
+
+  const allowedMaxMonths = calculateTotalAllowedMonths(account?.purchasedPlans, plan.id);
+  return { plan, allowedMaxMonths };
+}
+
+async function resolveClientPlan(client: HealthFormClientDoc): Promise<CommercialPlan | null> {
+  const ctx = await resolveClientPlanContext(client);
+  return ctx.plan;
+}
+
+function buildPreviousMedicalContext(
+  sessions: AIRecommendationSession[] | undefined,
+  excludeSessionId?: string
+): string {
+  if (!Array.isArray(sessions) || sessions.length === 0) return '';
+  const filtered = sessions
+    .filter((s) => !excludeSessionId || s.sessionId !== excludeSessionId)
+    .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0))
+    .slice(-3);
+
+  const lines: string[] = [];
+  for (const s of filtered) {
+    const medSummary = s.medicalSummary ? safeDecrypt(s.medicalSummary) : '';
+    const rawLabs = (s as unknown as { labResults?: Array<{ name?: string; value?: string; range?: string; status?: string }> }).labResults || [];
+    const labTexts = rawLabs
+      .slice(0, 12)
+      .map((l) => {
+        const name = l.name ? safeDecrypt(l.name) || l.name : '';
+        const val = l.value ? safeDecrypt(l.value) || l.value : '';
+        const st = l.status ? safeDecrypt(l.status) || l.status : '';
+        return name ? `${name}: ${val}${st ? ` (${st})` : ''}` : '';
+      })
+      .filter(Boolean);
+
+    if (medSummary || labTexts.length > 0) {
+      const parts = [`Mes ${s.monthNumber || 1}`];
+      if (medSummary) parts.push(medSummary.substring(0, 500));
+      if (labTexts.length > 0) parts.push(`Biomarcadores: ${labTexts.join(', ')}`);
+      lines.push(`- ${parts.join(' | ')}`);
+    }
+  }
+  return lines.join('\n');
+}
+
 /** Verifica que el coach autenticado tenga acceso al cliente (admin o coach asignado) */
-async function authorizeCoachForClient(request: NextRequest, clientId: string) {
+async function authorizeCoachForClient(request: NextRequest, clientId: string, allowClientRead = false) {
   let auth;
   try {
-    auth = requireCoachAuth(request);
-  } catch {
+    auth = allowClientRead ? requireAnyAuth(request) : requireCoachAuth(request);
+  } catch (err: unknown) {
+    if (getErrStatus(err) === 403) {
+      throw { status: 403, message: 'No tienes permiso para acceder a este recurso' };
+    }
     throw { status: 401, message: 'No autorizado' };
   }
   const healthForms = await getHealthFormsCollection();
   const client = await healthForms.findOne(
     { _id: new ObjectId(clientId) },
-    { projection: { coachId: 1 } }
+    { projection: { coachId: 1, clientAccountId: 1 } }
   );
   if (!client) {
     throw { status: 404, message: 'Cliente no encontrado' };
+  }
+  if (auth.role === 'client') {
+    if (!allowClientRead || (client.clientAccountId !== auth.clientAccountId && auth.clientId !== clientId)) {
+      throw { status: 403, message: 'No tienes permiso para acceder a este cliente' };
+    }
+    return auth;
   }
   if (auth.role !== 'admin' && client.coachId !== auth.coachId) {
     throw { status: 403, message: 'No tienes permiso para acceder a este cliente' };
@@ -50,29 +232,29 @@ async function authorizeCoachForClient(request: NextRequest, clientId: string) {
   return auth;
 }
 
-function decryptAISessionCompletely(session: any): any {
+function decryptAISessionCompletely(session: AIRecommendationSession): AIRecommendationSession {
   try {
-    const decrypted = {
+    const decrypted: AIRecommendationSession = {
       ...session,
       summary: safeDecrypt(session.summary),
       vision: safeDecrypt(session.vision),
-      medicalSummary: safeDecrypt(session.medicalSummary) || '',
-      medicalComparativeAnalysis: safeDecrypt(session.medicalComparativeAnalysis) || '',
+      medicalSummary: safeDecrypt(session.medicalSummary || '') || '',
+      medicalComparativeAnalysis: safeDecrypt(session.medicalComparativeAnalysis || '') || '',
       structuredMedicalAnalysis: session.structuredMedicalAnalysis ? {
         ...session.structuredMedicalAnalysis,
-        exams: session.structuredMedicalAnalysis.exams?.map((exam: any) => ({
+        exams: session.structuredMedicalAnalysis.exams?.map((exam) => ({
           ...exam,
           intro: safeDecrypt(exam.intro),
           analysis: safeDecrypt(exam.analysis),
-          table: exam.table?.map((row: any) => ({
+          table: exam.table?.map((row) => ({
             ...row,
             biomarcador: safeDecrypt(row.biomarcador),
             valor: safeDecrypt(row.valor),
             rango_normal: safeDecrypt(row.rango_normal),
-            estado: safeDecrypt(row.estado),
+            estado: safeDecrypt(row.estado) as 'Alto' | 'Bajo' | 'Normal',
           })) || [],
         })) || [],
-        supplements: session.structuredMedicalAnalysis.supplements?.map((supp: any) => ({
+        supplements: session.structuredMedicalAnalysis.supplements?.map((supp) => ({
           ...supp,
           name: safeDecrypt(supp.name),
           dosage: safeDecrypt(supp.dosage),
@@ -81,11 +263,11 @@ function decryptAISessionCompletely(session: any): any {
           contraindications: supp.contraindications ? safeDecrypt(supp.contraindications) : undefined,
         })) || [],
       } : { exams: [], supplements: [] },
-      weeks: session.weeks?.map((week: any) => ({
+      weeks: session.weeks?.map((week) => ({
         weekNumber: week.weekNumber,
         nutrition: {
           focus: safeDecrypt(week.nutrition.focus),
-          shoppingList: week.nutrition.shoppingList?.map((item: any) => ({
+          shoppingList: week.nutrition.shoppingList?.map((item) => ({
             item: safeDecrypt(item.item),
             quantity: safeDecrypt(item.quantity),
             priority: item.priority
@@ -101,14 +283,14 @@ function decryptAISessionCompletely(session: any): any {
           motivationTip: week.habits.motivationTip ? safeDecrypt(week.habits.motivationTip) : undefined
         }
       })) || [],
-      checklist: session.checklist?.map((item: any) => ({
+      checklist: session.checklist?.map((item) => ({
         ...item,
         description: safeDecrypt(item.description),
         details: item.details ? {
           ...item.details,
           recipe: item.details.recipe ? {
             ...item.details.recipe,
-            ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+            ingredients: item.details.recipe.ingredients?.map((ing) => ({
               name: safeDecrypt(ing.name),
               quantity: safeDecrypt(ing.quantity),
               notes: ing.notes ? safeDecrypt(ing.notes) : undefined
@@ -127,30 +309,28 @@ function decryptAISessionCompletely(session: any): any {
     console.error('❌ Error desencriptando sesión completa:', error);
     logger.error('AI', 'Error desencriptando sesión completa', error);
 
-    // Corrección: Crear error correctamente
     const errorObj = new Error('Error desencriptando sesión completa');
     logger.error('AI', 'Error desencriptando sesión completa', errorObj);
 
-    // Fallback: intentar desencriptar lo básico
     return {
       ...session,
       summary: safeDecrypt(session.summary) || 'Error desencriptando',
       vision: safeDecrypt(session.vision) || 'Error desencriptando',
       structuredMedicalAnalysis: session.structuredMedicalAnalysis ? {
         ...session.structuredMedicalAnalysis,
-        exams: session.structuredMedicalAnalysis.exams?.map((exam: any) => ({
+        exams: session.structuredMedicalAnalysis.exams?.map((exam) => ({
           ...exam,
           intro: safeDecrypt(exam.intro) || exam.intro,
           analysis: safeDecrypt(exam.analysis) || exam.analysis,
-          table: exam.table?.map((row: any) => ({
+          table: exam.table?.map((row) => ({
             ...row,
             biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
             valor: safeDecrypt(row.valor) || row.valor,
             rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
-            estado: safeDecrypt(row.estado) || row.estado,
+            estado: (safeDecrypt(row.estado) || row.estado) as 'Alto' | 'Bajo' | 'Normal',
           })) || [],
         })) || [],
-        supplements: session.structuredMedicalAnalysis.supplements?.map((supp: any) => ({
+        supplements: session.structuredMedicalAnalysis.supplements?.map((supp) => ({
           ...supp,
           name: safeDecrypt(supp.name) || supp.name,
           dosage: safeDecrypt(supp.dosage) || supp.dosage,
@@ -185,7 +365,7 @@ async function getHandler(
       loggerWithContext.info('AI', 'Iniciando obtención de progreso de IA');
 
       // Autenticación + ownership check
-      const auth = await authorizeCoachForClient(request, id);
+      const auth = await authorizeCoachForClient(request, id, true);
 
       const healthForms = await getHealthFormsCollection();
       let client = await healthForms.findOne({ _id: new ObjectId(id) });
@@ -204,7 +384,7 @@ async function getHandler(
       // Si el request muere (timeout de Vercel), el lease caduca y otro
       // poll reintenta (hasta MAX_ATTEMPTS). El frontend poll-ea cada 10s
       // viendo `aiProgress.sessions` hasta que aparezcan o haya error.
-      const claimedJob = await claimAIJob(id);
+      const claimedJob = auth.role === 'client' ? null : await claimAIJob(id);
       if (claimedJob) {
         loggerWithContext.info('AI', '🚀 Worker: job reclamado, ejecutando generación', {
           jobId: claimedJob._id?.toString(),
@@ -212,7 +392,7 @@ async function getHandler(
           attempts: claimedJob.attempts,
         });
         try {
-          let workerResult: { sessionId: string; generationError: any } | undefined;
+          let workerResult: { sessionId: string; generationError: { message: string; timestamp: Date } | null } | undefined;
           if (claimedJob.type === 'regen') {
             // Regeneración: la sesión vieja se reemplaza por una nueva
             // (regenerateSession lanza si la sesión no está en 'draft').
@@ -237,9 +417,9 @@ async function getHandler(
             type: claimedJob.type,
             hadGenerationError: !!workerResult?.generationError,
           });
-        } catch (genError: any) {
-          const errMsg = genError?.message || 'Error desconocido generando recomendaciones';
-          loggerWithContext.error('AI', '❌ Worker: generación falló', genError);
+        } catch (genError: unknown) {
+          const errMsg = (genError instanceof Error ? genError.message : String(genError)) || 'Error desconocido generando recomendaciones';
+          loggerWithContext.error('AI', '❌ Worker: generación falló', toError(genError));
 
           // ── CARRERA ENTRE WORKERS ──
           // Si OTRO worker ya creó una sesión después de que este reclamó el
@@ -253,7 +433,7 @@ async function getHandler(
           const claimedAtMs = claimedJob.claimedAt ? new Date(claimedJob.claimedAt).getTime() : 0;
           const loser =
             claimedAtMs > 0 &&
-            (freshCheck?.aiProgress?.sessions || []).some((s: any) => {
+            (freshCheck?.aiProgress?.sessions || []).some((s: AIRecommendationSession) => {
               const createdMs = s.createdAt ? new Date(s.createdAt).getTime() : 0;
               return createdMs >= claimedAtMs;
             });
@@ -314,6 +494,21 @@ async function getHandler(
 
       // Si solo hay error y no sesiones, devolver el error sin intentar desencriptar
       if (!aiProgress.sessions || aiProgress.sessions.length === 0) {
+        if (auth.role === 'client') {
+          return NextResponse.json({
+            success: true,
+            data: {
+              hasAIProgress: false,
+              aiProgress: {
+                sessions: [],
+                generationError: null,
+                overallProgress: 0,
+              },
+              generationError: null,
+            },
+            requestId,
+          });
+        }
         return NextResponse.json({
           success: true,
           data: {
@@ -335,14 +530,41 @@ async function getHandler(
         currentSessionId: aiProgress.currentSessionId
       });
 
+      // Filtrar sesiones si quien consulta es cliente (solo aprobadas o enviadas)
+      const visibleSessions = (auth.role === 'client'
+        ? (aiProgress.sessions || []).filter((s: AIRecommendationSession) => s.status === 'approved' || s.status === 'sent')
+        : (aiProgress.sessions || [])) as AIRecommendationSession[];
+
       // Desencriptar sesiones si es necesario
-      const decryptedSessions = aiProgress.sessions?.map((session: any) =>
+      const decryptedSessions = visibleSessions.map((session: AIRecommendationSession) =>
         decryptAISessionCompletely(session)
-      ) || [];
+      );
 
       loggerWithContext.info('AI', 'Sesiones completamente desencriptadas', {
         sessionCount: decryptedSessions.length
       });
+
+      if (auth.role === 'client' && decryptedSessions.length === 0) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            hasAIProgress: false,
+            aiProgress: {
+              sessions: [],
+              generationError: null,
+              overallProgress: 0,
+            },
+            generationError: null,
+          },
+          requestId
+        });
+      }
+
+      const clientSafeCurrentSessionId = auth.role === 'client'
+        ? (decryptedSessions.some((s: AIRecommendationSession) => s.sessionId === aiProgress.currentSessionId)
+            ? aiProgress.currentSessionId
+            : decryptedSessions[decryptedSessions.length - 1]?.sessionId)
+        : aiProgress.currentSessionId;
 
       return NextResponse.json({
         success: true,
@@ -350,23 +572,25 @@ async function getHandler(
           hasAIProgress: true,
           aiProgress: {
             ...aiProgress,
+            currentSessionId: clientSafeCurrentSessionId,
+            generationError: auth.role === 'client' ? null : generationError,
             sessions: decryptedSessions,  // ✅ Ahora completamente desencriptadas
           },
-          generationError,
+          generationError: auth.role === 'client' ? null : generationError,
         },
         requestId
       });
 
-    } catch (error: any) {
-      // Si es un error estructurado (auth/ownership), devolver su status específico
-      if (error?.status) {
+    } catch (error: unknown) {
+      const apiStatus = getErrStatus(error);
+      if (apiStatus) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: (error as ApiStatusError).message || 'Error' },
+          { status: apiStatus }
         );
       }
 
-      loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', error);
+      loggerWithContext.error('AI', 'Error obteniendo recomendaciones IA', toError(error));
 
       return NextResponse.json(
         {
@@ -374,7 +598,7 @@ async function getHandler(
           message: 'Error interno del servidor',
           requestId,
           ...(process.env.NODE_ENV === 'development' && {
-            error: error.message
+            error: getErrMessage(error)
           }), code: 'INTERNAL'},
         { status: 500 }
       );
@@ -426,6 +650,13 @@ async function postHandler(
 
       const { monthNumber = 1, coachNotes = '' } = body;
 
+      if (typeof monthNumber !== 'number' || !Number.isInteger(monthNumber) || monthNumber < 1) {
+        return NextResponse.json(
+          { success: false, message: 'monthNumber debe ser un entero positivo', code: 'VALIDATION' },
+          { status: 400 }
+        );
+      }
+
       loggerWithContext.info('AI', 'Parámetros procesados', {
         monthNumber,
         coachNotesLength: coachNotes.length
@@ -440,6 +671,25 @@ async function postHandler(
           { success: false, message: 'Cliente no encontrado', code: 'NOT_FOUND'},
           { status: 404 }
         );
+      }
+
+      const { plan: clientPlan, allowedMaxMonths } = await resolveClientPlanContext(client as HealthFormClientDoc);
+      if (clientPlan) {
+        if (monthNumber > allowedMaxMonths) {
+          loggerWithContext.warn('AI', 'Límite de evaluaciones del plan alcanzado', {
+            planId: clientPlan.id,
+            monthNumber,
+            allowedMaxMonths,
+          });
+          return NextResponse.json(
+            {
+              success: false,
+              message: `El plan actual (${clientPlan.name}) cubre hasta ${allowedMaxMonths} evaluación(es) mensual(es).`,
+              code: 'PLAN_LIMIT_REACHED',
+            },
+            { status: 403 }
+          );
+        }
       }
 
       // ── COLA PROPIA (sin Inngest): encolar y responder 202 ──────────
@@ -471,12 +721,12 @@ async function postHandler(
           monthNumber,
         },
       }, { status: 202 });
-    } catch (error: any) {
-      // Si es un error estructurado (auth/ownership), devolver su status específico
-      if (error?.status) {
+    } catch (error: unknown) {
+      const apiStatus = getErrStatus(error);
+      if (apiStatus) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: (error as ApiStatusError).message || 'Error' },
+          { status: apiStatus }
         );
       }
 
@@ -506,10 +756,10 @@ export const POST = apiHandler(postHandler);
  * Lanza error si la generación falla (el caller decide fail o requeue).
  */
 async function executeGenerationForClient(
-  client: any,
+  client: HealthFormClientDoc,
   params: { monthNumber: number; coachNotes: string },
   requestId: string
-): Promise<{ sessionId: string; generationError: any }> {
+): Promise<{ sessionId: string; generationError: { message: string; timestamp: Date } | null }> {
   const clientId = client._id.toString();
   const loggerWithContext = logger.withContext({
     requestId,
@@ -545,6 +795,10 @@ async function executeGenerationForClient(
         documents: processedDocuments,
       } = aiInput;
 
+      const clientPlan = await resolveClientPlan(client);
+      const planTotalWeeks = clientPlan?.totalWeeks && clientPlan.totalWeeks > 0 ? clientPlan.totalWeeks : 4;
+      const previousMedicalContext = buildPreviousMedicalContext(aiInput.previousSessions);
+
       const compositeResult = await generateCompositeRecommendation({
         personalData: aiInput.personalData || {},
         medicalData: aiInput.medicalData || {},
@@ -557,9 +811,14 @@ async function executeGenerationForClient(
           confidence: d.confidence || 0,
           uploadedAt: d.uploadedAt,
         })),
-        previousSessions: (aiInput.previousSessions || []) as any,
+        previousSessions: (aiInput.previousSessions || []) as unknown as Array<Record<string, unknown>>,
         coachNotes: aiInput.coachNotes || '',
         monthNumber,
+        planId: clientPlan?.id,
+        planName: clientPlan?.name,
+        totalWeeks: planTotalWeeks,
+        planRoadmap: clientPlan?.roadmap,
+        previousMedicalContext,
       });
 
       loggerWithContext.info('AI', 'Recomendaciones generadas exitosamente', {
@@ -734,7 +993,7 @@ async function executeGenerationForClient(
       }];
 
       const generationError = aiInput.failedDocumentAnalyses.length > 0 ? {
-        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error del servicio de IA (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: any) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
+        message: `Algunos documentos no pudieron ser analizados debido a alta demanda o error del servicio de IA (HTTP 503/404): ${aiInput.failedDocumentAnalyses.map((e: GenerationError) => e.documentName).join(', ')}. Se generaron las recomendaciones con el resto de la información disponible de formularios y otros documentos.`,
         timestamp: new Date(),
       } : null;
 
@@ -763,7 +1022,7 @@ async function executeGenerationForClient(
       const sessionPlain = {
         sessionId,
         monthNumber,
-        totalWeeks: 4,
+        totalWeeks: planTotalWeeks,
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'draft',
@@ -775,8 +1034,8 @@ async function executeGenerationForClient(
         vision: compositeResult.clientInsights?.vision || compositeResult.clientInsights?.summary || '',
         medicalSummary: compositeResult.clientInsights?.medicalSummary || aiInput.extractedMedicalSummary || '',
         medicalComparativeAnalysis: compositeResult.clientInsights?.medicalComparativeAnalysis || '',
-        labResults: aiInput.allLabResults && aiInput.allLabResults.length > 0 
-          ? aiInput.allLabResults 
+        labResults: aiInput.allLabResults && aiInput.allLabResults.length > 0
+          ? aiInput.allLabResults
           : (compositeResult.clientInsights?.labResults || []),
         structuredMedicalAnalysis: extractedStructured,
         baselineMetrics: {
@@ -818,17 +1077,26 @@ async function executeGenerationForClient(
 
       const encryptedSession = encryptSessionFields(sessionToEncrypt, translationMeta);
 
+      const existingSessions = Array.isArray(client.aiProgress?.sessions)
+        ? client.aiProgress.sessions
+        : [];
+      const existingMonthIdx = existingSessions.findIndex((s) => s.monthNumber === monthNumber);
+      const mergedSessions =
+        existingMonthIdx === -1
+          ? [...existingSessions, encryptedSession]
+          : existingSessions.map((s, idx) => (idx === existingMonthIdx ? encryptedSession : s));
+
       const updateData: Record<string, unknown> = {
         $set: {
           updatedAt: new Date(),
           'aiProgress': {
             clientId: clientId,
             currentSessionId: sessionId,
-            sessions: [encryptedSession],
-            overallProgress: 0,
+            sessions: mergedSessions,
+            overallProgress: client.aiProgress?.overallProgress || 0,
             lastEvaluation: new Date(),
-            nextEvaluation: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            metrics: {
+            nextEvaluation: new Date(Date.now() + (planTotalWeeks === 3 ? 21 : 30) * 24 * 60 * 60 * 1000),
+            metrics: client.aiProgress?.metrics || {
               nutritionAdherence: 0,
               exerciseConsistency: 0,
               habitFormation: 0,
@@ -867,8 +1135,8 @@ async function detectSessionSourceLang(
   if (recipeIds.length > 0) {
     try {
       const found = await Recipe.find({ _id: { $in: recipeIds.map((r) => new ObjectId(r)) } }).lean();
-      for (const r of found as any[]) {
-        texts.push(safeDecrypt(r.title) || r.title || '');
+      for (const r of found as Array<{ title?: string; ingredients?: string[] }>) {
+        texts.push(safeDecrypt(r.title || '') || r.title || '');
         for (const ing of r.ingredients || []) {
           texts.push(safeDecrypt(ing) || ing || '');
         }
@@ -884,8 +1152,8 @@ async function detectSessionSourceLang(
   if (exerciseIds.length > 0) {
     try {
       const found = await Exercise.find({ _id: { $in: exerciseIds.map((e) => new ObjectId(e)) } }).lean();
-      for (const ex of found as any[]) {
-        texts.push(safeDecrypt(ex.name) || ex.name || '');
+      for (const ex of found as Array<{ name?: string; description?: string }>) {
+        texts.push(safeDecrypt(ex.name || '') || ex.name || '');
         if (ex.description) texts.push(safeDecrypt(ex.description) || ex.description || '');
       }
     } catch (err) {
@@ -1014,7 +1282,7 @@ async function putHandler(
         );
       }
 
-      let operationResult: any;
+      let operationResult: unknown;
       let message = '';
 
       switch (action) {
@@ -1056,13 +1324,14 @@ async function putHandler(
             if (!operationResult) {
               // ✅ CORRECCIÓN: Crear un error correctamente
               const error = new Error('Falló la aprobación de sesión');
-              // Agregar propiedades adicionales usando 'as any'
-              (error as any).sessionId = sessionId;
-              (error as any).possibleReasons = [
-                'Sesión no encontrada',
-                'Sesión no está en estado draft',
-                'Cliente no encontrado'
-              ];
+              Object.assign(error, {
+                sessionId,
+                possibleReasons: [
+                  'Sesión no encontrada',
+                  'Sesión no está en estado draft',
+                  'Cliente no encontrado'
+                ],
+              });
 
               loggerWithContext.error('AI', 'Falló la aprobación de sesión', error);
 
@@ -1076,12 +1345,12 @@ async function putHandler(
             }
 
             message = 'Sesión aprobada exitosamente';
-          } catch (error: any) {
-            loggerWithContext.error('AI', 'Error en approve_session', error);
+          } catch (error: unknown) {
+            loggerWithContext.error('AI', 'Error en approve_session', toError(error));
             return NextResponse.json(
               {
                 success: false,
-                message: `Error aprobando sesión: ${error.message}`,
+                message: `Error aprobando sesión: ${getErrMessage(error)}`,
                 requestId, code: 'INTERNAL'},
               { status: 500 }
             );
@@ -1103,7 +1372,7 @@ async function putHandler(
 
           // Validación fail-fast: la sesión debe existir y estar en 'draft'
           const targetSession = (client.aiProgress.sessions || []).find(
-            (s: any) => s.sessionId === sessionId
+            (s: AIRecommendationSession) => s.sessionId === sessionId
           );
           if (!targetSession) {
             return NextResponse.json(
@@ -1196,19 +1465,19 @@ async function putHandler(
         requestId
       });
 
-    } catch (error: any) {
-      // Si es un error estructurado (auth/ownership), devolver su status específico
-      if (error?.status) {
+    } catch (error: unknown) {
+      const apiStatus = getErrStatus(error);
+      if (apiStatus) {
         return NextResponse.json(
-          { success: false, message: error.message || 'Error' },
-          { status: error.status }
+          { success: false, message: (error as ApiStatusError).message || 'Error' },
+          { status: apiStatus }
         );
       }
 
-      console.error('💥 ERROR en endpoint PUT:', error.message);
+      console.error('💥 ERROR en endpoint PUT:', getErrMessage(error));
       logger.error('AI', 'Error en endpoint PUT', error);
 
-      loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', error);
+      loggerWithContext.error('AI', 'Error actualizando recomendaciones IA', toError(error));
 
       return NextResponse.json(
         {
@@ -1216,7 +1485,7 @@ async function putHandler(
           message: 'Error interno del servidor',
           requestId,
           ...(process.env.NODE_ENV === 'development' && {
-            error: error.message
+            error: getErrMessage(error)
           }), code: 'INTERNAL'},
         { status: 500 }
       );
@@ -1261,20 +1530,20 @@ function inferDocumentMimeType(fileName: string, rawType?: string): string {
 }
 
 async function prepareAIInput(
-  client: any,
+  client: HealthFormClientDoc,
   requestId: string,
   clientId: string,
   options: { excludeSessionId?: string } = {}
-): Promise<any> {
+): Promise<PreparedAIInput> {
   const loggerWithContext = logger.withContext({ requestId });
 
   loggerWithContext.debug('AI', 'Preparando entrada para IA');
 
   // Desencriptar datos personales
-  const personalData = Object.entries(client.personalData || {}).reduce((acc, [key, value]) => {
+  const personalData = Object.entries(client.personalData || {}).reduce<Record<string, unknown>>((acc, [key, value]) => {
     if (typeof value === 'string') {
       try {
-        acc[key] = safeDecrypt(value as string);
+        acc[key] = safeDecrypt(value);
       } catch (error) {
         loggerWithContext.warn('AI', `Error desencriptando campo personal: ${key}`, error as Error);
         acc[key] = value;
@@ -1283,13 +1552,13 @@ async function prepareAIInput(
       acc[key] = value;
     }
     return acc;
-  }, {} as any);
+  }, {});
 
   // Desencriptar datos médicos
-  const medicalData = Object.entries(client.medicalData || {}).reduce((acc, [key, value]) => {
+  const medicalData = Object.entries(client.medicalData || {}).reduce<Record<string, unknown>>((acc, [key, value]) => {
     if (typeof value === 'string' && key !== 'documents' && key !== 'processedDocuments') {
       try {
-        acc[key] = safeDecrypt(value as string);
+        acc[key] = safeDecrypt(value);
       } catch (error) {
         loggerWithContext.warn('AI', `Error desencriptando campo médico: ${key}`, error as Error);
         acc[key] = value;
@@ -1298,19 +1567,16 @@ async function prepareAIInput(
       acc[key] = value;
     }
     return acc;
-  }, {} as any);
+  }, {});
 
-  const processedDocs: Array<{
-    title: string; content: string; processedAt?: string; confidence?: number;
-    type?: string; pageCount?: number; language?: string;
-  }> = [];
+  const processedDocs: ProcessedDocItem[] = [];
   const failedDocumentAnalyses: GenerationError[] = [];
   let allLabResults: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo'; }> = [];
   let extractedMedicalSummary = '';
 
-  let selectedDocumentsForEval: any[] = [];
+  let selectedDocumentsForEval: EncryptedDocMeta[] = [];
   if (client.medicalData?.documents && Array.isArray(client.medicalData.documents) && client.medicalData.documents.length > 0) {
-    const decryptedMetaDocs = client.medicalData.documents.map((doc: any) => {
+    const decryptedMetaDocs: EncryptedDocMeta[] = client.medicalData.documents.map((doc: EncryptedDocMeta) => {
       const rawUploadedAt = typeof doc?.uploadedAt === 'string' && isEncrypted(doc.uploadedAt)
         ? safeDecrypt(doc.uploadedAt)
         : doc?.uploadedAt;
@@ -1347,7 +1613,7 @@ async function prepareAIInput(
         if (!s3Key) continue;
 
         // FAIL-FAST: 2 intentos máximo (1 inicial + 1 reintento)
-        let docResult: any = null;
+        let docResult: ProcessedDocItem | GenerationError | null = null;
 
         // ── 1. Intentar caché antes de llamar a Gemini ──
         let cachedRawText: string | undefined;
@@ -1603,11 +1869,12 @@ async function prepareAIInput(
               }
             }
             break; // No analysis but no error either
-          } catch (error: any) {
-            const is503 = error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
-            const is404 = error?.message?.includes('404');
-            const statusCode = error?.status || (is503 ? 503 : (is404 ? 404 : 500));
-            const errorMessage = error?.message || 'Error desconocido al analizar documento';
+          } catch (error: unknown) {
+            const rawMsg = getErrMessage(error);
+            const is503 = rawMsg.includes('503') || rawMsg.includes('UNAVAILABLE');
+            const is404 = rawMsg.includes('404');
+            const statusCode = getErrStatus(error) || (is503 ? 503 : (is404 ? 404 : 500));
+            const errorMessage = rawMsg || 'Error desconocido al analizar documento';
 
             // FAIL-FAST: Si es 503 y es el último intento, se registra el error
             // pero NO se aborta toda la generación. El documento se agrega a
@@ -1633,7 +1900,7 @@ async function prepareAIInput(
               timestamp: new Date(),
               documentName: fileName,
               statusCode,
-              stack: error?.stack,
+              stack: error instanceof Error ? error.stack : undefined,
             };
             loggerWithContext.error('AI', 'Error analizando documento con Gemini', error as Error, {
               fileName: doc?.name || 'unknown',
@@ -1647,10 +1914,10 @@ async function prepareAIInput(
         } // fin del bloque "si no hay caché"
 
         // Classify result
-        if (docResult && !(docResult as GenerationError).message) {
+        if (docResult && !('message' in docResult)) {
           processedDocs.push(docResult);
-        } else if (docResult) {
-          failedDocumentAnalyses.push(docResult as GenerationError);
+        } else if (docResult && 'message' in docResult) {
+          failedDocumentAnalyses.push(docResult);
         }
 
         // Delay de 8 segundos entre documentos para priorizar estabilidad sobre velocidad
@@ -1666,9 +1933,9 @@ async function prepareAIInput(
     }
 
     // Extraer el mejor medicalSummary de los documentos procesados por Gemini
-    const docSummaries = (processedDocs as any[])
-      .filter(d => d.medicalSummary)
-      .map(d => d.medicalSummary);
+    const docSummaries = processedDocs
+      .map((d) => d.medicalSummary)
+      .filter((s): s is string => Boolean(s));
     if (docSummaries.length > 0) {
       extractedMedicalSummary = docSummaries.join('\n\n');
     }
@@ -1704,7 +1971,7 @@ async function prepareAIInput(
   const documentHistory = [];
   if (selectedDocumentsForEval.length > 0) {
     const recentDocs = [...selectedDocumentsForEval]
-      .sort((a: any, b: any) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime())
+      .sort((a: EncryptedDocMeta, b: EncryptedDocMeta) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime())
       .slice(0, 5);
     for (const doc of recentDocs) {
       documentHistory.push({
@@ -1728,7 +1995,7 @@ async function prepareAIInput(
   };
   const healthAssessment: Record<string, string> = {};
   for (const [key, label] of Object.entries(healthLabels)) {
-    if (medicalData[key]) { healthAssessment[label] = medicalData[key]; }
+    if (typeof medicalData[key] === 'string' && medicalData[key]) { healthAssessment[label] = medicalData[key]; }
   }
 
   const mentalLabels: Record<string, string> = {
@@ -1750,7 +2017,7 @@ async function prepareAIInput(
   };
   const mentalHealth: Record<string, string> = {};
   for (const [key, label] of Object.entries(mentalLabels)) {
-    if (medicalData[key]) { mentalHealth[label] = medicalData[key]; }
+    if (typeof medicalData[key] === 'string' && medicalData[key]) { mentalHealth[label] = medicalData[key]; }
   }
 
   loggerWithContext.debug('AI', 'Entrada para IA preparada', {
@@ -1788,7 +2055,11 @@ async function updateChecklist(
   sessionId: string,
   checklistItems: ChecklistItem[],
   requestId: string
-): Promise<any> {
+): Promise<{
+  success: boolean;
+  data?: { session: AIRecommendationSession; progress: number; completedItems: number; totalItems: number };
+  message?: string;
+}> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
 
   loggerWithContext.info('AI', '🚀 Iniciando actualización de checklist', {
@@ -1811,7 +2082,7 @@ async function updateChecklist(
     }
 
     const sessionIndex = client.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     if (sessionIndex === -1) {
@@ -1870,13 +2141,13 @@ async function updateChecklist(
     }
 
     const updatedSessionIndex = updatedClient.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     const updatedSession = updatedClient.aiProgress.sessions[updatedSessionIndex];
     const decryptedSession = decryptAISessionCompletely(updatedSession);
 
-    const completedItems = decryptedSession.checklist?.filter((item: any) => item.completed).length || 0;
+    const completedItems = decryptedSession.checklist?.filter((item: ChecklistItem) => item.completed).length || 0;
     const totalItems = decryptedSession.checklist?.length || 0;
     const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
@@ -1890,8 +2161,8 @@ async function updateChecklist(
       }
     };
 
-  } catch (error: any) {
-    loggerWithContext.error('AI', '💥 Error actualizando checklist', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', '💥 Error actualizando checklist', toError(error));
     return {
       success: false,
       // SEC (A10): mensaje genérico, detalle solo en logs
@@ -1924,14 +2195,14 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
 
     // 2. Verificar que la sesión existe y está en estado 'draft'
     const sessionIndex = client.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     if (sessionIndex === -1) {
       loggerWithContext.warn('AI', 'Sesión no encontrada', {
         clientId,
         sessionId,
-        availableSessions: client.aiProgress.sessions?.map((s: any) => ({
+        availableSessions: client.aiProgress.sessions?.map((s: AIRecommendationSession) => ({
           sessionId: s.sessionId,
           status: s.status
         }))
@@ -1982,8 +2253,8 @@ async function approveSession(clientId: string, sessionId: string, requestId: st
       return false;
     }
 
-  } catch (error: any) {
-    loggerWithContext.error('AI', '❌ Error aprobando sesión', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', '❌ Error aprobando sesión', toError(error));
     return false;
   }
 }
@@ -2009,7 +2280,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     // 2. Encontrar la sesión específica
     const sessionIndex = client.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     if (sessionIndex === -1) {
@@ -2084,7 +2355,7 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
 
     // 8. Enviar email con el plan mensual usando EmailService
     let emailSent = false;
-    let emailError: any = null;
+    let emailError: Error | null = null;
 
     try {
       loggerWithContext.info('EMAIL', '✉️ Iniciando envío de email de plan mensual', {
@@ -2136,14 +2407,14 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
         });
       }
 
-    } catch (err: any) {
-      emailError = err;
-      loggerWithContext.error('EMAIL', 'Error enviando email', err);
+    } catch (err: unknown) {
+      emailError = err instanceof Error ? err : new Error(String(err));
+      loggerWithContext.error('EMAIL', 'Error enviando email', toError(err));
     }
 
     // 8. Determinar el estado final basado en el éxito del email
     const newStatus = emailSent ? 'sent' : 'approved'; // Si falla el email, mantener como aprobado
-    const updateData: any = {
+    const updateData: { $set: Record<string, unknown> } = {
       $set: {
         'aiProgress.sessions.$.status': newStatus,
         'aiProgress.sessions.$.updatedAt': new Date(),
@@ -2173,6 +2444,18 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
           clientName,
           monthNumber: session.monthNumber
         });
+        try {
+          await checkAndSendProgramCompletionEmail({
+            healthFormId: clientId,
+            trigger: 'evaluation_sent',
+          });
+        } catch (completionErr: unknown) {
+          loggerWithContext.warn(
+            'EMAIL',
+            'Error verificando correo de cierre de programa',
+            toError(completionErr)
+          );
+        }
       } else {
         loggerWithContext.warn('AI', '⚠️ Sesión NO se pudo enviar al cliente (email falló)', {
           sessionId,
@@ -2187,8 +2470,8 @@ async function sendToClient(clientId: string, sessionId: string, requestId: stri
       return false;
     }
 
-  } catch (error: any) {
-    loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', '💥 Error enviando sesión al cliente', toError(error));
     return false;
   }
 }
@@ -2224,7 +2507,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
 
     // 2. Encontrar la sesión específica
     const sessionIndex = client.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     if (sessionIndex === -1) {
@@ -2275,7 +2558,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     // Agregar sesiones anteriores (excluyendo la actual si es necesario)
     if (client.aiProgress.sessions && client.aiProgress.sessions.length > 0) {
       const otherSessions = client.aiProgress.sessions.filter(
-        (s: any, idx: number) => idx !== sessionIndex
+        (_s: AIRecommendationSession, idx: number) => idx !== sessionIndex
       );
       aiInput.previousSessions = otherSessions;
       loggerWithContext.debug('AI_REGEN', 'Sesiones anteriores incluidas', {
@@ -2295,21 +2578,33 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       documents: processedDocuments,
     } = aiInput;
 
+    const clientPlan = await resolveClientPlan(client as HealthFormClientDoc);
+    const planTotalWeeks =
+      clientPlan?.totalWeeks && clientPlan.totalWeeks > 0
+        ? clientPlan.totalWeeks
+        : existingSession.totalWeeks || 4;
+    const previousMedicalContext = buildPreviousMedicalContext(aiInput.previousSessions, sessionId);
+
     const compositeResult = await generateCompositeRecommendation({
       personalData: aiInput.personalData || {},
       medicalData: aiInput.medicalData || {},
       healthAssessment: healthAssessment || {},
       mentalHealth: mentalHealth || {},
-      processedDocuments: (processedDocuments || []).map((d: any) => ({
+      processedDocuments: (processedDocuments || []).map((d: ProcessedDocItem) => ({
         title: d.title || '',
         content: d.content || '',
         documentType: d.documentType || 'other',
         confidence: d.confidence || 0,
         uploadedAt: d.uploadedAt,
       })),
-      previousSessions: (aiInput.previousSessions || []) as any,
+      previousSessions: (aiInput.previousSessions || []) as unknown as Array<Record<string, unknown>>,
       coachNotes: aiInput.coachNotes || '',
       monthNumber: existingSession.monthNumber,
+      planId: clientPlan?.id,
+      planName: clientPlan?.name,
+      totalWeeks: planTotalWeeks,
+      planRoadmap: clientPlan?.roadmap,
+      previousMedicalContext,
     });
 
     loggerWithContext.info('AI_REGEN', '✅ Nuevas recomendaciones generadas con generateCompositeRecommendation', {
@@ -2439,7 +2734,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       weekNumber: 1 as const,
       nutrition: {
         focus: `Plan de comidas: ${compositeResult.nutritionPlan?.weeklyPlan?.length || 7} días, 3 comidas al día`,
-        shoppingList: shopList.filter((item: any) => item?.item && item?.quantity).map((item: any) => ({
+        shoppingList: shopList.filter((item) => item?.item && item?.quantity).map((item) => ({
           item: item.item!,
           quantity: item.quantity!,
           priority: item.priority || 'medium',
@@ -2459,7 +2754,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
     const newSessionPlain: AIRecommendationSession = {
       sessionId: newSessionId,
       monthNumber: existingSession.monthNumber,
-      totalWeeks: 4,
+      totalWeeks: planTotalWeeks,
       createdAt: existingSession.createdAt,
       updatedAt: new Date(),
       status: 'draft',
@@ -2561,11 +2856,11 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       return false;
     }
 
-  } catch (error: any) {
-    loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI_REGEN', '💥 Error en proceso de regeneración', toError(error));
 
     // Enviar error específico si es por estado incorrecto
-    if (error.message.includes("estado 'draft'")) {
+    if (getErrMessage(error).includes("estado 'draft'")) {
       throw error; // Propagar error específico
     }
 
@@ -2573,7 +2868,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
   }
 }
 
-async function debugSessionStatus(clientId: string, targetSessionId: string): Promise<any> {
+async function debugSessionStatus(clientId: string, targetSessionId: string): Promise<Record<string, unknown>> {
   try {
     const healthForms = await getHealthFormsCollection();
     const client = await healthForms.findOne({
@@ -2584,21 +2879,21 @@ async function debugSessionStatus(clientId: string, targetSessionId: string): Pr
       return { error: 'Cliente sin progreso de IA' };
     }
 
-    const sessions = client.aiProgress.sessions || [];
+    const sessions = (client.aiProgress.sessions || []) as AIRecommendationSession[];
 
     return {
       clientId,
       totalSessions: sessions.length,
-      targetSession: sessions.find((s: any) => s.sessionId === targetSessionId),
-      allSessions: sessions.map((s: any) => ({
+      targetSession: sessions.find((s) => s.sessionId === targetSessionId),
+      allSessions: sessions.map((s) => ({
         sessionId: s.sessionId,
         monthNumber: s.monthNumber,
         status: s.status,
         updatedAt: s.updatedAt
       }))
     };
-  } catch (error: any) {
-    return { error: error.message };
+  } catch (error: unknown) {
+    return { error: getErrMessage(error) };
   }
 }
 
@@ -2619,7 +2914,7 @@ async function updateSessionFields(
     };
   },
   requestId: string
-): Promise<any> {
+): Promise<{ success: boolean; data?: { session: AIRecommendationSession }; message?: string }> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
 
   loggerWithContext.info('AI', 'Actualizando campos de sesión', { sessionId, fields });
@@ -2628,7 +2923,7 @@ async function updateSessionFields(
     const healthForms = await getHealthFormsCollection();
 
     // Construir objeto de actualización dinámico
-    const updateFields: any = {};
+    const updateFields: Record<string, unknown> = {};
     if (fields.summary !== undefined) {
       updateFields['aiProgress.sessions.$.summary'] = encrypt(fields.summary);
     }
@@ -2664,7 +2959,7 @@ async function updateSessionFields(
     // Obtener la sesión actualizada para devolverla
     const updatedClient = await healthForms.findOne({ _id: new ObjectId(clientId) });
     const updatedSession = updatedClient?.aiProgress?.sessions?.find(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
 
     if (!updatedSession) {
@@ -2680,8 +2975,8 @@ async function updateSessionFields(
       }
     };
 
-  } catch (error: any) {
-    loggerWithContext.error('AI', 'Error actualizando campos de sesión', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', 'Error actualizando campos de sesión', toError(error));
     return {
       success: false,
       // SEC (A10): mensaje genérico, detalle solo en logs
@@ -2690,9 +2985,34 @@ async function updateSessionFields(
   }
 }
 
+interface ImportSessionWeekInput {
+  weekNumber?: number;
+  nutrition?: {
+    focus?: string;
+    shoppingList?: Array<{ item?: string; quantity?: string; priority?: 'high' | 'medium' | 'low' }>;
+  };
+  exercise?: {
+    focus?: string;
+    equipment?: string[];
+  };
+  habits?: {
+    trackingMethod?: string;
+    motivationTip?: string;
+  };
+}
+
+interface ImportSessionInput {
+  summary?: string;
+  vision?: string;
+  weeks?: ImportSessionWeekInput[];
+  checklist?: ChecklistItem[];
+  baselineMetrics?: { currentLifestyle: string[]; targetLifestyle: string[] };
+  coachNotes?: string;
+}
+
 async function importSession(
   clientId: string,
-  sessionData: any,
+  sessionData: ImportSessionInput,
   monthNumber: number = 1,
   requestId: string
 ): Promise<boolean> {
@@ -2736,7 +3056,7 @@ async function importSession(
 
     // Preparar semanas (asegurar estructura correcta)
     const weeks = sessionData.weeks || [];
-    const validatedWeeks = weeks.map((week: any, index: number) => ({
+    const validatedWeeks = weeks.map((week, index) => ({
       weekNumber: week.weekNumber || (index + 1),
       nutrition: {
         focus: week.nutrition?.focus || 'Nutrición personalizada',
@@ -2754,14 +3074,14 @@ async function importSession(
 
     // Preparar checklist (encriptar descripciones)
     const checklist = sessionData.checklist || [];
-    const encryptedChecklist = checklist.map((item: any) => ({
+    const encryptedChecklist = checklist.map((item) => ({
       ...item,
       description: encrypt(item.description || ''),
       details: item.details ? {
         ...item.details,
         recipe: item.details.recipe ? {
           ...item.details.recipe,
-          ingredients: item.details.recipe.ingredients?.map((ing: any) => ({
+          ingredients: item.details.recipe.ingredients?.map((ing) => ({
             name: encrypt(ing.name || ''),
             quantity: encrypt(ing.quantity || ''),
             notes: ing.notes ? encrypt(ing.notes) : undefined
@@ -2785,11 +3105,11 @@ async function importSession(
       summary: encrypt(sessionData.summary),
       vision: encrypt(sessionData.vision),
       baselineMetrics: sessionData.baselineMetrics || { currentLifestyle: [], targetLifestyle: [] },
-      weeks: validatedWeeks.map((week: any) => ({
+      weeks: validatedWeeks.map((week) => ({
         weekNumber: week.weekNumber,
         nutrition: {
           focus: encrypt(week.nutrition.focus),
-          shoppingList: week.nutrition.shoppingList.map((item: any) => ({
+          shoppingList: week.nutrition.shoppingList.map((item) => ({
             item: encrypt(item.item || ''),
             quantity: encrypt(item.quantity || ''),
             priority: item.priority || 'medium'
@@ -2816,7 +3136,7 @@ async function importSession(
     });
 
     // Preparar datos de actualización
-    const updateData: any = {
+    const updateData: { $set: Record<string, unknown> } = {
       $set: {
         updatedAt: new Date()
       }
@@ -2824,7 +3144,7 @@ async function importSession(
 
     // Verificar si ya existe una sesión para este mes
     const existingSessionIndex = client.aiProgress?.sessions?.findIndex(
-      (s: any) => s.monthNumber === monthNumber
+      (s: AIRecommendationSession) => s.monthNumber === monthNumber
     );
 
     loggerWithContext.debug('AI', 'Buscando sesión existente para el mes', {
@@ -2891,11 +3211,11 @@ async function importSession(
 
     return true;
 
-  } catch (error: any) {
-    loggerWithContext.error('AI', '💥 Error importando sesión', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', '💥 Error importando sesión', toError(error));
 
     // Propagar error específico
-    if (error.message.includes('La sesión debe incluir')) {
+    if (getErrMessage(error).includes('La sesión debe incluir')) {
       throw error;
     }
 
@@ -2918,7 +3238,11 @@ async function updateWeeklyPlanAndShoppingList(
   checklistItems: ChecklistItem[],
   weekNumber: number,
   requestId: string
-): Promise<any> {
+): Promise<{
+  success: boolean;
+  data?: { session: AIRecommendationSession; shoppingList: Array<{ item: string; quantity: string; priority: 'high' | 'medium' | 'low' }> };
+  message?: string;
+}> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
 
   loggerWithContext.info('AI', '📋 Iniciando actualización de plan semanal + Fase 3', {
@@ -2945,12 +3269,12 @@ async function updateWeeklyPlanAndShoppingList(
     }
 
     const sessionIndex = client.aiProgress.sessions.findIndex(
-      (s: any) => s.sessionId === sessionId
+      (s: AIRecommendationSession) => s.sessionId === sessionId
     );
     if (sessionIndex === -1) throw new Error('Sesión no encontrada');
 
-    const session = client.aiProgress.sessions[sessionIndex];
-    const weekIndex = session.weeks.findIndex((w: any) => w.weekNumber === weekNumber);
+    const session = client.aiProgress.sessions[sessionIndex] as AIRecommendationSession;
+    const weekIndex = session.weeks.findIndex((w) => w.weekNumber === weekNumber);
     if (weekIndex === -1) throw new Error('Semana no encontrada');
 
     // 2. Encriptar y persistir el checklist editado
@@ -3053,8 +3377,8 @@ async function updateWeeklyPlanAndShoppingList(
         shoppingList: shoppingListOutput.shoppingList,
       },
     };
-  } catch (error: any) {
-    loggerWithContext.error('AI', '💥 Error en updateWeeklyPlanAndShoppingList', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', '💥 Error en updateWeeklyPlanAndShoppingList', toError(error));
     return {
       success: false,
       // SEC (A10): mensaje genérico, detalle solo en logs
@@ -3068,7 +3392,7 @@ async function generateShoppingList(
   sessionId: string,
   weekNumber: number,
   requestId: string
-): Promise<any> {
+): Promise<{ success: boolean; shoppingList?: unknown; message?: string }> {
   const loggerWithContext = logger.withContext({ requestId, clientId });
 
   try {
@@ -3079,24 +3403,24 @@ async function generateShoppingList(
       throw new Error('Cliente no encontrado');
     }
 
-    const sessionIndex = client.aiProgress.sessions.findIndex((s: any) => s.sessionId === sessionId);
+    const sessionIndex = client.aiProgress.sessions.findIndex((s: AIRecommendationSession) => s.sessionId === sessionId);
     if (sessionIndex === -1) throw new Error('Sesión no encontrada');
 
-    const session = client.aiProgress.sessions[sessionIndex];
-    const weekIndex = session.weeks.findIndex((w: any) => w.weekNumber === weekNumber);
+    const session = client.aiProgress.sessions[sessionIndex] as AIRecommendationSession;
+    const weekIndex = session.weeks.findIndex((w) => w.weekNumber === weekNumber);
     if (weekIndex === -1) throw new Error('Semana no encontrada');
 
     // Obtener items de nutrición de la semana y desencriptarlos
     const nutritionItems = session.checklist
-      .filter((item: any) => item.weekNumber === weekNumber && item.category === 'nutrition')
-      .map((item: any) => ({
+      .filter((item: ChecklistItem) => item.weekNumber === weekNumber && item.category === 'nutrition')
+      .map((item: ChecklistItem) => ({
         ...item,
         description: safeDecrypt(item.description),
         recipeId: item.recipeId,
         frequency: item.frequency || 1,
         details: item.details ? {
           recipe: item.details.recipe ? {
-            ingredients: item.details.recipe.ingredients.map((ing: any) => ({
+            ingredients: item.details.recipe.ingredients.map((ing) => ({
               name: safeDecrypt(ing.name),
               quantity: safeDecrypt(ing.quantity),
               notes: ing.notes ? safeDecrypt(ing.notes) : undefined
@@ -3125,8 +3449,8 @@ async function generateShoppingList(
     }
 
     return { success: true, shoppingList };
-  } catch (error: any) {
-    loggerWithContext.error('AI', 'Error generando lista de compras', error);
+  } catch (error: unknown) {
+    loggerWithContext.error('AI', 'Error generando lista de compras', toError(error));
     // SEC (A10): mensaje genérico, detalle solo en logs
     return { success: false, message: 'Error generando la lista de compras' };
   }

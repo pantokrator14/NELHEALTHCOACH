@@ -3,6 +3,35 @@ import { MongoClient, ObjectId } from 'mongodb';
 import { encrypt } from '../src/app/lib/encryption';
 import fs from 'fs';
 
+interface ExerciseSeedItem {
+  name: string;
+  description: string;
+  category?: string[];
+  instructions?: string[];
+  equipment?: string[];
+  difficulty: string;
+  clientLevel: string;
+  muscleGroups?: string[];
+  contraindications?: string[];
+  sets?: number;
+  repetitions: string;
+  timeUnderTension?: string;
+  restBetweenSets?: string;
+  progression: string;
+  demo?: {
+    url?: string;
+    key?: string;
+    type?: string;
+    name?: string;
+    size?: number;
+    uploadedAt?: string;
+    videoSearchUrl?: string;
+  };
+  author?: string;
+  isPublished?: boolean;
+  tags?: string[];
+}
+
 async function main() {
   const mongo = new MongoClient(process.env.MONGODB_URI!);
   await mongo.connect();
@@ -10,8 +39,8 @@ async function main() {
   const coll = db.collection('exercises');
 
   // Datos originales desde exercises.json
-  const data = JSON.parse(fs.readFileSync('scripts/exercises.json', 'utf-8'));
-  const source = data.find((e: any) => e.name === "World's Greatest Stretch");
+  const data = JSON.parse(fs.readFileSync('scripts/exercises.json', 'utf-8')) as ExerciseSeedItem[];
+  const source = data.find((e) => e.name === "World's Greatest Stretch");
   if (!source) throw new Error('No encontrado en seed');
 
   // Cifrar igual que upload-exercises.ts
@@ -50,7 +79,7 @@ async function main() {
 
   const deletedId = '69f9249f0012b9ccb05f1e37';
   const doc = { _id: new ObjectId(deletedId), ...encrypted };
-  const res = await coll.insertOne(doc as any);
+  const res = await coll.insertOne(doc);
   console.log('✅ Ejercicio restaurado con _id original:', res.insertedId.toString());
 
   // Verificación

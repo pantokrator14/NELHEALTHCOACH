@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { getWaitlistCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
-import { waitlistSchema } from '@/app/lib/schemas';
+import { waitlistSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { encrypt } from '@/app/lib/encryption';

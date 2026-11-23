@@ -6,11 +6,12 @@
 // DELETE (solo admin): por id.
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { z } from 'zod';
 import { ObjectId } from 'mongodb';
 import { getBlogPostsCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { blogPostUpdateSchema } from '@/app/lib/schemas';
+import { blogPostUpdateSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';
@@ -151,7 +152,7 @@ async function putHandler(
           {
             success: false,
             message: firstError?.message ?? 'Datos de actualización inválidos',
-            errors: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+            errors: parsed.error.issues.map((i: z.core.$ZodIssue) => ({ field: i.path.join('.'), message: i.message })),
             code: 'VALIDATION',
           },
           { status: 400 },

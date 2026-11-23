@@ -9,11 +9,10 @@ const DASHBOARD_URL =
   process.env.NEXT_PUBLIC_DASHBOARD_URL ||
   (process.env.NODE_ENV === 'production' ? 'https://app.nelhealthcoach.com' : 'http://localhost:3002');
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
 interface NavSectionItem {
   id: string;
   labelKey: string;
+  defaultLabel?: string;
 }
 
 interface LegalNavItem {
@@ -36,7 +35,7 @@ const LANDING_NAV_ITEMS: NavSectionItem[] = [
   { id: 'sobre-mi', labelKey: 'landing.nav.sobreMi' },
   { id: 'blog', labelKey: 'landing.nav.blog' },
   { id: 'libro', labelKey: 'landing.nav.libro' },
-  { id: 'contacto', labelKey: 'landing.nav.contacto' },
+  { id: 'contacto', labelKey: 'landing.nav.planes', defaultLabel: 'Planes' },
 ];
 
 const Navbar: React.FC = () => {
@@ -44,52 +43,14 @@ const Navbar: React.FC = () => {
   const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isOverHero, setIsOverHero] = useState(true);
-  const [hasSlotsAvailable, setHasSlotsAvailable] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const isLegalPage = LEGAL_NAV_ITEMS.some((item) => item.href === router.pathname);
 
-  // Consultar disponibilidad de cupos para adaptar dinámicamente "Agendar" o "Contacto"
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAvailability = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/free-sessions/availability`, { cache: 'no-store' });
-        const data = (await res.json()) as { success?: boolean; data?: { available: boolean } };
-        if (isMounted && data?.success && data.data && typeof data.data.available === 'boolean') {
-          setHasSlotsAvailable(data.data.available);
-        }
-      } catch {
-        // En caso de fallo de red, se mantiene el valor inicial
-      }
-    };
-
-    void fetchAvailability();
-
-    const handleSlotsEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ available: boolean }>;
-      if (customEvent.detail && typeof customEvent.detail.available === 'boolean') {
-        setHasSlotsAvailable(customEvent.detail.available);
-      }
-    };
-
-    window.addEventListener('nhc_slots_availability', handleSlotsEvent);
-    return () => {
-      isMounted = false;
-      window.removeEventListener('nhc_slots_availability', handleSlotsEvent);
-    };
-  }, []);
-
   const getNavItemLabel = (item: NavSectionItem) => {
-    if (item.id === 'contacto') {
-      return hasSlotsAvailable
-        ? t('landing.nav.agendar', 'Agendar')
-        : t('landing.nav.contacto', 'Contacto');
-    }
-    return t(item.labelKey);
+    return item.defaultLabel ? t(item.labelKey, item.defaultLabel) : t(item.labelKey);
   };
 
-  // Cerrar el menú móvil en transiciones de ruta mediante suscripción a eventos
   useEffect(() => {
     const handleRouteChange = () => {
       setMobileMenuOpen(false);
@@ -101,7 +62,6 @@ const Navbar: React.FC = () => {
     };
   }, [router]);
 
-  // Efecto para detectar cuándo estamos sobre la sección hero
   useEffect(() => {
     const heroSection = document.getElementById('inicio');
     if (!heroSection) {
@@ -130,7 +90,6 @@ const Navbar: React.FC = () => {
     };
   }, [router.pathname]);
 
-  // Scroll suave en la landing page
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -148,7 +107,6 @@ const Navbar: React.FC = () => {
     setMobileMenuOpen(false);
   };
 
-  // Clic en el logo: vuelve al inicio de la landing o hace scroll al inicio
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isLegalPage && router.pathname === '/') {
       e.preventDefault();
@@ -157,7 +115,6 @@ const Navbar: React.FC = () => {
     setMobileMenuOpen(false);
   };
 
-  // Determinar estilos y logo según la posición
   const navbarBackground = isOverHero
     ? 'bg-transparent shadow-none'
     : 'bg-white shadow-md';
@@ -167,13 +124,12 @@ const Navbar: React.FC = () => {
     : 'text-gray-700 hover:text-blue-600';
 
   const logoPath = isOverHero
-    ? '/images/logo1.png' // Logo blanco para el hero
-    : '/images/logo.png'; // Logo azul para el resto
+    ? '/images/logo1.png'
+    : '/images/logo.png';
 
   return (
     <header className={`fixed w-full h-auto z-50 transition-all duration-300 ${navbarBackground} py-2`}>
       <div className="container mx-auto px-4 flex justify-between items-center">
-        {/* Logo con enlace hacia la landing page */}
         <Link
           href="/"
           onClick={handleLogoClick}
@@ -215,7 +171,6 @@ const Navbar: React.FC = () => {
                 );
               })}
 
-              {/* Botón directo para volver a la landing */}
               <Link
                 href="/"
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
@@ -228,7 +183,6 @@ const Navbar: React.FC = () => {
                 <span>{t('landing.nav.backToHome', 'Volver al Inicio')}</span>
               </Link>
 
-              {/* Botón Login en páginas legales */}
               <a
                 href={`${DASHBOARD_URL}/login`}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
@@ -238,7 +192,7 @@ const Navbar: React.FC = () => {
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
+                <span>{t('landing.nav.login', 'Iniciar Sesión')}</span>
               </a>
             </>
           ) : (
@@ -257,7 +211,6 @@ const Navbar: React.FC = () => {
                 </a>
               ))}
 
-              {/* Botón Login con borde distintivo */}
               <a
                 href={`${DASHBOARD_URL}/login`}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-sm px-4 py-1.5 rounded-full border-2 transition-all duration-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
@@ -267,7 +220,7 @@ const Navbar: React.FC = () => {
                 }`}
               >
                 <span>👤</span>
-                <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
+                <span>{t('landing.nav.login', 'Iniciar Sesión')}</span>
               </a>
             </>
           )}
@@ -335,7 +288,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
+                    <span>{t('landing.nav.login', 'Iniciar Sesión')}</span>
                   </a>
                 </div>
               </>
@@ -368,7 +321,7 @@ const Navbar: React.FC = () => {
                     }`}
                   >
                     <span>👤</span>
-                    <span>{t('landing.nav.login', 'Login (Asesores)')}</span>
+                    <span>{t('landing.nav.login', 'Iniciar Sesión')}</span>
                   </a>
                 </div>
               </>

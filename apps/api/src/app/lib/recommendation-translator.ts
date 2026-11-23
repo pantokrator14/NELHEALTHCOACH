@@ -38,6 +38,40 @@ export const LANG_LABELS: Record<SupportedLang, string> = {
   de: 'alemán',
 };
 
+export interface TranslatableShoppingItem {
+  item: string;
+  quantity: string;
+  priority?: string;
+}
+
+export interface TranslatableWeek {
+  weekNumber: number;
+  nutrition?: {
+    focus?: string;
+    shoppingList?: TranslatableShoppingItem[];
+  };
+  exercise?: {
+    focus?: string;
+    equipment?: string[];
+  };
+  habits?: {
+    trackingMethod?: string;
+    motivationTip?: string;
+  };
+}
+
+export interface TranslatableSession {
+  summary?: string;
+  vision?: string;
+  medicalSummary?: string;
+  medicalComparativeAnalysis?: string;
+  structuredMedicalAnalysis?: unknown;
+  weeks?: TranslatableWeek[];
+  checklist?: unknown[];
+  baselineMetrics?: unknown;
+  labResults?: unknown[];
+}
+
 /** Normaliza el idioma del cliente: valida contra los soportados, default 'es'. */
 export function normalizeClientLang(lang: unknown): SupportedLang {
   return typeof lang === 'string' && (SUPPORTED_LANGS as readonly string[]).includes(lang)
@@ -52,10 +86,10 @@ export function normalizeClientLang(lang: unknown): SupportedLang {
  * Recibe la sesión EN PLANO (tras la FASE 4) y devuelve la sesión cifrada lista
  * para persistir. `translation` se guarda sin cifrar (no es dato sensible).
  */
-export function encryptSessionFields(
-  session: any,
+export function encryptSessionFields<T extends TranslatableSession>(
+  session: T,
   translation?: { targetLang: SupportedLang; sourceLang: SupportedLang }
-): any {
+): T & { translation?: { targetLang: SupportedLang; sourceLang: SupportedLang } } {
   return {
     ...session,
     ...(translation ? { translation } : {}),
@@ -63,11 +97,11 @@ export function encryptSessionFields(
     vision: encrypt(session.vision || ''),
     medicalSummary: encrypt(session.medicalSummary || ''),
     medicalComparativeAnalysis: encrypt(session.medicalComparativeAnalysis || ''),
-    weeks: (session.weeks || []).map((week: any) => ({
+    weeks: (session.weeks || []).map((week) => ({
       weekNumber: week.weekNumber,
       nutrition: {
         focus: encrypt(week.nutrition?.focus || ''),
-        shoppingList: (week.nutrition?.shoppingList || []).map((item: any) => ({
+        shoppingList: (week.nutrition?.shoppingList || []).map((item) => ({
           item: encrypt(item.item || ''),
           quantity: encrypt(item.quantity || ''),
           priority: item.priority || 'medium',
@@ -75,7 +109,7 @@ export function encryptSessionFields(
       },
       exercise: {
         focus: encrypt(week.exercise?.focus || ''),
-        equipment: (week.exercise?.equipment || []).map((eq: string) => encrypt(eq || '')),
+        equipment: (week.exercise?.equipment || []).map((eq) => encrypt(eq || '')),
       },
       habits: {
         trackingMethod: week.habits?.trackingMethod ? encrypt(week.habits.trackingMethod) : undefined,
@@ -280,13 +314,13 @@ export async function translateJsonBatch<T>(
  * con los textos traducidos. Los campos no-texto (ids, enums, números) se
  * conservan intactos.
  */
-export async function translateSessionContent(
-  session: any,
+export async function translateSessionContent<T extends TranslatableSession>(
+  session: T,
   targetLang: SupportedLang,
   sourceHint: string,
   llm: LLMFn = defaultLLM
-): Promise<any> {
-  const translated: any = { ...session };
+): Promise<T> {
+  const translated: T = { ...session };
 
   // Las secciones son independientes entre sí: se traducen con concurrencia
   // limitada (2) para acortar FASE 4 sin provocar 503 de DeepSeek.
@@ -300,15 +334,24 @@ export async function translateSessionContent(
     medicalComparativeAnalysis: session.medicalComparativeAnalysis || '',
   };
 
-  const sections = [
+  interface TranslationSection {
+    key: string;
+    run: () => Promise<unknown>;
+    apply: (res: unknown) => void;
+  }
+
+  const sections: TranslationSection[] = [
     {
       key: 'narrative',
       run: () => translateJsonBatch(narrative, targetLang, sourceHint, llm),
-      apply: (res: any) => {
-        translated.summary = res?.summary ?? session.summary;
-        translated.vision = res?.vision ?? session.vision;
-        translated.medicalSummary = res?.medicalSummary ?? session.medicalSummary;
-        translated.medicalComparativeAnalysis = res?.medicalComparativeAnalysis ?? session.medicalComparativeAnalysis;
+      apply: (res) => {
+        const n = res && typeof res === 'object' ? (res as Partial<typeof narrative>) : null;
+        if (!n) return;
+        translated.summary = n.summary ?? session.summary;
+        translated.vision = n.vision ?? session.vision;
+        translated.medicalSummary = n.medicalSummary ?? session.medicalSummary;
+        translated.medicalComparativeAnalysis =
+          n.medicalComparativeAnalysis ?? session.medicalComparativeAnalysis;
       },
     },
     {
@@ -316,35 +359,35 @@ export async function translateSessionContent(
       run: () => session.structuredMedicalAnalysis
         ? translateJsonBatch(session.structuredMedicalAnalysis, targetLang, sourceHint, llm)
         : Promise.resolve(null),
-      apply: (res: any) => { if (res) translated.structuredMedicalAnalysis = res; },
+      apply: (res) => { if (res) translated.structuredMedicalAnalysis = res; },
     },
     {
       key: 'weeks',
       run: () => Array.isArray(session.weeks)
         ? translateJsonBatch(session.weeks, targetLang, sourceHint, llm)
         : Promise.resolve(null),
-      apply: (res: any) => { if (res) translated.weeks = res; },
+      apply: (res) => { if (Array.isArray(res)) translated.weeks = res as T['weeks']; },
     },
     {
       key: 'checklist',
       run: () => Array.isArray(session.checklist)
         ? translateJsonBatch(session.checklist, targetLang, sourceHint, llm)
         : Promise.resolve(null),
-      apply: (res: any) => { if (res) translated.checklist = res; },
+      apply: (res) => { if (Array.isArray(res)) translated.checklist = res; },
     },
     {
       key: 'baselineMetrics',
       run: () => session.baselineMetrics
         ? translateJsonBatch(session.baselineMetrics, targetLang, sourceHint, llm)
         : Promise.resolve(null),
-      apply: (res: any) => { if (res) translated.baselineMetrics = res; },
+      apply: (res) => { if (res) translated.baselineMetrics = res; },
     },
     {
       key: 'labResults',
       run: () => Array.isArray(session.labResults)
         ? translateJsonBatch(session.labResults, targetLang, sourceHint, llm)
         : Promise.resolve(null),
-      apply: (res: any) => { if (res) translated.labResults = res; },
+      apply: (res) => { if (Array.isArray(res)) translated.labResults = res; },
     },
   ];
 
@@ -408,10 +451,10 @@ export async function translatePDFContent(
   ]);
 
   for (const [id, r] of recipeEntries) {
-    outRecipes[id] = (translatedRecipes as any)?.[id] ?? r;
+    outRecipes[id] = translatedRecipes?.[id] ?? r;
   }
   for (const [key, e] of exerciseEntries) {
-    outExercises[key] = (translatedExercises as any)?.[key] ?? e;
+    outExercises[key] = translatedExercises?.[key] ?? e;
   }
 
   return { recipes: outRecipes, exercises: outExercises };

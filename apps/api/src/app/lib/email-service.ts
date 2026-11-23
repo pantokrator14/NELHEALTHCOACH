@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 import { logger } from './logger';
-import { 
-  generateMonthlyPlanEmailHTML, 
+import {
+  generateMonthlyPlanEmailHTML,
   generateMonthlyPlanEmailText,
   generateSessionInviteHTML,
   generateCoachSessionNotificationHTML,
@@ -13,6 +13,10 @@ import {
   EmailTemplateData,
   SessionEmailData,
 } from './email-templates';
+import {
+  generateProgramCompletionEmailHTML,
+  type ProgramCompletionEmailData,
+} from './program-completion-template';
 
 // 1. CONFIGURACIÓN INICIAL DE RESEND
 const resendApiKey = process.env.RESEND_API_KEY;
@@ -64,7 +68,7 @@ export class EmailService {
     this.fromEmail = process.env.EMAIL_FROM_ADDRESS || 'no-reply@nelhealthcoach.com';
     this.fromName = process.env.EMAIL_FROM_NAME || 'Servicio Automático de Recomendaciones | NELHealthCoach';
     this.enabled = process.env.EMAIL_ENABLED !== 'false';
-    
+
     logger.info('EMAIL', 'EmailService (Resend) inicializado', {
       fromEmail: this.fromEmail,
       fromName: this.fromName,
@@ -120,12 +124,13 @@ export class EmailService {
 
         return true;
 
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error(String(error));
         // Logging detallado del error de Resend
-        logger.error('EMAIL', '❌ Error enviando email con Resend', error, {
+        logger.error('EMAIL', '❌ Error enviando email con Resend', err, {
           ...logContext,
-          errorMessage: error.message,
-          errorType: error.constructor.name,
+          errorMessage: err.message,
+          errorType: err.constructor.name,
         });
 
         // En desarrollo, puedes simular éxito para no romper el flujo
@@ -137,7 +142,7 @@ export class EmailService {
           console.log('Texto (inicio):', options.textBody?.substring(0, 200));
           return true; // Simula éxito para no bloquear las pruebas
         }
-        
+
         return false;
       }
     }, logContext);
@@ -149,7 +154,14 @@ export class EmailService {
   public async sendMonthlyPlanEmail(
     clientEmail: string,
     clientName: string,
-    sessionData: any,
+    sessionData: {
+      summary?: string;
+      vision?: string;
+      baselineMetrics?: {
+        currentLifestyle?: string[];
+        targetLifestyle?: string[];
+      };
+    },
     monthNumber: number,
     metadata?: {
         clientId?: string;
@@ -179,7 +191,12 @@ export class EmailService {
         summary: sessionData.summary || '',
         vision: sessionData.vision || '',
         weeks: [],
-        baselineMetrics: sessionData.baselineMetrics,
+        baselineMetrics: sessionData.baselineMetrics
+          ? {
+              currentLifestyle: sessionData.baselineMetrics.currentLifestyle || [],
+              targetLifestyle: sessionData.baselineMetrics.targetLifestyle || [],
+            }
+          : undefined,
         coachName: coachInfo?.coachName || this.fromName,
         coachEmail: coachInfo?.coachEmail || this.fromEmail,
         coachPhone: coachInfo?.coachPhone || '',
@@ -212,8 +229,8 @@ export class EmailService {
         });
 
         return result;
-    } catch (error: any) {
-        loggerWithContext.error('EMAIL', 'Error en sendMonthlyPlanEmail', error, {
+    } catch (error: unknown) {
+        loggerWithContext.error('EMAIL', 'Error en sendMonthlyPlanEmail', error instanceof Error ? error : new Error(String(error)), {
         clientEmail,
         clientName,
         monthNumber
@@ -222,7 +239,6 @@ export class EmailService {
     }
   }
 
-  /**
   /**
    * Convertir HTML a texto plano (método auxiliar)
    */
@@ -379,6 +395,38 @@ export class EmailService {
   }
 
   /**
+   * Enviar email de felicitación y resumen al finalizar un plan/reto.
+   */
+  public async sendProgramCompletionEmail(
+    clientEmail: string,
+    data: ProgramCompletionEmailData
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Enviando email de cierre y felicitación de programa', {
+        clientEmail,
+        planName: data.planName,
+        evaluationsCount: data.evaluationsCount,
+      });
+
+      const htmlContent = generateProgramCompletionEmailHTML(data);
+      const subject = `🏆 ¡Felicidades por completar ${data.planName}! Tu resumen de progreso | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [clientEmail],
+        subject,
+        htmlBody: htmlContent,
+        replyTo: [this.fromEmail],
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando email de cierre de programa', error as Error, {
+        clientEmail,
+        planName: data.planName,
+      });
+      return false;
+    }
+  }
+
+  /**
    * Enviar email de bienvenida al trial.
    */
   public async sendTrialWelcomeEmail(
@@ -482,19 +530,19 @@ export class EmailService {
     issues: string[];
   }> {
     const issues: string[] = [];
-    
+
     if (!this.enabled) {
       issues.push('EMAIL_ENABLED está en false');
     }
-    
+
     if (!this.fromEmail) {
       issues.push('EMAIL_FROM_ADDRESS no configurado');
     }
-    
+
     if (!process.env.RESEND_API_KEY) {
       issues.push('RESEND_API_KEY no configurada');
     }
-    
+
     return {
       configured: issues.length === 0,
       fromEmail: this.fromEmail,

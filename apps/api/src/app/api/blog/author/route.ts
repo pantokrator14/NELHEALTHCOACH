@@ -6,10 +6,11 @@
 // PUT  (solo admin): guarda el perfil (campos cifrados como las recetas).
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { z } from 'zod';
 import { getBlogAuthorCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { authorProfileSchema } from '@/app/lib/schemas';
+import { authorProfileSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';
@@ -129,7 +130,7 @@ async function putHandler(request: NextRequest) {
           {
             success: false,
             message: firstError?.message ?? 'Datos del perfil inválidos',
-            errors: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+            errors: parsed.error.issues.map((i: z.core.$ZodIssue) => ({ field: i.path.join('.'), message: i.message })),
             code: 'VALIDATION',
           },
           { status: 400 },

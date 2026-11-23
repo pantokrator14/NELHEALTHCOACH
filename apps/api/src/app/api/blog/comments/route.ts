@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getBlogCommentsCollection, getBlogPostsCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { blogCommentSchema } from '@/app/lib/schemas';
+import { blogCommentSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';

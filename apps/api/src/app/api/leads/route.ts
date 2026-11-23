@@ -10,10 +10,11 @@ function escapeHtml(str: unknown): string {
 
 // apps/api/src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import type { z } from 'zod';
 import { getLeadsCollection } from '@/app/lib/database';
 import { incrementFreeSessionUsage } from '@/app/lib/free-sessions';
 import { secureRoute } from '@/app/lib/security/index';
-import { leadSchema } from '@/app/lib/schemas';
+import { leadSchema } from '@/app/lib/schemas/index';
 import { Resend } from 'resend';
 import { logger } from '@/app/lib/logger';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -74,7 +75,7 @@ async function postHandler(request: NextRequest) {
         {
           success: false,
           message: firstError?.message ?? 'Datos inválidos',
-          errors: parsed.error.issues.map((i) => ({
+          errors: parsed.error.issues.map((i: z.core.$ZodIssue) => ({
             field: i.path.join('.'),
             message: i.message,
           })),

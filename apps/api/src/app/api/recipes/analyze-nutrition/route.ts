@@ -40,16 +40,17 @@ async function postHandler(request: NextRequest) {
         timestamp: new Date().toISOString()
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const apiError = (typeof error === 'object' && error !== null ? error : {}) as { status?: number };
       // Si es un error estructurado (auth), devolver su status específico
-      if (error?.status) {
+      if (apiError?.status) {
         return NextResponse.json(
           { 
             success: false, 
             message: 'Error de autenticación',
             ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
           },
-          { status: error.status }
+          { status: apiError.status }
         );
       }
 
@@ -71,7 +72,7 @@ async function postHandler(request: NextRequest) {
           timestamp: new Date().toISOString()
         });
         
-      } catch (fallbackError) {
+      } catch {
         return NextResponse.json(
           { 
             success: false, 

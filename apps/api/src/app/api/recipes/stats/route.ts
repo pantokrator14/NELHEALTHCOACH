@@ -102,8 +102,8 @@ async function getHandler(request: NextRequest) {
       }
     });
     
-  } catch (error: any) {
-    console.error('Error getting recipe stats:', error.message);
+  } catch (error: unknown) {
+    console.error('Error getting recipe stats:', error instanceof Error ? error.message : String(error));
     logger.error('RECIPES', 'Error obteniendo estadísticas de recetas', error);
     return NextResponse.json(
       { 

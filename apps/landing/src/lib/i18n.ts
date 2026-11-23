@@ -41,7 +41,9 @@ const en = {
     success: 'Success',
     warning: 'Warning',
     info: 'Information',
-    required: 'Required'
+    required: 'Required',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu'
   },
   navigation: {
     home: 'Home',
@@ -77,6 +79,7 @@ const en = {
       testimonios: 'Testimonials',
       contacto: 'Contact',
       agendar: 'Schedule',
+      planes: 'Plans',
       blog: 'Blog',
       privacy: 'Privacy',
       terms: 'Terms',
@@ -84,7 +87,7 @@ const en = {
       cookies: 'Cookies',
       refunds: 'Refunds',
       backToHome: 'Back to Home',
-      login: 'Login (Coaches)',
+      login: 'Login / Portal',
     },
 
     blogPreview: {
@@ -204,7 +207,7 @@ const en = {
       perMonth: 'per month',
       features: 'Features',
       getStarted: 'Get Started',
-      popular: 'Most Popular',
+      popular: 'Recommended',
       basicFeatures: ['Personalized meal plan', 'Weekly check-ins', 'Mobile app access'],
       proFeatures: ['Everything in Basic', 'AI-powered recommendations', 'Monthly video calls', 'Priority support'],
       premiumFeatures: ['Everything in Pro', 'Daily coaching', 'Custom workout plans', '24/7 support']
@@ -402,7 +405,9 @@ const es = {
     success: 'Éxito',
     warning: 'Advertencia',
     info: 'Información',
-    required: 'Requerido'
+    required: 'Requerido',
+    openMenu: 'Abrir menú',
+    closeMenu: 'Cerrar menú'
   },
   navigation: {
     home: 'Inicio',
@@ -438,6 +443,7 @@ const es = {
       testimonios: 'Testimonios',
       contacto: 'Contacto',
       agendar: 'Agendar',
+      planes: 'Planes',
       blog: 'Blog',
       privacy: 'Privacidad',
       terms: 'Términos',
@@ -445,7 +451,7 @@ const es = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Volver al Inicio',
-      login: 'Login (Asesores)',
+      login: 'Iniciar Sesión',
     },
 
     blogPreview: {
@@ -565,7 +571,7 @@ const es = {
       perMonth: 'por mes',
       features: 'Características',
       getStarted: 'Comenzar',
-      popular: 'Más Popular',
+      popular: 'Recomendado',
       basicFeatures: ['Plan de comida personalizado', 'Chequeos semanales', 'Acceso a app móvil'],
       proFeatures: ['Todo en Básico', 'Recomendaciones con IA', 'Videollamadas mensuales', 'Soporte prioritario'],
       premiumFeatures: ['Todo en Pro', 'Coaching diario', 'Planes de ejercicio personalizados', 'Soporte 24/7']
@@ -763,7 +769,9 @@ const fr = {
     success: 'Succes',
     warning: 'Avertissement',
     info: 'Information',
-    required: 'Requis'
+    required: 'Requis',
+    openMenu: 'Ouvrir le menu',
+    closeMenu: 'Fermer le menu'
   },
   navigation: {
     home: 'Accueil',
@@ -800,6 +808,7 @@ const fr = {
       testimonios: 'Témoignages',
       contacto: 'Contact',
       agendar: 'Réserver',
+      planes: 'Forfaits',
       blog: 'Blog',
       privacy: 'Confidentialité',
       terms: 'Conditions',
@@ -807,7 +816,7 @@ const fr = {
       cookies: 'Cookies',
       refunds: 'Remboursements',
       backToHome: 'Retour à l’accueil',
-      login: 'Login (Coachs)',
+      login: 'Connexion',
     },
 
     blogPreview: {
@@ -927,7 +936,7 @@ const fr = {
       perMonth: 'par mois',
       features: 'Fonctionnalites',
       getStarted: 'Commencer',
-      popular: 'Plus Populaire',
+      popular: 'Recommandé',
       basicFeatures: ['Plan de repas personnalise', 'Bilans hebdomadaires', 'Acces a l\'app mobile'],
       proFeatures: ['Tout en Basique', 'Recommandations IA', 'Appels video mensuels', 'Support prioritaire'],
       premiumFeatures: ['Tout en Pro', 'Coaching quotidien', 'Plans d\'exercice personnalises', 'Support 24/7']
@@ -1125,7 +1134,9 @@ const it = {
     success: 'Successo',
     warning: 'Avviso',
     info: 'Informazione',
-    required: 'Obbligatorio'
+    required: 'Obbligatorio',
+    openMenu: 'Apri menu',
+    closeMenu: 'Chiudi menu'
   },
   navigation: {
     home: 'Home',
@@ -1162,6 +1173,7 @@ const it = {
       testimonios: 'Testimonianze',
       contacto: 'Contatto',
       agendar: 'Prenota',
+      planes: 'Piani',
       blog: 'Blog',
       privacy: 'Privacy',
       terms: 'Termini',
@@ -1169,7 +1181,7 @@ const it = {
       cookies: 'Cookie',
       refunds: 'Rimborsi',
       backToHome: 'Torna alla Home',
-      login: 'Login (Coach)',
+      login: 'Accedi',
     },
 
     blogPreview: {
@@ -1289,7 +1301,7 @@ const it = {
       perMonth: 'al mese',
       features: 'Caratteristiche',
       getStarted: 'Inizia',
-      popular: 'Piu Popolare',
+      popular: 'Consigliato',
       basicFeatures: ['Piano pasti personalizzato', 'Check-in settimanali', 'Accesso app mobile'],
       proFeatures: ['Tutto in Base', 'Raccomandazioni IA', 'Videochiamate mensili', 'Supporto prioritario'],
       premiumFeatures: ['Tutto in Pro', 'Coaching quotidiano', 'Piani esercizio personalizzati', 'Supporto 24/7']
@@ -1487,7 +1499,9 @@ const pt = {
     success: 'Sucesso',
     warning: 'Aviso',
     info: 'Informacao',
-    required: 'Obrigatorio'
+    required: 'Obrigatório',
+    openMenu: 'Abrir menu',
+    closeMenu: 'Fechar menu'
   },
   navigation: {
     home: 'Inicio',
@@ -1525,6 +1539,7 @@ const pt = {
       contato: 'Contato',
       contacto: 'Contato',
       agendar: 'Agendar',
+      planes: 'Planos',
       blog: 'Blog',
       privacy: 'Privacidade',
       terms: 'Termos',
@@ -1532,7 +1547,7 @@ const pt = {
       cookies: 'Cookies',
       refunds: 'Reembolsos',
       backToHome: 'Voltar ao Início',
-      login: 'Login (Coaches)',
+      login: 'Entrar',
     },
 
     blogPreview: {
@@ -1652,7 +1667,7 @@ const pt = {
       perMonth: 'por mes',
       features: 'Recursos',
       getStarted: 'Comecar',
-      popular: 'Mais Popular',
+      popular: 'Recomendado',
       basicFeatures: ['Plano de refeicoes personalizado', 'Check-ins semanais', 'Acesso ao app movel'],
       proFeatures: ['Tudo do Basico', 'Recomendacoes com IA', 'Chamadas de video mensais', 'Suporte prioritario'],
       premiumFeatures: ['Tudo do Pro', 'Coaching diario', 'Planos de exercicio personalizados', 'Suporte 24/7']
@@ -1850,7 +1865,9 @@ const de = {
     success: 'Erfolg',
     warning: 'Warnung',
     info: 'Information',
-    required: 'Erforderlich'
+    required: 'Erforderlich',
+    openMenu: 'Menü öffnen',
+    closeMenu: 'Menü schließen'
   },
   navigation: {
     home: 'Startseite',
@@ -1887,6 +1904,7 @@ const de = {
       testimonios: 'Erfahrungsberichte',
       contacto: 'Kontakt',
       agendar: 'Termin buchen',
+      planes: 'Tarife',
       blog: 'Blog',
       privacy: 'Datenschutz',
       terms: 'AGB',
@@ -1894,7 +1912,7 @@ const de = {
       cookies: 'Cookies',
       refunds: 'Rückerstattung',
       backToHome: 'Zurück zur Startseite',
-      login: 'Login (Coaches)',
+      login: 'Login / Portal',
     },
 
     blogPreview: {
@@ -2014,7 +2032,7 @@ const de = {
       perMonth: 'pro Monat',
       features: 'Funktionen',
       getStarted: 'Loslegen',
-      popular: 'Beliebteste',
+      popular: 'Empfohlen',
       basicFeatures: ['Personalisierter Essensplan', 'Wochentliche Check-ins', 'Mobile App Zugang'],
       proFeatures: ['Alles aus Basis', 'KI-Empfehlungen', 'Monatliche Videoanrufe', 'Prioritatssupport'],
       premiumFeatures: ['Alles aus Pro', 'Tagliches Coaching', 'Individuelle Trainingsplane', '24/7 Support']

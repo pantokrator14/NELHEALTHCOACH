@@ -10,7 +10,6 @@
  * Correr: cd apps/api && npx tsx tests/error-cleanup.test.ts
  */
 import 'dotenv/config';
-import { NextRequest } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { POST } from '../src/app/api/clients/[id]/ai/route';
 import { connectDB, registerClientWithJobs, runCleanup, authedRequest, coachToken } from './helpers';
@@ -44,7 +43,7 @@ async function main() {
       },
     },
   };
-  await db.collection('healthforms').insertOne(client as any);
+  await db.collection('healthforms').insertOne(client);
   registerClientWithJobs(client._id.toString());
   const clientId = client._id.toString();
 
@@ -68,7 +67,7 @@ main()
   .finally(async () => {
     await runCleanup();
     console.log(`\n══════════════════════════════════════════════════════════`);
-    console.log(`🎉 ERROR-CLEANUP: ${passes} checks pasaron, ${failures} fallaron`);
+    console.log(`${failures === 0 ? '🎉 ERROR CLEANUP: TODOS OK' : `❌ ${failures} fallos`} (${passes} checks)`);
     console.log(`══════════════════════════════════════════════════════════`);
-    process.exit(failures > 0 ? 1 : 0);
+    process.exit(failures === 0 ? 0 : 1);
   });

@@ -55,7 +55,7 @@ export function logSecurityBlock(
   console.log(`${icon} ${coloredTag} ${sanitizeMessage(reason)} en ${sanitizeMessage(ctx.path)}${metaStr}`);
 
   // También pasar por el logger estructurado
-  (logger as any).warn(
+  logger.warn(
     'GUARDRAILS',
     `[AUDIT:${eventType}] ${reason} en ${ctx.path}`,
     undefined,
@@ -89,7 +89,7 @@ export function logAuthFailure(
   const metaStr = metaParts.length > 0 ? ` \x1b[90m[${metaParts.join(', ')}]\x1b[0m` : '';
   console.log(`${icon} ${coloredTag} ${sanitizeMessage(reason)} para ${sanitizeMessage(email)}${metaStr}`);
 
-  (logger as any).warn(
+  logger.warn(
     'AUTH',
     `[AUDIT:LOGIN_FAILURE] ${reason} para ${email}`,
     undefined,

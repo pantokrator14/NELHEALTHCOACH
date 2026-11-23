@@ -12,7 +12,7 @@ import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
 import { requireServiceAvailable } from '@/app/lib/security/routeGuard';
-import { registerSchema } from '@/app/lib/schemas';
+import { registerSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 import { generateVerificationEmailHTML, generateWelcomeCoachEmailHTML } from '@/app/lib/email-templates';

@@ -91,9 +91,8 @@ const MentalHealthStep: React.FC<MentalHealthStepProps> = ({ data, onSubmit, onB
     ];
     fields.forEach(field => {
       const value = data[field];
-      if (value !== undefined && value !== '') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (defaultValues[field] as any) = value;
+      if (typeof value === 'string' && value !== '') {
+        defaultValues[field] = value;
       }
     });
     return defaultValues;

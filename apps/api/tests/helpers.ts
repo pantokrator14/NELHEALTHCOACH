@@ -12,7 +12,7 @@
  *     los tests repetibles).
  */
 import 'dotenv/config';
-import { MongoClient, ObjectId } from 'mongodb';
+import { Db, MongoClient, ObjectId } from 'mongodb';
 import jwt from 'jsonwebtoken';
 import { NextRequest } from 'next/server';
 import { encrypt } from '../src/app/lib/encryption';
@@ -21,14 +21,6 @@ const URI = process.env.MONGODB_URI!;
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 // ── Registro global de limpieza ─────────────────────────────────────────────
-
-type CleanupEntry =
-  | { kind: 'healthforms'; ids: ObjectId[] }
-  | { kind: 'coaches'; ids: ObjectId[] }
-  | { kind: 'recipes'; ids: ObjectId[] }
-  | { kind: 'exercises'; ids: ObjectId[] }
-  | { kind: 'ai_jobs'; clientIds: string[] }
-  | { kind: 'raw'; collection: string; ids: ObjectId[] };
 
 const cleanupRegistry: Record<string, Set<string>> = {};
 
@@ -73,8 +65,67 @@ export function registerClientWithJobs(clientId: string) {
 
 // ── Factories de perfiles desechables ───────────────────────────────────────
 
+export interface DisposableClientDoc {
+  _id: ObjectId;
+  coachId: string;
+  name: string;
+  personalData: {
+    name: string;
+    email: string;
+    gender: string;
+    age: string;
+    weight: string;
+    height: string;
+    language: string;
+  };
+  medicalData: {
+    diseases: string;
+    medications: string;
+    documents: unknown[];
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DisposableRecipeDoc {
+  _id: ObjectId;
+  title: string;
+  description: string;
+  category: string[];
+  ingredients: Array<{ name: string; quantity: string; unit: string }>;
+  instructions: string[];
+  cookTime: string;
+  difficulty: string;
+  isPublished: boolean;
+  author: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DisposableExerciseDoc {
+  _id: ObjectId;
+  name: string;
+  description: string;
+  category: string[];
+  instructions: string[];
+  equipment: string[];
+  difficulty: string;
+  clientLevel: string;
+  muscleGroups: string[];
+  sets: number;
+  repetitions: string;
+  timeUnderTension: string;
+  restBetweenSets: string;
+  progression: string;
+  author: string;
+  isPublished: boolean;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Crea un coach desechable en la DB. Devuelve { id, email, password }. */
-export async function createDisposableCoach(db: any): Promise<{
+export async function createDisposableCoach(db: Db): Promise<{
   id: ObjectId;
   email: string;
   password: string;
@@ -99,8 +150,11 @@ export async function createDisposableCoach(db: any): Promise<{
  * Crea un cliente desechable con personalData CIFRADA (como en producción).
  * Devuelve el documento completo.
  */
-export async function createDisposableClient(db: any, coachId?: ObjectId | string): Promise<any> {
-  const client = {
+export async function createDisposableClient(
+  db: Db,
+  coachId?: ObjectId | string
+): Promise<DisposableClientDoc> {
+  const client: DisposableClientDoc = {
     _id: new ObjectId(),
     coachId: coachId ? coachId.toString() : new ObjectId().toString(),
     name: encrypt(`Test Client ${Date.now()}`),
@@ -127,8 +181,8 @@ export async function createDisposableClient(db: any, coachId?: ObjectId | strin
 }
 
 /** Crea una receta desechable (cifrada como en producción). */
-export async function createDisposableRecipe(db: any): Promise<any> {
-  const recipe = {
+export async function createDisposableRecipe(db: Db): Promise<DisposableRecipeDoc> {
+  const recipe: DisposableRecipeDoc = {
     _id: new ObjectId(),
     title: encrypt(`Receta Test ${Date.now()}`),
     description: encrypt('Receta de prueba para tests'),
@@ -148,8 +202,8 @@ export async function createDisposableRecipe(db: any): Promise<any> {
 }
 
 /** Crea un ejercicio desechable (cifrado como en producción). */
-export async function createDisposableExercise(db: any): Promise<any> {
-  const exercise = {
+export async function createDisposableExercise(db: Db): Promise<DisposableExerciseDoc> {
+  const exercise: DisposableExerciseDoc = {
     _id: new ObjectId(),
     name: encrypt(`Ejercicio Test ${Date.now()}`),
     description: encrypt('Ejercicio de prueba para tests'),

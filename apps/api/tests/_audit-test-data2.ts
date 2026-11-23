@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
-import { decrypt, safeDecrypt } from '../src/app/lib/encryption';
+import { safeDecrypt } from '../src/app/lib/encryption';
 
 async function main() {
   const mongo = new MongoClient(process.env.MONGODB_URI!);
@@ -23,7 +23,8 @@ async function main() {
   for (const c of clients) {
     let name = '???';
     try { name = safeDecrypt(c.personalData?.name) || c.personalData?.name || '??'; } catch {}
-    console.log(`- ${c._id} | name="${name}" | coachId=${c.coachId} | curSession=${c.aiProgress?.currentSessionId} | sessions=${(c.aiProgress?.sessions||[]).map((s:any)=>s.sessionId).join(',')}`);
+    const sessions = (c.aiProgress?.sessions || []) as Array<{ sessionId?: string }>;
+    console.log(`- ${c._id} | name="${name}" | coachId=${c.coachId} | curSession=${c.aiProgress?.currentSessionId} | sessions=${sessions.map((s) => s.sessionId).join(',')}`);
   }
 
   await mongo.close();

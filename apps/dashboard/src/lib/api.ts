@@ -76,12 +76,34 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
  * para que translateApiError() pueda mostrar el mensaje localizado correcto.
  * El message crudo (español técnico) nunca debe mostrarse directo al usuario.
  */
+export interface ApiClientError extends Error {
+  code?: string;
+  status?: number;
+  needsEmailVerification?: boolean;
+  accountType?: 'coach' | 'client';
+  email?: string;
+  attemptsRemaining?: number;
+}
+
 function apiError(
-  payload: { message?: string; code?: string } | null | undefined,
-  fallback: string
-): Error {
-  const err = new Error(payload?.message || fallback);
-  (err as Error & { code?: string }).code = payload?.code;
+  payload: {
+    message?: string;
+    code?: string;
+    needsEmailVerification?: boolean;
+    accountType?: 'coach' | 'client';
+    email?: string;
+    attemptsRemaining?: number;
+  } | null | undefined,
+  fallback: string,
+  status?: number
+): ApiClientError {
+  const err = new Error(payload?.message || fallback) as ApiClientError;
+  err.code = payload?.code;
+  if (status !== undefined) err.status = status;
+  if (payload?.needsEmailVerification !== undefined) err.needsEmailVerification = payload.needsEmailVerification;
+  if (payload?.accountType) err.accountType = payload.accountType;
+  if (payload?.email) err.email = payload.email;
+  if (payload?.attemptsRemaining !== undefined) err.attemptsRemaining = payload.attemptsRemaining;
   return err;
 }
 
@@ -305,6 +327,133 @@ async function dedupedRequest<T>(
   return promise;
 }
 
+export type CommercialPlanId =
+  | 'consult_1on1'
+  | 'reto_tres_nel'
+  | 'plan_1_reinicio'
+  | 'plan_2_transformacion'
+  | 'plan_3_maestria';
+
+export type WhatsappSupportTier =
+  | 'none'
+  | 'reto_3w'
+  | 'weekly_async'
+  | 'direct'
+  | 'priority';
+
+export interface PlanQuotaAvailability {
+  open: boolean;
+  limit: number;
+  used: number;
+  remaining: number;
+  available: boolean;
+}
+
+export interface PlanQuotaAdminItem extends PlanQuotaAvailability {
+  planId: CommercialPlanId;
+  planName: string;
+  durationLabel: string;
+  launchPriceUsd: number;
+}
+
+export interface CommercialPlan {
+  id: CommercialPlanId;
+  tier: 'top' | 'core';
+  order: number;
+  badge?: string;
+  name: string;
+  subtitle: string;
+  durationLabel: string;
+  totalWeeks: number;
+  maxMonths: number;
+  regularPriceUsd: number;
+  launchPriceUsd: number;
+  priceCents: number;
+  discountPercent: number;
+  savingsUsd: number;
+  videoProvider: 'calendly_meet' | 'livekit' | 'none';
+  livekitSessionsIncluded: number;
+  modalitySummary: string;
+  whatsappSupport: string;
+  whatsappTier: WhatsappSupportTier;
+  description: string;
+  roadmap?: string[];
+  includes: string[];
+  ctaLabel: string;
+  requiresHealthForm: boolean;
+  calendlyUrl?: string;
+  availability?: PlanQuotaAvailability;
+}
+
+export interface ClientPlanSummary {
+  id: CommercialPlanId;
+  name: string;
+  durationLabel: string;
+  totalWeeks: number;
+  maxMonths: number;
+  whatsappSupport: string;
+  videoCreditsTotal: number;
+  videoCreditsRemaining: number;
+}
+
+export interface ClientPurchasedPlan {
+  planId: CommercialPlanId;
+  planName: string;
+  amountCents: number;
+  status: string;
+  purchasedAt: string;
+  livekitCreditsTotal: number;
+  livekitCreditsUsed: number;
+}
+
+export interface ClientVideoSession {
+  sessionId: string;
+  sessionNumber: number;
+  roomName: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  timezone: string;
+  status: string;
+  joinLink: string | null;
+}
+
+export interface ClientPortalData {
+  id: string;
+  email: string;
+  clientName: string;
+  coachId: string;
+  assignedCoach: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    profilePhotoUrl: string | null;
+  } | null;
+  emailVerified: boolean;
+  selectedPlanId: CommercialPlanId | null;
+  activePlanId: CommercialPlanId | null;
+  selectedPlan: CommercialPlan | null;
+  activePlan: CommercialPlan | null;
+  planLimits: {
+    totalWeeks: number;
+    maxMonths: number;
+    whatsappTier: WhatsappSupportTier;
+    includesVideoCalls: boolean;
+    includesBiomarkerComparison: boolean;
+  } | null;
+  hasPaidPlan: boolean;
+  purchasedPlansCount?: number;
+  evaluationsCompleted?: number;
+  programCompleted?: boolean;
+  purchasedPlans: ClientPurchasedPlan[];
+  livekitCreditsRemaining: number;
+  livekitCreditsTotal: number;
+  livekitCreditsUsed: number;
+  healthFormId: string | null;
+  videoSessions: ClientVideoSession[];
+  hasApprovedRecommendations: boolean;
+}
+
 export const apiClient = {
   async getFreeSessions(): Promise<{ success: boolean; data: FreeSessionsConfig }> {
     return dedupedRequest('config:free-sessions', async () => {
@@ -342,7 +491,7 @@ export const apiClient = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw apiError(errorData, 'Error en el login');
+      throw apiError(errorData, 'Error en el login', response.status);
     }
 
     return response.json();
@@ -1889,5 +2038,171 @@ export const apiClient = {
     if (params.taxYear) query.set('taxYear', String(params.taxYear));
     if (params.format) query.set('format', params.format);
     return `${API_BASE_URL}/api/admin/finances/export?${query.toString()}`;
+  },
+
+  // ═══════════════════════════════════════════════
+  // CLIENTE AUTOREGISTRADO Y PLANES COMERCIALES
+  // ═══════════════════════════════════════════════
+
+  async getPlans(): Promise<{ success: boolean; data: CommercialPlan[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/plans`, {
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, 'Error al cargar los planes disponibles', response.status);
+    }
+    return response.json();
+  },
+
+  async getPlanQuotas(): Promise<{ success: boolean; data: PlanQuotaAdminItem[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/plan-quotas`, {
+      headers: getAuthHeaders(),
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthToken();
+        window.location.href = '/login';
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, 'Error al cargar los cupos de planes', response.status);
+    }
+    return response.json();
+  },
+
+  async updatePlanQuota(input: {
+    planId: CommercialPlanId;
+    open?: boolean;
+    limit?: number;
+    resetUsed?: boolean;
+  }): Promise<{ success: boolean; message?: string; data: PlanQuotaAdminItem[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/plan-quotas`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthToken();
+        window.location.href = '/login';
+      }
+      throw apiError(result, 'Error al actualizar cupos del plan', response.status);
+    }
+    clearDedupeCache('catalog:plans');
+    return result;
+  },
+
+  async registerClient(data: { email: string; password: string; planId?: string }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/client/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw apiError(result, 'Error al registrar cuenta de cliente', response.status);
+    }
+    return result;
+  },
+
+  async verifyClientCode(data: { email: string; code: string }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/client/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw apiError(result, 'Código de verificación inválido', response.status);
+    }
+    return result;
+  },
+
+  async resendClientCode(data: { email: string }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/client/resend-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw apiError(result, 'Error al reenviar código', response.status);
+    }
+    return result;
+  },
+
+  async getClientPortalMe(): Promise<{ success: boolean; data: ClientPortalData }> {
+    const response = await fetch(`${API_BASE_URL}/api/client-portal/me`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthToken();
+        window.location.href = '/login';
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, 'Error al cargar tu portal de cliente', response.status);
+    }
+    return response.json();
+  },
+
+  async createPlanCheckout(planId: CommercialPlanId): Promise<{
+    success: boolean;
+    data: { sessionId: string; url: string; planId: CommercialPlanId };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/payments/create-plan-checkout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ planId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuthToken();
+        window.location.href = '/login';
+      }
+      throw apiError(result, 'Error al iniciar el proceso de pago', response.status);
+    }
+    return result;
+  },
+
+  async confirmPlanCheckout(sessionId: string): Promise<{
+    success: boolean;
+    message?: string;
+    data: {
+      activePlanId: CommercialPlanId | null;
+      selectedPlanId: CommercialPlanId | null;
+      purchasedPlans: ClientPurchasedPlan[];
+    };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/payments/confirm-plan-checkout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ sessionId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw apiError(result, 'Error al confirmar el pago', response.status);
+    }
+    return result;
+  },
+
+  async submitClientHealthForm(payload: Record<string, unknown>): Promise<{
+    success: boolean;
+    message?: string;
+    data: { _id: string; token: string; uploadToken: string };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/client-portal/health-form`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw apiError(result, 'Error al guardar tu historial de salud', response.status);
+    }
+    return result;
   },
 };

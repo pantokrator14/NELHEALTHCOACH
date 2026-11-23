@@ -6,7 +6,7 @@ import { logger } from '@/app/lib/logger';
 import { connectMongoose } from '@/app/lib/database';
 import { EmailService } from '@/app/lib/email-service';
 import { decrypt } from '@/app/lib/encryption';
-import { changePasswordSchema } from '@/app/lib/schemas';
+import { changePasswordSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 import { createNotification } from '@/app/lib/create-notification';

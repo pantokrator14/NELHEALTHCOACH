@@ -12,7 +12,8 @@ import { getHealthFormsCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { decrypt, safeDecrypt, decryptFileObject } from '@/app/lib/encryption';
 import { generateRecommendationPDF } from '@/app/lib/recommendation-pdf';
-import type { PDFRecommendationData, PDFRecipeData, PDFExerciseData } from '@/app/lib/recommendation-pdf';
+import type { PDFRecommendationData, PDFRecipeData, PDFExerciseData, PDFChecklistItem } from '@/app/lib/recommendation-pdf';
+import type { AIRecommendationSession, ChecklistItem } from '../../../../../../../../../../packages/types/src/healthForm';
 import { translatePDFContent, translateSessionContent, detectLanguage, normalizeClientLang, defaultLLM, LANG_LABELS, SupportedLang } from '@/app/lib/recommendation-translator';
 import Coach from '@/app/models/Coach';
 import Recipe from '@/app/models/Recipe';
@@ -159,7 +160,7 @@ async function getHandler(
 
     const session = (() => {
       const raw = client.aiProgress.sessions.find(
-        (s: any) => s.sessionId === sessionId
+        (s: AIRecommendationSession) => s.sessionId === sessionId
       );
       if (!raw) return null;
       return raw.toObject ? raw.toObject() : JSON.parse(JSON.stringify(raw));
@@ -175,18 +176,18 @@ async function getHandler(
     const vision = safeDecrypt(session.vision) || '';
     const medicalSummary = safeDecrypt(session.medicalSummary) || '';
     const medicalComparativeAnalysis = safeDecrypt(session.medicalComparativeAnalysis) || '';
-    const labResults = (session.labResults || []).map((lab: any) => ({
+    const labResults = ((session.labResults || []) as Array<{ name: string; value: string; range: string; status: string }>).map((lab) => ({
       name: safeDecrypt(lab.name) || lab.name,
       value: safeDecrypt(lab.value) || lab.value,
       range: safeDecrypt(lab.range) || lab.range,
-      status: safeDecrypt(lab.status) || lab.status,
+      status: (safeDecrypt(lab.status || '') || lab.status || 'normal') as 'normal' | 'alto' | 'bajo',
     }));
     
-    const weeks = (session.weeks || []).map((week: any) => ({
+    const weeks = ((session.weeks || []) as AIRecommendationSession['weeks']).map((week) => ({
       weekNumber: week.weekNumber,
       nutrition: {
         focus: safeDecrypt(week.nutrition?.focus || ''),
-        shoppingList: (week.nutrition?.shoppingList || []).map((item: any) => ({
+        shoppingList: (week.nutrition?.shoppingList || []).map((item) => ({
           item: safeDecrypt(item.item) || item.item || '',
           quantity: safeDecrypt(item.quantity) || item.quantity || '',
           priority: item.priority,
@@ -202,16 +203,26 @@ async function getHandler(
       },
     }));
 
-    const checklist = (session.checklist || []).map((item: any) => ({
+    interface RawPDFChecklistItem {
+      id?: string;
+      _id?: { toString(): string };
+      description?: string;
+      weekNumber?: number;
+      category?: string;
+      type?: string;
+      recipeId?: string;
+      details?: ChecklistItem['details'];
+    }
+    const checklist = ((session.checklist || []) as RawPDFChecklistItem[]).map((item) => ({
       id: item.id || item._id?.toString() || '',
-      description: safeDecrypt(item.description) || '',
+      description: safeDecrypt(item.description || '') || '',
       weekNumber: item.weekNumber || 1,
-      category: safeDecrypt(item.category) || 'nutrition',
-      type: safeDecrypt(item.type),
+      category: (safeDecrypt(item.category || '') || 'nutrition') as PDFChecklistItem['category'],
+      type: item.type ? safeDecrypt(item.type) : undefined,
       recipeId: item.recipeId,
       details: item.details ? {
         recipe: item.details.recipe ? {
-          ingredients: (item.details.recipe.ingredients || []).map((ing: any) => {
+          ingredients: (item.details.recipe.ingredients || []).map((ing: string | { name: string; quantity: string; notes?: string }) => {
             if (typeof ing === 'string') return safeDecrypt(ing) || ing;
             if (!ing) return '';
             return {
@@ -286,11 +297,11 @@ async function getHandler(
             title: safeDecrypt(r.title) || r.title,
             imageUrl: urlOrKey,
             imageBuffer,
-            ingredients: (r.ingredients || []).map((ing: any) => {
+            ingredients: ((r.ingredients || []) as Array<string | { name?: string; quantity?: string; notes?: string }>).map((ing) => {
               if (typeof ing === 'string') return safeDecrypt(ing) || ing;
               if (!ing) return '';
               return {
-                name: safeDecrypt(ing.name) || ing.name || '',
+                name: safeDecrypt(ing.name || '') || ing.name || '',
                 quantity: typeof ing.quantity === 'string' ? safeDecrypt(ing.quantity) : (ing.quantity || ''),
                 notes: ing.notes ? safeDecrypt(ing.notes) : undefined,
               };
@@ -329,24 +340,38 @@ async function getHandler(
 
     const exercises: Record<string, PDFExerciseData> = {};
     const allExercises = await Exercise.find({}).lean();
-    const decryptedExercises = allExercises.map((ex: any) => ({
+    interface LeanExerciseDoc {
+      _id?: { toString(): string };
+      name: string;
+      description?: string;
+      demo?: { key?: string; url?: string; type?: string };
+      instructions?: string[];
+      sets?: number;
+      repetitions?: string;
+      timeUnderTension?: string;
+      restBetweenSets?: string;
+      equipment?: string[];
+      muscleGroups?: string[];
+      difficulty?: string;
+    }
+    const decryptedExercises = (allExercises as unknown as LeanExerciseDoc[]).map((ex) => ({
       ...ex,
       _name: safeDecrypt(ex.name) || ex.name,
-      _description: safeDecrypt(ex.description) || ex.description,
+      _description: safeDecrypt(ex.description || '') || ex.description || '',
     }));
 
     const findExerciseById = (id: string) =>
-      decryptedExercises.find((ex: any) => ex._id?.toString() === id);
+      decryptedExercises.find((ex) => ex._id?.toString() === id);
 
     for (const exName of exerciseNames) {
       try {
         const idMatch = findExerciseById(exName) ||
           (() => {
             // fallback: buscar por ID dentro de los items del checklist
-            const item = checklist.find((i: any) => i.description === exName && i.category === 'exercise');
+            const item = checklist.find((i) => i.description === exName && i.category === 'exercise');
             return item?.recipeId ? findExerciseById(item.recipeId) : undefined;
           })();
-        const exMatch = idMatch || decryptedExercises.find((ex: any) =>
+        const exMatch = idMatch || decryptedExercises.find((ex) =>
           ex._name.toLowerCase().includes(exName.toLowerCase()) ||
           exName.toLowerCase().includes(ex._name.toLowerCase())
         );
@@ -366,12 +391,12 @@ async function getHandler(
             demoBuffer,
             instructions: (ex.instructions || []).map((inst: string) => safeDecrypt(inst) || inst),
             sets: ex.sets || 3,
-            repetitions: safeDecrypt(ex.repetitions) || ex.repetitions || '',
-            timeUnderTension: safeDecrypt(ex.timeUnderTension) || ex.timeUnderTension,
-            restBetweenSets: safeDecrypt(ex.restBetweenSets) || ex.restBetweenSets,
+            repetitions: safeDecrypt(ex.repetitions || '') || ex.repetitions || '',
+            timeUnderTension: ex.timeUnderTension ? (safeDecrypt(ex.timeUnderTension) || ex.timeUnderTension) : undefined,
+            restBetweenSets: ex.restBetweenSets ? (safeDecrypt(ex.restBetweenSets) || ex.restBetweenSets) : undefined,
             equipment: (ex.equipment || []).map((eq: string) => safeDecrypt(eq) || eq),
             muscleGroups: (ex.muscleGroups || []).map((mg: string) => safeDecrypt(mg) || mg),
-            difficulty: safeDecrypt(ex.difficulty) || ex.difficulty,
+            difficulty: ex.difficulty ? (safeDecrypt(ex.difficulty) || ex.difficulty) : undefined,
           };
         }
       } catch (err) {}
@@ -383,12 +408,13 @@ async function getHandler(
     // traducimos al idioma del cliente solo si difieren. La sesión generada
     // con FASE 4 ya viene traducida (session.translation.targetLang); las
     // sesiones anteriores (sin translation) se traducen aquí al vuelo.
-    const clientLang = safeDecrypt((client.personalData as any)?.language) ||
-      (client.personalData as any)?.language ||
+    const personalDataRecord = client.personalData as { language?: string } | undefined;
+    const clientLang = safeDecrypt(personalDataRecord?.language || '') ||
+      personalDataRecord?.language ||
       'es';
     const targetLang = normalizeClientLang(clientLang);
     const sessionAlreadyTranslated =
-      (session.translation as any)?.targetLang === targetLang &&
+      (session.translation as { targetLang?: string } | undefined)?.targetLang === targetLang &&
       targetLang !== 'es';
 
     let summaryOut = summary;
@@ -398,25 +424,26 @@ async function getHandler(
     let labResultsOut = labResults;
     let weeksOut = weeks;
     let checklistOut = checklist;
+    type RawStructuredMed = NonNullable<AIRecommendationSession['structuredMedicalAnalysis']>;
     let structuredMedicalAnalysisOut = session.structuredMedicalAnalysis ? {
-      ...session.structuredMedicalAnalysis,
-      exams: (session.structuredMedicalAnalysis.exams || []).map((exam: any) => ({
+      ...(session.structuredMedicalAnalysis as RawStructuredMed),
+      exams: ((session.structuredMedicalAnalysis as RawStructuredMed).exams || []).map((exam) => ({
         ...exam,
         intro: safeDecrypt(exam.intro) || '',
         analysis: safeDecrypt(exam.analysis) || '',
-        table: (exam.table || []).map((row: any) => ({
+        table: (exam.table || []).map((row) => ({
           biomarcador: safeDecrypt(row.biomarcador) || row.biomarcador,
           valor: safeDecrypt(row.valor) || row.valor,
           rango_normal: safeDecrypt(row.rango_normal) || row.rango_normal,
-          estado: safeDecrypt(row.estado) || row.estado,
+          estado: (safeDecrypt(row.estado) || row.estado) as 'Alto' | 'Bajo' | 'Normal',
         })),
       })),
-      supplements: (session.structuredMedicalAnalysis.supplements || []).map((supp: any) => ({
+      supplements: ((session.structuredMedicalAnalysis as RawStructuredMed).supplements || []).map((supp) => ({
         name: safeDecrypt(supp.name) || supp.name,
         dosage: safeDecrypt(supp.dosage) || supp.dosage,
         timing: safeDecrypt(supp.timing) || supp.timing,
         rationale: safeDecrypt(supp.rationale) || supp.rationale,
-        contraindications: safeDecrypt(supp.contraindications) || supp.contraindications,
+        contraindications: supp.contraindications ? (safeDecrypt(supp.contraindications) || supp.contraindications) : undefined,
       })),
     } : undefined;
 
@@ -454,7 +481,7 @@ async function getHandler(
     for (const rid of Object.keys(recipes)) {
       const r = recipes[rid];
       contentTexts.push(r.title || '');
-      (r.ingredients || []).forEach((ing: any) => {
+      (r.ingredients || []).forEach((ing) => {
         if (typeof ing === 'string') contentTexts.push(ing);
         else contentTexts.push(ing?.name || '');
       });
@@ -517,13 +544,13 @@ async function getHandler(
       }
     }
 
-    const toAdopt = checklistOut.filter((item: any) => item.category === 'habit' && (!item.type || item.type === 'toAdopt')).map((item: any) => item.description);
-    const toEliminate = checklistOut.filter((item: any) => item.category === 'habit' && item.type === 'toEliminate').map((item: any) => item.description);
-    const motivationTip = weeksOut.find((w: any) => w.habits.motivationTip)?.habits.motivationTip;
-    const trackingMethod = weeksOut.find((w: any) => w.habits.trackingMethod)?.habits.trackingMethod;
+    const toAdopt = checklistOut.filter((item) => item.category === 'habit' && (!item.type || item.type === 'toAdopt')).map((item) => item.description);
+    const toEliminate = checklistOut.filter((item) => item.category === 'habit' && item.type === 'toEliminate').map((item) => item.description);
+    const motivationTip = weeksOut.find((w) => w.habits.motivationTip)?.habits.motivationTip;
+    const trackingMethod = weeksOut.find((w) => w.habits.trackingMethod)?.habits.trackingMethod;
 
-    const sessions = client.aiProgress.sessions || [];
-    const sessionIndex = sessions.findIndex((s: any) => s.sessionId === sessionId);
+    const sessions = (client.aiProgress.sessions || []) as AIRecommendationSession[];
+    const sessionIndex = sessions.findIndex((s) => s.sessionId === sessionId);
 
     // ── 8. Construir JSON y generar PDF ──
     const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
@@ -553,14 +580,15 @@ async function getHandler(
         'Cache-Control': 'no-cache',
       },
     });
-  } catch (error: any) {
-    loggerWithContext.error('PDF', `❌ Error generando PDF: ${error.message}`, error);
+  } catch (error: unknown) {
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    loggerWithContext.error('PDF', `❌ Error generando PDF: ${errObj.message}`, errObj);
     // SEC (A10): no exponer error.message en producción (podría revelar rutas
     // internas, detalles de LLM/S3). Solo detalle en desarrollo.
     return NextResponse.json({
       error: 'Error generando PDF',
       message: 'No se pudo generar el PDF. Inténtalo de nuevo.',
-      ...(process.env.NODE_ENV === 'development' && { detail: error.message }),
+      ...(process.env.NODE_ENV === 'development' && { detail: errObj.message }),
     }, { status: 500 });
   }
 }

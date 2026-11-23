@@ -90,7 +90,7 @@ export function encrypt(text: string): string {
 export function decrypt(encryptedText: string): string {
   try {
     // ✅ DETECCIÓN MEJORADA: Excluir arrays JSON explícitamente
-    if (!encryptedText || 
+    if (!encryptedText ||
         typeof encryptedText !== 'string' ||
         // ✅ EXCLUIR arrays JSON explícitamente
         (encryptedText.startsWith('[') && encryptedText.endsWith(']')) ||
@@ -113,13 +113,13 @@ export function decrypt(encryptedText: string): string {
 
     const bytes = CryptoJS.AES.decrypt(encryptedText, secretKey);
     const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    
+
     if (!decrypted) {
       return encryptedText;
     }
-    
+
     return decrypted;
-  } catch (error) {
+  } catch {
     // ✅ NO LANZAR ERROR - solo log y devolver original
     logger.warn(
       'ENCRYPTION',
@@ -130,10 +130,11 @@ export function decrypt(encryptedText: string): string {
     return encryptedText;
   }
 }
+
 export function safeDecrypt(encryptedText: string): string {
   try {
     return decrypt(encryptedText);
-  } catch (error) {
+  } catch {
     // Use an allowed meta field (duration) for logging to satisfy the logger's type
     logger.warn('ENCRYPTION', 'Desencriptación segura falló, retornando texto original', undefined, {
       duration: encryptedText.length
@@ -142,14 +143,24 @@ export function safeDecrypt(encryptedText: string): string {
   }
 }
 
+export interface FileMetadataObject {
+  url: string;
+  key: string;
+  name: string;
+  type: string;
+  size?: unknown;
+  uploadedAt?: unknown;
+  [extra: string]: unknown;
+}
+
 // ✅ FUNCIONES PARA ARCHIVOS (ENCRIPTAR METADATOS)
-export function encryptFileData(fileData: any): string {
+export function encryptFileData(fileData: unknown): string {
   if (!fileData) return '';
-  
+
   if (typeof fileData === 'string') {
     return encrypt(fileData);
   }
-  
+
   try {
     return encrypt(JSON.stringify(fileData));
   } catch (error) {
@@ -158,14 +169,14 @@ export function encryptFileData(fileData: any): string {
   }
 }
 
-export function decryptFileData(encryptedFileData: string): any {
+export function decryptFileData(encryptedFileData: string): unknown {
   if (!encryptedFileData) return null;
-  
+
   try {
     const decrypted = decrypt(encryptedFileData);
-    
+
     try {
-      return JSON.parse(decrypted);
+      return JSON.parse(decrypted) as unknown;
     } catch {
       return decrypted;
     }
@@ -175,77 +186,83 @@ export function decryptFileData(encryptedFileData: string): any {
   }
 }
 
-export function encryptFileObject(fileObj: any): any {
+export function encryptFileObject(fileObj: FileMetadataObject): FileMetadataObject;
+export function encryptFileObject(fileObj: Record<string, unknown>): FileMetadataObject;
+export function encryptFileObject(fileObj: unknown): unknown;
+export function encryptFileObject(fileObj: unknown): unknown {
   if (!fileObj || typeof fileObj !== 'object') return fileObj;
-  
+
+  const record = fileObj as Record<string, unknown>;
   return {
-    url: encrypt(fileObj.url),
-    key: encrypt(fileObj.key),
-    name: encrypt(fileObj.name),
-    type: encrypt(fileObj.type),
-    size: fileObj.size,
-    uploadedAt: fileObj.uploadedAt
+    url: encrypt(typeof record.url === 'string' ? record.url : String(record.url ?? '')),
+    key: encrypt(typeof record.key === 'string' ? record.key : String(record.key ?? '')),
+    name: encrypt(typeof record.name === 'string' ? record.name : String(record.name ?? '')),
+    type: encrypt(typeof record.type === 'string' ? record.type : String(record.type ?? '')),
+    size: record.size,
+    uploadedAt: record.uploadedAt,
   };
 }
 
-export function decryptFileObject(encryptedFileObj: any): any {
+export function decryptFileObject(encryptedFileObj: unknown): FileMetadataObject | null {
   if (!encryptedFileObj) return null;
-  
+
   if (typeof encryptedFileObj === 'string') {
-    return decryptFileData(encryptedFileObj);
+    const parsed = decryptFileData(encryptedFileObj);
+    return parsed && typeof parsed === 'object' ? (parsed as FileMetadataObject) : null;
   }
-  
+
   if (typeof encryptedFileObj === 'object') {
     // Preserve additional fields that aren't encrypted
-    const { url, key, name, type, size, uploadedAt, ...additionalFields } = encryptedFileObj;
+    const { url, key, name, type, size, uploadedAt, ...additionalFields } =
+      encryptedFileObj as Record<string, unknown>;
     return {
-      url: decrypt(url),
-      key: decrypt(key),
-      name: decrypt(name),
-      type: decrypt(type),
-      size: size,
-      uploadedAt: uploadedAt,
+      url: decrypt(typeof url === 'string' ? url : ''),
+      key: decrypt(typeof key === 'string' ? key : ''),
+      name: decrypt(typeof name === 'string' ? name : ''),
+      type: decrypt(typeof type === 'string' ? type : ''),
+      size,
+      uploadedAt,
       ...additionalFields, // Keep additional fields
     };
   }
-  
-  return encryptedFileObj;
+
+  return null;
 }
 
 // ✅ FUNCIONES ADICIONALES (PARA COMPATIBILIDAD)
 export function isEncrypted(text: string): boolean {
   try {
     if (!text || text.length < 24) return false;
-    
+
     // Formato v2 siempre está encriptado
     if (text.startsWith(V2_PREFIX)) {
       return true;
     }
-    
+
     if (text.startsWith('U2FsdGVkX1')) {
       const bytes = CryptoJS.AES.decrypt(text, secretKey);
       const decrypted = bytes.toString(CryptoJS.enc.Utf8);
       return !!decrypted && decrypted.length > 0;
     }
-    
+
     return false;
   } catch {
     return false;
   }
 }
 
-export function encryptObject(obj: Record<string, any>): Record<string, any> {
-  const encrypted: Record<string, any> = {};
-  
+export function encryptObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const encrypted: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string' && value.trim() !== '') {
       encrypted[key] = encrypt(value);
     } else if (typeof value === 'object' && value !== null) {
-      encrypted[key] = encryptObject(value);
+      encrypted[key] = encryptObject(value as Record<string, unknown>);
     } else {
       encrypted[key] = value;
     }
   }
-  
+
   return encrypted;
 }

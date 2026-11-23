@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import Coach from '@/app/models/Coach';
-import { requireCoachAuth } from '@/app/lib/auth';
+import ClientAccount from '@/app/models/ClientAccount';
+import { requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
@@ -38,7 +39,40 @@ function decryptPhoto(photo: Record<string, unknown> | null): Record<string, unk
 async function getHandler(request: NextRequest) {
   try {
     await connectMongoose();
-    const auth = requireCoachAuth(request);
+    const auth = requireAnyAuth(request);
+
+    if (auth.role === 'client') {
+      const account = await ClientAccount.findById(auth.clientAccountId).select(
+        '-passwordHash -verificationCodeHash'
+      );
+      if (!account) {
+        return NextResponse.json(
+          { success: false, message: 'Cuenta de cliente no encontrada', code: 'NOT_FOUND' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: account._id.toString(),
+          clientAccountId: account._id.toString(),
+          clientId: account.healthFormId || null,
+          coachId: account.coachId,
+          email: decrypt(account.email),
+          firstName: '',
+          lastName: '',
+          role: 'client',
+          emailVerified: account.emailVerified,
+          isActive: account.isActive !== false,
+          selectedPlanId: account.selectedPlanId || null,
+          activePlanId: account.activePlanId || null,
+          healthFormId: account.healthFormId || null,
+          purchasedPlans: account.purchasedPlans || [],
+        },
+      });
+    }
+
     const coach = await Coach.findById(auth.coachId).select('-passwordHash -verificationToken -resetToken -resetTokenExpiry');
 
     if (!coach) {
@@ -106,9 +140,15 @@ async function getHandler(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    // SEC: requireCoachAuth lanza error estructurado { status: 401 }
+    // SEC: requireCoachAuth/requireAnyAuth lanzan error estructurado { status: 401/403 }
     const structured = error as { status?: number; message?: string };
-    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
+    if (structured?.status === 401 || structured?.status === 403) {
+      return NextResponse.json(
+        { success: false, message: structured.message || 'No autorizado', code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+        { status: structured.status }
+      );
+    }
+    if ((error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado', code: 'UNAUTHORIZED'}, { status: 401 });
     }
     logger.error('AUTH', 'Error obteniendo perfil', error instanceof Error ? error : new Error(String(error)));
@@ -174,10 +214,14 @@ async function postHandler(request: NextRequest) {
         return NextResponse.json({ success: false, message: `Acción desconocida: ${action}`, code: 'VALIDATION'}, { status: 400 });
     }
   } catch (error: unknown) {
-    // SEC: requireCoachAuth lanza error estructurado { status: 401 } — reconocer
-    // ambos patrones (estructurado y legacy con 'Token' en el mensaje)
     const structured = error as { status?: number; message?: string };
-    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
+    if (structured?.status === 401 || structured?.status === 403) {
+      return NextResponse.json(
+        { success: false, message: structured.message || 'No autorizado', code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+        { status: structured.status }
+      );
+    }
+    if ((error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado', code: 'UNAUTHORIZED'}, { status: 401 });
     }
     logger.error('ACCOUNT', 'Error en gestión de cuenta', error instanceof Error ? error : new Error(String(error)));
@@ -218,7 +262,6 @@ async function putHandler(request: NextRequest) {
 
     await coach.save();
 
-    // Calcular días restantes de trial
     let trialDaysRemaining = 0;
     let trialIsActive = false;
     if (coach.trialStatus === 'active' && coach.trialEndDate) {
@@ -260,10 +303,14 @@ async function putHandler(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    // SEC: requireCoachAuth lanza error estructurado { status: 401 } — reconocer
-    // ambos patrones (estructurado y legacy con 'Token' en el mensaje)
     const structured = error as { status?: number; message?: string };
-    if (structured?.status === 401 || (error as Error).message?.includes('Token')) {
+    if (structured?.status === 401 || structured?.status === 403) {
+      return NextResponse.json(
+        { success: false, message: structured.message || 'No autorizado', code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED' },
+        { status: structured.status }
+      );
+    }
+    if ((error as Error).message?.includes('Token')) {
       return NextResponse.json({ success: false, message: 'No autorizado', code: 'UNAUTHORIZED'}, { status: 401 });
     }
     logger.error('AUTH', 'Error actualizando perfil', error instanceof Error ? error : new Error(String(error)));

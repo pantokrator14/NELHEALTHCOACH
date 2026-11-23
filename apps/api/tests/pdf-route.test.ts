@@ -9,7 +9,7 @@
  * global de limpieza y se borran en `finally` — aunque el test falle a mitad.
  */
 import 'dotenv/config';
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { NextRequest } from 'next/server';
 import { encrypt } from '../src/app/lib/encryption';
 import { encryptSessionFields } from '../src/app/lib/recommendation-translator';
@@ -47,8 +47,8 @@ async function main() {
     equipment: [encrypt('Ninguno')],
     muscleGroups: [encrypt('Pecho')],
   };
-  const rec = await db.collection('recipes').insertOne(testRecipe as any);
-  const ex = await db.collection('exercises').insertOne(testExercise as any);
+  const rec = await db.collection('recipes').insertOne(testRecipe);
+  const ex = await db.collection('exercises').insertOne(testExercise);
   registerCleanup('recipes', rec.insertedId);
   registerCleanup('exercises', ex.insertedId);
   const recipeId = rec.insertedId.toString();
@@ -85,7 +85,7 @@ async function main() {
     personalData: { name: encrypt('Test PDF Client'), gender: encrypt('male'), age: encrypt('30'), weight: encrypt('70'), height: encrypt('175'), language: encrypt('en') },
     aiProgress: { currentSessionId: 'e2e_pdf_test_session', sessions: [encryptedSession] },
   };
-  await db.collection('healthforms').insertOne(testClient as any);
+  await db.collection('healthforms').insertOne(testClient);
   registerClientWithJobs(testClient._id.toString());
   console.log('Healthform creado:', testClient._id.toString());
 

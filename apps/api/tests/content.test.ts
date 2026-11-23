@@ -128,7 +128,7 @@ async function main() {
   const recs = listBody?.data || listBody?.recipes || [];
   check('lista es array', Array.isArray(recs));
   if (Array.isArray(recs) && recipeId) {
-    const found = recs.some((r: any) => r.id === recipeId || r._id?.toString?.() === recipeId);
+    const found = recs.some((r: { id?: string; _id?: { toString(): string } }) => r.id === recipeId || r._id?.toString?.() === recipeId);
     check('la receta recién creada (publicada) aparece en lista pública', found, `recipeId=${recipeId}`);
   }
 

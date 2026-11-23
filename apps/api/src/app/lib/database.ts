@@ -1,250 +1,268 @@
-import { MongoClient, Db, MongoClientOptions } from 'mongodb';
+// apps/api/src/app/lib/database.ts
+import { MongoClient, Db } from 'mongodb';
 import mongoose from 'mongoose';
 import { logger } from './logger';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-const MONGODB_DB = process.env.DB_NAME || 'nel-healthcoach';
-const isDevelopment = process.env.NODE_ENV === 'development';
+// Validar variables de entorno al inicio
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.DB_NAME || 'nel-healthcoach';
 
-if (!MONGODB_URI) {
-  logger.error('DATABASE', 'MONGODB_URI no definida en las variables de entorno');
-  throw new Error('❌ MONGODB_URI no definida en las variables de entorno');
+if (!uri) {
+  throw new Error('Por favor define MONGODB_URI en .env.local');
 }
 
-// ─── Mongoose connection (para modelos Coach, EditProposal, etc.) ───
-let mongooseConnected = false;
+// =====================================================
+// 1. CLIENTE NATIVO DE MONGODB (EXISTENTE)
+// =====================================================
+interface CachedMongo {
+  client: MongoClient | null;
+  db: Db | null;
+  promise: Promise<{ client: MongoClient; db: Db }> | null;
+}
 
-export async function connectMongoose(): Promise<void> {
-  if (mongooseConnected) return;
+const globalWithMongo = global as typeof globalThis & {
+  mongo: CachedMongo;
+};
+
+if (!globalWithMongo.mongo) {
+  globalWithMongo.mongo = {
+    client: null,
+    db: null,
+    promise: null,
+  };
+}
+
+export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
+  const cached = globalWithMongo.mongo;
+
+  if (cached.client && cached.db) {
+    return { client: cached.client, db: cached.db };
+  }
+
+  if (!cached.promise) {
+    logger.info('DATABASE', 'Conectando a MongoDB Atlas (nativo)...', {
+      database: dbName,
+      hasUri: !!uri
+    });
+
+    const options = {
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    };
+
+    cached.promise = MongoClient.connect(uri as string, options)
+      .then((client) => {
+        const db = client.db(dbName);
+        logger.info('DATABASE', '✅ Conectado a MongoDB Atlas (nativo) exitosamente');
+        return { client, db };
+      })
+      .catch((error) => {
+        logger.error('DATABASE', '❌ Error conectando a MongoDB Atlas (nativo)', error);
+        cached.promise = null;
+        throw error;
+      });
+  }
 
   try {
-    await mongoose.connect(MONGODB_URI, {
-      dbName: MONGODB_DB,
-      tls: true,
-      tlsAllowInvalidCertificates: isDevelopment,
-      tlsAllowInvalidHostnames: isDevelopment,
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-    });
-    mongooseConnected = true;
-    logger.info('DATABASE', '✅ Mongoose conectado exitosamente');
+    const result = await cached.promise;
+    cached.client = result.client;
+    cached.db = result.db;
+    return result;
   } catch (error) {
-    logger.error('DATABASE', 'Error conectando Mongoose', error as Error);
+    cached.promise = null;
     throw error;
   }
 }
 
-interface MongoConnection {
-  client: MongoClient;
-  db: Db;
+// =====================================================
+// 2. MONGOOSE (PARA MODELOS DE COACHES, SESIONES, ETC.)
+// =====================================================
+interface CachedMongoose {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
 }
 
-declare global {
-  var mongo: {
-    conn: MongoConnection | null;
-    promise: Promise<MongoConnection> | null;
-  } | undefined;
+const globalWithMongoose = global as typeof globalThis & {
+  mongoose: CachedMongoose;
+};
+
+if (!globalWithMongoose.mongoose) {
+  globalWithMongoose.mongoose = {
+    conn: null,
+    promise: null,
+  };
 }
 
-const cached = global.mongo || { conn: null, promise: null };
+export async function connectMongoose(): Promise<typeof mongoose> {
+  const cached = globalWithMongoose.mongoose;
 
-if (!global.mongo) {
-  global.mongo = cached;
-}
+  if (cached.conn) {
+    return cached.conn;
+  }
 
-export async function connectToDatabase(): Promise<MongoConnection> {
-  return logger.time('DATABASE', 'Conectar a MongoDB', async () => {
-    if (cached.conn) {
-      logger.debug('DATABASE', 'Usando conexión caché existente');
-      return cached.conn;
-    }
-
-    if (!cached.promise) {
-      logger.info('DATABASE', '🔌 Intentando conectar a MongoDB...');
-
-      const opts = {
-      // Pool configuration
-      maxPoolSize: 10,
-      minPoolSize: 1,
-      maxIdleTimeMS: 30000,
-
-      // Timeout configuration
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-
-      // TLS/SSL configuration - DIFERENTE EN DESARROLLO
-      tls: true,
-      tlsAllowInvalidCertificates: isDevelopment, // Permite certificados inválidos en dev
-      tlsAllowInvalidHostnames: isDevelopment,    // Permite hostnames inválidos en dev
-
-      // Retry configuration
-      retryWrites: true,
-      retryReads: true,
-      w: 'majority',
-
-      // DNS configuration
-      ...(isDevelopment && {
-        // Configuraciones adicionales solo para desarrollo
-        monitorCommands: true, // Log de comandos MongoDB
-      })
-    };
-
-    logger.debug('DATABASE', 'Configuración MongoDB', {
-      serverSelectionTimeoutMS: opts.serverSelectionTimeoutMS,
-      tlsAllowInvalidCertificates: opts.tlsAllowInvalidCertificates,
-      tlsAllowInvalidHostnames: opts.tlsAllowInvalidHostnames,
-      environment: process.env.NODE_ENV
+  if (!cached.promise) {
+    logger.info('DATABASE', 'Conectando Mongoose a MongoDB Atlas...', {
+      database: dbName,
     });
 
+    cached.promise = mongoose
+      .connect(uri as string, {
+        dbName,
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+      })
+      .then((mongooseInstance) => {
+        logger.info('DATABASE', '✅ Mongoose conectado exitosamente');
+        return mongooseInstance;
+      })
+      .catch((error) => {
+        logger.error('DATABASE', '❌ Error conectando Mongoose', error);
+        cached.promise = null;
+        throw error;
+      });
+  }
 
-    cached.promise = MongoClient.connect(MONGODB_URI, opts as MongoClientOptions)
-        .then((client) => {
-          logger.info('DATABASE', '✅ Conectado a MongoDB exitosamente');
-          return {
-            client,
-            db: client.db(MONGODB_DB),
-          };
-        })
-        .catch((error) => {
-          logger.error('DATABASE', 'Error de conexión a MongoDB', error, {
-            NODE_ENV: process.env.NODE_ENV,
-            PORT: process.env.PORT,
-            hasMongoURI: !!MONGODB_URI,
-            isDevelopment
-          });
-
-          cached.promise = null;
-          throw error;
-        });
-    }
-
-    try {
-      cached.conn = await cached.promise;
-      return cached.conn;
-    } catch (error) {
-      cached.promise = null;
-      throw error;
-    }
-  });
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    cached.promise = null;
+    throw error;
+  }
 }
 
+// =====================================================
+// 3. COLECCIONES EXISTENTES (CLIENTE NATIVO)
+// =====================================================
 export async function getHealthFormsCollection() {
-  const { db } = await connectToDatabase();
-
-  return logger.time('DATABASE', 'Buscar colección healthforms', async () => {
-    const possibleCollectionNames = [
-      'healthforms', 'healthForms', 'HealthForms',
-      'formularios', 'forms'
-    ];
-
-    for (const collectionName of possibleCollectionNames) {
-      const collection = db.collection(collectionName);
-      const count = await collection.countDocuments();
-
-      if (count > 0) {
-        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
-        return collection;
-      }
-
-      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
-    }
-
-    logger.warn('DATABASE', 'No se encontraron colecciones con datos, usando "healthforms" por defecto');
+  try {
+    const { db } = await connectToDatabase();
     return db.collection('healthforms');
-  });
+  } catch (error) {
+    logger.error('DATABASE', 'Error obteniendo colección healthforms', error);
+    throw error;
+  }
 }
 
 export async function getRecipesCollection() {
-  const { db } = await connectToDatabase();
-
-  return logger.time('DATABASE', 'Buscar colección recipes', async () => {
-    const possibleCollectionNames = [
-      'recipes', 'Recipes', 'recetas', 'Recetas'
-    ];
-
-    for (const collectionName of possibleCollectionNames) {
-      const collection = db.collection(collectionName);
-      const count = await collection.countDocuments();
-
-      if (count > 0) {
-        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
-        return collection;
-      }
-
-      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
+  try {
+    const { db } = await connectToDatabase();
+    const collection = db.collection('recipes');
+    
+    try {
+      await collection.createIndex({ title: 'text', description: 'text', ingredients: 'text', tags: 'text' });
+      await collection.createIndex({ category: 1 });
+      await collection.createIndex({ isPublished: 1 });
+    } catch {
+      logger.debug('DATABASE', 'Los índices de recipes ya existen');
     }
-
-    logger.info('DATABASE', 'Creando nueva colección "recipes"');
-    return db.collection('recipes');
-  });
+    
+    return collection;
+  } catch (error) {
+    logger.error('DATABASE', 'Error obteniendo colección recipes', error);
+    throw error;
+  }
 }
 
-export async function getExerciseCollection() {
-  const { db } = await connectToDatabase();
-
-  return logger.time('DATABASE', 'Buscar colección exercises', async () => {
-    const possibleCollectionNames = [
-      'exercises', 'Exercises', 'ejercicios', 'Ejercicios'
-    ];
-
-    for (const collectionName of possibleCollectionNames) {
-      const collection = db.collection(collectionName);
-      const count = await collection.countDocuments();
-
-      if (count > 0) {
-        logger.info('DATABASE', `Encontrada colección: "${collectionName}" con ${count} documentos`);
-        return collection;
-      }
-
-      logger.debug('DATABASE', `Colección "${collectionName}" no encontrada o vacía`);
+export async function getExercisesCollection() {
+  try {
+    const { db } = await connectToDatabase();
+    const collection = db.collection('exercises');
+    
+    try {
+      await collection.createIndex({ 
+        name: 'text', 
+        description: 'text', 
+        category: 'text',
+        muscleGroups: 'text',
+        tags: 'text' 
+      });
+      await collection.createIndex({ category: 1 });
+      await collection.createIndex({ difficulty: 1 });
+      await collection.createIndex({ clientLevel: 1 });
+      await collection.createIndex({ isPublished: 1 });
+      await collection.createIndex({ progressionOf: 1 });
+    } catch {
+      logger.debug('DATABASE', 'Los índices de exercises ya existen');
     }
-
-    logger.info('DATABASE', 'Creando nueva colección "exercises"');
-    return db.collection('exercises');
-  });
+    
+    return collection;
+  } catch (error) {
+    logger.error('DATABASE', 'Error obteniendo colección exercises', error);
+    throw error;
+  }
 }
+
+export const getExerciseCollection = getExercisesCollection;
 
 export async function getNutritionCollection() {
-  const { db } = await connectToDatabase();
-  return db.collection('nutrition_data');
-}
-export async function getLeadsCollection() {
-  const { db } = await connectToDatabase();
-  return db.collection('leads');
+  try {
+    const { db } = await connectToDatabase();
+    return db.collection('nutrition_data');
+  } catch (error) {
+    logger.error('DATABASE', 'Error obteniendo colección nutrition_data', error);
+    throw error;
+  }
 }
 
+export async function getLeadsCollection() {
+  try {
+    const { db } = await connectToDatabase();
+    return db.collection('leads');
+  } catch (error) {
+    logger.error('DATABASE', 'Error obteniendo colección leads', error);
+    throw error;
+  }
+}
+
+// =====================================================
+// 4. COLECCIONES DEL BLOG
+// =====================================================
 export async function getBlogPostsCollection() {
   const { db } = await connectToDatabase();
-  // Colección de entradas del blog (pedida por el coach: "entries")
-  return db.collection('entries');
+  const collection = db.collection('blog_posts');
+  try {
+    await collection.createIndex({ slug: 1 }, { unique: true });
+    await collection.createIndex({ status: 1, publishedAt: -1 });
+    await collection.createIndex({ category: 1, status: 1, publishedAt: -1 });
+  } catch {
+    // Los índices ya existen — ignorar
+  }
+  return collection;
 }
 
 export async function getBlogAuthorCollection() {
   const { db } = await connectToDatabase();
-  // Perfil del autor del blog (documento singleton, editable por el admin)
   return db.collection('blog_author');
 }
 
-/**
- * Contador de visitas del blog, agregado por entrada y día (privacy-friendly:
- * no guarda IPs ni cookies; solo { slug, day, count }). Índice único para el upsert.
- */
-export async function getBlogViewsCollection() {
+export async function getBlogCategoriesCollection() {
   const { db } = await connectToDatabase();
-  const collection = db.collection('blog_views');
+  const collection = db.collection('blog_categories');
   try {
-    await collection.createIndex({ slug: 1, day: 1 }, { unique: true });
+    await collection.createIndex({ slug: 1 }, { unique: true });
   } catch {
     // El índice ya existe — ignorar
   }
   return collection;
 }
 
-/**
- * Comentarios del blog (moderados): campos sensibles CIFRADOS, postSlug/status
- * en claro para consultas de moderación.
- */
+export async function getBlogViewsCollection() {
+  const { db } = await connectToDatabase();
+  const collection = db.collection('blog_views');
+  try {
+    await collection.createIndex({ slug: 1, day: 1, visitorHash: 1 }, { unique: true });
+    await collection.createIndex({ slug: 1, day: 1 });
+    await collection.createIndex({ createdAt: -1 });
+  } catch {
+    // Los índices ya existen — ignorar
+  }
+  return collection;
+}
+
 export async function getBlogCommentsCollection() {
   const { db } = await connectToDatabase();
   const collection = db.collection('blog_comments');
@@ -298,6 +316,20 @@ export interface FreeSessionsDoc {
 export async function getFreeSessionsCollection() {
   const { db } = await connectToDatabase();
   return db.collection<FreeSessionsDoc>('free_sessions');
+}
+
+/** Documento de cupos disponibles por plan comercial (_id = PlanId). */
+export interface PlanQuotaDoc {
+  _id: string;
+  open: boolean;
+  limit: number;
+  used: number;
+  updatedAt?: Date;
+}
+
+export async function getPlanQuotasCollection() {
+  const { db } = await connectToDatabase();
+  return db.collection<PlanQuotaDoc>('plan_quotas');
 }
 
 export async function getMedicalDocumentCacheCollection() {

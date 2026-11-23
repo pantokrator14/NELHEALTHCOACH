@@ -30,7 +30,7 @@ async function getHandler(
       }
       
       // ✅ DESENCRIPTAR DIRECTAMENTE
-      const decryptedRecipe: any = {
+      const decryptedRecipe: Record<string, unknown> = {
         ...recipe,
         id: recipe._id.toString(),
         title: safeDecrypt(recipe.title),
@@ -68,7 +68,7 @@ async function getHandler(
         data: decryptedRecipe,
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('RECIPES', 'Error obteniendo receta', error);
       return NextResponse.json(
         { 
@@ -223,7 +223,7 @@ async function putHandler(
       // Si data.image es undefined (no se envía), no tocamos la imagen
       
       // ✅ 3. PREPARAR DATOS ENCRIPTADOS (excluyendo la imagen ya manejada)
-      const updateData: any = { updatedAt: new Date() };
+      const updateData: Record<string, unknown> = { updatedAt: new Date() };
       
       // Copiar todos los campos excepto 'image' que ya manejamos
       const fieldsToEncrypt = ['title', 'description', 'category', 'ingredients', 
@@ -303,7 +303,7 @@ async function putHandler(
       }
       
       // ✅ 7. DESENCRIPTAR PARA RESPONSE
-      const decryptedRecipe: any = {
+      const decryptedRecipe: Record<string, unknown> = {
         ...result,
         id: result._id.toString(),
         title: safeDecrypt(result.title),
@@ -352,7 +352,7 @@ async function putHandler(
         data: decryptedRecipe,
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('RECIPES', 'Error actualizando receta', error);
       return NextResponse.json(
         { 
@@ -461,7 +461,7 @@ async function deleteHandler(
         message: 'Receta eliminada exitosamente',
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('RECIPES', 'Error eliminando receta', error);
       return NextResponse.json(
         { 

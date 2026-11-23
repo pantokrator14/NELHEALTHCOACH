@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
+import { useUserRole } from '@/lib/client-hooks';
 import Layout from '../../../components/dashboard/Layout';
 import Head from 'next/head';
 import RecipeCard from '../../../components/dashboard/RecipeCard';
@@ -21,6 +23,8 @@ interface Proposal {
 }
 
 const RecipesPage = () => {
+  const router = useRouter();
+  const userRole = useUserRole();
   const { t } = useTranslation();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,11 +90,16 @@ const RecipesPage = () => {
   }, [showToast, t]);
 
   useEffect(() => {
+    if (userRole === 'client') {
+      router.replace('/dashboard');
+      return;
+    }
+    if (!userRole) return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       loadRecipes();
     })();
-  }, [loadRecipes]);
+  }, [loadRecipes, router, userRole]);
 
   // Cargar propuestas pendientes
   const loadProposals = useCallback(async () => {
@@ -110,6 +119,7 @@ const RecipesPage = () => {
 
   // Cargar propuestas cuando se cambia a la pestaña pending
   useEffect(() => {
+    if (!userRole || userRole === 'client') return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       if (activeTab === 'pending') {
@@ -118,7 +128,7 @@ const RecipesPage = () => {
         loadRecipes();
       }
     })();
-  }, [activeTab, loadRecipes, loadProposals]);
+  }, [activeTab, loadRecipes, loadProposals, userRole]);
 
   const handleApproveProposal = async (proposalId: string) => {
     try {

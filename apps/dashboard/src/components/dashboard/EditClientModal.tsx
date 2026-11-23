@@ -115,6 +115,7 @@ interface EditClientModalProps {
   client: Client
   onClose: () => void
   onSave: () => void
+  readOnlyEmail?: boolean
 }
 
 // Opciones para selects
@@ -248,7 +249,7 @@ const parseStringArray = (field: unknown): string[] => {
   return [];
 };
 
-export default function EditClientModal({ client, onClose, onSave }: EditClientModalProps) {
+export default function EditClientModal({ client, onClose, onSave, readOnlyEmail = false }: EditClientModalProps) {
   const { t } = useTranslation();
   const { showToast, ToastComponent } = useToast();
   const [activeTab, setActiveTab] = useState('personal')
@@ -331,13 +332,22 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
     try {
       const token = localStorage.getItem('token')
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const payload = readOnlyEmail
+        ? {
+            ...formData,
+            personalData: {
+              ...formData.personalData,
+              email: client.personalData.email,
+            },
+          }
+        : formData;
       const response = await fetch(`${API_BASE_URL}/api/clients/${formData._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
       const responseData = await response.json();
       if (response.ok) {
@@ -411,7 +421,7 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
             <svg className="w-6 h-6 mr-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-            <h2 className="text-2xl font-bold">Editar Información del Cliente</h2>
+            <h2 className="text-2xl font-bold">{readOnlyEmail ? 'Editar Mi Información' : 'Editar Información del Cliente'}</h2>
           </div>
         </div>
 
@@ -499,7 +509,18 @@ export default function EditClientModal({ client, onClose, onSave }: EditClientM
                     <label className="block text-sm font-medium text-blue-700 mb-2">
                       {formatLabel(key)}
                     </label>
-                    {key === 'birthDate' ? (
+                    {key === 'email' && readOnlyEmail ? (
+                      <>
+                        <input
+                          type="email"
+                          value={value as string}
+                          readOnly
+                          disabled
+                          className="w-full px-3 py-2 border border-blue-200 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Tu correo verificado no se puede modificar.</p>
+                      </>
+                    ) : key === 'birthDate' ? (
                       <input type="date" value={value as string} onChange={(e) => handleInputChange('personalData', key, e.target.value)} className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500" />
                     ) : key === 'maritalStatus' ? (
                       <select value={value as string} onChange={(e) => handleInputChange('personalData', key, e.target.value)} className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500">

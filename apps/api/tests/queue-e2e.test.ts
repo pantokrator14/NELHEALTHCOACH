@@ -50,7 +50,7 @@ async function main() {
     },
     medicalData: { diseases: encrypt('none'), medications: encrypt('none'), documents: [] },
   };
-  await db.collection('healthforms').insertOne(testClient as any);
+  await db.collection('healthforms').insertOne(testClient);
   registerClientWithJobs(testClient._id.toString());
   const clientId = testClient._id.toString();
   console.log('Healthform creado:', clientId);

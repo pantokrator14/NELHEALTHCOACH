@@ -93,11 +93,12 @@ export async function enqueueAIJob(params: {
     const res = await coll.insertOne(doc);
     log(clientId, 'Job encolado', { jobId: res.insertedId.toString(), monthNumber });
     return { ...doc, _id: res.insertedId };
-  } catch (e: any) {
+  } catch (e: unknown) {
     // E11000: ya existe un job activo → reutilizarlo (idempotente),
     // salvo que sea un ZOMBIE (attempts agotados): se abandona y se
     // crea uno nuevo, para que un job muerto no bloquee nuevas peticiones.
-    if (e?.code === 11000) {
+    const mongoErr = e as { code?: unknown } | null;
+    if (mongoErr?.code === 11000) {
       const active = await coll.findOne({ clientId, status: { $in: ['pending', 'running'] } });
       if (active) {
         const activeJob = active as AIJobDoc;

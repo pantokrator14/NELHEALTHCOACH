@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import Coach, { emailHashVariants } from '@/app/models/Coach';
+import ClientAccount from '@/app/models/ClientAccount';
 import { generateToken } from '@/app/lib/auth';
 import { logger } from '@/app/lib/logger';
 import { decrypt } from '@/app/lib/encryption';
-import { connectMongoose } from '@/app/lib/database';
-import { loginSchema } from '@/app/lib/schemas';
-import { secureRoute, requireServiceAvailable } from '@/app/lib/security/routeGuard';
+import { requireServiceAvailable, secureRoute } from '@/app/lib/security/routeGuard';
+import { loginSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
@@ -41,9 +41,6 @@ async function loginHandler(request: NextRequest) {
         message: rateResult.message || 'Demasiados intentos. Intenta más tarde.',
         code: rateResult.statusCode === 503 ? 'INTERNAL' : 'RATE_LIMITED',
       },
-      // Usar el statusCode real del rate limiter: 429 (rate limit normal) o
-      // 503 (fail-closed SEC-13: MongoDB no disponible) para que el frontend
-      // pueda distinguir y avisar al usuario con un toast.
       { status: rateResult.statusCode || 429 },
     );
   }
@@ -63,31 +60,26 @@ async function loginHandler(request: NextRequest) {
   }
 
   const { email, password } = parsed.data;
-
   const emailLower = email.toLowerCase().trim();
 
-  // Extraer request context para audit logs
   const reqCtx = {
     ip: request.headers.get('x-forwarded-for') || undefined,
     userAgent: request.headers.get('user-agent') || undefined,
     requestId: request.headers.get('x-request-id') || undefined,
   };
 
-  // 1. Buscar por hash (dual: v2 HMAC + legacy sha256 para cuentas pre-SEC-10)
+  // 1. Buscar Coach por hash (dual: v2 HMAC + legacy sha256)
   const coach = await Coach.findOne({ emailHash: { $in: emailHashVariants(emailLower) } });
 
   if (coach) {
-    // Recolectar TODAS las razones por las que no puede iniciar sesión
     const blockers: string[] = [];
     const extra: Record<string, boolean> = {};
 
-    // 1. Verificar email pendiente
     if (!coach.emailVerified) {
       blockers.push('verificar tu email');
       extra.needsEmailVerification = true;
     }
 
-    // 2. Verificar si la tarjeta no ha sido verificada (trial)
     if (!coach.isActive && coach.trialStatus === 'active') {
       if (coach.trialPaymentIntentId) {
         blockers.push('confirmar el pago de verificación de tarjeta');
@@ -98,7 +90,6 @@ async function loginHandler(request: NextRequest) {
       }
     }
 
-    // 3. Verificar si el trial expiró
     if (coach.trialStatus === 'expired' || (coach.trialStatus === 'active' && coach.trialEndDate && new Date() > coach.trialEndDate)) {
       if (coach.trialStatus === 'active') {
         coach.trialStatus = 'expired';
@@ -110,9 +101,8 @@ async function loginHandler(request: NextRequest) {
       extra.trialExpired = true;
     }
 
-    // Si hay blockers, devolver el más relevante
     if (blockers.length > 0) {
-      const statusCode = extra.trialExpired ? 403 : 403;
+      const statusCode = 403;
 
       logAuditEvent({
         eventType: 'LOGIN_FAILURE',
@@ -139,7 +129,6 @@ async function loginHandler(request: NextRequest) {
       );
     }
 
-    // Si no está activo (caso genérico) pero no hay blockers específicos
     if (!coach.isActive) {
       logAuditEvent({
         eventType: 'LOGIN_FAILURE',
@@ -159,7 +148,6 @@ async function loginHandler(request: NextRequest) {
       );
     }
 
-    // Auto-reactivar si estaba suspendido
     if (coach.isSuspended) {
       coach.isSuspended = false;
       await coach.save();
@@ -213,7 +201,6 @@ async function loginHandler(request: NextRequest) {
       });
     }
 
-    // Contraseña incorrecta
     logAuditEvent({
       eventType: 'LOGIN_FAILURE',
       severity: 'warning',
@@ -232,10 +219,120 @@ async function loginHandler(request: NextRequest) {
     );
   }
 
-  // 2. Email no encontrado
-  // SEC-08: ejecutar un bcrypt dummy para igualar el tiempo de respuesta del
-  // path con cuenta existente — evita enumerar emails vía timing side-channel
-  // (la respuesta debe tardar lo mismo que un bcrypt.compare real).
+  // 2. Buscar cuenta de cliente autoregistrado (ClientAccount)
+  const clientAccount = await ClientAccount.findOne({
+    emailHash: { $in: emailHashVariants(emailLower) },
+  });
+
+  if (clientAccount) {
+    const isClientMatch = await bcrypt.compare(password, clientAccount.passwordHash);
+    if (!isClientMatch) {
+      logAuditEvent({
+        eventType: 'LOGIN_FAILURE',
+        severity: 'warning',
+        message: `Contraseña incorrecta para cliente ${emailLower}`,
+        actorEmail: emailLower,
+        actorRole: 'client',
+        coachId: clientAccount.coachId,
+        ...reqCtx,
+        path: '/api/auth/login',
+        method: 'POST',
+        statusCode: 401,
+      });
+
+      return NextResponse.json(
+        { success: false, message: 'Credenciales inválidas', code: 'UNAUTHORIZED' },
+        { status: 401 },
+      );
+    }
+
+    if (!clientAccount.emailVerified) {
+      logAuditEvent({
+        eventType: 'LOGIN_FAILURE',
+        severity: 'warning',
+        message: `Login de cliente bloqueado — OTP pendiente: ${emailLower}`,
+        actorEmail: emailLower,
+        actorRole: 'client',
+        coachId: clientAccount.coachId,
+        ...reqCtx,
+        path: '/api/auth/login',
+        method: 'POST',
+        statusCode: 403,
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Debes verificar tu correo con el código de 6 dígitos antes de iniciar sesión.',
+          needsEmailVerification: true,
+          accountType: 'client',
+          email: emailLower,
+        },
+        { status: 403 },
+      );
+    }
+
+    if (!clientAccount.isActive) {
+      return NextResponse.json(
+        { success: false, message: 'Cuenta desactivada. Contacta al administrador.', code: 'FORBIDDEN' },
+        { status: 403 },
+      );
+    }
+
+    const token = generateToken({
+      clientAccountId: clientAccount._id.toString(),
+      clientId: clientAccount.healthFormId || null,
+      coachId: clientAccount.coachId,
+      email: emailLower,
+      role: 'client',
+    });
+
+    logAuditEvent({
+      eventType: 'LOGIN_SUCCESS',
+      severity: 'info',
+      message: `Login de cliente exitoso: ${emailLower}`,
+      actorEmail: emailLower,
+      actorRole: 'client',
+      coachId: clientAccount.coachId,
+      ...reqCtx,
+      path: '/api/auth/login',
+      method: 'POST',
+      statusCode: 200,
+      metadata: {
+        clientAccountId: clientAccount._id.toString(),
+        healthFormId: clientAccount.healthFormId || null,
+      },
+    });
+
+    const decryptedEmail = decrypt(clientAccount.email);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Login exitoso',
+      token,
+      coach: {
+        id: clientAccount._id.toString(),
+        clientAccountId: clientAccount._id.toString(),
+        clientId: clientAccount.healthFormId || null,
+        coachId: clientAccount.coachId,
+        email: decryptedEmail,
+        firstName: '',
+        lastName: '',
+        role: 'client',
+      },
+      clientAccount: {
+        id: clientAccount._id.toString(),
+        email: decryptedEmail,
+        coachId: clientAccount.coachId,
+        selectedPlanId: clientAccount.selectedPlanId || null,
+        activePlanId: clientAccount.activePlanId || null,
+        healthFormId: clientAccount.healthFormId || null,
+        purchasedPlans: clientAccount.purchasedPlans || [],
+      },
+    });
+  }
+
+  // 3. Email no encontrado — timing defense (SEC-08)
   await bcrypt.compare(password, DUMMY_BCRYPT_HASH);
 
   logAuditEvent({

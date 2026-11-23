@@ -8,7 +8,7 @@ import { EmailService } from '@/app/lib/email-service';
 import { encrypt } from '@/app/lib/encryption';
 import { hashToken } from '@/app/lib/tokenHash';
 import { connectMongoose } from '@/app/lib/database';
-import { registerSchema } from '@/app/lib/schemas';
+import { registerSchema } from '@/app/lib/schemas/index';
 import { secureRoute, requireServiceAvailable } from '@/app/lib/security/routeGuard';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';

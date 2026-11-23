@@ -6,6 +6,7 @@ import { clearAuthToken } from '@/lib/authSession';
 import Layout from '@/components/dashboard/Layout';
 import PasswordInput from '@/components/PasswordInput';
 import { useRouter } from 'next/router';
+import { useUserRole } from '@/lib/client-hooks';
 
 interface CoachProfile {
   id: string;
@@ -45,6 +46,7 @@ type AcctStep = 'idle' | 'verify-password' | 'options' | 'processing' | 'done' |
 
 export default function ProfilePage() {
   const router = useRouter();
+  const userRole = useUserRole();
   const [profile, setProfile] = useState<CoachProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,12 +104,17 @@ export default function ProfilePage() {
 
   // Carga inicial y detección de ?stripe=... (después de declarar loadProfile: evita TDZ)
   useEffect(() => {
+    if (userRole === 'client') {
+      router.replace('/dashboard');
+      return;
+    }
+    if (!userRole) return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       loadProfile();
     })();
      
-  }, []);
+  }, [router, userRole]);
 
   useEffect(() => {
     void (async () => {

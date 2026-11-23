@@ -487,8 +487,7 @@ export const generateClientPDF = (client: Client) => {
       margin: { left: margin, right: margin },
       headStyles: { fillColor: [99, 102, 241] },
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    yPos = (doc as any).lastAutoTable?.finalY || yPos + 50;
+    yPos = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || yPos + 50;
     yPos += 10;
   }
 

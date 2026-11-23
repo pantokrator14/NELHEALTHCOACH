@@ -6,7 +6,8 @@ import { apiClient, FinancesData } from '../../../lib/api';
 import { translateApiError } from '@/lib/apiErrorText';
 
 import { useTranslation } from 'react-i18next';
-import { useTokenRole } from '@/lib/client-hooks';
+import { useRouter } from 'next/router';
+import { useTokenRole, useUserRole } from '@/lib/client-hooks';
 
 // ═══════════════════════════════════════════════
 // ─── Types ───
@@ -1784,12 +1785,20 @@ function SettingsPanel({
 
 const FinancesPage = () => {
   const { t } = useTranslation();
+  const router = useRouter();
   // Rol derivado del token (null = aún no determinado → loading)
   const tokenRole = useTokenRole();
+  const userRole = useUserRole();
   const isAdmin = tokenRole === 'admin';
 
+  useEffect(() => {
+    if (userRole === 'client') {
+      router.replace('/dashboard');
+    }
+  }, [router, userRole]);
+
   // Loading state while determining role
-  if (tokenRole === null) {
+  if (tokenRole === null || userRole === 'client') {
     return (
       <>
         <Head><title>{t('finances.title')} - NELHEALTHCOACH</title></Head>

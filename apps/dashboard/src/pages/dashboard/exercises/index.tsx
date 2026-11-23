@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
+import { useUserRole } from '@/lib/client-hooks';
 import Layout from '../../../components/dashboard/Layout';
 import Head from 'next/head';
 import ExerciseCard from '../../../components/dashboard/ExerciseCard';
@@ -19,6 +21,8 @@ interface Proposal {
 }
 
 const ExercisesPage = () => {
+  const router = useRouter();
+  const userRole = useUserRole();
   const { t } = useTranslation();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,11 +87,16 @@ const ExercisesPage = () => {
   }, [showToast, t]);
 
   useEffect(() => {
+    if (userRole === 'client') {
+      router.replace('/dashboard');
+      return;
+    }
+    if (!userRole) return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       loadExercises();
     })();
-  }, [loadExercises]);
+  }, [loadExercises, router, userRole]);
 
   // Cargar propuestas pendientes
   const loadProposals = useCallback(async () => {
@@ -107,6 +116,7 @@ const ExercisesPage = () => {
 
   // Cargar según pestaña
   useEffect(() => {
+    if (!userRole || userRole === 'client') return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       if (activeTab === 'pending') {
@@ -115,7 +125,7 @@ const ExercisesPage = () => {
         loadExercises();
       }
     })();
-  }, [activeTab, loadExercises, loadProposals]);
+  }, [activeTab, loadExercises, loadProposals, userRole]);
 
   const handleApproveProposal = async (proposalId: string) => {
     try {

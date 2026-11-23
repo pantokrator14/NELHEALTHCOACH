@@ -15,7 +15,7 @@ import { ObjectId } from 'mongodb';
 import { GET as getAvailability } from '../src/app/api/free-sessions/availability/route';
 import { GET as getConfig, PUT as putConfig } from '../src/app/api/free-sessions/route';
 import { incrementFreeSessionUsage } from '../src/app/lib/free-sessions';
-import { leadSchema } from '../src/app/lib/schemas';
+import { leadSchema } from '../src/app/lib/schemas/index';
 import { connectDB, authedRequest, coachToken } from './helpers';
 
 let failures = 0, passes = 0;

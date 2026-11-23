@@ -1,7 +1,6 @@
-import { AIService } from './ai-service';
 import { logger } from './logger';
 import { getNutritionCollection } from '../lib/database';
-import { encrypt, safeDecrypt } from './encryption';
+import { safeDecrypt } from './encryption';
 import { callGeminiAPI, callGeminiImageAPI, robustJsonParse } from './agents/utils/llm';
 
 export interface IngredientAnalysisInput {
@@ -9,7 +8,6 @@ export interface IngredientAnalysisInput {
   servings?: number;
   recipeId?: string;
 }
-
 
 export interface ImageNutritionAnalysisInput {
   imageBase64: string;
@@ -21,49 +19,99 @@ export interface ImageNutritionAnalysisInput {
   recipeId?: string;
 }
 
+export interface MacroTotals {
+  protein: number;
+  carbs: number;
+  fat: number;
+  calories: number;
+}
+
+export interface IngredientContribution extends MacroTotals {
+  percentage: number;
+}
+
+export interface AnalyzedIngredientNutrition {
+  ingredient: string;
+  quantity: number;
+  unit: string;
+  contribution: IngredientContribution;
+}
+
+export interface ParsedIngredient {
+  original: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  notes?: string;
+}
+
+export interface NutritionAnalysisResult {
+  total: MacroTotals;
+  perServing: MacroTotals;
+  ingredients: AnalyzedIngredientNutrition[];
+  detectedIngredients?: string[];
+  servings: number;
+  ketoRatio: {
+    fatPercentage: number;
+    proteinPercentage: number;
+    carbPercentage: number;
+    isKetoFriendly: boolean;
+  };
+}
+
+interface NutritionDbEntry {
+  name: string;
+  nutrition?: {
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    calories?: number;
+  };
+}
+
 export class NutritionService {
-  
+
   /**
    * Analiza ingredientes y calcula nutrición usando IA
    */
   static async analyzeIngredientsWithAI(
     input: IngredientAnalysisInput
-  ): Promise<any> {
-    const loggerWithContext = logger.withContext({ 
+  ): Promise<NutritionAnalysisResult> {
+    const loggerWithContext = logger.withContext({
       recipeId: input.recipeId,
-      ingredientCount: input.ingredients.length 
+      ingredientCount: input.ingredients.length
     });
-    
+
     return loggerWithContext.time('NUTRITION_SERVICE', 'Analizando ingredientes con IA', async () => {
       try {
         // Parsear ingredientes para extraer cantidades
         const parsedIngredients = this.parseIngredients(input.ingredients);
-        
+
         // Construir prompt para IA
         const prompt = this.buildNutritionAnalysisPrompt(parsedIngredients, input.servings || 1);
-        
+
         // Llamar a Gemini
         const aiResponse = await this.callGeminiForNutrition(prompt);
-        
+
         // Parsear respuesta
         const nutritionData = this.parseNutritionResponse(aiResponse);
-        
+
         loggerWithContext.info('NUTRITION_SERVICE', 'Nutrición calculada con IA', {
           ingredientCount: parsedIngredients.length,
           totalCalories: nutritionData.total.calories,
           servings: input.servings || 1
         });
-        
+
         return nutritionData;
-        
-      } catch (error: any) {
-        loggerWithContext.error('NUTRITION_SERVICE', 'Error analizando ingredientes con IA', error);
+
+      } catch (error: unknown) {
+        loggerWithContext.error('NUTRITION_SERVICE', 'Error analizando ingredientes con IA', error instanceof Error ? error : new Error(String(error)));
         // Fallback a cálculo local
         return this.calculateNutritionLocally(input.ingredients, input.servings || 1);
       }
     });
   }
-  
+
 
   /**
    * Analiza la imagen de una receta usando IA multimodal (Gemini Vision)
@@ -71,7 +119,7 @@ export class NutritionService {
    */
   static async analyzeRecipeImageWithAI(
     input: ImageNutritionAnalysisInput
-  ): Promise<any> {
+  ): Promise<NutritionAnalysisResult & { detectedIngredients: string[] }> {
     const servings = Math.max(1, Math.min(100, Number(input.servings) || 1));
     const loggerWithContext = logger.withContext({
       recipeId: input.recipeId,
@@ -150,7 +198,7 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
         thinkingLevel: "low",
       });
 
-      const parsed = robustJsonParse<Record<string, any>>(aiResponse.text);
+      const parsed = robustJsonParse<Record<string, unknown>>(aiResponse.text);
       const normalized = this.normalizeImageNutritionResult(parsed, servings);
 
       loggerWithContext.info("NUTRITION_SERVICE", "Nutrición desde imagen calculada con IA", {
@@ -166,7 +214,10 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
   /**
    * Valida y normaliza el JSON devuelto por la IA para análisis de imagen
    */
-  private static normalizeImageNutritionResult(raw: Record<string, any>, servings: number) {
+  private static normalizeImageNutritionResult(
+    raw: Record<string, unknown>,
+    servings: number
+  ): NutritionAnalysisResult & { detectedIngredients: string[] } {
     const num = (v: unknown) => {
       const n = Number(v);
       return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -174,17 +225,17 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
     const round1 = (v: unknown) => Math.round(num(v) * 10) / 10;
     const round0 = (v: unknown) => Math.round(num(v));
 
-    const totalRaw = raw?.total && typeof raw.total === "object" ? raw.total : {};
-    const perRaw = raw?.perServing && typeof raw.perServing === "object" ? raw.perServing : {};
+    const totalRaw = (raw?.total && typeof raw.total === "object" ? raw.total : {}) as Record<string, unknown>;
+    const perRaw = (raw?.perServing && typeof raw.perServing === "object" ? raw.perServing : {}) as Record<string, unknown>;
 
-    const total = {
+    const total: MacroTotals = {
       protein: round1(totalRaw.protein),
       carbs: round1(totalRaw.carbs),
       fat: round1(totalRaw.fat),
       calories: round0(totalRaw.calories),
     };
 
-    const perServing = {
+    const perServing: MacroTotals = {
       protein: round1(perRaw.protein ?? total.protein / servings),
       carbs: round1(perRaw.carbs ?? total.carbs / servings),
       fat: round1(perRaw.fat ?? total.fat / servings),
@@ -199,33 +250,44 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
       total.calories = round0(perServing.calories * servings);
     }
 
-    const ingredients = Array.isArray(raw?.ingredients)
+    const ingredients: AnalyzedIngredientNutrition[] = Array.isArray(raw?.ingredients)
       ? raw.ingredients
-          .filter((item: any) => item && typeof item.ingredient === "string")
-          .map((item: any) => ({
-            ingredient: String(item.ingredient).trim(),
-            quantity: round1(item.quantity),
-            unit: typeof item.unit === "string" && item.unit.trim() ? item.unit.trim() : "g",
-            contribution: {
-              protein: round1(item.contribution?.protein),
-              carbs: round1(item.contribution?.carbs),
-              fat: round1(item.contribution?.fat),
-              calories: round0(item.contribution?.calories),
-              percentage: round0(item.contribution?.percentage),
-            },
-          }))
+          .filter((item): item is Record<string, unknown> =>
+            Boolean(item && typeof item === "object" && typeof (item as Record<string, unknown>).ingredient === "string")
+          )
+          .map((item) => {
+            const contrib = (item.contribution && typeof item.contribution === "object"
+              ? item.contribution
+              : {}) as Record<string, unknown>;
+            return {
+              ingredient: String(item.ingredient).trim(),
+              quantity: round1(item.quantity),
+              unit: typeof item.unit === "string" && item.unit.trim() ? item.unit.trim() : "g",
+              contribution: {
+                protein: round1(contrib.protein),
+                carbs: round1(contrib.carbs),
+                fat: round1(contrib.fat),
+                calories: round0(contrib.calories),
+                percentage: round0(contrib.percentage),
+              },
+            };
+          })
       : [];
 
     const detectedIngredients = Array.isArray(raw?.detectedIngredients)
       ? raw.detectedIngredients
-          .filter((s: unknown) => typeof s === "string" && s.trim().length > 0)
-          .map((s: string) => s.trim())
-      : ingredients.map((i: any) => `${i.quantity}${i.unit} ${i.ingredient}`);
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .map((s) => s.trim())
+      : ingredients.map((i) => `${i.quantity}${i.unit} ${i.ingredient}`);
+
+    const ketoRaw = (raw?.ketoRatio && typeof raw.ketoRatio === "object"
+      ? raw.ketoRatio
+      : {}) as Record<string, unknown>;
 
     const totalMacros = total.protein + total.carbs + total.fat;
-    const fatPercentage = totalMacros > 0 ? Math.round((total.fat / totalMacros) * 100) : round0(raw?.ketoRatio?.fatPercentage);
-    const proteinPercentage = totalMacros > 0 ? Math.round((total.protein / totalMacros) * 100) : round0(raw?.ketoRatio?.proteinPercentage);
-    const carbPercentage = totalMacros > 0 ? Math.round((total.carbs / totalMacros) * 100) : round0(raw?.ketoRatio?.carbPercentage);
+    const fatPercentage = totalMacros > 0 ? Math.round((total.fat / totalMacros) * 100) : round0(ketoRaw.fatPercentage);
+    const proteinPercentage = totalMacros > 0 ? Math.round((total.protein / totalMacros) * 100) : round0(ketoRaw.proteinPercentage);
+    const carbPercentage = totalMacros > 0 ? Math.round((total.carbs / totalMacros) * 100) : round0(ketoRaw.carbPercentage);
 
     return {
       total,
@@ -238,8 +300,8 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
         proteinPercentage,
         carbPercentage,
         isKetoFriendly:
-          typeof raw?.ketoRatio?.isKetoFriendly === "boolean"
-            ? raw.ketoRatio.isKetoFriendly
+          typeof ketoRaw.isKetoFriendly === "boolean"
+            ? ketoRaw.isKetoFriendly
             : fatPercentage >= 60 && carbPercentage <= 15,
       },
     };
@@ -248,26 +310,20 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
   /**
    * Parsear ingredientes para extraer cantidades y nombres
    */
-  private static parseIngredients(ingredients: string[]): Array<{
-    original: string;
-    name: string;
-    quantity: number;
-    unit: string;
-    notes?: string;
-  }> {
-    const parsed: any[] = [];
-    
+  private static parseIngredients(ingredients: string[]): ParsedIngredient[] {
+    const parsed: ParsedIngredient[] = [];
+
     for (const ingredient of ingredients) {
       // Expresión regular mejorada para capturar cantidades y unidades
       const match = ingredient.match(
         /^(\d+(?:\.\d+)?)\s*(g|gr|gramos?|kg|kilos?|ml|mililitros?|l|litros?|taza(?:s)?|cda|cdita|unidad(?:es)?|pizca|pizcas)?\s+(?:de\s+)?(.+)$/i
       );
-      
+
       if (match) {
         const [, quantityStr, unitRaw, name] = match;
         const quantity = parseFloat(quantityStr);
         const unit = this.normalizeUnit(unitRaw?.toLowerCase() || 'g');
-        
+
         parsed.push({
           original: ingredient,
           name: name.trim(),
@@ -284,10 +340,10 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
         });
       }
     }
-    
+
     return parsed;
   }
-  
+
   /**
    * Normalizar unidades
    */
@@ -315,21 +371,21 @@ DEVUELVE ÚNICAMENTE un objeto JSON válido con esta estructura exacta:
       'pizca': 'pizca',
       'pizcas': 'pizca',
     };
-    
+
     return unitMap[unit] || 'g';
   }
-  
+
   /**
    * Construir prompt para análisis nutricional
    */
   private static buildNutritionAnalysisPrompt(
-    parsedIngredients: any[],
+    parsedIngredients: ParsedIngredient[],
     servings: number
   ): string {
-    const ingredientsList = parsedIngredients.map(ing => 
+    const ingredientsList = parsedIngredients.map(ing =>
       `- ${ing.quantity}${ing.unit} de ${ing.name}`
     ).join('\n');
-    
+
     return `Eres un nutricionista experto en dieta keto y análisis de alimentos.
 
 INSTRUCCIONES:
@@ -388,7 +444,7 @@ DEVUELVE SOLO JSON con esta estructura:
 
 CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
   }
-  
+
    /**
     * Llamar a Gemini para análisis nutricional
     */
@@ -402,57 +458,57 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
      });
      return result.text;
    }
-  
+
   /**
    * Parsear respuesta de nutrición
    */
-  private static parseNutritionResponse(response: string): any {
+  private static parseNutritionResponse(response: string): NutritionAnalysisResult {
     try {
-      const parsed = JSON.parse(response);
-      
+      const parsed = JSON.parse(response) as NutritionAnalysisResult;
+
       // Validar estructura básica
       if (!parsed.total || !parsed.perServing) {
         throw new Error('Estructura de respuesta inválida');
       }
-      
+
       return parsed;
     } catch (error) {
       throw new Error(`Error parseando respuesta de nutrición: ${error}`);
     }
   }
-  
+
   /**
    * Calcular nutrición localmente (fallback)
    */
   public static async calculateNutritionLocally(
     ingredients: string[],
     servings: number
-  ): Promise<any> {
+  ): Promise<NutritionAnalysisResult> {
     const parsedIngredients = this.parseIngredients(ingredients);
     const nutritionDB = await this.getNutritionDatabase();
-    
+
     let totalProtein = 0;
     let totalCarbs = 0;
     let totalFat = 0;
     let totalCalories = 0;
-    
-    const ingredientDetails = [];
-    
+
+    const ingredientDetails: AnalyzedIngredientNutrition[] = [];
+
     for (const ing of parsedIngredients) {
       // Buscar en base de datos local
       const nutrition = await this.findIngredientNutrition(ing.name, nutritionDB);
       const quantityInGrams = this.convertToGrams(ing.quantity, ing.unit);
-      
+
       const protein = (nutrition.protein * quantityInGrams) / 100;
       const carbs = (nutrition.carbs * quantityInGrams) / 100;
       const fat = (nutrition.fat * quantityInGrams) / 100;
       const calories = (nutrition.calories * quantityInGrams) / 100;
-      
+
       totalProtein += protein;
       totalCarbs += carbs;
       totalFat += fat;
       totalCalories += calories;
-      
+
       ingredientDetails.push({
         ingredient: ing.name,
         quantity: ing.quantity,
@@ -466,21 +522,21 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
         }
       });
     }
-    
+
     // Calcular porcentajes
     const totalMass = totalProtein + totalCarbs + totalFat;
     ingredientDetails.forEach(ing => {
-      ing.contribution.percentage = totalMass > 0 
+      ing.contribution.percentage = totalMass > 0
         ? ((ing.contribution.protein + ing.contribution.carbs + ing.contribution.fat) / totalMass) * 100
         : 0;
     });
-    
+
     // Calcular ratios keto
     const totalMacros = totalProtein + totalCarbs + totalFat;
     const fatPercentage = totalMacros > 0 ? (totalFat / totalMacros) * 100 : 0;
     const proteinPercentage = totalMacros > 0 ? (totalProtein / totalMacros) * 100 : 0;
     const carbPercentage = totalMacros > 0 ? (totalCarbs / totalMacros) * 100 : 0;
-    
+
     return {
       total: {
         protein: Math.round(totalProtein * 10) / 10,
@@ -504,7 +560,7 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
       }
     };
   }
-  
+
   /**
    * Convertir a gramos
    */
@@ -520,33 +576,33 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
       'unidad': 100, // Asumiendo 100g por unidad estándar
       'pizca': 1, // Aproximación
     };
-    
+
     return quantity * (conversions[unit] || 1);
   }
-  
+
   /**
    * Obtener base de datos nutricional
    */
-  private static async getNutritionDatabase(): Promise<any[]> {
+  private static async getNutritionDatabase(): Promise<NutritionDbEntry[]> {
     try {
       const collection = await getNutritionCollection();
-      return await collection.find({}).toArray();
+      return (await collection.find({}).toArray()) as unknown as NutritionDbEntry[];
     } catch (error) {
       logger.error('NUTRITION_SERVICE', 'Error obteniendo base de datos nutricional', error);
       return [];
     }
   }
-  
+
   /**
    * Buscar nutrición de ingrediente
    */
   private static async findIngredientNutrition(
     ingredientName: string,
-    nutritionDB: any[]
-  ): Promise<{protein: number; carbs: number; fat: number; calories: number}> {
+    nutritionDB: NutritionDbEntry[]
+  ): Promise<MacroTotals> {
     // Buscar coincidencia exacta o parcial
     const normalizedName = ingredientName.toLowerCase().trim();
-    
+
     for (const item of nutritionDB) {
       const dbName = safeDecrypt(item.name).toLowerCase();
       if (dbName.includes(normalizedName) || normalizedName.includes(dbName)) {
@@ -558,55 +614,50 @@ CALCULA CON PRECISIÓN Y DEVUELVE SOLO EL JSON.`;
         };
       }
     }
-    
+
     // Valores por defecto por categoría
     return this.getDefaultNutritionByCategory(normalizedName);
   }
-  
+
   /**
    * Obtener nutrición por defecto basada en categoría
    */
-  private static getDefaultNutritionByCategory(ingredientName: string): {
-    protein: number;
-    carbs: number;
-    fat: number;
-    calories: number;
-  } {
+  private static getDefaultNutritionByCategory(ingredientName: string): MacroTotals {
     // Clasificar ingrediente por nombre
     const lowerName = ingredientName.toLowerCase();
-    
+
     if (lowerName.includes('pollo') || lowerName.includes('carne') || lowerName.includes('pescado')) {
       return { protein: 20, carbs: 0, fat: 10, calories: 170 }; // Carne promedio
     }
-    
+
     if (lowerName.includes('huevo')) {
       return { protein: 13, carbs: 1, fat: 11, calories: 155 };
     }
-    
+
     if (lowerName.includes('aguacate') || lowerName.includes('palta')) {
       return { protein: 2, carbs: 9, fat: 15, calories: 160 };
     }
-    
+
     if (lowerName.includes('aceite') || lowerName.includes('mantequilla')) {
       return { protein: 0, carbs: 0, fat: 100, calories: 900 };
     }
-    
+
     if (lowerName.includes('brócoli') || lowerName.includes('espinaca')) {
       return { protein: 3, carbs: 6, fat: 0, calories: 35 };
     }
-    
+
     if (lowerName.includes('queso')) {
       return { protein: 25, carbs: 2, fat: 30, calories: 400 };
     }
-    
+
     if (lowerName.includes('tomate')) {
       return { protein: 1, carbs: 4, fat: 0, calories: 20 };
     }
-    
+
     if (lowerName.includes('cebolla')) {
       return { protein: 1, carbs: 9, fat: 0, calories: 40 };
     }
-    
+
     // Default para ingredientes desconocidos
     return { protein: 5, carbs: 10, fat: 5, calories: 100 };
   }

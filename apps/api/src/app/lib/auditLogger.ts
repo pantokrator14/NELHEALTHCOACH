@@ -89,6 +89,7 @@ const AUDIT_ICONS: Record<AuditEventType, string> = {
   BLOG_COMMENT_DELETED: '🗑️',
   BOOK_WAITLIST_JOINED: '📚',
   FREE_SESSIONS_UPDATED: '🎟️',
+  PLAN_QUOTAS_UPDATED: '🎟️',
   // Pagos
   PAYMENT_RECEIVED: '💰',
   PAYMENT_FAILED: '💳',
@@ -128,25 +129,25 @@ export async function logAuditEvent(data: AuditEventData): Promise<void> {
   console.log(`${icon} ${coloredTag} ${sanitizeMessage(data.message)}${metaStr}`);
 
   // ── 2. También pasar por el logger estructurado ──
-  const logMethod = severity === 'error' || severity === 'critical' ? 'error' : severity === 'warning' ? 'warn' : 'info';
-  const logCtx = severity === 'error' || severity === 'critical' ? 'ERROR' : severity === 'warning' ? 'GUARDRAILS' : 'AUDIT';
-  // Usamos any para evitar problemas de tipado con el logger
-  (logger as any)[logMethod](
-    logCtx,
-    `[AUDIT:${data.eventType}] ${data.message}`,
-    undefined,
-    {
-      requestId: data.requestId,
-      coachId: data.coachId,
-      ip: data.ip,
-      path: data.path,
-      method: data.method,
-      statusCode: data.statusCode,
-      eventType: data.eventType,
-      severity,
-      metadata: data.metadata,
-    },
-  );
+  const auditMsg = `[AUDIT:${data.eventType}] ${data.message}`;
+  const auditMeta = {
+    requestId: data.requestId,
+    coachId: data.coachId,
+    ip: data.ip,
+    path: data.path,
+    method: data.method,
+    statusCode: data.statusCode,
+    eventType: data.eventType,
+    severity,
+    metadata: data.metadata,
+  };
+  if (severity === 'error' || severity === 'critical') {
+    logger.error('ERROR', auditMsg, undefined, undefined, auditMeta);
+  } else if (severity === 'warning') {
+    logger.warn('GUARDRAILS', auditMsg, undefined, auditMeta);
+  } else {
+    logger.info('AUDIT', auditMsg, undefined, auditMeta);
+  }
 
   // ── 3. Persistir a MongoDB ──
   try {
@@ -156,10 +157,15 @@ export async function logAuditEvent(data: AuditEventData): Promise<void> {
       return;
     }
 
+    const coachObjectId =
+      data.coachId && mongoose.Types.ObjectId.isValid(data.coachId)
+        ? new mongoose.Types.ObjectId(data.coachId)
+        : undefined;
+
     const doc = new AuditLog({
       eventType: data.eventType,
       severity,
-      coachId: data.coachId ? (data.coachId as any) : undefined,
+      coachId: coachObjectId,
       actorEmail: data.actorEmail,
       actorRole: data.actorRole,
       ip: data.ip,

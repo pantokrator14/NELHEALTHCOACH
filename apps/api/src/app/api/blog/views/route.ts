@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getBlogPostsCollection, getBlogViewsCollection } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { requireCoachAuth } from '@/app/lib/auth';
-import { blogViewSchema } from '@/app/lib/schemas';
+import { blogViewSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import type { CoachJwtPayload } from '@/app/lib/auth';

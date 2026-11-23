@@ -49,6 +49,7 @@ export type AuditEventType =
   | 'BLOG_COMMENT_DELETED'
   | 'BOOK_WAITLIST_JOINED'
   | 'FREE_SESSIONS_UPDATED'
+  | 'PLAN_QUOTAS_UPDATED'
   // Pagos
   | 'PAYMENT_RECEIVED'
   | 'PAYMENT_FAILED'
@@ -100,6 +101,7 @@ const AuditLogSchema = new Schema<IAuditLog>(
         'CLIENT_CREATED', 'CLIENT_UPDATED', 'CLIENT_DELETED',
         'RECIPE_CREATED', 'RECIPE_UPDATED', 'RECIPE_DELETED',
         'EXERCISE_CREATED', 'EXERCISE_UPDATED', 'EXERCISE_DELETED',
+        'PLAN_QUOTAS_UPDATED',
         'PAYMENT_RECEIVED', 'PAYMENT_FAILED', 'SUBSCRIPTION_CHANGED',
         'ADMIN_ACTION',
       ],
@@ -125,7 +127,7 @@ const AuditLogSchema = new Schema<IAuditLog>(
     requestId: { type: String, index: true },
     visitorId: { type: String },
 
-    // Detalles
+    // Detalles del evento
     message: { type: String, required: true },
     metadata: { type: Schema.Types.Mixed },
 

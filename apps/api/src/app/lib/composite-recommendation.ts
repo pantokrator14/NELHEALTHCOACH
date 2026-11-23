@@ -23,6 +23,11 @@ export interface CompositeInput {
   previousSessions: Array<Record<string, unknown>>;
   coachNotes: string;
   monthNumber: number;
+  planId?: string;
+  planName?: string;
+  totalWeeks?: number;
+  planRoadmap?: string[];
+  previousMedicalContext?: string;
 }
 
 // ── Interfaces de Salida por Fase ──────────────────────────
@@ -250,6 +255,8 @@ ${formatMedicalSummary(input.medicalData)}
 ## DOCUMENTOS CLÍNICOS ACTUALES (ordenados del más reciente al más antiguo; prioriza siempre los más recientes)
 ${hasDocuments ? formatDocs(input.processedDocuments) : "- NO HAY DOCUMENTOS MÉDICOS DISPONIBLES"}
 
+${input.previousMedicalContext ? `## HISTORIAL DE ANÁLISIS MÉDICOS PREVIOS (PARA COMPARATIVA CONTINUA DE BIOMARCADORES)\n${input.previousMedicalContext}\n- Si hay exámenes previos y exámenes actuales, describe claramente en medicalComparativeAnalysis qué biomarcadores mejoraron, empeoraron o se mantienen estables.\n` : ""}
+
 ${input.coachNotes ? `### NOTAS DEL COACH\n${input.coachNotes}\n` : ""}
 
 ## INSTRUCCIONES DE SALIDA JSON
@@ -307,6 +314,15 @@ function buildLifestylePrompt(
     `- [ID:${e._id}] "${e.name}" (${e.difficulty} | ${e.clientLevel} | ${e.equipment.join(',') || 'sin equipo'})`
   ).join("\n");
 
+  const planTotalWeeks = input.totalWeeks && input.totalWeeks > 0 ? input.totalWeeks : 4;
+  const durationLabelText = planTotalWeeks === 3 ? "3 semanas (21 días)" : `${planTotalWeeks} semanas (1 mes)`;
+  const programContext = input.planName
+    ? `## CONTEXTO DEL PROGRAMA CONTRATADO
+- Programa: ${input.planName} (${durationLabelText})
+${input.planRoadmap?.length ? `- Ruta del programa: ${input.planRoadmap.join(" → ")}` : ""}
+- Ajusta el enfoque, la visión y los hábitos a esta duración y ruta.`
+    : "";
+
   const medicalContext = medicalResult.structuredMedicalAnalysis.exams.length > 0
     ? `## ANÁLISIS MÉDICO PREVIO (CONTEXTO INMUTABLE — ÚSALO PARA PERSONALIZAR EL PLAN)
 - Resumen médico: ${medicalResult.medicalSummary}
@@ -317,7 +333,9 @@ function buildLifestylePrompt(
 
   return {
     system: "Eres un health coach experto. Basándote en el análisis médico previo proporcionado como contexto, genera un plan de nutrición de 7 días, ejercicios y hábitos personalizado. Responde EXACTAMENTE con el JSON solicitado.",
-    human: `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante 4 semanas (1 mes) para este cliente.
+    human: `Eres un entrenador de salud integral. Diseña un plan de 7 días (Lunes a Domingo) que se repetirá durante ${durationLabelText} para este cliente.
+
+${programContext}
 
 ${medicalContext}
 
@@ -346,7 +364,7 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 ### 1. clientInsights — Análisis del cliente (BREVE: summary y vision deben ser cortos, sin tanto detalle)
 - TONO PROFESIONAL CON CALIDEZ: Usa un tono profesional pero cálido — como un coach que es claro y directo pero también alentador. summary debe comenzar destacando aspectos positivos, fortalezas y logros del cliente, y luego mencionar los desafíos de forma constructiva sin sonar demasiado informal ni demasiado clínico.
 - summary: Resumen breve y equilibrado que reconozca fortalezas y logros, y señale áreas de mejora con un tono constructivo (2-3 líneas máximo)
-- vision: Visión corta de cómo estará el cliente en 4 semanas (1 mes) — con un tono realista pero motivador (2-3 líneas máximo)
+- vision: Visión corta de cómo estará el cliente en ${durationLabelText} — con un tono realista pero motivador (2-3 líneas máximo)
 
 ### 2. nutritionPlan — PLAN DE COMIDAS (7 días)
 - weeklyPlan: array de 7 objetos (Monday a Sunday)
@@ -374,7 +392,7 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 {
   "clientInsights": {
     "summary": "Resumen breve del estado actual del cliente...",
-    "vision": "Visión corta de cómo estará el cliente en 4 semanas (1 mes)...",
+    "vision": "Visión corta de cómo estará el cliente en ${durationLabelText}...",
     "keyRisks": ["..."],
     "opportunities": ["..."],
     "experienceLevel": "principiante|intermedio|avanzado",
@@ -873,23 +891,40 @@ export async function generateShoppingListFromWeeklyPlan(
   let result: ShoppingListOutput;
   try {
     result = robustJsonParse<ShoppingListOutput>(content);
-  } catch (error: any) {
-    logger.error("AI", "❌ Fase 3 (standalone) fallida: No se pudo parsear el JSON", error);
-    throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (error?.message || ""));
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("AI", "❌ Fase 3 (standalone) fallida: No se pudo parsear el JSON", err);
+    throw new Error("Fase 3 fallida: El LLM no devolvió un JSON parseable para la lista de compras. " + (err.message || ""));
   }
 
   // Sanitizar items: asegurar que todos tengan item, quantity y priority con valores válidos.
   // El modelo a veces devuelve claves en español (ingrediente/cantidad/prioridad) y otras
   // en inglés (item/quantity/priority) — aceptamos AMBOS idiomas sin tocar los prompts.
   if (Array.isArray(result.shoppingList)) {
+    interface RawShoppingItem {
+      item?: unknown;
+      name?: unknown;
+      ingredient?: unknown;
+      ingrediente?: unknown;
+      quantity?: unknown;
+      amount?: unknown;
+      cantidad?: unknown;
+      priority?: unknown;
+    }
     const originalCount = result.shoppingList.length;
-    result.shoppingList = result.shoppingList
-      .filter((item: any) => item && (item.item || item.name || item.ingredient || item.ingrediente))
-      .map((item: any) => ({
-        item: String(item.item ?? item.name ?? item.ingredient ?? item.ingrediente ?? ''),
-        quantity: String(item.quantity ?? item.amount ?? item.cantidad ?? ''),
-        priority: (['high', 'medium', 'low'].includes(item.priority) ? item.priority : 'medium') as 'high' | 'medium' | 'low',
-      }));
+    const rawItems = result.shoppingList as unknown as RawShoppingItem[];
+    result.shoppingList = rawItems
+      .filter((item) => Boolean(item && (item.item || item.name || item.ingredient || item.ingrediente)))
+      .map((item) => {
+        const prio = typeof item.priority === 'string' && ['high', 'medium', 'low'].includes(item.priority)
+          ? (item.priority as 'high' | 'medium' | 'low')
+          : 'medium';
+        return {
+          item: String(item.item ?? item.name ?? item.ingredient ?? item.ingrediente ?? ''),
+          quantity: String(item.quantity ?? item.amount ?? item.cantidad ?? ''),
+          priority: prio,
+        };
+      });
     logger.info("AI", "FASE 3 (standalone): items sanitizados", {
       originalCount,
       sanitizedCount: result.shoppingList.length,
@@ -964,27 +999,54 @@ async function invokeLLM(
       totalChars: systemMsg.length + humanMsg.length,
     });
 
+    interface LLMInvokeResponse {
+      content?: unknown;
+      response_metadata?: {
+        finishReason?: unknown;
+        finish_reason?: unknown;
+        model?: unknown;
+        model_name?: unknown;
+        usage?: {
+          output_token_details?: unknown;
+          input_token_details?: unknown;
+        };
+      };
+      usage_metadata?: {
+        output_token_details?: unknown;
+        input_token_details?: unknown;
+      };
+      additional_kwargs?: unknown;
+    }
+
     const llm = await createDeepSeekJSONLLM({ maxTokens: tokens });
     const modelUsed =
-      (llm as any)?.modelName || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+      (llm as { modelName?: string })?.modelName || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
-    let response: any;
+    let response: LLMInvokeResponse;
     try {
-      response = await llm.invoke([
+      response = (await llm.invoke([
         new SystemMessage(systemMsg),
         new HumanMessage(humanMsg),
-      ]);
-    } catch (error: any) {
+      ])) as unknown as LLMInvokeResponse;
+    } catch (error: unknown) {
+      const errObj = (error && typeof error === "object" ? error : {}) as {
+        name?: unknown;
+        code?: unknown;
+        status?: unknown;
+        message?: unknown;
+        error?: { type?: unknown };
+      };
+      const errForLog = error instanceof Error ? error : new Error(String(error));
       const elapsedMs = Date.now() - attemptStart;
-      logCtx.error("AI", `${phaseLabel}: llm.invoke LANZÓ ERROR (intento ${attempt + 1})`, error, {
+      logCtx.error("AI", `${phaseLabel}: llm.invoke LANZÓ ERROR (intento ${attempt + 1})`, errForLog, {
         startedAt,
         elapsedMs,
         modelUsed,
-        errorName: error?.name,
-        errorCode: error?.code,
-        errorStatus: error?.status,
-        errorType: error?.error?.type,
-        errorMessage: error?.message?.substring(0, 500),
+        errorName: errObj.name,
+        errorCode: errObj.code,
+        errorStatus: errObj.status,
+        errorType: errObj.error?.type,
+        errorMessage: typeof errObj.message === "string" ? errObj.message.substring(0, 500) : errForLog.message.substring(0, 500),
       });
       if (attempt === MAX_LLM_ATTEMPTS - 1) {
         if (process.env.GEMINI_API_KEY) {
@@ -1153,9 +1215,10 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   let medicalResult: MedicalOutput;
   try {
     medicalResult = robustJsonParse<MedicalOutput>(medicalContent);
-  } catch (error: any) {
-    logger.error("AI", "❌ Fase 1 fallida: No se pudo parsear el JSON médico", error);
-    throw new Error("Fase 1 fallida: El LLM no devolvió un JSON parseable para el análisis médico. " + (error?.message || ""));
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("AI", "❌ Fase 1 fallida: No se pudo parsear el JSON médico", err);
+    throw new Error("Fase 1 fallida: El LLM no devolvió un JSON parseable para el análisis médico. " + (err.message || ""));
   }
 
   // Validación FAIL-FAST: si hay documentos y exams está vacío
@@ -1187,9 +1250,10 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   let lifestyleResult: LifestyleOutput;
   try {
     lifestyleResult = robustJsonParse<LifestyleOutput>(lifestyleContent);
-  } catch (error: any) {
-    logger.error("AI", "❌ Fase 2 fallida: No se pudo parsear el JSON de estilo de vida", error);
-    throw new Error("Fase 2 fallida: El LLM no devolvió un JSON parseable para el plan de estilo de vida. " + (error?.message || ""));
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("AI", "❌ Fase 2 fallida: No se pudo parsear el JSON de estilo de vida", err);
+    throw new Error("Fase 2 fallida: El LLM no devolvió un JSON parseable para el plan de estilo de vida. " + (err.message || ""));
   }
 
   // Validación FAIL-FAST de estructura: el weeklyPlan es REQUERIDO para la Fase 3.
