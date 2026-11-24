@@ -1,31 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { z } from 'zod';
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { getExerciseCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import { S3Service } from '@/app/lib/s3';
 import { exerciseSchema } from '@/app/lib/schemas/index';
 import EditProposal from '@/app/models/EditProposal';
+import ClientAccount from '@/app/models/ClientAccount';
+import { resolveEffectiveClientEntitlements, type LibraryAccessTier } from '@/app/lib/plans';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
-// GET: Obtener ejercicios
+// GET: Obtener ejercicios (autenticado: coach/admin o cliente Plan 2/3)
 async function getHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Obtener ejercicios', async () => {
     try {
+      const auth = requireAnyAuth(request);
+
       const searchParams = request.nextUrl.searchParams;
       const query = searchParams.get('search') || '';
       const mode = searchParams.get('mode') || 'full';
 
-      // Determinar si el usuario es admin (para mostrar no publicados)
-      let isAdmin = false;
-      try {
-        const auth = requireCoachAuth(request);
-        isAdmin = auth.role === 'admin';
-      } catch {
-        // No autenticado: solo ver publicados
+      const isAdmin = auth.role === 'admin';
+      let accessTier: LibraryAccessTier = 'full';
+      let tierLimit: number | null = null;
+
+      if (auth.role === 'client') {
+        await connectMongoose();
+        const account = await ClientAccount.findById(auth.clientAccountId)
+          .select('purchasedPlans activePlanId')
+          .lean() as { purchasedPlans?: Array<{ planId?: unknown; status?: unknown }>; activePlanId?: string | null } | null;
+
+        if (!account) {
+          return NextResponse.json(
+            { success: false, message: 'Cuenta de cliente no encontrada', code: 'NOT_FOUND' },
+            { status: 404 }
+          );
+        }
+
+        const entitlements = resolveEffectiveClientEntitlements(
+          account.purchasedPlans,
+          account.activePlanId || null
+        );
+
+        if (entitlements.libraryAccess === 'none') {
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'Tu plan actual no incluye acceso a la biblioteca de ejercicios. Actualiza al Plan 2 o Plan 3.',
+              code: 'FORBIDDEN',
+            },
+            { status: 403 }
+          );
+        }
+
+        accessTier = entitlements.libraryAccess;
+        tierLimit = entitlements.exercisesLimit;
       }
 
       const collection = await getExerciseCollection();
@@ -33,7 +65,17 @@ async function getHandler(request: NextRequest) {
       if (!isAdmin) {
         filter.isPublished = true;
       }
-      const exercises = await collection.find(filter).toArray();
+
+      const totalPublishedCount = await collection.countDocuments(
+        isAdmin ? {} : { isPublished: true }
+      );
+
+      let cursor = collection.find(filter).sort({ createdAt: 1, _id: 1 });
+      if (accessTier === 'limited' && tierLimit !== null) {
+        cursor = cursor.limit(tierLimit);
+      }
+
+      const exercises = await cursor.toArray();
 
       const decryptedExercises = exercises.map((ex) => {
         const demoRaw = ex.demo as Record<string, unknown> | undefined;
@@ -85,6 +127,12 @@ async function getHandler(request: NextRequest) {
         );
       }
 
+      const meta = {
+        accessTier,
+        limit: tierLimit,
+        totalPublishedCount,
+      };
+
       if (mode === 'search') {
         const searchResults = results.map((ex) => ({
           id: ex.id,
@@ -94,15 +142,12 @@ async function getHandler(request: NextRequest) {
           difficulty: ex.difficulty,
           clientLevel: ex.clientLevel,
         }));
-        const res = NextResponse.json({ success: true, data: searchResults });
-        if (!isAdmin) {
-          res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
-          res.headers.set('CDN-Cache-Control', 'max-age=1800');
-        }
+        const res = NextResponse.json({ success: true, data: searchResults, meta });
+        res.headers.set('Cache-Control', 'private, no-store');
         return res;
       }
 
-      // Resolver nombres de progresiones (mapeo id → name)
+      // Resolver nombres de progresiones (solo dentro de ejercicios visibles)
       for (const ex of decryptedExercises) {
         if (ex.progressionOf) {
           const parent = decryptedExercises.find((e) => e.id === ex.progressionOf);
@@ -115,19 +160,29 @@ async function getHandler(request: NextRequest) {
         }
       }
 
-      const res = NextResponse.json({ success: true, data: results });
-      if (!isAdmin) {
-        res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
-        res.headers.set('CDN-Cache-Control', 'max-age=1800');
-      }
+      const res = NextResponse.json({ success: true, data: results, meta });
+      res.headers.set('Cache-Control', 'private, no-store');
       return res;
     } catch (error: unknown) {
+      const structured = error as { status?: number; message?: string };
+      if (structured?.status === 401 || structured?.status === 403) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: structured.message || 'No autorizado',
+            code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: structured.status }
+        );
+      }
       logger.error('EXERCISES', 'Error al obtener ejercicios', error as Error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
-          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -140,16 +195,15 @@ export const GET = apiHandler(getHandler);
 async function postHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Crear ejercicio', async () => {
     try {
+      const auth = requireCoachAuth(request);
       const body = await request.json();
 
-      // Request context para audit logs
       const reqCtx = {
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
         requestId: request.headers.get('x-request-id') || undefined,
       };
 
-      // Zod validation
       const parsed = exerciseSchema.safeParse(body);
       if (!parsed.success) {
         const firstError = parsed.error.issues[0];
@@ -170,12 +224,9 @@ async function postHandler(request: NextRequest) {
       const validData = parsed.data;
       const collection = await getExerciseCollection();
 
-      // Obtener info del coach para el campo author (autenticación requerida)
-      const auth = requireCoachAuth(request);
       const authorName = auth.email || 'NelHealthCoach';
       const isAdmin = auth.role === 'admin';
 
-      // Si no es admin, la creación necesita aprobación
       const isPublished = isAdmin ? (body.isPublished ?? true) : false;
 
       const exerciseDoc = {
@@ -207,11 +258,12 @@ async function postHandler(request: NextRequest) {
         author: encrypt(validData.author || authorName),
         isPublished,
         tags: validData.tags.map((t: string) => encrypt(t)),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       const result = await collection.insertOne(exerciseDoc);
 
-      // Si no es admin, crear propuesta de creación para moderación
       if (!isAdmin) {
         await connectMongoose();
         await EditProposal.create({
@@ -267,23 +319,24 @@ async function postHandler(request: NextRequest) {
       });
     } catch (error: unknown) {
       const apiError = error as { status?: number; message?: string };
-      // Si es un error estructurado (auth), devolver su status específico
       if (apiError?.status) {
         return NextResponse.json(
-          { 
-            success: false, 
+          {
+            success: false,
             message: apiError.message || 'Error',
-            ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message })
+            ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }),
           },
           { status: apiError.status }
         );
       }
       logger.error('EXERCISES', 'Error al crear ejercicio', error as Error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
-          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -296,12 +349,15 @@ export const POST = apiHandler(postHandler);
 async function putHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Actualizar ejercicio', async () => {
     try {
+      // Autenticación requerida ANTES de procesar payload
+      const auth = requireCoachAuth(request);
+
       const body = await request.json();
       const { id, ...updateData } = body;
 
-      if (!id) {
+      if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
         return NextResponse.json(
-          { success: false, message: 'ID requerido', code: 'VALIDATION'},
+          { success: false, message: 'ID válido requerido', code: 'VALIDATION' },
           { status: 400 }
         );
       }
@@ -335,25 +391,13 @@ async function putHandler(request: NextRequest) {
         } : null;
       }
       if (updateData.progressionOf !== undefined) encryptedUpdate.progressionOf = updateData.progressionOf ? new ObjectId(updateData.progressionOf) : null;
-      if (updateData.progressesTo !== undefined) encryptedUpdate.progressesTo = updateData.progressesTo.map((id: string) => new ObjectId(id));
+      if (updateData.progressesTo !== undefined) encryptedUpdate.progressesTo = updateData.progressesTo.map((pid: string) => new ObjectId(pid));
       if (updateData.isPublished !== undefined) encryptedUpdate.isPublished = updateData.isPublished;
       if (updateData.tags !== undefined) encryptedUpdate.tags = updateData.tags.map((t: string) => encrypt(t));
 
       encryptedUpdate.updatedAt = new Date();
 
-      // Verificar rol: Admin actualiza directo, Coach crea propuesta
-      let auth;
-      try {
-        auth = requireCoachAuth(request);
-      } catch {
-        return NextResponse.json(
-          { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
-          { status: 401 }
-        );
-      }
-
       if (auth.role !== 'admin') {
-        // Coach no-admin: crear propuesta
         await connectMongoose();
         const proposal = await EditProposal.create({
           targetType: 'exercise',
@@ -380,7 +424,6 @@ async function putHandler(request: NextRequest) {
         });
       }
 
-      // Admin: actualizar directamente
       const result = await collection.updateOne(
         { _id: new ObjectId(id) },
         { $set: encryptedUpdate }
@@ -388,19 +431,32 @@ async function putHandler(request: NextRequest) {
 
       if (result.matchedCount === 0) {
         return NextResponse.json(
-          { success: false, message: 'Ejercicio no encontrado', code: 'NOT_FOUND'},
+          { success: false, message: 'Ejercicio no encontrado', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
 
       return NextResponse.json({ success: true });
     } catch (error: unknown) {
+      const apiError = error as { status?: number; message?: string };
+      if (apiError?.status) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: apiError.message || 'No autorizado',
+            code: apiError.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: apiError.status }
+        );
+      }
       logger.error('EXERCISES', 'Error al actualizar ejercicio', error as Error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
-          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -413,20 +469,11 @@ export const PUT = apiHandler(putHandler);
 async function deleteHandler(request: NextRequest) {
   return logger.time('EXERCISES', 'Eliminar ejercicios', async () => {
     try {
-      // Solo administradores pueden eliminar ejercicios
-      let auth;
-      try {
-        auth = requireCoachAuth(request);
-      } catch {
-        return NextResponse.json(
-          { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
-          { status: 401 }
-        );
-      }
+      const auth = requireCoachAuth(request);
 
       if (auth.role !== 'admin') {
         return NextResponse.json(
-          { success: false, message: 'Solo administradores pueden eliminar ejercicios', code: 'FORBIDDEN'},
+          { success: false, message: 'Solo administradores pueden eliminar ejercicios', code: 'FORBIDDEN' },
           { status: 403 }
         );
       }
@@ -434,30 +481,28 @@ async function deleteHandler(request: NextRequest) {
       const body = await request.json();
       const { ids } = body as { ids: string[] };
 
-      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      if (!ids || !Array.isArray(ids) || ids.length === 0 || ids.some((id) => !ObjectId.isValid(id))) {
         return NextResponse.json(
-          { success: false, message: 'IDs requeridos', code: 'VALIDATION'},
+          { success: false, message: 'IDs válidos requeridos', code: 'VALIDATION' },
           { status: 400 }
         );
       }
 
       const collection = await getExerciseCollection();
+      const objectIds = ids.map((id: string) => new ObjectId(id));
 
-      // Obtener los ejercicios antes de eliminarlos para limpiar S3
       const exercisesToDelete = await collection.find({
-        _id: { $in: ids.map((id: string) => new ObjectId(id)) },
+        _id: { $in: objectIds },
       }).toArray();
 
       const result = await collection.deleteMany({
-        _id: { $in: ids.map((id: string) => new ObjectId(id)) },
+        _id: { $in: objectIds },
       });
 
-      // Eliminar demos de S3
       for (const exercise of exercisesToDelete) {
         if (exercise.demo?.key) {
           try {
             let fileKey = exercise.demo.key;
-            // Desencriptar si está encriptada (v2 o legacy)
             if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
               try {
                 fileKey = decrypt(fileKey);
@@ -469,14 +514,12 @@ async function deleteHandler(request: NextRequest) {
               await S3Service.deleteFile(fileKey);
               logger.info('EXERCISES', 'Demo eliminado de S3 durante borrado de ejercicio', {
                 exerciseId: exercise._id.toString(),
-                fileKey: fileKey.substring(0, 30) + '...',
               });
             }
           } catch (s3Error) {
             logger.error('EXERCISES', 'Error eliminando demo de S3 durante borrado de ejercicio', s3Error as Error, {
               exerciseId: exercise._id.toString(),
             });
-            // No fallar la operación principal
           }
         }
       }
@@ -486,12 +529,25 @@ async function deleteHandler(request: NextRequest) {
         data: { deletedCount: result.deletedCount },
       });
     } catch (error: unknown) {
+      const apiError = error as { status?: number; message?: string };
+      if (apiError?.status) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: apiError.message || 'No autorizado',
+            code: apiError.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: apiError.status }
+        );
+      }
       logger.error('EXERCISES', 'Error al eliminar ejercicios', error as Error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error interno del servidor',
-          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && { detail: (error as Error).message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }

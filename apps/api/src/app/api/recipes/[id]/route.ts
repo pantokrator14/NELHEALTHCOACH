@@ -4,8 +4,10 @@ import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt, isEncrypted } from '@/app/lib/encryption';
 import { S3Service } from '@/app/lib/s3';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import EditProposal from '@/app/models/EditProposal';
+import ClientAccount from '@/app/models/ClientAccount';
+import { resolveEffectiveClientEntitlements } from '@/app/lib/plans';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
@@ -15,27 +17,89 @@ async function getHandler(
 ) {
   return logger.time('RECIPES', 'Obtener receta por ID', async () => {
     try {
+      const auth = requireAnyAuth(request);
       const { id } = await params;
+
+      if (!ObjectId.isValid(id)) {
+        return NextResponse.json(
+          { success: false, message: 'ID de receta inválido', code: 'VALIDATION' },
+          { status: 400 }
+        );
+      }
+
       const recipesCollection = await getRecipesCollection();
-      
+
+      if (auth.role === 'client') {
+        await connectMongoose();
+        const account = await ClientAccount.findById(auth.clientAccountId)
+          .select('purchasedPlans activePlanId')
+          .lean() as { purchasedPlans?: Array<{ planId?: unknown; status?: unknown }>; activePlanId?: string | null } | null;
+
+        if (!account) {
+          return NextResponse.json(
+            { success: false, message: 'Cuenta de cliente no encontrada', code: 'NOT_FOUND' },
+            { status: 404 }
+          );
+        }
+
+        const entitlements = resolveEffectiveClientEntitlements(
+          account.purchasedPlans,
+          account.activePlanId || null
+        );
+
+        if (entitlements.libraryAccess === 'none') {
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'Tu plan actual no incluye acceso a la biblioteca de recetas.',
+              code: 'FORBIDDEN',
+            },
+            { status: 403 }
+          );
+        }
+
+        if (entitlements.libraryAccess === 'limited' && entitlements.recipesLimit !== null) {
+          const allowedDocs = await recipesCollection
+            .find({ isPublished: true }, { projection: { _id: 1 } })
+            .sort({ createdAt: 1, _id: 1 })
+            .limit(entitlements.recipesLimit)
+            .toArray();
+          const isAllowed = allowedDocs.some((doc) => doc._id.toString() === id);
+          if (!isAllowed) {
+            return NextResponse.json(
+              {
+                success: false,
+                message: 'Esta receta requiere Plan 3 para acceso completo a la biblioteca.',
+                code: 'FORBIDDEN',
+              },
+              { status: 403 }
+            );
+          }
+        }
+      }
+
       logger.info('RECIPES', 'Solicitud GET /api/recipes/[id] recibida', { id });
-      
-      const recipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
-      
+
+      const queryFilter: Record<string, unknown> = { _id: new ObjectId(id) };
+      if (auth.role !== 'admin') {
+        queryFilter.isPublished = true;
+      }
+
+      const recipe = await recipesCollection.findOne(queryFilter);
+
       if (!recipe) {
         return NextResponse.json(
-          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND'},
+          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
-      
-      // ✅ DESENCRIPTAR DIRECTAMENTE
+
       const decryptedRecipe: Record<string, unknown> = {
         ...recipe,
         id: recipe._id.toString(),
         title: safeDecrypt(recipe.title),
         description: safeDecrypt(recipe.description),
-        category: Array.isArray(recipe.category) 
+        category: Array.isArray(recipe.category)
           ? recipe.category.map((cat: string) => safeDecrypt(cat))
           : [],
         ingredients: Array.isArray(recipe.ingredients)
@@ -56,25 +120,39 @@ async function getHandler(
         updatedAt: recipe.updatedAt,
       };
 
-      // ✅ DESENCRIPTAR IMAGEN
       if (recipe.image) {
         decryptedRecipe.image = decryptFileObject(recipe.image);
       } else {
         decryptedRecipe.image = null;
       }
-      
-      return NextResponse.json({
+
+      const res = NextResponse.json({
         success: true,
         data: decryptedRecipe,
       });
-      
+      res.headers.set('Cache-Control', 'private, no-store');
+      return res;
+
     } catch (error: unknown) {
+      const structured = error as { status?: number; message?: string };
+      if (structured?.status === 401 || structured?.status === 403) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: structured.message || 'No autorizado',
+            code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: structured.status }
+        );
+      }
       logger.error('RECIPES', 'Error obteniendo receta', error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error obteniendo receta',
-          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -89,146 +167,114 @@ async function putHandler(
 ) {
   return logger.time('RECIPES', 'Actualizar receta', async () => {
     try {
+      // OWASP A01: verificar autenticación ANTES de parsear body o modificar S3
+      const auth = requireCoachAuth(request);
+
       const { id } = await params;
+      if (!ObjectId.isValid(id)) {
+        return NextResponse.json(
+          { success: false, message: 'ID de receta inválido', code: 'VALIDATION' },
+          { status: 400 }
+        );
+      }
+
       const recipesCollection = await getRecipesCollection();
       const data = await request.json();
-      
+
       logger.info('RECIPES', 'Solicitud PUT /api/recipes/[id] recibida', { id });
 
-      // Request context para audit logs
       const reqCtx = {
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
         requestId: request.headers.get('x-request-id') || undefined,
       };
 
-      // ✅ 1. OBTENER RECETA ACTUAL
       const currentRecipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
-      
+
       if (!currentRecipe) {
         return NextResponse.json(
-          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND'},
+          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
-      
-      // ✅ 2. MANEJAR IMAGEN - APLICANDO LÓGICA DE CLIENTES
-      // Si se envía una imagen nueva o null, eliminar la anterior
+
+      // Manejar imagen (solo admin elimina S3 directo; coach propone cambio)
       if (data.image !== undefined) {
-        // ✅ CASO A: Se envía una nueva imagen (objeto con key)
         if (data.image && typeof data.image === 'object' && data.image.key) {
-          // ✅ ELIMINAR IMAGEN ANTERIOR SI EXISTE
-          if (currentRecipe.image && currentRecipe.image.key) {
+          if (auth.role === 'admin' && currentRecipe.image && currentRecipe.image.key) {
             try {
               let oldFileKey = currentRecipe.image.key;
-              
-              // Desencriptar la key si está encriptada (v2 o legacy)
               if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
                 try {
                   oldFileKey = decrypt(oldFileKey);
-                  logger.debug('RECIPES', 'Key de imagen anterior desencriptada', {
-                    recipeId: id,
-                    encryptedKey: currentRecipe.image.key.substring(0, 30) + '...',
-                    decryptedKey: oldFileKey
-                  });
-                 } catch (decryptError) {
-                   console.error('❌ Error desencriptando oldFileKey:', decryptError);
-                   logger.error('RECIPES', 'Error desencriptando oldFileKey', decryptError, { recipeId: id });
-                   // Si no se puede desencriptar, intentar usar el valor original
-                 }
+                } catch (decryptError) {
+                  logger.error('RECIPES', 'Error desencriptando oldFileKey', decryptError, { recipeId: id });
+                }
               }
-              
+
               const newFileKey = data.image.key;
-              
-              // ✅ VERIFICAR QUE NO SEA LA MISMA IMAGEN
               if (oldFileKey && oldFileKey !== newFileKey) {
-                logger.info('RECIPES', '🗑️ Eliminando imagen anterior de S3', {
-                  recipeId: id,
-                  oldKey: oldFileKey,
-                  newKey: newFileKey
-                });
-                
                 try {
                   await S3Service.deleteFile(oldFileKey);
-                  logger.info('RECIPES', '✅ Imagen anterior eliminada de S3', {
-                    recipeId: id,
-                    oldKey: oldFileKey
-                  });
+                  logger.info('RECIPES', '✅ Imagen anterior eliminada de S3', { recipeId: id });
                 } catch (s3Error) {
                   logger.error('RECIPES', '⚠️ Error eliminando imagen anterior de S3', s3Error as Error, {
                     recipeId: id,
-                    oldKey: oldFileKey
                   });
-                  // No fallar la operación principal
                 }
-              } else if (oldFileKey === newFileKey) {
-                logger.debug('RECIPES', '📸 Misma imagen, no es necesario eliminar', {
-                  recipeId: id,
-                  fileKey: newFileKey
-                });
               }
             } catch (error) {
               logger.error('RECIPES', '❌ Error en proceso de eliminación de imagen anterior', error as Error, {
-                recipeId: id
+                recipeId: id,
               });
-              // No fallar la operación principal
             }
           }
-          
-          // ✅ ENCRIPTAR LA NUEVA IMAGEN
+
           data.image = encryptFileObject(data.image);
-          
-        } 
-        // ✅ CASO B: Se elimina la imagen (se envía null, vacío o sin key)
-        else if (data.image === null || data.image === '' || !data.image.key) {
-          // ✅ ELIMINAR IMAGEN ANTERIOR DE S3
-          if (currentRecipe.image && currentRecipe.image.key) {
+        } else if (data.image === null || data.image === '' || !data.image.key) {
+          if (auth.role === 'admin' && currentRecipe.image && currentRecipe.image.key) {
             try {
               let oldFileKey = currentRecipe.image.key;
-              
               if (typeof oldFileKey === 'string' && isEncrypted(oldFileKey)) {
                 try {
                   oldFileKey = decrypt(oldFileKey);
-                 } catch (decryptError) {
-                   console.error('❌ Error desencriptando oldFileKey para eliminación:', decryptError);
-                   logger.error('RECIPES', 'Error desencriptando oldFileKey para eliminación', decryptError, { recipeId: id });
-                 }
+                } catch (decryptError) {
+                  logger.error('RECIPES', 'Error desencriptando oldFileKey para eliminación', decryptError, { recipeId: id });
+                }
               }
-              
+
               if (oldFileKey && oldFileKey.trim() !== '') {
                 await S3Service.deleteFile(oldFileKey);
-                logger.info('RECIPES', '🗑️ Imagen eliminada de S3 (se quitó en edición)', {
-                  recipeId: id,
-                  oldKey: oldFileKey
-                });
+                logger.info('RECIPES', '🗑️ Imagen eliminada de S3 (se quitó en edición)', { recipeId: id });
               }
             } catch (s3Error) {
-              logger.error('RECIPES', '⚠️ Error eliminando imagen de S3', s3Error as Error, {
-                recipeId: id
-              });
+              logger.error('RECIPES', '⚠️ Error eliminando imagen de S3', s3Error as Error, { recipeId: id });
             }
           }
-          
-          // ✅ ESTABLECER IMAGEN VACÍA
+
           data.image = {
             url: '',
             key: '',
             name: '',
             type: '',
             size: 0,
-            uploadedAt: ''
+            uploadedAt: '',
           };
         }
       }
-      // Si data.image es undefined (no se envía), no tocamos la imagen
-      
-      // ✅ 3. PREPARAR DATOS ENCRIPTADOS (excluyendo la imagen ya manejada)
+
       const updateData: Record<string, unknown> = { updatedAt: new Date() };
-      
-      // Copiar todos los campos excepto 'image' que ya manejamos
-      const fieldsToEncrypt = ['title', 'description', 'category', 'ingredients', 
-                               'instructions', 'difficulty', 'author', 'tags'];
-      
+      const fieldsToEncrypt = [
+        'title',
+        'description',
+        'category',
+        'ingredients',
+        'instructions',
+        'difficulty',
+        'author',
+        'tags',
+      ];
+
       fieldsToEncrypt.forEach(field => {
         if (data[field] !== undefined) {
           if (Array.isArray(data[field])) {
@@ -238,30 +284,13 @@ async function putHandler(
           }
         }
       });
-      
-      // Campos que no necesitan encriptación
+
       if (data.nutrition !== undefined) updateData.nutrition = data.nutrition;
       if (data.cookTime !== undefined) updateData.cookTime = data.cookTime;
       if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
-      
-      // ✅ 4. AGREGAR IMAGEN MANEJADA PREVIAMENTE
-      if (data.image !== undefined) {
-        updateData.image = data.image;
-      }
-
-      // ✅ 5. VERIFICAR ROL: Admin edita directo, Coach crea propuesta
-      let auth;
-      try {
-        auth = requireCoachAuth(request);
-      } catch {
-        return NextResponse.json(
-          { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
-          { status: 401 }
-        );
-      }
+      if (data.image !== undefined) updateData.image = data.image;
 
       if (auth.role !== 'admin') {
-        // Coach no-admin: crear propuesta de edición
         await connectMongoose();
         const proposal = await EditProposal.create({
           targetType: 'recipe',
@@ -288,27 +317,25 @@ async function putHandler(
         });
       }
 
-      // ✅ 6. ACTUALIZAR EN MONGODB (admin)
       const result = await recipesCollection.findOneAndUpdate(
         { _id: new ObjectId(id) },
         { $set: updateData },
         { returnDocument: 'after' }
       );
-      
+
       if (!result) {
         return NextResponse.json(
-          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND'},
+          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
-      
-      // ✅ 7. DESENCRIPTAR PARA RESPONSE
+
       const decryptedRecipe: Record<string, unknown> = {
         ...result,
         id: result._id.toString(),
         title: safeDecrypt(result.title),
         description: safeDecrypt(result.description),
-        category: Array.isArray(result.category) 
+        category: Array.isArray(result.category)
           ? result.category.map((cat: string) => safeDecrypt(cat))
           : [],
         ingredients: Array.isArray(result.ingredients)
@@ -345,20 +372,33 @@ async function putHandler(
         method: 'PUT',
         statusCode: 200,
       });
-      
+
       return NextResponse.json({
         success: true,
         message: 'Receta actualizada exitosamente',
         data: decryptedRecipe,
       });
-      
+
     } catch (error: unknown) {
+      const structured = error as { status?: number; message?: string };
+      if (structured?.status === 401 || structured?.status === 403) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: structured.message || 'No autorizado',
+            code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: structured.status }
+        );
+      }
       logger.error('RECIPES', 'Error actualizando receta', error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error actualizando receta',
-          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -373,28 +413,25 @@ async function deleteHandler(
 ) {
   return logger.time('RECIPES', 'Eliminar receta', async () => {
     try {
-      // Solo administradores pueden eliminar recetas
-      let auth;
-      try {
-        auth = requireCoachAuth(request);
-      } catch {
-        return NextResponse.json(
-          { success: false, message: 'No autorizado', code: 'UNAUTHORIZED'},
-          { status: 401 }
-        );
-      }
+      const auth = requireCoachAuth(request);
 
       if (auth.role !== 'admin') {
         return NextResponse.json(
-          { success: false, message: 'Solo administradores pueden eliminar recetas', code: 'FORBIDDEN'},
+          { success: false, message: 'Solo administradores pueden eliminar recetas', code: 'FORBIDDEN' },
           { status: 403 }
         );
       }
 
       const { id } = await params;
+      if (!ObjectId.isValid(id)) {
+        return NextResponse.json(
+          { success: false, message: 'ID de receta inválido', code: 'VALIDATION' },
+          { status: 400 }
+        );
+      }
+
       const recipesCollection = await getRecipesCollection();
 
-      // Request context para audit logs
       const reqCtx = {
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
@@ -402,49 +439,46 @@ async function deleteHandler(
       };
 
       logger.info('RECIPES', 'Solicitud DELETE /api/recipes/[id] recibida', { id });
-      
-      // ✅ OBTENER RECETA PARA ELIMINAR IMAGEN DE S3
+
       const recipe = await recipesCollection.findOne({ _id: new ObjectId(id) });
-      
+
       if (!recipe) {
         return NextResponse.json(
-          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND'},
+          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
-      
-      // ✅ ELIMINAR IMAGEN DE S3 SI EXISTE
+
       if (recipe.image && recipe.image.key) {
         try {
           let fileKey = recipe.image.key;
-          
+
           if (typeof fileKey === 'string' && isEncrypted(fileKey)) {
             fileKey = decrypt(fileKey);
           }
-          
+
           if (fileKey && fileKey.trim() !== '') {
             await S3Service.deleteFile(fileKey);
             logger.info('RECIPES', 'Imagen eliminada de S3 en DELETE', {
               recipeId: id,
-              fileKey: fileKey?.substring(0, 30) + '...'
             });
           }
         } catch (s3Error) {
           logger.error('RECIPES', 'Error eliminando imagen de S3 en DELETE', s3Error as Error, {
-            recipeId: id
+            recipeId: id,
           });
         }
       }
-      
+
       const result = await recipesCollection.deleteOne({ _id: new ObjectId(id) });
-      
+
       if (result.deletedCount === 0) {
         return NextResponse.json(
-          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND'},
+          { success: false, message: 'Receta no encontrada', code: 'NOT_FOUND' },
           { status: 404 }
         );
       }
-      
+
       logAuditEvent({
         eventType: 'RECIPE_DELETED',
         severity: 'warning',
@@ -460,14 +494,27 @@ async function deleteHandler(
         success: true,
         message: 'Receta eliminada exitosamente',
       });
-      
+
     } catch (error: unknown) {
+      const structured = error as { status?: number; message?: string };
+      if (structured?.status === 401 || structured?.status === 403) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: structured.message || 'No autorizado',
+            code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: structured.status }
+        );
+      }
       logger.error('RECIPES', 'Error eliminando receta', error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error eliminando receta',
-          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }

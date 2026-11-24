@@ -10,6 +10,7 @@ import { clientFormSchema } from '@/app/lib/schemas/index';
 import Coach from '@/app/models/Coach';
 import ClientAccount from '@/app/models/ClientAccount';
 import { getPlanById, type PlanId } from '@/app/lib/plans';
+import { resolveClientTimezone, isValidTimeZone } from '@/app/lib/timezone';
 import { EmailService } from '@/app/lib/email-service';
 import {
   generateNewClientClientNotificationHTML,
@@ -96,9 +97,6 @@ async function getHandler(request: NextRequest) {
       }
 
       // ✅ FUNCIÓN MEJORADA PARA DESENCRIPTAR CAMPOS DE TEXTO
-      // Soporta el formato v2 (AES-256-GCM, prefijo "v2:") y el legacy
-      // (CryptoJS, prefijo "U2FsdGVkX1"). decrypt() ya detecta ambos,
-      // y devuelve el texto tal cual si no está encriptado o si falla la clave.
       const decryptTextField = (text: string): string => {
         if (!text) return text;
         return decrypt(text);
@@ -116,11 +114,9 @@ async function getHandler(request: NextRequest) {
         const planName: string | null = resolvedPlan ? resolvedPlan.name : null;
 
         try {
-          // ✅ USAR decryptTextField EN LUGAR DE smartDecrypt PARA CAMPOS DE TEXTO
           const decryptedName = decryptTextField(client.personalData?.name || '');
           const names = decryptedName.split(' ');
           
-          // ✅ PROFILE PHOTO - Desencriptar correctamente
           let decryptedProfilePhoto = null;
           if (client.personalData?.profilePhoto) {
             try {
@@ -143,7 +139,6 @@ async function getHandler(request: NextRequest) {
             planName,
           };
 
-          // ✅ LOG PARA VERIFICAR DESENCRIPTACIÓN
           logger.debug('CLIENTS', 'Cliente procesado', {
             clientId: client._id.toString(),
             nameRaw: client.personalData?.name?.substring(0, 30) || 'N/A',
@@ -189,7 +184,6 @@ async function getHandler(request: NextRequest) {
 
     } catch (error: unknown) {
       const apiError = error as { status?: number; message?: string };
-      // Si es un error estructurado (auth), devolver su status específico
       if (apiError?.status) {
         return NextResponse.json(
           { 
@@ -227,14 +221,12 @@ async function postHandler(request: NextRequest) {
                     request.headers.get('x-real-ip') || 
                     'Unknown';
 
-    // Request context para audit logs
     const reqCtx = {
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
       requestId: request.headers.get('x-request-id') || undefined,
     };
 
-    // Verificación de seguridad: rate limit + shield body scan
     const securityCheck = await secureRoute(request, data);
     if (!securityCheck.passed) {
       return NextResponse.json(
@@ -246,18 +238,12 @@ async function postHandler(request: NextRequest) {
       );
     }
 
-    // Extraer coachId del body (enviado por el form)
     const coachId = data.coachId || null;
     const isFree = data.free === true;
     const stripeSessionId = data.stripeSessionId as string | undefined;
 
-    // ─── Validación de pago ────────────────────────────────────────
-    // 1. Si es gratuito, validar que el coach sea admin
-    // 2. Si no es gratuito, verificar que Stripe confirme el pago
-
     if (isFree) {
       if (!coachId) {
-        // &free=1 sin coachId: alguien lo añadió manualmente a la URL
         logger.warn('CLIENTS', 'Intento de registro gratuito sin coachId — posible manipulación', {
           isFree,
         });
@@ -267,7 +253,6 @@ async function postHandler(request: NextRequest) {
         );
       }
 
-      // Verificar que el coach sea administrador
       await connectMongoose();
       const coach = await Coach.findById(coachId).select('role').lean() as { role: string } | null;
       if (!coach || coach.role !== 'admin') {
@@ -281,7 +266,6 @@ async function postHandler(request: NextRequest) {
       }
       logger.info('CLIENTS', 'Registro gratuito autorizado — coach admin verificado', { coachId });
     } else {
-      // No es gratuito: requiere verificación de pago con Stripe
       if (!stripeSessionId) {
         logger.warn('CLIENTS', 'Intento de registro sin pago y sin stripeSessionId', {
           hasCoachId: !!coachId,
@@ -292,7 +276,6 @@ async function postHandler(request: NextRequest) {
         );
       }
 
-      // Verificar la sesión de Stripe
       try {
         const { stripeClient } = await import('@/app/lib/stripe');
         const session = await stripeClient.checkout.sessions.retrieve(stripeSessionId);
@@ -322,11 +305,9 @@ async function postHandler(request: NextRequest) {
       }
     }
 
-    // Zod validation
     const parsed = clientFormSchema.safeParse(data);
     if (!parsed.success) {
       const firstError = parsed.error.issues[0];
-      // Log detallado al servidor
       console.error('❌ Validación Zod fallida al crear cliente:', JSON.stringify({
         issues: parsed.error.issues.map((i: z.core.$ZodIssue) => ({
           field: i.path.join('.'),
@@ -355,16 +336,11 @@ async function postHandler(request: NextRequest) {
       );
     }
 
-    // Zod validated — `data` tiene la forma correcta
-    // Las fields faltantes se manejan con defaults en el processing code
-
     const healthForms = await getHealthFormsCollection();
 
-    // Función para encriptar objetos
     const encryptObject = (obj: Record<string, unknown>): Record<string, unknown> => {
       const encrypted: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
-        // Manejar array de documentos de forma especial (no encriptar el array completo)
         if (key === 'documents' && Array.isArray(value)) {
           encrypted[key] = value;
           continue;
@@ -373,14 +349,11 @@ async function postHandler(request: NextRequest) {
         if (typeof value === 'string' && value.trim() !== '') {
           encrypted[key] = encrypt(value);
         } else if (typeof value === 'object' && value !== null) {
-          // ✅ ENCRIPTAR OBJETOS COMPLETOS como profilePhoto y documents
           if (Array.isArray(value)) {
-            // Para arrays como documents, encriptar cada elemento del array
             encrypted[key] = encrypt(JSON.stringify(value.map((item: unknown) => 
               typeof item === 'object' && item !== null ? encryptObject(item as Record<string, unknown>) : item
             )));
           } else {
-            // Para objetos como profilePhoto
             encrypted[key] = encrypt(JSON.stringify(encryptObject(value as Record<string, unknown>)));
           }
         } else {
@@ -390,7 +363,6 @@ async function postHandler(request: NextRequest) {
       return encrypted;
     };
 
-    // Procesar arrays en medicalData
     const processedMedicalData = { ...data.medicalData };
 
     const expectedLengths: Record<string, number> = {
@@ -418,19 +390,13 @@ async function postHandler(request: NextRequest) {
         return;
       }
 
-      // ✅ CORREGIDO: Ya no convertimos a booleano, mantenemos los strings originales
       const cleanedArray = arrayData.map((value: unknown) => {
-        // Si ya es string, lo dejamos como está
         if (typeof value === 'string') return value;
-        // Si es booleano (por si acaso), lo convertimos a 'si'/'no'
         if (typeof value === 'boolean') return value ? 'si' : 'no';
-        // Si es número, lo convertimos a string
         if (typeof value === 'number') return value.toString();
-        // Por defecto, string vacío
         return '';
       });
 
-      // Asegurar longitud
       if (cleanedArray.length < expectedLength) {
         while (cleanedArray.length < expectedLength) {
           cleanedArray.push('');
@@ -442,18 +408,29 @@ async function postHandler(request: NextRequest) {
       typedMedicalData[field] = JSON.stringify(cleanedArray);
     });
 
-    // Inicializar array de documentos vacío
     processedMedicalData.documents = [];
 
-    // Encriptar datos antes de guardar
-    const encryptedPersonalData = encryptObject(data.personalData);
+    // Capturar/inferir zona horaria IANA si no viene explícita
+    const rawPersonalData = { ...(data.personalData as Record<string, unknown>) };
+    const explicitTz =
+      typeof rawPersonalData.timezone === 'string' && isValidTimeZone(rawPersonalData.timezone)
+        ? rawPersonalData.timezone.trim()
+        : '';
+    const resolvedTz = resolveClientTimezone({
+      explicitTimezone: explicitTz || null,
+      address: typeof rawPersonalData.address === 'string' ? rawPersonalData.address : null,
+    });
+    if (explicitTz || rawPersonalData.address) {
+      rawPersonalData.timezone = explicitTz || resolvedTz;
+    }
+
+    const encryptedPersonalData = encryptObject(rawPersonalData);
     const encryptedMedicalData = encryptObject(processedMedicalData);
 
     const newClient = {
       personalData: encryptedPersonalData,
       medicalData: encryptedMedicalData,
       contractAccepted: encrypt(data.contractAccepted.toString()),
-      // Registro de evidencia de consentimiento: versión del contrato y fecha de aceptación
       contractVersion: data.contractVersion || null,
       contractAcceptedAt: data.contractAccepted ? new Date() : null,
       ipAddress: encrypt(clientIP),
@@ -475,12 +452,10 @@ async function postHandler(request: NextRequest) {
       acknowledged: result.acknowledged
     });
 
-    // Después de la inserción exitosa
     if (result.acknowledged) {
-      // Buscar y eliminar el lead correspondiente por email (sin encriptar)
       try {
         const leadsCollection = await getLeadsCollection();
-        const emailToMatch = data.personalData.email; // El email viene en texto plano en la request
+        const emailToMatch = data.personalData.email;
         const deleteResult = await leadsCollection.deleteOne({ email: emailToMatch });
         if (deleteResult.deletedCount > 0) {
           console.log(`✅ Lead con email ${emailToMatch} eliminado correctamente.`);
@@ -490,12 +465,10 @@ async function postHandler(request: NextRequest) {
           logger.info('CLIENTS', `No se encontró lead con email ${emailToMatch} para eliminar`);
         }
       } catch (leadError) {
-        // Solo logueamos el error, no interrumpimos el flujo principal
         console.error('❌ Error al eliminar lead:', leadError);
         logger.error('CLIENTS', 'Error al eliminar lead', leadError);
       }
 
-      // Enviar emails de notificación si hay coachId
       if (coachId && result.acknowledged) {
         try {
           await connectMongoose();
@@ -534,6 +507,7 @@ async function postHandler(request: NextRequest) {
                 clientPhone: clientPhone || 'No disponible',
                 clientId: result.insertedId.toString(),
                 dashboardUrl: `${appUrl}/dashboard/clients/${result.insertedId}`,
+                clientTimezone: resolvedTz,
               }),
             });
 
@@ -543,13 +517,11 @@ async function postHandler(request: NextRequest) {
             });
           }
         } catch (emailError) {
-          // No interrumpir el flujo si falla el email
           logger.error('CLIENTS', 'Error enviando emails de notificación', emailError);
         }
       }
     }
 
-    // Generar token temporal para subir archivos (1 hora de validez)
     const uploadToken = generateToken({
       type: 'client-upload',
       clientId: result.insertedId.toString(),

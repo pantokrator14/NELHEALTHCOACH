@@ -93,19 +93,21 @@ apps/api/
 - `POST /api/payments/plan-checkout` valida disponibilidad (devuelve `409 QUOTA_FULL` si el cupo está lleno) y crea sesión de Stripe Checkout; `POST /api/payments/confirm-plan` y `/api/payments/webhook` aplican activación idempotente y acumulan meses/sesiones al renovar o cambiar de plan.
 
 ### 4.2 Portal de Cliente y Ventana de Videollamadas (`/api/client-portal/me`, `/api/video/token`)
-- `buildClientVideoSessionSchedule()` proyecta automáticamente las fechas estimadas de todas las sesiones del plan según fecha de compra (1 sesión a los 21 días en Reto; 1 mensual cada 30 días en Planes 2 y 3) o las cruza con las citas confirmadas por el coach.
+- `buildClientVideoSessionSchedule()` proyecta automáticamente las fechas estimadas de todas las sesiones del plan según fecha de compra (1 sesión al día 21 en Reto; 2 sesiones en Plan 1 [inicial + día 30], 4 en Plan 2 y 7 en Plan 3 [inicial + 1 mensual cada 30 días]) o las cruza con las citas confirmadas por el coach.
 - Solo genera `joinLink` y permite token LiveKit cuando la sesión está confirmada y dentro de la ventana válida (desde **15 minutos antes** hasta el margen posterior de cierre). Fuera de ventana responde `403 SESSION_NOT_YET_STARTED` con `scheduledAt` y `unlocksAt`.
 - `evaluateProgramCompletionState()` determina si el ciclo del cliente concluyó realmente (`programCompleted`), evitando mostrar la cinta de finalización mientras queden días o videollamadas pendientes.
 
 ### 4.3 Pipeline de IA Multi-Fase, Documentos y Recetas
 1. **Selección de Documentos (`document-selection.ts`)**: En evaluaciones nuevas/subsecuentes analiza únicamente los documentos de la evaluación en curso (más resumen clínico de sesiones previas), con fallback OCR para PDFs escaneados.
 2. **Generación Secuencial (`composite-recommendation.ts`)**:
-   - **Fase 1**: Analista clínico (biomarcadores keto-adaptados y suplementación).
+   - **Fase 1**: Analista clínico (biomarcadores metabólicos y nutrición ancestral/evolutiva con suplementación).
    - **Fase 2**: Estilo de vida, menú 7 días con recetas reales, ejercicios y hábitos. Cuando `planId === 'reto_tres_nel'` (`totalWeeks === 3`), genera `weeklyPhases` con enfoque progresivo específico por cada una de las 3 semanas; los planes mensuales (`plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`) mantienen la generación estándar de 4 semanas.
    - **Fase 3**: Lista de compras consolidada y priorizada.
    - **Fase 4**: Traducción dinámica JSON al idioma del cliente (`es`, `en`, `fr`, `it`, `pt`, `de`) y cifrado AES-256.
 3. **Visibilidad del Cliente**: Los endpoints `GET /api/clients/[id]` y `GET /api/clients/[id]/ai` filtran recomendaciones para rol `client` devolviendo exclusivamente sesiones con estado `approved` o `sent` y ocultando errores internos de generación.
-4. **Análisis de Imagen en Recetas (`POST /api/recipes/analyze-image`)**: Estima macronutrientes, ingredientes y ratio cetogénico a partir de la fotografía del platillo.
+4. **Escáner Nutricional con IA (`POST /api/recipes/analyze-image`)**: Estima macronutrientes, ingredientes y perfil energético metabólico desde fotografías reales (validación de *magic bytes*, bloqueo IDOR para clientes, cuota atómica de **5/mes** en Plan 2 y **30/mes** en Plan 3 con rollback en caso de error 5xx).
+5. **Catálogos RBAC (`GET /api/recipes`, `GET /api/recipes/[id]`, `GET /api/exercises`)**: Autenticación obligatoria (`requireAnyAuth`, `401` anónimo), `403` para planes sin biblioteca, límite de 15 ítems publicados para Plan 2 y catálogo completo publicado para Plan 3, con `Cache-Control: private, no-store`.
+6. **Recordatorios Dual-Timezone (`timezone.ts`, `/api/video/rooms`, `session-reminders.ts`)**: Horario de California (`America/Los_Angeles` por defecto) para Manuel Martínez y zona IANA del navegador o inferida desde dirección para cada cliente en correos de invitación y cron de recordatorios (previo e inminente).
 
 ### 4.4 Generación de Documentos PDF (`recommendation-pdf.ts`)
 - Generación de reportes clínicos en PDF mediante streams binarios (`Uint8Array`) compatibles con Next.js 16, incluyendo las fases semanales del Reto Tres NEL cuando aplican y disclaimers médicos localizados.

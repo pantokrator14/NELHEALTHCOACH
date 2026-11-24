@@ -490,7 +490,7 @@ export default function AIRecommendationsModal({
             labSummary: typedWeek.medicalAnalysis.labSummary,
           } : undefined,
           nutrition: {
-            focus: typedWeek.nutrition?.focus || 'Nutrición keto',
+            focus: typedWeek.nutrition?.focus || 'Nutrición ancestral',
             shoppingList
           },
           exercise: {
@@ -517,7 +517,7 @@ export default function AIRecommendationsModal({
           labSummary: oldWeek.medicalAnalysis.labSummary,
         } : undefined,
         nutrition: {
-          focus: oldWeek.nutrition?.focus || 'Nutrición keto',
+          focus: oldWeek.nutrition?.focus || 'Nutrición ancestral',
           shoppingList: []
         },
         exercise: {

@@ -14,6 +14,12 @@ export interface IPurchasedPlan {
   livekitCreditsUsed: number;
 }
 
+export interface INutritionScansUsage {
+  monthKey: string;
+  count: number;
+  lastScanAt: Date | null;
+}
+
 export interface IClientAccount extends Document {
   email: string;
   emailHash: string;
@@ -27,6 +33,7 @@ export interface IClientAccount extends Document {
   selectedPlanId: PlanId | null;
   activePlanId: PlanId | null;
   purchasedPlans: IPurchasedPlan[];
+  nutritionScans?: INutritionScansUsage;
   healthFormId: string | null;
   lastCompletionEmailPlanCount?: number;
   lastCompletionEmailSentAt?: Date | null;
@@ -53,6 +60,15 @@ const PurchasedPlanSchema = new Schema<IPurchasedPlan>(
   { _id: false }
 );
 
+const NutritionScansUsageSchema = new Schema<INutritionScansUsage>(
+  {
+    monthKey: { type: String, default: '' },
+    count: { type: Number, default: 0 },
+    lastScanAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const ClientAccountSchema = new Schema<IClientAccount>(
   {
     email: { type: String, required: true },
@@ -72,6 +88,10 @@ const ClientAccountSchema = new Schema<IClientAccount>(
     selectedPlanId: { type: String, default: null },
     activePlanId: { type: String, default: null },
     purchasedPlans: { type: [PurchasedPlanSchema], default: [] },
+    nutritionScans: {
+      type: NutritionScansUsageSchema,
+      default: () => ({ monthKey: '', count: 0, lastScanAt: null }),
+    },
     healthFormId: { type: String, default: null },
     lastCompletionEmailPlanCount: { type: Number, default: 0 },
     lastCompletionEmailSentAt: { type: Date, default: null },

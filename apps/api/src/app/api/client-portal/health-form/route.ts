@@ -20,6 +20,8 @@ import {
 import { createNotification } from '@/app/lib/create-notification';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
+import { getPlanById } from '@/app/lib/plans';
+import { resolveClientTimezone, isValidTimeZone } from '@/app/lib/timezone';
 
 const EXPECTED_ARRAY_LENGTHS: Record<string, number> = {
   carbohydrateAddiction: 11,
@@ -137,12 +139,23 @@ async function postHandler(request: NextRequest) {
     const accountEmail = decrypt(account.email);
 
     // Forzar correo de la cuenta verificada y coachId de Manuel Martínez
+    const rawPersonal = (data.personalData || {}) as Record<string, unknown>;
+    const rawExplicitTz =
+      typeof rawPersonal.timezone === 'string' && isValidTimeZone(rawPersonal.timezone)
+        ? rawPersonal.timezone.trim()
+        : '';
+    const resolvedTimezone = resolveClientTimezone({
+      explicitTimezone: rawExplicitTz || null,
+      address: typeof rawPersonal.address === 'string' ? rawPersonal.address : null,
+    });
+
     const normalizedPayload = {
       ...data,
       coachId: account.coachId,
       personalData: {
-        ...(data.personalData || {}),
+        ...rawPersonal,
         email: accountEmail,
+        timezone: rawExplicitTz || (rawPersonal.address ? resolvedTimezone : ''),
       },
     };
 
@@ -161,6 +174,11 @@ async function postHandler(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Si después de validar aún no había timezone pero sí dirección, guardar el inferido
+    if (!parsed.data.personalData.timezone && parsed.data.personalData.address) {
+      normalizedPayload.personalData.timezone = resolvedTimezone;
     }
 
     const processedMedicalData: Record<string, unknown> = {
@@ -197,6 +215,7 @@ async function postHandler(request: NextRequest) {
     const encryptedMedicalData = encryptObject(processedMedicalData);
 
     const healthForms = await getHealthFormsCollection();
+    const activePlanId = account.activePlanId || account.selectedPlanId || null;
     const newClient = {
       personalData: encryptedPersonalData,
       medicalData: encryptedMedicalData,
@@ -206,7 +225,7 @@ async function postHandler(request: NextRequest) {
       ipAddress: encrypt(clientIP),
       coachId: account.coachId,
       clientAccountId: account._id.toString(),
-      planId: account.activePlanId || account.selectedPlanId || null,
+      planId: activePlanId,
       submissionDate: new Date(),
     };
 
@@ -226,6 +245,10 @@ async function postHandler(request: NextRequest) {
 
     // Notificar a Manuel Martínez y enviar bienvenida al cliente
     const clientName = String(parsed.data.personalData.name || 'Cliente');
+    const activePlan = activePlanId ? getPlanById(activePlanId) : null;
+    const livekitSessionsIncluded = activePlan?.livekitSessionsIncluded || 0;
+    const clientTz = resolvedTimezone;
+
     try {
       const coach = await Coach.findById(account.coachId);
       if (coach) {
@@ -252,7 +275,10 @@ async function postHandler(request: NextRequest) {
 
         await emailService.sendEmail({
           to: [coachEmail],
-          subject: `Nuevo cliente registrado: ${clientName} | NELHEALTHCOACH`,
+          subject:
+            livekitSessionsIncluded > 0
+              ? `Nuevo cliente registrado (${activePlan?.name || 'Plan'} — Agendar Videollamada #1): ${clientName} | NELHEALTHCOACH`
+              : `Nuevo cliente registrado: ${clientName} | NELHEALTHCOACH`,
           htmlBody: generateNewClientCoachNotificationHTML({
             coachName: decrypt(coach.firstName),
             clientName,
@@ -260,6 +286,9 @@ async function postHandler(request: NextRequest) {
             clientPhone: parsed.data.personalData.phone || 'No disponible',
             clientId: newClientId,
             dashboardUrl: `${appUrl}/dashboard/clients/${newClientId}`,
+            planName: activePlan?.name,
+            livekitSessionsIncluded,
+            clientTimezone: clientTz,
           }),
         });
       }
@@ -267,8 +296,14 @@ async function postHandler(request: NextRequest) {
       await createNotification({
         coachId: account.coachId,
         type: 'new_client',
-        title: '👤 Nuevo cliente completó su perfil',
-        message: `${clientName} completó su historial de salud y está asignado a tu lista.`,
+        title:
+          livekitSessionsIncluded > 0
+            ? '👤 Nuevo cliente listo — Agendar Videollamada #1'
+            : '👤 Nuevo cliente completó su perfil',
+        message:
+          livekitSessionsIncluded > 0
+            ? `${clientName} completó su historial de salud (${activePlan?.name || 'Plan activo'}, zona ${clientTz}). Tiene ${livekitSessionsIncluded} videollamada(s) incluida(s): agenda la Videollamada #1.`
+            : `${clientName} completó su historial de salud y está asignado a tu lista.`,
         link: `/dashboard/clients/${newClientId}`,
       });
     } catch (notifyErr) {

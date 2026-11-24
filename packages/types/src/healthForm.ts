@@ -96,6 +96,7 @@ export interface PersonalData {
   maritalStatus: string;
   education: string;
   occupation: string;
+  timezone?: string; // Zona horaria IANA inferida o capturada automáticamente
   profilePhoto?: UploadedFile; // ✅ Añadido para foto de perfil
 }
 
@@ -345,10 +346,14 @@ export interface VideoSession {
   coachRemindedAt?: Date;
   /** Si se envió recordatorio al cliente */
   clientRemindedAt?: Date;
-  /** Fecha en que se envió el recordatorio matutino ("hoy es tu videollamada") */
+  /** Fecha en que se envió el recordatorio anticipado al cliente ("hoy es tu videollamada") */
   morningReminderSentAt?: Date;
-  /** Fecha en que se envió el recordatorio de 5 minutos antes */
+  /** Fecha en que se envió el recordatorio inminente al cliente */
   fiveMinReminderSentAt?: Date;
+  /** Fecha en que se envió el recordatorio anticipado al coach */
+  coachMorningReminderSentAt?: Date;
+  /** Fecha en que se envió el recordatorio inminente al coach */
+  coachFiveMinReminderSentAt?: Date;
   /** Estado de la transcripción de la grabación de la sesión */
   transcriptStatus?: TranscriptStatus;
   /** Mensaje de error si la transcripción falló */

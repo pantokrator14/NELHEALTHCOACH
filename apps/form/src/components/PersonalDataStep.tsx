@@ -70,7 +70,13 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
       nombreFoto: profilePhoto?.name
     });
     
-    onSubmit(formData);
+    const detectedTz = typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+    onSubmit({
+      ...formData,
+      timezone: formData.timezone || detectedTz || undefined,
+    });
   };
 
   return (
@@ -116,14 +122,15 @@ const PersonalDataStep: React.FC<PersonalDataStepProps> = ({ data, onSubmit, onB
 
               <div>
                 <label htmlFor="personal-address" className="block text-sm font-medium text-blue-500 mb-2">
-                  Dirección *
+                  {t('form.address')} *
                 </label>
                 <input id="personal-address"
                   type="text"
                   {...register('address')}
                   className="w-full px-4 py-3 text-gray-700 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  placeholder="Ej: Calle Principal #123, Colonia Centro, Ciudad de México, CP 06000"
+                  placeholder={t('form.addressPlaceholder')}
                 />
+                <p className="text-xs text-gray-500 mt-1">{t('form.addressHint')}</p>
                 {errors.address?.message && (
                   <p className="text-red-500 text-sm mt-1">{String(errors.address?.message)}</p>
                 )}

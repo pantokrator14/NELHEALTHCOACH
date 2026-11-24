@@ -169,11 +169,18 @@ interface Client {
   phone?: string;
 }
 
+export interface CatalogResponseMeta {
+  accessTier?: 'none' | 'limited' | 'full';
+  limit?: number | null;
+  totalPublishedCount?: number;
+}
+
 interface ApiResponse<T> {
   data: T;
   status: number;
   success: boolean;
   message?: string;
+  meta?: CatalogResponseMeta;
 }
 
 // Eliminada: interface UploadRequest no utilizada
@@ -439,12 +446,24 @@ export interface ClientPortalData {
   activePlanId: CommercialPlanId | null;
   selectedPlan: CommercialPlan | null;
   activePlan: CommercialPlan | null;
+  clientTimezone?: string;
+  coachTimezone?: string;
   planLimits: {
     totalWeeks: number;
     maxMonths: number;
     whatsappTier: WhatsappSupportTier;
     includesVideoCalls: boolean;
     includesBiomarkerComparison: boolean;
+    libraryAccess?: 'none' | 'limited' | 'full';
+    recipesLimit?: number | null;
+    exercisesLimit?: number | null;
+    nutritionScanner?: {
+      enabled: boolean;
+      monthlyLimit: number;
+      usedThisMonth: number;
+      remainingThisMonth: number;
+      monthKey: string;
+    };
   } | null;
   hasPaidPlan: boolean;
   purchasedPlansCount?: number;
@@ -1267,6 +1286,12 @@ export const apiClient = {
   }): Promise<{
     success: boolean;
     data: NutritionAnalysisResult;
+    quota?: {
+      used: number;
+      limit: number;
+      remaining: number;
+      monthKey: string;
+    };
     source: 'ai';
     timestamp: string;
   }> => {
@@ -1286,13 +1311,17 @@ export const apiClient = {
 
   // Buscar recetas
   async searchRecipes(query: string) {
-    const response = await fetch(`${API_BASE_URL}/api/recipes?search=${encodeURIComponent(query)}&mode=search`);
+    const response = await fetch(`${API_BASE_URL}/api/recipes?search=${encodeURIComponent(query)}&mode=search`, {
+      headers: getAuthHeaders(),
+    });
     return response.json();
   },
 
   // Obtener receta por ID
   async getRecipeById(id: string) {
-    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`);
+    const response = await fetch(`${API_BASE_URL}/api/recipes/${id}`, {
+      headers: getAuthHeaders(),
+    });
     return response.json();
   },
 

@@ -160,7 +160,7 @@ function parseInsightsResponse(content: string): ClientInsights {
  * Nutrition Planner Node with Tool Calling
  *
  * Uses LLM with tools to search existing recipes and create new ones
- * as needed for the client's keto meal plan.
+ * as needed for the client's ancestral/metabolic meal plan.
  */
 export async function planNutrition(
   state: RecommendationStateType,
@@ -312,9 +312,9 @@ function buildNutritionSystemPrompt(
 ): string {
   const level = state.clientInsights?.experienceLevel ?? "principiante";
 
-  return `Eres un nutricionista experto en dieta cetogénica terapéutica. Tu tarea es diseñar un plan de alimentación KETO personalizado.
+  return `Eres un nutricionista experto en nutrición ancestral, evolutiva y optimización metabólica. Tu tarea es diseñar un plan de alimentación personalizado y flexible según el perfil del cliente.
 
-## REGLAS CETOGÉNICAS:
+## REGLAS DE NUTRICIÓN ANCESTRAL Y METABÓLICA:
 1. CERO: azúcar, alcohol, gluten, almidones, procesados
 2. Prioridad: alimentos orgánicos, de pastoreo
 3. 3 comidas diarias
@@ -525,7 +525,7 @@ function generateFallbackNutrition(monthNumber: number): Array<{
   }> = [];
 
   const phaseConfigs: Array<{ weekRange: [number, number]; calories: number; protein: string; fat: string; focus: string }> = [
-    { weekRange: [1, 4], calories: 1600, protein: "120g", fat: "100g", focus: "Adaptación cetogénica" },
+    { weekRange: [1, 4], calories: 1600, protein: "120g", fat: "100g", focus: "Adaptación metabólica y nutrición ancestral" },
     { weekRange: [5, 8], calories: 1450, protein: "125g", fat: "85g", focus: "Optimización quema de grasa" },
     { weekRange: [9, 12], calories: 1350, protein: "130g", fat: "75g", focus: "Máxima oxidación de grasa" },
   ];

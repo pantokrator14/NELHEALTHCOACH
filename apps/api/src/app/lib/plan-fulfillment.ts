@@ -83,12 +83,17 @@ export async function recordClientPlanPurchase(params: {
   });
 
   // Notificación in-app + email a Manuel Martínez (exclusivo)
+  const hasIncludedCalls = plan.livekitSessionsIncluded > 0;
   try {
     await createNotification({
       coachId: account.coachId,
       type: 'new_client',
-      title: `💳 Nuevo plan adquirido — ${plan.name}`,
-      message: `${clientEmail} adquirió ${plan.name} ($${plan.launchPriceUsd} USD).`,
+      title: hasIncludedCalls
+        ? `💳 Nuevo plan con videollamadas — ${plan.name}`
+        : `💳 Nuevo plan adquirido — ${plan.name}`,
+      message: hasIncludedCalls
+        ? `${clientEmail} adquirió ${plan.name} ($${plan.launchPriceUsd} USD). Incluye ${plan.livekitSessionsIncluded} videollamada(s): coordina y agenda la Videollamada #1 desde su perfil cuando complete su historial.`
+        : `${clientEmail} adquirió ${plan.name} ($${plan.launchPriceUsd} USD).`,
       link: account.healthFormId
         ? `/dashboard/clients/${account.healthFormId}`
         : '/dashboard/clients',
@@ -111,6 +116,8 @@ export async function recordClientPlanPurchase(params: {
           clientName: clientEmail,
           clientEmail,
           dashboardUrl,
+          planName: plan.name,
+          livekitSessionsIncluded: plan.livekitSessionsIncluded,
         }),
       });
     }

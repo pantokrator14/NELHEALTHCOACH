@@ -58,9 +58,9 @@
 - **Catálogo de 5 Programas Comerciales** sincronizado desde `apps/api/src/app/lib/plans.ts`:
   - `consult_1on1` (*Consulta 1 a 1*): sesión diagnóstica individual con reserva directa sin exigir registro previo ni botones de WhatsApp post-sesión innecesarios.
   - `reto_tres_nel` (*Reto Tres NEL: Reinicio Ancestral y Circadiano*): programa intensivo de **3 semanas** con enfoque progresivo diferenciado (`weeklyPhases`), 1 videollamada y seguimiento.
-  - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas**.
-  - `plan_2_transformacion` (*Plan 2 — Transformación Profunda*): seguimiento multi-mes con evaluaciones, videollamadas mensuales y comparativa de biomarcadores.
-  - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido multi-mes de seguimiento continuo.
+  - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas** con WhatsApp semanal y **2 videollamadas 1 a 1** (inicial y cierre).
+  - `plan_2_transformacion` (*Plan 2 — Transformación Celular*): seguimiento de 3 meses con evaluaciones, WhatsApp directo, comparativa de biomarcadores y **4 videollamadas 1 a 1** (1 inicial + 1 mensual).
+  - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido de 6 meses con WhatsApp prioritario y **7 videollamadas 1 a 1** (1 inicial + 1 mensual).
 - **Stripe Checkout & Acumulación de Créditos**: Pagos únicos vía `/api/payments/plan-checkout`, confirmación idempotente (`confirm-plan` + webhooks) y acumulación automática de meses/evaluaciones y videollamadas al renovar o cambiar de plan.
 - **Control de Cupos en Tiempo Real (`plan_quotas`)**: El coach/administrador ajusta límites o pausa planes desde el dashboard de clientes; cuando el cupo se llena, la API responde `409 QUOTA_FULL` y la UI muestra **Cupos no disponibles** en Landing y `/dashboard/plans`.
 - **Filtro por Plan en Dashboard**: Listado de clientes con agrupación y filtro por plan contratado (`planId`).
@@ -78,7 +78,7 @@
 
 ### 🤖 **IA Multi-Experto y Pipeline Diferenciado por Plan**
 - **Motor Principal DeepSeek V4 Flash** + **Fallback automático a Google Gemini** en runtime.
-- **Análisis médico con óptica keto** — interpretación de laboratorios bajo rangos de referencia adaptados a metabolismo bajo en carbohidratos, con atención a electrolitos (sodio, potasio, magnesio).
+- **Análisis médico con óptica de nutrición ancestral y optimización metabólica** — interpretación de laboratorios bajo rangos de referencia funcionales y adaptados a flexibilidad metabólica, con atención a electrolitos (sodio, potasio, magnesio).
 - **Diferenciación automática según programa**:
   - **Reto Tres NEL (3 semanas)**: Genera `weeklyPhases` con enfoque distinto para cada una de las 3 semanas.
   - **Planes mensuales (`plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`)**: Mantiene ciclos completos de **4 semanas**.
@@ -100,17 +100,17 @@
 - **Transcripción de sesiones** con Deepgram SDK 5.0.
 
 ### 📹 **Videollamadas con LiveKit y Ventana de Acceso**
-- **Agenda automática por plan (`buildClientVideoSessionSchedule`)**: Proyecta automáticamente las fechas estimadas de las videollamadas incluidas desde la fecha de inscripción (p. ej. día 21 en *Reto Tres NEL*, mensual cada 30 días en Planes 2 y 3) o refleja las citas confirmadas por el coach.
+- **Agenda automática dual-timezone (`buildClientVideoSessionSchedule` + `timezone.ts`)**: Proyecta automáticamente las fechas de las videollamadas incluidas desde la fecha de inscripción y envía invitaciones, notificaciones al asesor y recordatorios automatizados (previo e inminente) adaptados a la zona horaria del coach (`America/Los_Angeles` en California) y a la zona horaria local del cliente.
 - **Control temporal de ingreso (`/video/join` y `/api/video/token`)**: El botón *Unirse a Videollamada* permanece en gris deshabilitado y la API responde `403 SESSION_NOT_YET_STARTED` hasta **15 minutos antes** de la hora programada.
 - **Pre-Call Consent Gate**: Consentimiento expreso previo de grabación y transcripción con Deepgram antes de entrar a la sala WebRTC.
 - **Salas seguras** con DTLS-SRTP, tokens JWT temporales, grabación cifrada en AWS S3 y webhooks.
 
 ### 📖 **Gestión de Recetas y Ejercicios**
-- **Recetas**: Catálogo con búsqueda/filtros, cálculo de macros, ratio keto y **análisis nutricional automático desde fotografía** (`POST /api/recipes/analyze-image`).
+- **Recetas y Escáner Nutricional**: Catálogo con búsqueda/filtros, cálculo de macros, perfil energético metabólico y **escáner nutricional desde fotografía** (`POST /api/recipes/analyze-image`) habilitado en modo lectura/análisis con cuota mensual para Plan 2 (5/mes) y Plan 3 (30/mes), con validación por *magic bytes* y protección IDOR.
 - **Ejercicios**: Biblioteca con categorías, grupos musculares, niveles de dificultad y CRUD con propuestas de edición entre coach y admin.
 
 ### 🔒 **Seguridad y Confiabilidad**
-- **Autenticación JWT multi-rol** (`coach`, `admin`, `client`) + OTP de 6 dígitos para registro de clientes.
+- **Autenticación JWT multi-rol y RBAC estricto** (`coach`, `admin`, `client`) + OTP de 6 dígitos, acceso autenticado obligatorio a catálogos (`401`/`403` según plan) y `Cache-Control: private, no-store`.
 - **FingerprintJS** + detección de bots (User-Agent, headers, Client Hints, `Sec-Fetch-*`) + rate limiting en MongoDB.
 - **Protección contra prompt injection** y guardrails clínicos para agentes IA.
 - **Cifrado AES-256** de datos sensibles (PII, resultados médicos, sesiones) y subida segura a AWS S3 con URLs prefirmadas.

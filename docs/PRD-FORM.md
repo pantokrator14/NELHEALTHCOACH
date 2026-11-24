@@ -30,7 +30,7 @@ El formulario de evaluación de NELHEALTHCOACH (`apps/form`) captura de forma se
 ## 2. Objetivos del Negocio
 
 ### 2.1 Objetivos Principales
-1. **Completitud y Rigor Clínico**: Recopilación del 100% de datos biomédicos necesarios para la personalización de planes cetogénicos/bajos en carbohidratos.
+1. **Completitud y Rigor Clínico**: Recopilación del 100% de datos biomédicos necesarios para la personalización de planes de nutrición ancestral, evolutiva y optimización metabólica.
 2. **Blindaje Regulatorio (RGPD Art. 9 / CCPA)**: Ningún dato de salud sensible se procesa sin consentimiento explícito, granular e inequívoco.
 3. **Protección Civil de la Empresa**: Exoneración médica (*Hold Harmless*) ante omisiones de los pacientes y limitación de disputas a arbitraje individual (JAMS).
 4. **Experiencia de Usuario Transparente**: Información clara sobre el uso de inteligencia artificial asistida (DeepSeek y Google Gemini).
@@ -73,7 +73,7 @@ apps/form/
 ## 4. Estructura del Formulario Multi-Paso
 
 ### 4.1 Paso 1: Datos Personales e Idioma
-- Información básica: Nombre, email, teléfono, fecha de nacimiento.
+- Información básica: Nombre, email, teléfono, dirección explícita (`Calle, Ciudad, País`), zona horaria (`timezone` capturada silenciosamente desde `Intl.DateTimeFormat`) y fecha de nacimiento.
 - Antropometría: Altura, peso actual, peso objetivo.
 - Idioma de preferencia (`language`): Configura el idioma de entrega de recomendaciones generadas y traducidas dinámicamente (FASE 4).
 
@@ -94,7 +94,7 @@ apps/form/
 
 ### 4.5 Paso 5: Objetivos y Preferencias
 - Objetivos principales (composición corporal, flexibilidad metabólica, reducción de inflamación).
-- Preferencias nutricionales (enfoque cetogénico, low-carb, ayuno intermitente).
+- Preferencias nutricionales (nutrición ancestral, enfoque evolutivo, flexibilidad metabólica, ayuno intermitente).
 
 ### 4.6 Paso 6: Contrato de Coaching y Consentimiento Desacoplado (`ContractStep.tsx`)
 Paso obligatorio de formalización contractual y cumplimiento de privacidad:

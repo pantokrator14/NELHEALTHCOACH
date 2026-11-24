@@ -5,6 +5,7 @@ import {
   generateMonthlyPlanEmailText,
   generateSessionInviteHTML,
   generateCoachSessionNotificationHTML,
+  generateCoachSessionReminderHTML,
   generateSessionReminderTodayHTML,
   generateSessionReminderSoonHTML,
   generateTrialWelcomeEmailHTML,
@@ -102,7 +103,6 @@ export class EmailService {
 
     return logger.time('EMAIL', 'Enviar email (Resend)', async () => {
       try {
-        // Configuración del mensaje para Resend
         const { data, error } = await resendClient.emails.send({
           from: `${this.fromName} <${this.fromEmail}>`,
           to: options.to,
@@ -114,7 +114,7 @@ export class EmailService {
         });
 
         if (error) {
-          throw error; // Resend devuelve errores en esta propiedad
+          throw error;
         }
 
         logger.info('EMAIL', '✅ Email enviado exitosamente via Resend', {
@@ -126,21 +126,19 @@ export class EmailService {
 
       } catch (error: unknown) {
         const err = error instanceof Error ? error : new Error(String(error));
-        // Logging detallado del error de Resend
         logger.error('EMAIL', '❌ Error enviando email con Resend', err, {
           ...logContext,
           errorMessage: err.message,
           errorType: err.constructor.name,
         });
 
-        // En desarrollo, puedes simular éxito para no romper el flujo
         if (process.env.NODE_ENV === 'development') {
           logger.warn('EMAIL', 'Modo desarrollo: Continuando a pesar del error de Resend');
           console.log('📧 CONTENIDO DEL EMAIL (Simulación por error):');
           console.log('Para:', options.to);
           console.log('Asunto:', options.subject);
           console.log('Texto (inicio):', options.textBody?.substring(0, 200));
-          return true; // Simula éxito para no bloquear las pruebas
+          return true;
         }
 
         return false;
@@ -207,11 +205,9 @@ export class EmailService {
         logoWhiteUrl: process.env.LOGO_WHITE_URL || 'https://app.nelhealthcoach.com/logo.png',
         };
 
-        // Generar contenido
         const htmlContent = generateMonthlyPlanEmailHTML(templateData);
         const textContent = generateMonthlyPlanEmailText(templateData);
 
-        // Enviar usando el método central sendEmail
         const result = await this.sendEmail({
         to: [clientEmail],
         subject: `📋 Tus Recomendaciones de Salud | NEL Health Coach`,
@@ -250,6 +246,7 @@ export class EmailService {
       .replace(/\s+/g, ' ')
       .trim();
   }
+
   /**
    * Enviar invitación de videollamada al cliente.
    */
@@ -296,6 +293,7 @@ export class EmailService {
       dashboardUrl?: string;
       joinLink?: string;
       timeZone?: string;
+      secondaryTimeLabel?: string;
     }
   ): Promise<boolean> {
     try {
@@ -305,17 +303,7 @@ export class EmailService {
         sessionNumber: data.sessionNumber,
       });
 
-      const htmlContent = generateCoachSessionNotificationHTML({
-        clientName: data.clientName,
-        sessionNumber: data.sessionNumber,
-        scheduledDate: data.scheduledDate,
-        scheduledTime: data.scheduledTime,
-        durationMinutes: data.durationMinutes,
-        progressNotes: data.progressNotes,
-        dashboardUrl: data.dashboardUrl,
-        joinLink: data.joinLink,
-        timeZone: data.timeZone,
-      });
+      const htmlContent = generateCoachSessionNotificationHTML(data);
       const subject = `📋 Sesión #${data.sessionNumber} - ${data.clientName} | NELHealthCoach`;
 
       return await this.sendEmail({
@@ -333,7 +321,55 @@ export class EmailService {
   }
 
   /**
-   * Enviar recordatorio matutino: "Hoy es tu videollamada"
+   * Enviar recordatorio anticipado o inminente de videollamada al coach (en su zona horaria).
+   */
+  public async sendCoachSessionReminder(
+    coachEmail: string,
+    data: {
+      type: 'today' | 'soon';
+      coachName?: string;
+      clientName: string;
+      sessionNumber: number;
+      scheduledDate: Date;
+      coachTimeStr: string;
+      coachTimeZone: string;
+      clientTimeStr?: string;
+      clientTimeZone?: string;
+      durationMinutes: number;
+      joinLink?: string;
+      dashboardUrl: string;
+    }
+  ): Promise<boolean> {
+    try {
+      logger.info('EMAIL', 'Enviando recordatorio de videollamada al coach', {
+        coachEmail,
+        type: data.type,
+        sessionNumber: data.sessionNumber,
+        coachTimeZone: data.coachTimeZone,
+      });
+
+      const htmlContent = generateCoachSessionReminderHTML(data);
+      const subject =
+        data.type === 'soon'
+          ? `⏰ ¡Videollamada por empezar con ${data.clientName}! Sesión #${data.sessionNumber} | NELHealthCoach`
+          : `📅 Recordatorio: Videollamada hoy con ${data.clientName} (${data.coachTimeStr}) | NELHealthCoach`;
+
+      return await this.sendEmail({
+        to: [coachEmail],
+        subject,
+        htmlBody: htmlContent,
+      });
+    } catch (error: unknown) {
+      logger.error('EMAIL', 'Error enviando recordatorio de sesión al coach', error as Error, {
+        coachEmail,
+        type: data.type,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Enviar recordatorio anticipado: "Hoy es tu videollamada"
    */
   public async sendSessionReminderToday(
     clientEmail: string,
@@ -364,14 +400,14 @@ export class EmailService {
   }
 
   /**
-   * Enviar recordatorio 5 minutos antes: "Tu videollamada va a empezar"
+   * Enviar recordatorio inminente: "Tu videollamada va a empezar"
    */
   public async sendSessionReminderSoon(
     clientEmail: string,
     data: SessionEmailData
   ): Promise<boolean> {
     try {
-      logger.info('EMAIL', 'Enviando recordatorio 5min antes de videollamada', {
+      logger.info('EMAIL', 'Enviando recordatorio inminente de videollamada', {
         clientEmail,
         sessionNumber: data.sessionNumber,
       });
@@ -386,7 +422,7 @@ export class EmailService {
         replyTo: [this.fromEmail],
       });
     } catch (error: unknown) {
-      logger.error('EMAIL', 'Error enviando recordatorio 5min antes', error as Error, {
+      logger.error('EMAIL', 'Error enviando recordatorio inminente', error as Error, {
         clientEmail,
         sessionNumber: data.sessionNumber,
       });

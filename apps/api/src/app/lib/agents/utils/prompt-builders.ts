@@ -97,7 +97,7 @@ Analiza TODA la información proporcionada y genera un JSON con la siguiente est
 \`\`\`
 
 ### Reglas para determinar experienceLevel:
-- **principiante**: Sin experiencia previa en dieta keto o ejercicio estructurado
+- **principiante**: Sin experiencia previa en nutrición ancestral/metabólica o ejercicio estructurado
 - **intermedio**: Alguna experiencia previa, ha completado 1-2 sesiones
 - **avanzado**: Experiencia consolidada, ha completado 3+ sesiones
 
@@ -181,7 +181,7 @@ interface NutritionPlannerInput {
 export function buildNutritionPrompt(input: NutritionPlannerInput): string {
   const weekList = input.weekNumbers.join(", ");
 
-  return `Eres un nutricionista experto en dieta cetogénica terapéutica. Tu tarea es diseñar un plan de alimentación personalizado y progresivo.
+  return `Eres un nutricionista experto en nutrición ancestral, evolutiva y optimización metabólica. Tu tarea es diseñar un plan de alimentación personalizado y progresivo (adaptado al perfil, objetivos y contexto metabólico del cliente, sin encasillarlo en una sola etiqueta).
 
 ---
 
@@ -212,7 +212,7 @@ export function buildNutritionPrompt(input: NutritionPlannerInput): string {
 
 ## 🎯 TU TAREA
 
-Diseña un plan de nutrición cetogénica para las semanas: ${weekList}
+Diseña un plan de nutrición ancestral y optimización metabólica para las semanas: ${weekList}
 
 ### Reglas de la dieta:
 1. **Cero**: azúcar, alcohol, gluten, almidones, procesados, ultra-procesados
@@ -243,7 +243,7 @@ Diseña un plan de nutrición cetogénica para las semanas: ${weekList}
 \`\`\`
 
 ### Progresión esperada:
-- Semanas 1-4: ~1600 kcal, adaptación cetogénica
+- Semanas 1-4: ~1600 kcal, adaptación metabólica y alimentación ancestral
 - Semanas 5-8: ~1450 kcal, aumento proteína
 - Semanas 9-12: ~1350 kcal, máxima quema de grasa
 
@@ -396,7 +396,7 @@ export function buildHabitPrompt(input: HabitDesignerInput): string {
   if (input.personalData.occupation)
     lifestyleDetails.push(`- **Ocupación:** ${input.personalData.occupation}`);
 
-  return `Eres un experto en psicología del comportamiento y formación de hábitos. Tu tarea es diseñar un sistema de mejora continua basado en pequeños cambios acumulativos que se integren armónicamente con la alimentación keto y el plan de ejercicios.
+  return `Eres un experto en psicología del comportamiento y formación de hábitos. Tu tarea es diseñar un sistema de mejora continua basado en pequeños cambios acumulativos que se integren armónicamente con la nutrición ancestral, la optimización metabólica y el plan de ejercicios.
 
 ---
 

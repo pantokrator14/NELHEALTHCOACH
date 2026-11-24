@@ -8,7 +8,7 @@ import ExerciseModal from '../../../components/dashboard/ExerciseModal';
 import ExerciseDetailModal from '../../../components/dashboard/ExerciseDetailModal';
 import ExerciseFilters, { ExerciseFilterState } from '../../../components/dashboard/ExerciseFilters';
 import { useToast } from '../../../components/ui/Toast';
-import { apiClient, Exercise } from '../../../lib/api';
+import { apiClient, Exercise, type CatalogResponseMeta } from '../../../lib/api';
 import { translateApiError } from '@/lib/apiErrorText';
 
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,9 @@ const ExercisesPage = () => {
   const { t } = useTranslation();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientAccessChecked, setClientAccessChecked] = useState(false);
+  const [catalogMeta, setCatalogMeta] = useState<CatalogResponseMeta | null>(null);
+  const isClientView = userRole === 'client';
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -66,6 +69,7 @@ const ExercisesPage = () => {
 
       if (response.success) {
         setExercises(response.data);
+        if (response.meta) setCatalogMeta(response.meta);
 
         const statsData = {
           total: response.data.length,
@@ -79,19 +83,37 @@ const ExercisesPage = () => {
         showToast(t('exercises.errorLoading'), 'error');
       }
     } catch (err: unknown) {
+      const errWithStatus = err as { status?: number };
+      if (errWithStatus?.status === 403 && userRole === 'client') {
+        router.replace('/dashboard');
+        return;
+      }
       console.error('Error loading exercises:', err);
       showToast(t('exercises.errorLoading'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast, t]);
+  }, [router, showToast, t, userRole]);
 
   useEffect(() => {
+    if (!userRole) return;
     if (userRole === 'client') {
-      router.replace('/dashboard');
+      void (async () => {
+        try {
+          const portalRes = await apiClient.getClientPortalMe();
+          const access = portalRes?.data?.planLimits?.libraryAccess;
+          if (access !== 'limited' && access !== 'full') {
+            router.replace('/dashboard');
+            return;
+          }
+          setClientAccessChecked(true);
+          await loadExercises();
+        } catch {
+          router.replace('/dashboard');
+        }
+      })();
       return;
     }
-    if (!userRole) return;
     void (async () => {
       await Promise.resolve(); // frontera async (set-state-in-effect)
       loadExercises();
@@ -411,7 +433,28 @@ const ExercisesPage = () => {
             </div>
           </div>
 
+          {isClientView && clientAccessChecked && (
+            <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <span className="font-medium">
+                {catalogMeta?.accessTier === 'limited'
+                  ? t('exercises.clientReadOnlyBannerLimited', {
+                      count: catalogMeta?.limit || exercises.length,
+                      total: catalogMeta?.totalPublishedCount || exercises.length,
+                    })
+                  : t('exercises.clientReadOnlyBannerFull', {
+                      count: catalogMeta?.totalPublishedCount || exercises.length,
+                    })}
+              </span>
+              {catalogMeta?.accessTier === 'limited' && (
+                <span className="text-xs font-semibold text-teal-700">
+                  {t('exercises.upgradeCatalogHint')}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Pestañas: Todas / Pendientes */}
+          {!isClientView && (
           <div className="mb-6 border-b border-gray-200">
             <nav className="flex space-x-4">
               <button
@@ -441,6 +484,7 @@ const ExercisesPage = () => {
               </button>
             </nav>
           </div>
+          )}
 
           {/* Contenido según pestaña */}
           {activeTab === 'pending' ? (
@@ -505,6 +549,7 @@ const ExercisesPage = () => {
           />
 
           {/* Botones de acciones */}
+          {!isClientView && (
           <div className="mb-6 flex flex-col sm:flex-row sm:justify-between items-stretch sm:items-center gap-3">
             <div className="w-full sm:w-auto">
               {deleteMode ? (
@@ -541,6 +586,7 @@ const ExercisesPage = () => {
               {t('exercises.createNewExercise')}
             </button>
           </div>
+          )}
 
           {/* Banner de modo eliminación */}
           {deleteMode && (
@@ -614,17 +660,19 @@ const ExercisesPage = () => {
               <div className="text-teal-400 text-7xl mb-6">⚡</div>
               <h3 className="text-2xl font-semibold text-gray-800 mb-3">{t('exercises.emptyAllTitle')}</h3>
               <p className="text-gray-600 mb-8 max-w-md mx-auto">{t('exercises.emptyAllDesc')}</p>
-              <button
-                onClick={handleCreateExercise}
-                className="px-8 py-3.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-lg hover:from-teal-700 hover:to-teal-800 transition font-medium shadow-lg"
-              >
-                <span className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  {t('exercises.emptyAllAction')}
-                </span>
-              </button>
+              {!isClientView && (
+                <button
+                  onClick={handleCreateExercise}
+                  className="px-8 py-3.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-lg hover:from-teal-700 hover:to-teal-800 transition font-medium shadow-lg"
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    {t('exercises.emptyAllAction')}
+                  </span>
+                </button>
+              )}
             </div>
           )}
 
@@ -653,12 +701,13 @@ const ExercisesPage = () => {
         {isDetailModalOpen && selectedExercise && (
           <ExerciseDetailModal
             exercise={selectedExercise}
+            readOnly={isClientView}
             onClose={() => {
               setIsDetailModalOpen(false);
               setSelectedExercise(null);
             }}
-            onEdit={() => handleEditExercise(selectedExercise)}
-            onDelete={() => handleDeleteExercise(selectedExercise)}
+            onEdit={isClientView ? () => {} : () => handleEditExercise(selectedExercise)}
+            onDelete={isClientView ? () => {} : () => handleDeleteExercise(selectedExercise)}
             onPrevious={() => { if (hasPrevious) handlePrevious(); }}
             onNext={() => { if (hasNext) handleNext(); }}
             hasPrevious={hasPrevious}
@@ -674,7 +723,7 @@ const ExercisesPage = () => {
         )}
 
         {/* Modal de creación/edición */}
-        {isEditModalOpen && (
+        {!isClientView && isEditModalOpen && (
           <ExerciseModal
             exercise={selectedExercise}
             onClose={() => {
