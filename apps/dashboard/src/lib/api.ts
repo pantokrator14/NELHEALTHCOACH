@@ -414,6 +414,11 @@ export interface ClientVideoSession {
   durationMinutes: number;
   timezone: string;
   status: string;
+  isEstimated?: boolean;
+  canJoin?: boolean;
+  unlocksAt?: string | null;
+  planId?: string | null;
+  planName?: string | null;
   joinLink: string | null;
 }
 
@@ -455,6 +460,21 @@ export interface ClientPortalData {
 }
 
 export const apiClient = {
+  async downloadRecommendationPdf(clientId: string, sessionId: string): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/clients/${clientId}/ai/${sessionId}/pdf`, {
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw apiError(errorData, "Error descargando PDF", response.status);
+    }
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+    const plainMatch = disposition.match(/filename="?([^";\n]+)"?/i);
+    const rawName = utf8Match?.[1] ? decodeURIComponent(utf8Match[1]) : plainMatch?.[1] || "Recomendaciones.pdf";
+    const blob = await response.blob();
+    return { blob, filename: rawName };
+  },
   async getFreeSessions(): Promise<{ success: boolean; data: FreeSessionsConfig }> {
     return dedupedRequest('config:free-sessions', async () => {
       const response = await fetch(`${API_BASE_URL}/api/free-sessions`, {

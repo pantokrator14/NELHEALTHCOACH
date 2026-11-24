@@ -11,6 +11,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
+import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
+import { getDateLocale } from '@/lib/locale';
 
 // Carga dinámica porque LiveKit solo funciona en el cliente
 const VideoCallRoom = dynamic(
@@ -26,6 +29,7 @@ type PageState =
   | { status: 'loading' }
   | { status: 'validating' }
   | { status: 'ready'; roomName: string; sessionToken: string }
+  | { status: 'not_started'; scheduledAt?: string; unlocksAt?: string }
   | { status: 'error'; message: string }
   | { status: 'ended' };
 
@@ -41,13 +45,14 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function ClientVideoJoinPage() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { token } = router.query as { token?: string };
   const [state, setState] = useState<PageState>({ status: 'loading' });
 
   // Enlace sin token → error derivado (sin setState síncrono en el effect)
   const missingToken = router.isReady && !token;
   const shownState: PageState = missingToken
-    ? { status: 'error', message: 'Enlace inválido: falta el token de acceso.' }
+    ? { status: 'error', message: t('videoJoin.missingToken') }
     : state;
 
   // ── Validar token y obtener información de la sala ──
@@ -72,13 +77,24 @@ export default function ClientVideoJoinPage() {
         });
 
         if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          const msg = (errData as { message?: string }).message || 'Token inválido o expirado';
+          const errData = (await response.json().catch(() => ({}))) as {
+            message?: string;
+            code?: string;
+            scheduledAt?: string;
+            unlocksAt?: string;
+          };
+          const msg = errData.message || t('videoJoin.invalidToken');
 
-          if (response.status === 401 || response.status === 404) {
+          if (response.status === 403 && errData.code === 'SESSION_NOT_YET_STARTED') {
+            setState({
+              status: 'not_started',
+              scheduledAt: errData.scheduledAt,
+              unlocksAt: errData.unlocksAt,
+            });
+          } else if (response.status === 401 || response.status === 404) {
             setState({
               status: 'error',
-              message: 'El enlace no es válido o la sesión ya terminó.',
+              message: t('videoJoin.invalidOrEnded'),
             });
           } else {
             setState({ status: 'error', message: msg });
@@ -86,17 +102,12 @@ export default function ClientVideoJoinPage() {
           return;
         }
 
-        // Si la API respondió con roomName, lo usamos directamente.
-        // Si no, necesitamos extraerlo del token decodificado.
-        // Por simplicidad, pedimos a la API que devuelva también el roomName.
         const data = (await response.json()) as {
           success: boolean;
           data: { token: string; serverUrl: string };
           roomName?: string;
         };
 
-        // Extraer roomName del token LiveKit (el metadata tiene session info)
-        // Por ahora usamos un roomName derivado; la API lo devuelve si está disponible.
         const roomName = data.roomName || 'sala-temporal';
 
         setState({
@@ -107,13 +118,13 @@ export default function ClientVideoJoinPage() {
       } catch (err: unknown) {
         setState({
           status: 'error',
-          message: err instanceof Error ? err.message : 'Error de conexión al servidor',
+          message: err instanceof Error ? err.message : t('videoJoin.connectionError'),
         });
       }
     }
 
     void validateAndJoin();
-  }, [router.isReady, token]);
+  }, [router.isReady, t, token]);
 
   // ── Callback al salir de la videollamada ──
 
@@ -121,12 +132,14 @@ export default function ClientVideoJoinPage() {
     setState({ status: 'ended' });
   }
 
+  const dateLocale = getDateLocale(i18n.language);
+
   // ── Render por estado ──
 
   return (
     <>
       <Head>
-        <title>Videollamada | NELHealthCoach</title>
+        <title>{t('videoJoin.pageTitle')}</title>
         <meta name="robots" content="noindex, nofollow" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
@@ -136,10 +149,10 @@ export default function ClientVideoJoinPage() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mx-auto mb-4" />
             <p className="text-lg font-medium text-gray-700">
-              {shownState.status === 'loading' ? 'Cargando...' : 'Validando acceso...'}
+              {shownState.status === 'loading' ? t('videoJoin.loading') : t('videoJoin.validating')}
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              Verificando tu sesión de videollamada
+              {t('videoJoin.verifyingSession')}
             </p>
           </div>
         </div>
@@ -151,28 +164,81 @@ export default function ClientVideoJoinPage() {
           onLeave={handleLeave}
         />
       ) : shownState.status === 'ended' ? (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
-            <div className="text-green-500 text-6xl mb-4">✓</div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Sesión finalizada</h1>
-            <p className="text-gray-600 mb-6">
-              La videollamada ha terminado. Tu coach recibirá la transcripción y
-              actualizará tus recomendaciones.
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center space-y-4">
+            <div className="text-green-500 text-6xl">✓</div>
+            <h1 className="text-2xl font-bold text-gray-800">{t('videoJoin.endedTitle')}</h1>
+            <p className="text-gray-600 text-sm">
+              {t('videoJoin.endedDesc')}
             </p>
-            <p className="text-sm text-gray-400">
-              Si necesitas contactar a tu coach, puedes responder al email de la sesión.
+            <p className="text-xs text-gray-400">
+              {t('videoJoin.endedContactHint')}
             </p>
+            <div className="pt-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition"
+              >
+                {t('videoJoin.backToSummary')}
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : shownState.status === 'not_started' ? (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center space-y-4 border border-amber-200">
+            <div className="text-amber-500 text-5xl">🕒</div>
+            <h1 className="text-2xl font-bold text-gray-800">{t('videoJoin.notStartedTitle')}</h1>
+            <p className="text-gray-600 text-sm">{t('videoJoin.notStartedDesc')}</p>
+            {shownState.scheduledAt && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+                <p className="font-semibold">
+                  {t('videoJoin.notStartedScheduled', {
+                    date: new Date(shownState.scheduledAt).toLocaleString(dateLocale, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    }),
+                  })}
+                </p>
+                {shownState.unlocksAt && (
+                  <p>
+                    {t('videoJoin.notStartedUnlocks', {
+                      date: new Date(shownState.unlocksAt).toLocaleString(dateLocale, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }),
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="pt-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition"
+              >
+                {t('videoJoin.backToSummary')}
+              </Link>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
-            <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">No se pudo acceder</h1>
-            <p className="text-gray-600 mb-6">{shownState.message}</p>
-            <p className="text-sm text-gray-400">
-              Si crees que esto es un error, contacta a tu coach para obtener un nuevo enlace.
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center space-y-4">
+            <div className="text-red-500 text-6xl">⚠️</div>
+            <h1 className="text-2xl font-bold text-gray-800">{t('videoJoin.errorTitle')}</h1>
+            <p className="text-gray-600 text-sm">{shownState.message}</p>
+            <p className="text-xs text-gray-400">
+              {t('videoJoin.errorContactHint')}
             </p>
+            <div className="pt-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition"
+              >
+                {t('videoJoin.backToSummary')}
+              </Link>
+            </div>
           </div>
         </div>
       )}

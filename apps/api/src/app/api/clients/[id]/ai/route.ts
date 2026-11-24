@@ -263,6 +263,15 @@ function decryptAISessionCompletely(session: AIRecommendationSession): AIRecomme
           contraindications: supp.contraindications ? safeDecrypt(supp.contraindications) : undefined,
         })) || [],
       } : { exams: [], supplements: [] },
+      weeklyPhases: Array.isArray(session.weeklyPhases)
+        ? session.weeklyPhases.map((phase) => ({
+            weekNumber: phase.weekNumber,
+            title: safeDecrypt(phase.title || "") || phase.title || "",
+            nutritionFocus: safeDecrypt(phase.nutritionFocus || "") || phase.nutritionFocus || "",
+            exerciseFocus: safeDecrypt(phase.exerciseFocus || "") || phase.exerciseFocus || "",
+            habitFocus: safeDecrypt(phase.habitFocus || "") || phase.habitFocus || "",
+          }))
+        : undefined,
       weeks: session.weeks?.map((week) => ({
         weekNumber: week.weekNumber,
         nutrition: {
@@ -339,6 +348,15 @@ function decryptAISessionCompletely(session: AIRecommendationSession): AIRecomme
           contraindications: supp.contraindications ? safeDecrypt(supp.contraindications) || supp.contraindications : undefined,
         })) || [],
       } : { exams: [], supplements: [] },
+      weeklyPhases: Array.isArray(session.weeklyPhases)
+        ? session.weeklyPhases.map((phase) => ({
+            weekNumber: phase.weekNumber,
+            title: safeDecrypt(phase.title || "") || phase.title || "",
+            nutritionFocus: safeDecrypt(phase.nutritionFocus || "") || phase.nutritionFocus || "",
+            exerciseFocus: safeDecrypt(phase.exerciseFocus || "") || phase.exerciseFocus || "",
+            habitFocus: safeDecrypt(phase.habitFocus || "") || phase.habitFocus || "",
+          }))
+        : undefined,
       weeks: [],
       checklist: []
     };
@@ -1023,6 +1041,7 @@ async function executeGenerationForClient(
         sessionId,
         monthNumber,
         totalWeeks: planTotalWeeks,
+        ...(compositeResult.weeklyPhases ? { weeklyPhases: compositeResult.weeklyPhases } : {}),
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'draft',
@@ -2755,6 +2774,7 @@ async function regenerateSession(clientId: string, sessionId: string, coachNotes
       sessionId: newSessionId,
       monthNumber: existingSession.monthNumber,
       totalWeeks: planTotalWeeks,
+      ...(compositeResult.weeklyPhases ? { weeklyPhases: compositeResult.weeklyPhases } : {}),
       createdAt: existingSession.createdAt,
       updatedAt: new Date(),
       status: 'draft',

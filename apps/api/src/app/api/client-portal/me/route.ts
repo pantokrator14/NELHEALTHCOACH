@@ -6,6 +6,7 @@ import { decrypt, decryptFileObject } from '@/app/lib/encryption';
 import ClientAccount from '@/app/models/ClientAccount';
 import Coach from '@/app/models/Coach';
 import {
+  buildClientVideoSessionSchedule,
   calculateTotalAllowedMonths,
   evaluateProgramCompletionState,
   getPlanById,
@@ -77,7 +78,7 @@ async function getHandler(request: NextRequest) {
     }
 
     // Sesiones de videollamada y estado de recomendaciones si ya completó el historial
-    let videoSessions: Array<Record<string, unknown>> = [];
+    let rawSessions: Array<Record<string, unknown>> = [];
     let hasApprovedRecommendations = false;
     let evaluationsCompleted = 0;
     let clientName = '';
@@ -92,32 +93,7 @@ async function getHandler(request: NextRequest) {
         clientName = healthDoc.personalData?.name
           ? decrypt(String(healthDoc.personalData.name))
           : '';
-        const rawSessions = (healthDoc.videoSessions as Array<Record<string, unknown>>) || [];
-        videoSessions = rawSessions.map((vs) => {
-          const status = String(vs.status || 'scheduled');
-          let joinLink: string | null = null;
-          if (status === 'scheduled' || status === 'active') {
-            try {
-              joinLink = generateClientSessionLink(
-                account.healthFormId!,
-                String(vs.sessionId),
-                clientEmail
-              ).joinLink;
-            } catch {
-              joinLink = null;
-            }
-          }
-          return {
-            sessionId: vs.sessionId,
-            sessionNumber: vs.sessionNumber,
-            roomName: vs.roomName,
-            scheduledAt: vs.scheduledAt,
-            durationMinutes: vs.durationMinutes,
-            timezone: vs.timezone,
-            status,
-            joinLink,
-          };
-        });
+        rawSessions = (healthDoc.videoSessions as Array<Record<string, unknown>>) || [];
 
         const aiSessions = (healthDoc.aiProgress?.sessions as Array<{ status?: string }>) || [];
         const deliveredSessions = aiSessions.filter(
@@ -128,9 +104,36 @@ async function getHandler(request: NextRequest) {
       }
     }
 
+    const scheduledSlots = buildClientVideoSessionSchedule({
+      purchasedPlans,
+      rawVideoSessions: rawSessions,
+    });
+
+    const videoSessions = scheduledSlots.map((slot) => {
+      let joinLink: string | null = null;
+      if (slot.canJoin && account.healthFormId && !slot.isEstimated) {
+        try {
+          joinLink = generateClientSessionLink(
+            account.healthFormId,
+            slot.sessionId,
+            clientEmail
+          ).joinLink;
+        } catch {
+          joinLink = null;
+        }
+      }
+      return {
+        ...slot,
+        joinLink,
+      };
+    });
+
     const completionState = evaluateProgramCompletionState({
       purchasedPlans,
-      videoSessions,
+      videoSessions: rawSessions.map((vs) => ({
+        status: vs.status,
+        scheduledAt: vs.scheduledAt,
+      })),
     });
     const hasPaidProgramPlan = completionState.hasPaidProgramPlan;
 

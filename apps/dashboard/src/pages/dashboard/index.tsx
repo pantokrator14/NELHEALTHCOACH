@@ -4,6 +4,7 @@ import Layout from '../../components/dashboard/Layout'
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useTranslation } from 'react-i18next'
 import {
   apiClient,
   type ApiClientError,
@@ -12,6 +13,7 @@ import {
   type CommercialPlanId,
 } from '@/lib/api'
 import { useUserRole, useLocalStorageValue } from '@/lib/client-hooks'
+import { getDateLocale, getLocalizedPlanFields } from '@/lib/locale'
 import ClientHealthForm from '@/components/dashboard/ClientHealthForm'
 import { useToast } from '@/components/ui/Toast'
 
@@ -31,6 +33,7 @@ interface ProfileData {
 
 export default function Dashboard() {
   const router = useRouter()
+  const { t, i18n } = useTranslation()
   const userRole = useUserRole()
   const pendingPlanFromStorage = useLocalStorageValue('pendingSelectedPlanId')
   const { showToast, ToastComponent } = useToast()
@@ -86,13 +89,13 @@ export default function Dashboard() {
               }
               if (active) {
                 setPaymentSuccessBanner(true)
-                showToast('¡Pago confirmado! Tu plan ha sido activado.', 'success')
+                showToast(t('clientPortal.paymentConfirmedToast'), 'success')
               }
               router.replace('/dashboard', undefined, { shallow: true })
             } catch (err) {
               if (active) {
                 showToast(
-                  err instanceof Error ? err.message : 'No se pudo confirmar el pago todavía',
+                  err instanceof Error ? err.message : t('clientPortal.paymentConfirmPending'),
                   'warning'
                 )
               }
@@ -109,7 +112,7 @@ export default function Dashboard() {
           if (plansRes?.data) setPlansCatalog(plansRes.data)
         } catch (err) {
           if (active) {
-            showToast(err instanceof Error ? err.message : 'Error cargando tu portal', 'error')
+            showToast(err instanceof Error ? err.message : t('clientPortal.loadError'), 'error')
           }
         } finally {
           if (active) setLoading(false)
@@ -155,7 +158,7 @@ export default function Dashboard() {
     return () => {
       active = false
     }
-  }, [router, router.isReady, router.query.payment, router.query.session_id, showToast, userRole])
+  }, [router, router.isReady, router.query.payment, router.query.session_id, showToast, t, userRole])
 
   const handleStartPlanCheckout = async (planId: CommercialPlanId) => {
     setCheckoutBusy(true)
@@ -165,7 +168,7 @@ export default function Dashboard() {
         window.location.href = res.data.url
         return
       }
-      throw new Error('No se recibió el enlace de pago')
+      throw new Error(t('clientPortal.paymentLinkMissing'))
     } catch (err) {
       const apiErr = err as ApiClientError
       if (apiErr?.status === 409 || apiErr?.code === 'QUOTA_FULL') {
@@ -176,7 +179,7 @@ export default function Dashboard() {
           })
           .catch(() => undefined)
       }
-      showToast(err instanceof Error ? err.message : 'Error iniciando el pago', 'error')
+      showToast(err instanceof Error ? err.message : t('clientPortal.paymentStartError'), 'error')
       setCheckoutBusy(false)
     }
   }
@@ -185,12 +188,19 @@ export default function Dashboard() {
   // VISTA DEL PORTAL DE CLIENTE
   // ═══════════════════════════════════════════════
   if (userRole === 'client') {
+    const dateLocale = getDateLocale(i18n.language)
     const basePreselectedPlan =
       portal?.selectedPlan ||
       plansCatalog.find((p) => p.id === pendingPlanFromStorage) ||
       null
     const preselectedPlan = basePreselectedPlan
       ? plansCatalog.find((p) => p.id === basePreselectedPlan.id) || basePreselectedPlan
+      : null
+    const localizedPreselected = preselectedPlan
+      ? getLocalizedPlanFields(preselectedPlan, t)
+      : null
+    const localizedActivePlan = portal?.activePlan
+      ? getLocalizedPlanFields(portal.activePlan, t)
       : null
     const isPreselectedUnavailable = preselectedPlan?.availability
       ? !preselectedPlan.availability.available
@@ -211,7 +221,7 @@ export default function Dashboard() {
     return (
       <>
         <Head>
-          <title>Mi Portal - NELHEALTHCOACH</title>
+          <title>{t('clientPortal.pageTitle')}</title>
         </Head>
         <Layout>
           <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-5 md:space-y-6">
@@ -225,21 +235,18 @@ export default function Dashboard() {
                 {/* Bienvenida */}
                 <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl shadow-lg p-5 md:p-7 text-white">
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 mb-2">
-                    Portal Personalizado — NELHEALTHCOACH
+                    {t('clientPortal.badge')}
                   </span>
                   <h1 className="text-2xl md:text-3xl font-bold">
-                    ¡Hola{portal.clientName ? `, ${portal.clientName}` : ''}!
+                    {portal.clientName
+                      ? t('clientPortal.greetingName', { name: portal.clientName })
+                      : t('clientPortal.greeting')}
                   </h1>
-                  <p className="text-sm text-emerald-100 mt-1">
-                    {portal.assignedCoach?.name
-                      ? `Tu asesor asignado: ${portal.assignedCoach.name}`
-                      : 'Acompañamiento directo con Manuel Martínez'}
-                  </p>
                 </div>
 
                 {paymentSuccessBanner && (
                   <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-5 py-4 rounded-2xl text-sm font-medium">
-                    ✅ ¡Pago confirmado exitosamente! Tu programa ya está activo.
+                    {t('clientPortal.paymentConfirmedBanner')}
                   </div>
                 )}
 
@@ -250,28 +257,28 @@ export default function Dashboard() {
                       <div>
                         <h2 className="text-xl font-bold text-gray-900">
                           {preselectedPlan
-                            ? 'Completa tu inscripción al plan seleccionado'
-                            : 'Elige tu plan para comenzar'}
+                            ? t('clientPortal.completeEnrollmentTitle')
+                            : t('clientPortal.choosePlanToStartTitle')}
                         </h2>
                         <p className="text-sm text-gray-600 mt-1">
                           {preselectedPlan
-                            ? 'Tienes un plan preseleccionado. Realiza el pago seguro con Stripe para desbloquear tu historial y seguimiento.'
-                            : 'Explora nuestras tarifas de lanzamiento y elige la opción que mejor se adapte a tus metas.'}
+                            ? t('clientPortal.completeEnrollmentDesc')
+                            : t('clientPortal.choosePlanToStartDesc')}
                         </p>
                       </div>
 
-                      {preselectedPlan ? (
+                      {preselectedPlan && localizedPreselected ? (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                             <div>
                               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                                {preselectedPlan.durationLabel}
+                                {localizedPreselected.durationLabel}
                               </span>
                               <h3 className="text-xl font-bold text-gray-900 mt-0.5">
-                                {preselectedPlan.name}
+                                {localizedPreselected.name}
                               </h3>
                               <p className="text-xs text-gray-600 mt-1">
-                                {preselectedPlan.modalitySummary}
+                                {localizedPreselected.modalitySummary}
                               </p>
                             </div>
                             <div className="sm:text-right shrink-0">
@@ -286,7 +293,7 @@ export default function Dashboard() {
 
                           {isPreselectedUnavailable && (
                             <p className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
-                              Este plan no tiene cupos disponibles en este momento. Puedes comparar y elegir otro plan con cupos abiertos.
+                              {t('clientPortal.preselectedUnavailableNote')}
                             </p>
                           )}
 
@@ -302,16 +309,18 @@ export default function Dashboard() {
                               }`}
                             >
                               {isPreselectedUnavailable
-                                ? 'Cupos no disponibles'
+                                ? t('clientPortal.unavailableCta')
                                 : checkoutBusy
-                                ? 'Conectando con Stripe...'
-                                : `Proceder al Pago — $${preselectedPlan.launchPriceUsd} USD`}
+                                ? t('clientPortal.connectingStripe')
+                                : t('clientPortal.proceedToPayment', {
+                                    price: preselectedPlan.launchPriceUsd,
+                                  })}
                             </button>
                             <Link
                               href="/dashboard/plans"
                               className="w-full sm:w-auto text-center px-5 py-3 bg-white border border-emerald-300 text-emerald-800 rounded-xl font-semibold text-sm hover:bg-emerald-100/50 transition"
                             >
-                              Comparar los 5 planes
+                              {t('clientPortal.comparePlans')}
                             </Link>
                           </div>
                         </div>
@@ -321,7 +330,7 @@ export default function Dashboard() {
                             href="/dashboard/plans"
                             className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm transition shadow-md"
                           >
-                            Ver los 5 Planes de Lanzamiento →
+                            {t('clientPortal.viewAllPlans')}
                           </Link>
                         </div>
                       )}
@@ -332,7 +341,7 @@ export default function Dashboard() {
                       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6 flex flex-col justify-between">
                         <div>
                           <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                            Tu Asesor de Salud
+                            {t('clientPortal.yourHealthCoach')}
                           </p>
                           <div className="flex items-center gap-3 mb-4">
                             {portal.assignedCoach.profilePhotoUrl ? (
@@ -354,18 +363,18 @@ export default function Dashboard() {
                             <div>
                               <h3 className="font-bold text-gray-900">{portal.assignedCoach.name}</h3>
                               <p className="text-xs text-emerald-700 font-medium">
-                                Coach Certificado NELHEALTHCOACH
+                                {t('clientPortal.certifiedCoachBadge')}
                               </p>
                             </div>
                           </div>
                           {portal.assignedCoach.email && (
                             <p className="text-xs text-gray-600 mb-1">
-                              <strong>Correo:</strong> {portal.assignedCoach.email}
+                              <strong>{t('clientPortal.emailLabel')}</strong> {portal.assignedCoach.email}
                             </p>
                           )}
                           {portal.assignedCoach.phone && (
                             <p className="text-xs text-gray-600">
-                              <strong>WhatsApp / Tel:</strong> {portal.assignedCoach.phone}
+                              <strong>{t('clientPortal.phoneLabel')}</strong> {portal.assignedCoach.phone}
                             </p>
                           )}
                         </div>
@@ -382,13 +391,13 @@ export default function Dashboard() {
                       <div className="bg-white rounded-2xl shadow-sm border border-blue-200 p-5 md:p-8 space-y-5">
                         <div>
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 mb-2">
-                            Consulta Privada Confirmada
+                            {t('clientPortal.consultConfirmedBadge')}
                           </span>
                           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                            Agenda tu Consulta Diagnóstica 1 a 1 (45 min)
+                            {t('clientPortal.consultScheduleTitle')}
                           </h2>
                           <p className="text-sm text-gray-600 mt-1">
-                            Tu pago está confirmado. Reserva tu horario directamente en el calendario de Manuel Martínez para tu videollamada privada.
+                            {t('clientPortal.consultScheduleDesc')}
                           </p>
                         </div>
 
@@ -402,7 +411,7 @@ export default function Dashboard() {
                             rel="noopener noreferrer"
                             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition shadow-md"
                           >
-                            📅 Agendar horario de sesión →
+                            {t('clientPortal.consultBookBtn')}
                           </a>
 
                           <button
@@ -411,8 +420,8 @@ export default function Dashboard() {
                             className="px-5 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-semibold text-sm transition"
                           >
                             {showOptionalConsultForm
-                              ? 'Ocultar historial de salud'
-                              : 'Completar mi historial de salud (opcional)'}
+                              ? t('clientPortal.consultHideFormBtn')
+                              : t('clientPortal.consultShowFormBtn')}
                           </button>
                         </div>
                       </div>
@@ -420,7 +429,7 @@ export default function Dashboard() {
                       {showOptionalConsultForm && (
                         <ClientHealthForm
                           clientEmail={portal.email}
-                          activePlanName={portal.activePlan.name}
+                          activePlanName={localizedActivePlan?.name || portal.activePlan.name}
                           onCompleted={() => router.push('/dashboard/my-profile')}
                         />
                       )}
@@ -433,7 +442,7 @@ export default function Dashboard() {
                   !portal.healthFormId && (
                     <ClientHealthForm
                       clientEmail={portal.email}
-                      activePlanName={portal.activePlan.name}
+                      activePlanName={localizedActivePlan?.name || portal.activePlan.name}
                       onCompleted={() => router.push('/dashboard/my-profile')}
                     />
                   )}
@@ -445,20 +454,25 @@ export default function Dashboard() {
                       <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-300 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
                         <div className="space-y-1">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase tracking-wide">
-                            🏆 Programa completado
+                            {t('clientPortal.programCompletedBadge')}
                           </span>
                           <h2 className="text-lg md:text-xl font-bold text-gray-900">
-                            ¡Felicidades por completar {portal.activePlan?.name || 'tu programa'}!
+                            {t('clientPortal.programCompletedTitle', {
+                              planName:
+                                localizedActivePlan?.name ||
+                                portal.activePlan?.name ||
+                                t('clientPortal.programDefaultName'),
+                            })}
                           </h2>
                           <p className="text-sm text-gray-700">
-                            Tu historial y recomendaciones siguen activos. Si deseas continuar, puedes renovar este plan o cambiar al siguiente nivel.
+                            {t('clientPortal.programCompletedDesc')}
                           </p>
                         </div>
                         <Link
                           href="/dashboard/plans"
                           className="inline-flex items-center justify-center px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm transition shadow-sm shrink-0"
                         >
-                          Renovar / Cambiar Plan →
+                          {t('clientPortal.renewChangePlanBtn')}
                         </Link>
                       </div>
                     )}
@@ -466,21 +480,26 @@ export default function Dashboard() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
                       {/* Columna izquierda: Plan activo + Videollamadas */}
                       <div className="lg:col-span-2 space-y-5 md:space-y-6">
-                        {portal.activePlan && (
+                        {portal.activePlan && localizedActivePlan && (
                           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6 space-y-4">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                               <div>
                                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                                  Plan Activo ({portal.activePlan.durationLabel})
+                                  {t('clientPortal.activePlanLabel', {
+                                    duration: localizedActivePlan.durationLabel,
+                                  })}
                                 </span>
                                 <h2 className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5">
-                                  {portal.activePlan.name}
+                                  {localizedActivePlan.name}
                                 </h2>
                               </div>
                               <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                                 {portal.planLimits && portal.planLimits.maxMonths > 0 && (
                                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                                    {portal.evaluationsCompleted ?? 0} / {portal.planLimits.maxMonths} evaluaciones
+                                    {t('clientPortal.evaluationsCount', {
+                                      completed: portal.evaluationsCompleted ?? 0,
+                                      max: portal.planLimits.maxMonths,
+                                    })}
                                   </span>
                                 )}
                                 <span
@@ -490,7 +509,9 @@ export default function Dashboard() {
                                       : 'bg-emerald-100 text-emerald-800'
                                   }`}
                                 >
-                                  {portal.programCompleted ? 'Completado' : 'Activo'}
+                                  {portal.programCompleted
+                                    ? t('clientPortal.statusCompleted')
+                                    : t('clientPortal.statusActive')}
                                 </span>
                               </div>
                             </div>
@@ -498,10 +519,10 @@ export default function Dashboard() {
                             {portal.planLimits?.includesBiomarkerComparison && (
                               <div className="rounded-xl bg-teal-50 border border-teal-200 px-4 py-3">
                                 <p className="text-xs font-bold uppercase tracking-wide text-teal-800">
-                                  Seguimiento Evolutivo y Biomarcadores
+                                  {t('clientPortal.biomarkersTitle')}
                                 </p>
                                 <p className="text-xs text-teal-700 mt-0.5">
-                                  Sube nuevos estudios clínicos cada mes desde Tu Perfil de Salud para comparar tu evolución.
+                                  {t('clientPortal.biomarkersDesc')}
                                 </p>
                               </div>
                             )}
@@ -509,42 +530,56 @@ export default function Dashboard() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                               <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
                                 <p className="text-xs font-semibold text-gray-500 uppercase">
-                                  Soporte WhatsApp
+                                  {t('clientPortal.whatsappSupportLabel')}
                                 </p>
                                 <p className="font-medium text-gray-900 mt-0.5">
-                                  {portal.activePlan.whatsappSupport}
+                                  {localizedActivePlan.whatsappSupport}
                                 </p>
                               </div>
 
                               {portal.livekitCreditsTotal > 0 ? (
                                 <div className="bg-blue-50 rounded-xl p-3.5 border border-blue-100">
                                   <p className="text-xs font-semibold text-blue-700 uppercase">
-                                    Videollamadas Disponibles
+                                    {t('clientPortal.videoCallsAvailableLabel')}
                                   </p>
                                   <p className="font-bold text-blue-900 mt-0.5">
-                                    {portal.livekitCreditsRemaining} de {portal.livekitCreditsTotal} sesiones
+                                    {t('clientPortal.sessionsCountLabel', {
+                                      remaining: portal.livekitCreditsRemaining,
+                                      total: portal.livekitCreditsTotal,
+                                    })}
+                                  </p>
+                                </div>
+                              ) : portal.activePlan.id === 'consult_1on1' ? (
+                                <div className="bg-blue-50 rounded-xl p-3.5 border border-blue-100">
+                                  <p className="text-xs font-semibold text-blue-700 uppercase">
+                                    {t('clientPlans.modalityLabel')}
+                                  </p>
+                                  <p className="font-bold text-blue-900 mt-0.5">
+                                    {localizedActivePlan.modalitySummary}
                                   </p>
                                 </div>
                               ) : (
                                 <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100">
                                   <p className="text-xs font-semibold text-emerald-700 uppercase">
-                                    Seguimiento Digital
+                                    {t('clientPortal.digitalFollowupLabel')}
                                   </p>
                                   <p className="font-bold text-emerald-900 mt-0.5">
-                                    {portal.activePlan.durationLabel} · Portal Web
+                                    {t('clientPortal.digitalFollowupValue', {
+                                      duration: localizedActivePlan.durationLabel,
+                                    })}
                                   </p>
                                 </div>
                               )}
                             </div>
 
                             {/* Ruta del programa */}
-                            {portal.activePlan.roadmap && portal.activePlan.roadmap.length > 0 && (
+                            {localizedActivePlan.roadmap.length > 0 && (
                               <div className="pt-1">
                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                                  Ruta de tu Programa
+                                  {t('clientPortal.programRoadmapLabel')}
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                  {portal.activePlan.roadmap.map((stepText, idx) => (
+                                  {localizedActivePlan.roadmap.map((stepText, idx) => (
                                     <div
                                       key={stepText}
                                       className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs font-medium text-gray-800 flex items-start gap-2"
@@ -570,7 +605,7 @@ export default function Dashboard() {
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800 underline"
                                 >
-                                  📅 Abrir enlace para agendar sesión →
+                                  {t('clientPortal.openBookingLink')}
                                 </a>
                               </div>
                             )}
@@ -579,71 +614,123 @@ export default function Dashboard() {
 
                         {showVideoCallsSection && (
                           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-3">
-                              Mis Videollamadas
+                            <h3 className="text-lg font-bold text-gray-900">
+                              {t('clientPortal.videoCallsTitle')}
                             </h3>
+                            <p className="text-xs text-gray-500 mt-1 mb-3">
+                              {t('clientPortal.videoCallsSubtitle')}
+                            </p>
 
                             {portal.videoSessions.length === 0 ? (
                               <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-100">
-                                Aún no tienes videollamadas programadas. Manuel Martínez agendará tus sesiones y recibirás el enlace directo aquí y en tu correo.
+                                {t('clientPortal.videoCallsEmpty')}
                               </div>
                             ) : (
                               <div className="space-y-3">
-                                {portal.videoSessions.map((vs) => (
-                                  <div
-                                    key={vs.sessionId}
-                                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50/70"
-                                  >
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-gray-900 text-sm">
-                                          Sesión #{vs.sessionNumber}
-                                        </span>
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium capitalize">
-                                          {vs.status}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-600 mt-1">
-                                        {new Date(vs.scheduledAt).toLocaleString('es-ES', {
+                                {portal.videoSessions.map((vs) => {
+                                  const canJoinNow = Boolean(vs.canJoin && vs.joinLink)
+                                  const formattedDate = new Date(vs.scheduledAt).toLocaleString(
+                                    dateLocale,
+                                    {
+                                      dateStyle: 'medium',
+                                      timeStyle: 'short',
+                                    }
+                                  )
+                                  const noteText = vs.isEstimated
+                                    ? t('clientPortal.estimatedDateNote')
+                                    : canJoinNow
+                                    ? t('clientPortal.confirmedDateNote')
+                                    : vs.unlocksAt
+                                    ? t('clientPortal.unlocksAtNote', {
+                                        date: new Date(vs.unlocksAt).toLocaleString(dateLocale, {
                                           dateStyle: 'medium',
                                           timeStyle: 'short',
-                                        })}{' '}
-                                        · {vs.durationMinutes} min
-                                      </p>
-                                    </div>
+                                        }),
+                                      })
+                                    : t('clientPortal.confirmedDateNote')
+                                  const statusBadgeClass =
+                                    vs.status === 'active'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : vs.status === 'scheduled'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : vs.status === 'completed'
+                                      ? 'bg-gray-100 text-gray-700'
+                                      : vs.status === 'cancelled'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-amber-100 text-amber-800'
+                                  const statusLabel = t(`clientPortal.slotStatus.${vs.status}`, {
+                                    defaultValue: vs.status,
+                                  })
 
-                                    {vs.joinLink && (
-                                      <a
-                                        href={vs.joinLink}
-                                        className="inline-flex items-center justify-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition shrink-0"
-                                      >
-                                        🎥 Unirse a Videollamada
-                                      </a>
-                                    )}
-                                  </div>
-                                ))}
+                                  return (
+                                    <div
+                                      key={vs.sessionId}
+                                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50/70"
+                                    >
+                                      <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-semibold text-gray-900 text-sm">
+                                            {t('clientPortal.sessionTitle', {
+                                              number: vs.sessionNumber,
+                                            })}
+                                          </span>
+                                          <span
+                                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadgeClass}`}
+                                          >
+                                            {statusLabel}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-gray-700 font-medium mt-1">
+                                          {formattedDate} · {vs.durationMinutes} min
+                                        </p>
+                                        <p className="text-[11px] text-gray-500 mt-0.5">
+                                          {noteText}
+                                        </p>
+                                      </div>
+
+                                      {canJoinNow && vs.joinLink ? (
+                                        <a
+                                          href={vs.joinLink}
+                                          className="inline-flex items-center justify-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition shrink-0"
+                                        >
+                                          {t('clientPortal.joinVideoBtn')}
+                                        </a>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled
+                                          className="inline-flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300 rounded-lg text-xs font-semibold cursor-not-allowed shrink-0"
+                                        >
+                                          {t('clientPortal.joinVideoBtn')}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
                           </div>
                         )}
                       </div>
 
-                      {/* Columna derecha: Perfil, Recomendaciones IA y Coach */}
+                      {/* Columna derecha: Perfil de Salud y Coach */}
                       <div className="space-y-5 md:space-y-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6 space-y-4">
-                          <h3 className="text-lg font-bold text-gray-900">Tu Perfil de Salud</h3>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {t('clientPortal.profileCardTitle')}
+                          </h3>
                           <p className="text-xs text-gray-600">
-                            Consulta y actualiza tu historial médico, estudios clínicos y recomendaciones personalizadas aprobadas por tu asesor.
+                            {t('clientPortal.profileCardDesc')}
                           </p>
 
                           <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-xs">
                             <span className="font-semibold text-gray-700 block">
-                              Recomendaciones con IA:
+                              {t('clientPortal.healthRecommendationsLabel')}
                             </span>
                             <span className="text-gray-600 mt-0.5 block">
                               {portal.hasApprovedRecommendations
-                                ? '✅ Ya tienes recomendaciones aprobadas disponibles en tu perfil.'
-                                : '⏳ En revisión por tu asesor. Aparecerán en tu perfil en cuanto sean aprobadas.'}
+                                ? t('clientPortal.approvedRecsReady')
+                                : t('clientPortal.pendingRecsReview')}
                             </span>
                           </div>
 
@@ -651,16 +738,14 @@ export default function Dashboard() {
                             href="/dashboard/my-profile"
                             className="w-full inline-flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition"
                           >
-                            {portal.hasApprovedRecommendations
-                              ? 'Abrir Mi Plan y Perfil →'
-                              : 'Ver y Editar Mi Perfil →'}
+                            {t('clientPortal.goToProfileBtn')}
                           </Link>
                         </div>
 
                         {portal.assignedCoach && (
                           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6">
                             <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                              Tu Asesor
+                              {t('clientPortal.yourCoach')}
                             </p>
                             <div className="flex items-center gap-3 mb-3">
                               {portal.assignedCoach.profilePhotoUrl ? (
@@ -688,12 +773,12 @@ export default function Dashboard() {
                             </div>
                             {portal.assignedCoach.email && (
                               <p className="text-xs text-gray-600 mb-1">
-                                <strong>Email:</strong> {portal.assignedCoach.email}
+                                <strong>{t('clientPortal.emailLabel')}</strong> {portal.assignedCoach.email}
                               </p>
                             )}
                             {portal.assignedCoach.phone && (
                               <p className="text-xs text-gray-600 mb-2">
-                                <strong>Teléfono:</strong> {portal.assignedCoach.phone}
+                                <strong>{t('clientPortal.phoneShortLabel')}</strong> {portal.assignedCoach.phone}
                               </p>
                             )}
                             {whatsappHref && (
@@ -703,7 +788,7 @@ export default function Dashboard() {
                                 rel="noopener noreferrer"
                                 className="mt-2 inline-flex items-center justify-center w-full px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold transition"
                               >
-                                💬 Contactar por WhatsApp →
+                                {t('clientPortal.whatsappBtn')}
                               </a>
                             )}
                           </div>

@@ -1,10 +1,10 @@
 # Documento de Requisitos del Producto (PRD)
 ## NELHEALTHCOACH - Plataforma Integral de Coaching de Salud
 
-**Versión:** 1.4.0  
-**Fecha:** Octubre 2026  
+**Versión:** 1.5.0  
+**Fecha:** Noviembre 2026  
 **Autor:** Equipo de Desarrollo NELHEALTHCOACH  
-**Estado:** En desarrollo activo (desplegado en producción — Vercel Hobby)
+**Estado:** En producción — Portal de Clientes, 5 Planes Comerciales, Cupos y Suite Multi-App
 
 ---
 
@@ -21,7 +21,7 @@
 9. [Roadmap de Desarrollo](#9-roadmap-de-desarrollo)
 10. [Métricas de Éxito](#10-métricas-de-éxito)
 11. [Consideraciones de Seguridad](#11-consideraciones-de-seguridad)
-12. [Consideraciones de Privacidad](#12-consideraciones-de-privacidad)
+12. [Consideraciones de Privacidad](#12-consideraciones-de-privacidad-y-cumplimiento-regulatorio)
 13. [Apéndices](#13-apéndices)
 
 ---
@@ -29,18 +29,18 @@
 ## 1. Resumen Ejecutivo
 
 ### 1.1 Visión del Producto
-NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para conectar profesionales de la salud con pacientes, facilitando la gestión de tratamientos, seguimiento de progreso y comunicación efectiva en un entorno digital seguro y moderno.
+NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para conectar profesionales de la salud con clientes y pacientes, facilitando la contratación de programas, gestión clínica de evaluaciones, generación de recomendaciones asistida por IA supervisada, videollamadas con transcripción y seguimiento multi-mes en un entorno digital seguro y moderno.
 
 ### 1.2 Propuesta de Valor
-- **Para Coaches de Salud:** Herramientas profesionales para gestionar pacientes, analizar datos de salud y optimizar tratamientos.
-- **Para Pacientes:** Experiencia de usuario intuitiva para completar formularios de salud, subir documentos y seguir su progreso.
-- **Para la Industria:** Plataforma escalable que cumple con estándares de privacidad médica y facilita la digitalización de procesos de salud.
+- **Para Coaches de Salud:** Centro de mando unificado para gestionar expedientes cifrados, filtrar pacientes por plan, administrar cupos comerciales, revisar/editar/aprobar planes asistidos por IA y conducir sesiones por videollamada.
+- **Para Clientes y Pacientes:** Portal propio con registro verificado por OTP, contratación directa de 5 programas vía Stripe Checkout, completado de historial clínico embebido, agenda de videollamadas con apertura programada y lectura/descarga PDF de recomendaciones aprobadas por su asesor.
+- **Para la Industria:** Plataforma escalable multi-idioma (6 idiomas) con blindaje RGPD Art. 9, CCPA/CPRA, FTC *Click to Cancel*, California AB 5 y arbitraje JAMS.
 
 ### 1.3 Diferenciadores Clave
-1. **Arquitectura Monorepo:** Desarrollo unificado con aplicaciones independientes pero integradas.
-2. **Procesamiento e Inteligencia Artificial Multi-Modelo:** Extracción LOCAL de documentos médicos con dependencias propias (pdf-parse, mammoth, OCR) + motor de razonamiento clínico y dietético en **DeepSeek V4 Flash** con fallback automático a **Google Gemini 2.5 Flash**, y transcripción de sesiones en tiempo real vía **Deepgram**.
-3. **Seguridad de Nivel Médico:** Cifrado de datos sensibles y cumplimiento con estándares de privacidad.
-4. **Experiencia Omnicanal:** Aplicaciones específicas para diferentes roles y necesidades.
+1. **Arquitectura Monorepo:** 5 aplicaciones Next.js 16.3.6 coordinadas con tipos compartidos (`@nel/types`).
+2. **Procesamiento e Inteligencia Artificial Multi-Modelo y por Plan:** Extracción LOCAL de documentos médicos (`pdf-parse`, `mammoth`, OCR fallback para PDFs escaneados) por sesión actual (`document-selection.ts`) + razonamiento clínico y dietético en **DeepSeek V4 Flash** con fallback automático a **Google Gemini** (`gemini-2.5-flash` / `gemini-4-hydrogen`), diferenciado según duración del plan (3 semanas progresivas `weeklyPhases` en *Reto Tres NEL* vs. ciclos de 4 semanas en planes mensuales) y análisis de fotografías de recetas.
+3. **Modelo Comercial de 5 Planes con Control de Cupos:** Catálogo único sincronizado entre Landing, Formularios, Dashboard y API, con cobro en Stripe Checkout, acumulación automática de créditos al renovar o escalar de plan y bloqueo en tiempo real de cupos (`plan_quotas`).
+4. **Seguridad de Nivel Médico y Telecomunicaciones:** Cifrado AES-256 campo a campo, RBAC estricto (`coach`, `admin`, `client`), ventana temporal de ingreso a LiveKit (15 minutos antes de la cita) y consentimiento previo para transcripción con Deepgram.
 
 ---
 
@@ -48,20 +48,20 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 
 ### 2.1 Objetivos Principales (OKRs)
 
-#### **Objetivo 1: Crear una plataforma integral de coaching de salud**
-- **KR1:** Desarrollar 5 aplicaciones integradas (Landing, Blog, Formularios, Dashboard, API)
-- **KR2:** Implementar al menos 10 formularios de evaluación de salud
-- **KR3:** Lograr 99.5% de disponibilidad del sistema
+#### **Objetivo 1: Crear una plataforma integral de coaching de salud y portal de cliente**
+- **KR1:** Operar 5 aplicaciones integradas (`landing`, `blog`, `form`, `dashboard`, `api`) con experiencia dual para Coaches y Clientes.
+- **KR2:** Soportar el ciclo completo de los 5 programas comerciales (`consult_1on1`, `reto_tres_nel`, `plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`) con cupos configurables y renovaciones con acumulación de créditos.
+- **KR3:** Lograr 99.5% de disponibilidad del sistema en arquitectura serverless.
 
-#### **Objetivo 2: Garantizar seguridad y privacidad de datos médicos**
-- **KR1:** Implementar cifrado de extremo a extremo para datos sensibles
-- **KR2:** Cumplir con HIPAA/GDPR para manejo de datos de salud
-- **KR3:** Realizar auditorías de seguridad trimestrales
+#### **Objetivo 2: Garantizar seguridad, privacidad y aislamiento de datos médicos**
+- **KR1:** Cifrado AES-256 campo a campo para PII y expedientes clínicos, con aislamiento estricto por rol (`coach`/`admin` vs `client`).
+- **KR2:** Cumplimiento estricto con RGPD Art. 9, CCPA/CPRA, FTC *Click to Cancel*, California AB 5 y Cal. Penal Code § 632 (consentimiento previo de grabación).
+- **KR3:** Verificación automatizada mediante `security-gate.test.ts` (OWASP), cero secretos hardcodeados y limpieza garantizada en base de datos.
 
-#### **Objetivo 3: Optimizar experiencia de usuario**
-- **KR1:** Reducir tiempo de completado de formularios en 40%
-- **KR2:** Lograr puntuación NPS > 70
-- **KR3:** Mantener tiempo de carga de página < 2 segundos
+#### **Objetivo 3: Optimizar experiencia de usuario e internacionalización**
+- **KR1:** Interfaz limpia sin elementos redundantes, con portal de cliente estructurado en 4 estados y estados skeleton pulsantes (Principio Anti-AI).
+- **KR2:** Cobertura completa en 6 idiomas (`es`, `en`, `fr`, `it`, `pt`, `de`) tanto en UI como en traducción dinámica FASE 4 de recomendaciones IA y PDFs.
+- **KR3:** Cumplimiento W3C WCAG 2.1 AA y optimización de Core Web Vitals.
 
 ---
 
@@ -69,35 +69,36 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 
 ### 3.1 Personas Principales
 
-#### **Coaches de Salud (Usuario Primario)**
-- **Demografía:** Profesionales de salud certificados, 30-60 años
+#### **Coaches de Salud y Administrador (Usuario Primario)**
+- **Demografía:** Profesionales de salud certificados y equipo coordinador (30-60 años)
 - **Necesidades:**
-  - Gestión eficiente de múltiples pacientes
-  - Acceso rápido a historiales médicos
-  - Herramientas de análisis de datos de salud
-  - Comunicación segura con pacientes
+  - Gestión eficiente de múltiples clientes agrupados por plan contratado
+  - Control operativo de cupos disponibles por producto (`plan_quotas`)
+  - Acceso rápido a historiales médicos cifrados y estudios de la evaluación en curso
+  - Supervisión, edición, aprobación y envío de recomendaciones generadas con IA
+  - Videollamadas seguras con transcripción clínica automática
 - **Frustraciones:**
-  - Sistemas fragmentados de gestión
-  - Procesos manuales de documentación
-  - Preocupaciones sobre seguridad de datos
+  - Sistemas fragmentados entre formularios, cobros, videollamadas y seguimiento
+  - Procesos manuales repetitivos de redacción dietética y clínica
+  - Riesgo de sobreventa de plazas o ingreso anticipado a salas de video
 
-#### **Pacientes (Usuario Secundario)**
-- **Demografía:** Adultos buscando coaching de salud, 25-70 años
+#### **Clientes / Pacientes (Usuario Secundario)**
+- **Demografía:** Adultos que contratan programas de salud evolutiva y cetogénica (25-70 años)
 - **Necesidades:**
-  - Fácil acceso a formularios de salud
-  - Seguimiento claro de su progreso
-  - Comunicación directa con su coach
-  - Privacidad de sus datos médicos
+  - Contratar cualquiera de los 5 planes desde la landing o portal de planes con transparencia de cupos
+  - Completar su historial médico sin fricción y consultar el progreso de su programa
+  - Visualizar su agenda de videollamadas con botón de acceso habilitado en el horario exacto
+  - Consultar y descargar en PDF sus recomendaciones aprobadas una vez listas
 - **Frustraciones:**
-  - Formularios médicos complejos
-  - Falta de seguimiento post-consulta
-  - Preocupaciones sobre privacidad digital
+  - Formularios médicos desconectados del pago o seguimiento
+  - Confusión sobre fechas de videollamadas o estado de sus recomendaciones
+  - Interfaces recargadas o con botones duplicados
 
 ### 3.2 Mercado Objetivo
-- **Segmento:** Coaching de salud preventivo y gestión de condiciones crónicas
+- **Segmento:** Coaching de salud preventivo, nutrición cetogénica evolutiva y optimización metabólica
 - **Tamaño de Mercado:** $7 billones globalmente (salud digital)
 - **Crecimiento:** 25% CAGR en salud digital
-- **Competencia:** Plataformas como BetterHelp, Noom, pero especializadas en coaching
+- **Competencia:** Plataformas como BetterHelp o Noom, diferenciándose por integración clínica end-to-end, OCR/análisis de biomarcadores con óptica keto y supervisión humana obligatoria.
 
 ---
 
@@ -106,47 +107,42 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 ### 4.1 Diagrama de Arquitectura
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    NELHEALTHCOACH PLATFORM                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Landing   │  │   Formularios│  │  Dashboard  │        │
-│  │   (Next.js) │  │   (Next.js) │  │   (Next.js) │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
-│         │                │                 │               │
-│         └────────────────┼─────────────────┘               │
-│                          │                                 │
-│                 ┌────────▼────────┐                       │
-│                 │    API Backend   │                       │
-│                 │    (Next.js)     │                       │
-│                 └────────┬─────────┘                       │
-│                          │                                 │
-├──────────────────────────┼─────────────────────────────────┤
-│         Cloud Services   │                                 │
-│  ┌─────────┐ ┌─────────┐│ ┌─────────┐ ┌─────────┐         │
-│  │ MongoDB │ │ AWS S3  ││ │AWS Text-│ │ Resend  │         │
-│  │ Atlas   │ │         ││ │  tract  │ │  Email  │         │
-│  └─────────┘ └─────────┘│ └─────────┘ └─────────┘         │
-│                         │                                 │
-└─────────────────────────┼─────────────────────────────────┘
-                          │
-                  ┌───────▼───────┐
-                  │   Vercel      │
-                  │   Hosting     │
-                  └───────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                        NELHEALTHCOACH PLATFORM (v1.5)                      │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌──────────────────────┐  │
+│  │  Landing   │  │    Blog    │  │ Formularios│  │ Dashboard + Portal   │  │
+│  │ (Next 16)  │  │ (Next 16)  │  │ (Next 16)  │  │  (Next 16, Dual UI)  │  │
+│  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └──────────┬───────────┘  │
+│        │               │               │                    │              │
+│        └───────────────┴───────────────┴────────────────────┘              │
+│                                        │                                   │
+│                             ┌──────────▼──────────┐                        │
+│                             │   API Backend       │                        │
+│                             │ (Next 16 App Router)│                        │
+│                             └──────────┬──────────┘                        │
+│                                        │                                   │
+├────────────────────────────────────────┼───────────────────────────────────┤
+│  Cloud & AI Services                   │                                   │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─┴───────┐ ┌──────────┐ ┌─────────┐  │
+│  │ MongoDB │ │ AWS S3  │ │ Stripe  │ │DeepSeek │ │  Gemini  │ │ LiveKit │  │
+│  │ + Cola  │ │ + SES/  │ │Checkout │ │V4 Flash │ │+ OCR loc.│ │+Deepgram│  │
+│  │ ai_jobs │ │ Resend  │ │& Connect│ │         │ │          │ │         │  │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └──────────┘ └─────────┘  │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.2 Componentes del Sistema
 
 #### **4.2.1 Aplicación Landing (`apps/landing`)**
-- **Propósito:** Marketing, calificación de leads y portal de transparencia legal
-- **Tecnologías:** Next.js 16.3.6 (Pages Router), React 19.1.0, Tailwind CSS
+- **Propósito:** Marketing, calificación de leads, exhibición de los 5 planes comerciales con cupos en tiempo real y transparencia legal
+- **Tecnologías:** Next.js 16.3.6 (Pages Router), React 19.1.0, Tailwind CSS, `i18next`
 - **Características:**
-  - Formulario de captación interactivo con precalificación de compromiso (escala 1 a 10) y filtro pedagógico de 3 pasos
-  - Suite de páginas legales completas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`)
-  - Navbar adaptativo dinámico que conmuta a navegación legal y enlace al inicio con un clic
-  - CMP de cookies de consentimiento previo con `useSyncExternalStore` y respeto de señales GPC
+  - Catálogo sincronizado con `GET /api/plans` mostrando cupos en vivo (*Cupos no disponibles* cuando el cupo está lleno)
+  - Flujo inteligente de contratación: *Consulta 1 a 1* con reserva directa sin cuenta obligatoria vs. los 4 programas con continuidad vía `/register/client?plan=...`
+  - Formulario de captación con precalificación de compromiso (escala 1 a 10) y filtro pedagógico de 3 pasos
+  - Suite legal completa (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`) + Navbar adaptativo contextual y CMP con respeto de señales GPC
   - i18n multi-idioma (es, en, fr, it, pt, de)
 
 #### **4.2.1b Aplicación Blog (`apps/blog`)**
@@ -154,40 +150,46 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 - **Tecnologías:** Next.js 16.3.6, React 19.1.0, Tailwind CSS
 - **Características:**
   - Renderizado SSR/SSG optimizado para indexación y SEO
-  - Metadatos estructurados JSON-LD (`BlogPosting`, `Blog`) y hreflang para 6 idiomas
+  - Metadatos estructurados JSON-LD (`BlogPosting`, `Blog`) y `hreflang` para 6 idiomas
   - Generación dinámica de RSS 2.0 y sitemap XML multilingüe
   - Suite de pruebas de integración automatizadas (76 checks)
 
 #### **4.2.2 Aplicación de Formularios (`apps/form`)**
-- **Propósito:** Captura de datos de pacientes
-- **Tecnologías:** Next.js, React Hook Form, Yup
+- **Propósito:** Captura de datos clínicos de pacientes y formalización contractual
+- **Tecnologías:** Next.js 16.3.6, React 19.1.0, React Hook Form, Yup, `i18next`
 - **Características:**
-  - Formularios validados en tiempo real
-  - Subida de documentos médicos
-  - Experiencia de usuario optimizada para móvil
-  - Guardado automático de progreso
+  - Formularios multi-paso validados en tiempo real con progreso automático
+  - Subida segura de documentos médicos a AWS S3 mediante URLs prefirmadas
+  - Paso 6 de Contrato y Consentimiento Desacoplado (RGPD Art. 9, renuncia a desistimiento, aviso de IA y arbitraje JAMS)
+  - Compatibilidad con contratación/renovación (`planId`) sin fricción cuando el cliente proviene del portal
 
-#### **4.2.3 Dashboard de Coaching (`apps/dashboard`)**
-- **Propósito:** Gestión y análisis para coaches
-- **Tecnologías:** Next.js, MongoDB, AWS S3
+#### **4.2.3 Dashboard de Coaching y Portal de Clientes (`apps/dashboard`)**
+- **Propósito:** Centro de operaciones clínicas para coaches/admin y portal autogestionado para clientes
+- **Tecnologías:** Next.js 16.3.6, React 19.1.0, Tailwind CSS, Stripe, LiveKit, Deepgram, `jsPDF`
 - **Características:**
-  - Visualización de pacientes y progreso
-  - Análisis estadísticos de datos de salud
-  - Gestión de documentos y comunicaciones
-  - Panel administrativo con permisos
+  - **Experiencia Coach/Admin:** Listado de clientes con **filtro por plan**, gestión operativa de cupos por plan (`plan_quotas`), expediente clínico con selección de documentos por sesión, editor/aprobador de planes IA (`3` o `4` semanas según plan), análisis de fotos de recetas, finanzas Stripe Connect, agenda LiveKit y cancelación FTC (`/dashboard/trial/cancel`).
+  - **Experiencia Cliente (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`, `/register/client`):**
+    - Sidebar simplificado sin enlaces redundantes: **Inicio**, **Planes**, acceso único inferior (**Ver mi perfil**) y **Cerrar Sesión**.
+    - Portal en 4 estados (`sin plan`, `consulta 1 a 1`, `historial pendiente con ClientHealthForm`, `programa activo/completado`).
+    - Cinta de finalización condicional (`programCompleted === true` únicamente al concluir duración y videollamadas).
+    - Lista cronológica de videollamadas del plan con botón deshabilitado hasta 15 min antes (`/video/join`).
+    - Card **Tu Perfil de Salud** indicando recomendaciones en análisis o aprobadas, con visor **solo lectura + descarga PDF** y acceso único a perfil y WhatsApp.
+    - Comparador de los 5 planes (`/dashboard/plans`) alineado responsive en 5 columnas con disponibilidad en vivo, contratación, renovación y cambio de plan con créditos acumulados.
 
 #### **4.2.4 API Backend (`apps/api`)**
-- **Propósito:** Lógica de negocio y servicios
-- **Tecnologías:** Next.js API Routes, MongoDB, AWS SDK
+- **Propósito:** Lógica de negocio, pagos, videollamadas y pipeline de IA
+- **Tecnologías:** Next.js 16.3.6 App Router, MongoDB 6.0 / Mongoose 8.0, Stripe, AWS S3/SES, Resend, DeepSeek V4 Flash, Google Gemini, LiveKit Server SDK, Deepgram SDK 5.0
 - **Características:**
-  - Autenticación JWT
-  - CRUD completo de pacientes y usuarios
-  - Procesamiento de documentos con extracción local (pdf-parse/mammoth/OCR) + Gemini secundario
-  - Integración con servicios de email
+  - Autenticación JWT multi-rol (`coach`, `admin`, `client`), autoregistro OTP de 6 dígitos (`/api/auth/client/*`) y cifrado AES-256
+  - Catálogo único de 5 planes (`plans.ts`), control de cupos (`/api/plans`, `/api/plan-quotas`), Stripe Checkout (`/api/payments/plan-checkout`, `confirm-plan`, webhooks idempotentes)
+  - Endpoint consolidado `/api/client-portal/me` con cálculo de estado, agenda proyectada de videollamadas (`buildClientVideoSessionSchedule`) y finalización (`evaluateProgramCompletionState`)
+  - Cola asíncrona propia sobre MongoDB (`ai_jobs`, 202 queued, lease 6 min, hasta 3 reintentos)
+  - Pipeline secuencial multi-fase diferenciado por plan (`weeklyPhases` 3 semanas para *Reto Tres NEL* vs. 4 semanas en planes mensuales), traducción dinámica FASE 4, OCR fallback local y análisis de imágenes de recetas (`/api/recipes/analyze-image`)
+  - Ventana de ingreso LiveKit (`403 SESSION_NOT_YET_STARTED` antes de 15 min) y generación de PDFs (`pdfkit` / `Uint8Array`)
 
 ### 4.3 Base de Datos
 
-#### **Esquema Principal**
+#### **Esquemas Principales**
 ```javascript
 // Usuarios (Coaches y Administradores)
 User {
@@ -195,64 +197,60 @@ User {
   email: String (único)
   passwordHash: String
   role: ['coach', 'admin']
-  profile: {
-    name: String
-    specialization: String
-    licenseNumber: String
-    phone: String
-  }
+  profile: { name, specialization, licenseNumber, phone }
   createdAt: Date
   updatedAt: Date
 }
 
-// Pacientes
-Patient {
+// Cuentas y Expedientes de Clientes (ClientAccount / HealthForm)
+ClientAccount {
   _id: ObjectId
+  email: String (único)
+  passwordHash: String
+  isVerified: Boolean
+  otpCodeHash: String
+  otpExpiresAt: Date
+  selectedPlanId: String // 'consult_1on1' | 'reto_tres_nel' | 'plan_1_reinicio' | 'plan_2_transformacion' | 'plan_3_maestria'
+  activePlan: {
+    planId: String
+    status: String
+    purchasedAt: Date
+    expiresAt: Date
+    monthsIncluded: Number
+    monthsUsed: Number
+    livekitSessionsTotal: Number
+    livekitSessionsUsed: Number
+  }
   coachId: ObjectId (ref: User)
-  personalInfo: {
-    name: String
-    email: String
-    phone: String
-    dateOfBirth: Date
-    gender: String
-  }
-  medicalHistory: {
-    conditions: [String]
-    medications: [String]
-    allergies: [String]
-    surgeries: [String]
-  }
-  assessments: [{
-    formId: String
-    completedAt: Date
-    data: Object
-    score: Number
-  }]
+  personalData: Object (cifrado AES-256)
+  medicalData: Object (cifrado AES-256)
   documents: [{
     name: String
     s3Key: String
+    evaluationSessionId: String
     uploadedAt: Date
-    processedData: Object // Extraído localmente (pdf-parse/mammoth/OCR), analizado por Gemini
+    processedData: Object // Extraído localmente (pdf-parse/mammoth/OCR fallback), analizado por Gemini
   }]
+  aiProgress: {
+    sessions: [{
+      sessionNumber: Number
+      status: ['draft', 'approved', 'sent']
+      weeklyPhases: Array // Fases semanales progresivas (3 semanas en Reto Tres NEL)
+      translations: Object // es/en/fr/it/pt/de
+    }]
+    generationError: String
+  }
   createdAt: Date
   updatedAt: Date
 }
 
-// Formularios de Evaluación
-AssessmentForm {
+// Control de Cupos por Plan (PlanQuota)
+PlanQuota {
   _id: ObjectId
-  name: String
-  description: String
-  category: ['initial', 'followup', 'specialized']
-  questions: [{
-    id: String
-    type: ['text', 'number', 'select', 'checkbox', 'scale']
-    question: String
-    options: [String]
-    validation: Object
-  }]
-  scoringLogic: Object
-  createdAt: Date
+  planId: String (único)
+  maxCapacity: Number | null
+  isPaused: Boolean
+  updatedBy: ObjectId
   updatedAt: Date
 }
 ```
@@ -261,370 +259,143 @@ AssessmentForm {
 
 ## 5. Requisitos Funcionales
 
-### 5.1 Gestión de Usuarios
+### 5.1 Gestión de Usuarios, Roles y Portal de Cliente
 
-#### **RF-001: Registro y Autenticación**
+#### **RF-001: Registro, Verificación OTP y Autenticación Multi-Rol**
 - **ID:** RF-001
-- **Prioridad:** Alta
-- **Descripción:** Los coaches deben poder registrarse y autenticarse en el sistema
+- **Prioridad:** Crítica
+- **Descripción:** Coaches, administradores y clientes deben registrarse y autenticarse con aislamiento estricto por rol.
 - **Criterios de Aceptación:**
-  1. Formulario de registro con email, contraseña y datos profesionales
-  2. Verificación de email mediante enlace único
-  3. Login seguro con JWT tokens
-  4. Recuperación de contraseña
-  5. Sesiones persistentes con refresh tokens
+  1. Registro de coaches con verificación por email y contrato AB 5.
+  2. Autoregistro de clientes (`/register/client`) con contraseña robusta y verificación OTP de 6 dígitos por email (vigencia 15 min).
+  3. Login unificado con JWT tokens (`coach`, `admin`, `client`), recuperación de contraseña y prevención de enumeración de cuentas.
 
-#### **RF-002: Gestión de Perfiles**
+#### **RF-002: Catálogo de 5 Planes, Pagos Stripe y Control de Cupos**
 - **ID:** RF-002
-- **Prioridad:** Media
-- **Descripción:** Usuarios pueden gestionar su perfil profesional
+- **Prioridad:** Crítica
+- **Descripción:** Venta en línea de 5 programas comerciales con límites de capacidad controlados desde el dashboard administrativo.
 - **Criterios de Aceptación:**
-  1. Edición de información personal y profesional
-  2. Subida de credenciales/certificaciones
-  3. Configuración de preferencias de notificación
-  4. Cambio de contraseña seguro
+  1. Catálogo único (`consult_1on1`, `reto_tres_nel`, `plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`) consultable en `/api/plans`.
+  2. Administración de cupos (`plan_quotas`) por el coach/admin; cuando un plan alcanza su tope o está pausado, el checkout responde `409 QUOTA_FULL` y el botón UI cambia a **Cupos no disponibles**.
+  3. Pago único vía Stripe Checkout (`/api/payments/plan-checkout`), confirmación idempotente y acumulación automática de meses/evaluaciones y sesiones LiveKit al renovar o cambiar de plan.
 
-### 5.2 Gestión de Pacientes
+### 5.2 Gestión de Pacientes y Portal de Seguimiento
 
-#### **RF-003: Creación de Pacientes**
+#### **RF-003: Vista de Lista de Clientes con Filtro por Plan**
 - **ID:** RF-003
 - **Prioridad:** Alta
-- **Descripción:** Coaches pueden agregar nuevos pacientes al sistema
+- **Descripción:** Coaches pueden filtrar, agrupar y buscar clientes según su plan contratado y estado.
 - **Criterios de Aceptación:**
-  1. Formulario con datos personales básicos
-  2. Asignación automática de ID único
-  3. Invitación por email al paciente
-  4. Configuración inicial de permisos
+  1. Lista paginada con búsqueda por nombre/email e identificador.
+  2. Filtro dedicado por plan contratado (`planId`) y estado de evaluación.
+  3. Panel superior de gestión rápida de cupos por plan para el administrador.
 
-#### **RF-004: Vista de Lista de Pacientes**
+#### **RF-004: Portal del Cliente (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`)**
 - **ID:** RF-004
 - **Prioridad:** Alta
-- **Descripción:** Coaches pueden ver y buscar en su lista de pacientes
+- **Descripción:** Experiencia limpia y no redundante para clientes autenticados en 4 estados posibles.
 - **Criterios de Aceptación:**
-  1. Lista paginada con información básica
-  2. Filtros por estado, última actividad, etc.
-  3. Búsqueda por nombre, email o ID
-  4. Ordenamiento por múltiples criterios
+  1. Sidebar específico para `client` con **Inicio**, **Planes**, acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
+  2. Estado 1 (sin plan), Estado 2 (Consulta 1 a 1), Estado 3 (historial pendiente con `ClientHealthForm` embebido) y Estado 4 (programa activo o completado).
+  3. Cinta de felicitación de fin de programa visible exclusivamente cuando `programCompleted === true`.
+  4. Vista `ClientProfileView` en modo `client` con tarjeta **Recomendaciones de Salud** en solo lectura + descarga PDF directa (sin edición por parte del cliente y sin textos duplicados).
 
-#### **RF-005: Perfil Detallado de Paciente**
+### 5.3 Formularios, IA y Documentos Médicos
+
+#### **RF-005: Formularios de Evaluación y Selección de Documentos**
 - **ID:** RF-005
-- **Prioridad:** Alta
-- **Descripción:** Vista completa de información del paciente
+- **Prioridad:** Crítica
+- **Descripción:** Captura de historial médico y análisis inteligente restringido a los documentos de la evaluación vigente.
 - **Criterios de Aceptación:**
-  1. Pestañas para diferentes tipos de información
-  2. Historial médico completo
-  3. Progreso en evaluaciones
-  4. Documentos subidos
-  5. Notas y comentarios del coach
+  1. Formularios multi-paso en `apps/form` y `ClientHealthForm` embebido en `apps/dashboard`.
+  2. Subida a AWS S3 (PDF, JPG, PNG, DOCX hasta 10MB) y extracción local (`pdf-parse`, `mammoth`, OCR fallback para PDFs escaneados).
+  3. Selección automática (`document-selection.ts`) de documentos pertenecientes a la sesión actual más resumen de sesiones previas.
 
-### 5.3 Formularios de Evaluación
-
-#### **RF-006: Completar Formularios de Salud**
+#### **RF-006: Generación de Recomendaciones IA Diferenciada por Plan y Recetas**
 - **ID:** RF-006
 - **Prioridad:** Crítica
-- **Descripción:** Pacientes pueden completar formularios de evaluación
+- **Descripción:** Pipeline secuencial asíncrono con DeepSeek V4 Flash + fallback Gemini y supervisión humana obligatoria.
 - **Criterios de Aceptación:**
-  1. Interfaz responsive y accesible
-  2. Validación en tiempo real
-  3. Guardado automático del progreso
-  4. Retroalimentación inmediata
-  5. Posibilidad de pausar y continuar
+  1. Cola propia (`ai_jobs`) respondiendo `202 queued` en < 1s con worker-on-poll y lease de 6 min.
+  2. En *Reto Tres NEL* genera 3 semanas diferenciadas (`weeklyPhases`); en Planes 1, 2 y 3 mantiene ciclos de 4 semanas.
+  3. En estado `draft` solo es visible/editable por el coach; al pasar a `approved` / `sent` se habilita en el portal del cliente en solo lectura + PDF.
+  4. Análisis nutricional de fotografías de recetas vía `/api/recipes/analyze-image`.
 
-#### **RF-007: Diseño de Formularios Personalizados**
+### 5.4 Videollamadas, Agenda y Cumplimiento
+
+#### **RF-007: Agenda Proyectada y Ventana de Acceso LiveKit + Deepgram**
 - **ID:** RF-007
-- **Prioridad:** Media
-- **Descripción:** Coaches pueden crear formularios personalizados
+- **Prioridad:** Alta
+- **Descripción:** Programación automática o manual de videollamadas con apertura bloqueada hasta 15 minutos antes.
 - **Criterios de Aceptación:**
-  1. Editor drag-and-drop de preguntas
-  2. Múltiples tipos de preguntas (texto, selección, escala)
-  3. Lógica condicional entre preguntas
-  4. Configuración de validaciones
-  5. Plantillas predefinidas
+  1. Tarjeta **Mis Videollamadas** en el portal mostrando las citas incluidas en el plan con botón deshabilitado en gris hasta el inicio de la ventana permitida.
+  2. `/api/video/token` valida ventana de acceso devolviendo `403 SESSION_NOT_YET_STARTED` con `scheduledAt` y `unlocksAt` antes de los 15 minutos previos.
+  3. Pre-Call Consent Gate obligatorio antes de activar transcripción en tiempo real con Deepgram en `/video/join`.
 
-#### **RF-008: Análisis de Resultados**
+#### **RF-008: Generación de Reportes PDF y Multi-Idioma**
 - **ID:** RF-008
-- **Prioridad:** Alta
-- **Descripción:** Sistema analiza y presenta resultados de formularios
-- **Criterios de Aceptación:**
-  1. Cálculo automático de puntuaciones
-  2. Visualizaciones gráficas de progreso
-  3. Comparativas con promedios
-  4. Alertas para valores preocupantes
-  5. Exportación de reportes
-
-### 5.4 Gestión de Documentos
-
-#### **RF-009: Subida de Documentos Médicos**
-- **ID:** RF-009
-- **Prioridad:** Alta
-- **Descripción:** Pacientes pueden subir documentos médicos
-- **Criterios de Aceptación:**
-  1. Soporte para PDF, JPG, PNG
-  2. Límite de tamaño 10MB por archivo
-  3. Progreso de upload visible
-  4. Categorización de documentos
-  5. Vista previa de documentos
-
-#### **RF-010: Procesamiento de Documentos (Extracción Local + Gemini Secundario)**
-- **ID:** RF-010
 - **Prioridad:** Media
-- **Descripción:** Extracción automática de texto de documentos médicos con dependencias propias
+- **Descripción:** Descarga de planes clínicos en el idioma del cliente (6 idiomas) respetando estructura de 3 o 4 semanas.
 - **Criterios de Aceptación:**
-  1. Detección de texto en PDF (pdf-parse v1), DOCX (mammoth) e imágenes (tesseract.js + PaddleOCR)
-  2. Análisis del texto extraído con Gemini (biomarcadores, resúmenes) — el modelo nunca recibe el archivo
-  3. Caché de análisis (`medical_document_cache`) para no re-procesar documentos
-  4. Revisión y corrección manual por el coach
-  5. Almacenamiento de metadatos extraídos (encriptados)
-
-#### **RF-011: Organización de Documentos**
-- **ID:** RF-011
-- **Prioridad:** Baja
-- **Descripción:** Sistema organiza documentos por categorías
-- **Criterios de Aceptación:**
-  1. Categorías predefinidas (laboratorios, recetas, etc.)
-  2. Etiquetado manual y automático
-  3. Búsqueda por contenido y metadatos
-  4. Vista de línea de tiempo de documentos
-
-### 5.5 Comunicación y Notificaciones
-
-#### **RF-012: Sistema de Mensajería Segura**
-- **ID:** RF-012
-- **Prioridad:** Media
-- **Descripción:** Comunicación encriptada entre coaches y pacientes
-- **Criterios de Aceptación:**
-  1. Chat en tiempo real
-  2. Historial de conversaciones
-  3. Notificaciones push/email
-  4. Archivos adjuntos en mensajes
-  5. Cifrado de extremo a extremo
-
-#### **RF-013: Notificaciones Automatizadas**
-- **ID:** RF-013
-- **Prioridad:** Media
-- **Descripción:** Sistema envía notificaciones basadas en eventos
-- **Criterios de Aceptación:**
-  1. Recordatorios de formularios pendientes
-  2. Alertas de resultados anormales
-  3. Notificaciones de nuevas mensajes
-  4. Personalización de frecuencia
-  5. Opción de desactivar notificaciones
-
-### 5.6 Análisis y Reportes
-
-#### **RF-014: Dashboard Analítico**
-- **ID:** RF-014
-- **Prioridad:** Alta
-- **Descripción:** Coaches ven métricas y análisis de su práctica
-- **Criterios de Aceptación:**
-  1. Métricas clave de pacientes activos
-  2. Tendencias de progreso
-  3. Comparativas entre pacientes
-  4. Alertas proactivas
-  5. Filtros por período y categorías
-
-#### **RF-015: Generación de Reportes**
-- **ID:** RF-015
-- **Prioridad:** Media
-- **Descripción:** Sistema genera reportes profesionales
-- **Criterios de Aceptación:**
-  1. Reportes de progreso individual
-  2. Reportes agregados de práctica
-  3. Formatos PDF y Excel
-  4. Personalización de contenido
-  5. Programación de envío automático
+  1. Generación streaming vía `Uint8Array` compatible con Next.js 16 y descarga directa desde el modal tanto para coach como para cliente.
+  2. Inclusión de `weeklyPhases` cuando el cliente cursa el *Reto Tres NEL* y disclaimer médico localizado.
 
 ---
 
 ## 6. Requisitos No Funcionales
 
 ### 6.1 Rendimiento
-
-#### **NF-001: Tiempos de Respuesta**
-- **ID:** NF-001
-- **Categoría:** Rendimiento
-- **Descripción:** El sistema debe responder dentro de límites específicos
-- **Métricas:**
-  - Página de carga inicial: < 2 segundos
-  - Búsquedas: < 1 segundo
-  - Subida de documentos: < 10 segundos (10MB)
-  - API responses: < 500ms (p95)
-
-#### **NF-002: Escalabilidad**
-- **ID:** NF-002
-- **Categoría:** Escalabilidad
-- **Descripción:** Sistema debe escalar para miles de usuarios concurrentes
-- **Métricas:**
-  - Soporte para 10,000 usuarios activos
-  - 100 coaches simultáneos
-  - 1,000 formularios completados por hora
-  - Escalado automático basado en carga
+- **NF-001 (Tiempos de Respuesta):** Carga inicial < 2s, respuestas de encolado IA < 1s (`202`), worker completo dentro del límite serverless (< 300s).
 
 ### 6.2 Seguridad
-
-#### **NF-003: Autenticación y Autorización**
-- **ID:** NF-003
-- **Categoría:** Seguridad
-- **Descripción:** Sistema debe implementar controles de acceso robustos
-- **Requisitos:**
-  - Autenticación multi-factor opcional
-  - Tokens JWT con expiración corta
-  - Refresh tokens rotativos
-  - Control de acceso basado en roles (RBAC)
-  - Registro de auditoría de accesos
-
-#### **NF-004: Protección de Datos**
-- **ID:** NF-004
-- **Categoría:** Seguridad
-- **Descripción:** Datos médicos deben estar protegidos
-- **Requisitos:**
-  - Cifrado en tránsito (TLS 1.3+)
-  - Cifrado en reposo (AES-256)
-  - Datos sensibles cifrados a nivel de campo
-  - Backup encriptados
-  - Políticas de retención y destrucción
+- **NF-003 (Autenticación y Autorización):** JWT con expiración controlada, RBAC estricto (`coach`, `admin`, `client`), OTP de 6 dígitos con caducidad y anti-enumeración.
+- **NF-004 (Protección de Datos):** TLS 1.3+, cifrado AES-256 campo a campo, cero secretos hardcodeados en código o pruebas (`client-plans-flow.test.ts` genera contraseñas en runtime).
 
 ### 6.3 Disponibilidad y Confiabilidad
+- **NF-005 (Disponibilidad):** 99.5% uptime sobre Vercel + MongoDB Atlas.
+- **NF-006 (Tolerancia a Fallos):** Cola `ai_jobs` con lease de 6 min y hasta 3 reintentos; fallback automático en runtime de DeepSeek a Google Gemini ante interrupciones de proveedor.
 
-#### **NF-005: Disponibilidad**
-- **ID:** NF-005
-- **Categoría:** Confiabilidad
-- **Descripción:** Sistema debe estar disponible cuando sea necesario
-- **Métricas:**
-  - Disponibilidad general: 99.5%
-  - Tiempo de recuperación (RTO): < 1 hora
-  - Punto de recuperación (RPO): < 15 minutos
-  - Monitoreo 24/7 con alertas
+### 6.4 Usabilidad, SEO e Internacionalización
+- **NF-007 (Experiencia de Usuario):** WCAG 2.1 AA (`id`/`htmlFor`, `Escape`, `focus-visible`, contraste >= 4.5:1), Principio Anti-AI con skeletons `animate-pulse` y eliminación de botones redundantes en portal y sidebar.
+- **NF-008 (Internacionalización):** 6 idiomas completos (`es`, `en`, `fr`, `it`, `pt`, `de`) incluyendo todo el portal de cliente (`Inicio`, `Planes`, `Ver mi perfil`, estados de recomendaciones pendientes/aprobadas, agenda de video y comparador de planes) + traducción dinámica FASE 4 de planes y PDFs.
+- **NF-009 / NF-010 (SEO Técnico & Cabeceras HTTP):** Indexación selectiva (`Allow` en Landing/Blog con sitemaps multilingües y JSON-LD; `Disallow` + `noindex` en Dashboard/Form), cabeceras de seguridad HTTP y `<Image fill sizes="...">`.
 
-#### **NF-006: Tolerancia a Fallos**
-- **ID:** NF-006
-- **Categoría:** Confiabilidad
-- **Descripción:** Sistema debe manejar fallos de componentes
-- **Requisitos:**
-  - Replicación de base de datos
-  - Balanceo de carga entre instancias
-  - Failover automático
-  - Recuperación de datos corruptos
-  - **Cola de trabajos con reintentos**: la generación/regeneración de IA es asíncrona (cola propia sobre MongoDB). Si el worker muere por timeout de Vercel (300s), el **lease de 6 min** permite re-ejecutar el job en el siguiente polling (hasta 3 intentos). Tras agotarlos, el error se persiste en `aiProgress.generationError` y la UI lo muestra
-  - **Generación dentro del límite de Vercel Hobby**: POST/PUT responden 202 en <1s (nunca timeout); el worker mide 170-239s (límite: 300s)
-
-### 6.4 Usabilidad
-
-#### **NF-007: Experiencia de Usuario**
-- **ID:** NF-007
-- **Categoría:** Usabilidad
-- **Descripción:** Interfaz debe ser intuitiva y accesible
-- **Requisitos:**
-  - Cumplimiento estricto W3C WCAG 2.1 AA (vinculación formal de formularios id <-> htmlFor, navegación por teclado con Escape, focus-visible y ratios de contraste >= 4.5:1)
-  - Principio Anti-AI en cargas asíncronas: supresión de spinners flotantes y pantallas en blanco; reemplazo por skeletons pulsantes estructurados (animate-pulse)
-  - Diseño responsive (mobile-first) y acceso directo con botón destacado de Login en Navbar
-  - Tiempo de aprendizaje < 30 minutos
-
-#### **NF-009: SEO Técnico, Indexación Selectiva y Metadatos Estructurados**
-- **ID:** NF-009
-- **Categoría:** SEO & Indexación
-- **Descripción:** Optimización integral para motores de búsqueda y blindaje de áreas privadas
-- **Requisitos:**
-  1. Indexación selectiva en robots.txt (Allow en Landing/Blog con sitemaps declarados; Disallow total con noindex/nofollow en Dashboard y Form)
-  2. Sitemaps dinámicos XML (/sitemap.xml) con fechas reales de modificación, frecuencias y soporte hreflang
-  3. Canonical tags normalizadas y absolutas, con redirecciones 301 para trailing slashes
-  4. Datos estructurados Schema.org / JSON-LD (HealthAndBeautyBusiness + LocalBusiness, Person y BlogPosting)
-
-#### **NF-010: Cabeceras de Seguridad HTTP y Optimización de Medios (Core Web Vitals)**
-- **ID:** NF-010
-- **Categoría:** Seguridad & Rendimiento Web
-- **Descripción:** Protección a nivel cabecera HTTP y optimización de carga de activos
-- **Requisitos:**
-  1. HTTP Security Headers (X-Content-Type-Options: nosniff, X-Frame-Options: DENY, X-XSS-Protection: 1; mode=block, Referrer-Policy, HSTS y Permissions-Policy)
-  2. 100% de componentes next/image con fill equipados con atributo sizes según dimensiones del contenedor
-  3. Lazy loading y decoding async en imágenes y recursos below the fold; retención de priority exclusivo en LCP
-  4. Directiva display: swap en todas las fuentes web
-  - Satisfacción de usuario (CSAT > 85%)
-
-#### **NF-008: Internacionalización**
-- **ID:** NF-008
-- **Categoría:** Usabilidad
-- **Descripción:** Sistema debe soportar múltiples idiomas
-- **Requisitos:**
-  - **6 idiomas implementados** completamente: español, inglés, francés, italiano, portugués y alemán
-  - Namespaces organizados por sección (`coaches`, `recipes`, `exercises`, `clients`, `common`, etc.)
-  - Dashboard 100% traducido con ~250 keys por idioma (total ~5150 líneas en archivo de traducciones)
-  - Landing page con i18n propio (carpeta `apps/landing/i18n/`)
-  - Detección automática del idioma del navegador mediante `i18next-browser-languagedetector`
-  - Fácil adición de nuevos idiomas extendiendo el objeto de traducciones
-  - Formato de fechas y números localizado
-  - RTL support para idiomas árabes (futuro)
-  - **Traducción dinámica del CONTENIDO generado por IA (FASE 4)**: el plan se genera en español y se traduce al idioma del cliente (`personalData.language`) — resúmenes, análisis médico, semanas, lista de compras, hábitos, checklist y PDF
-  - **Detección heurística de idioma de origen** de recetas/ejercicios (stopwords, sin LLM) para traducirlos correctamente en el PDF
-  - **Banner informativo** en el dashboard cuando la sesión fue traducida (idioma origen → destino)
-  - **Resiliencia**: si la traducción falla, se muestra el texto original (nunca se rompe la generación)
-
-### 6.5 Mantenibilidad
-
-#### **NF-009: Código y Documentación**
-- **ID:** NF-009
-- **Categoría:** Mantenibilidad
-- **Descripción:** Código debe ser mantenible y documentado
-- **Requisitos:**
-  - **Suite de tests de integración TDD** con perfiles desechables (limpieza garantizada en `finally`): 192 checks en suite rápida, 259 con E2E de LLM real (`apps/api/tests/`)
-  - **Security gate OWASP automatizado** al inicio y fin de cada run: 401 en routes con auth, sin fugas de `error.message` (A10), bcrypt (A04), ownership (A01), output de LLM validado (LLM05)
-  - Documentación de API completa
-  - Guías de desarrollo y despliegue
-  - Monitoreo de deuda técnica
-
-#### **NF-010: Despliegue y Operaciones**
-- **ID:** NF-010
-- **Categoría:** Mantenibilidad
-- **Descripción:** Sistema debe ser fácil de desplegar y operar
-- **Requisitos:**
-  - Despliegue automatizado (CI/CD)
-  - Rollback automático en fallos
-  - Monitoreo de métricas de negocio
-  - Alertas proactivas de problemas
+### 6.5 Mantenibilidad y Testing
+- **NF-011 (Suite TDD y Security Gate OWASP):**
+  - Suite automatizada en `apps/api/tests/` con perfiles desechables y limpieza garantizada en `finally`: `security-gate.test.ts` (21 checks OWASP), `client-plans-flow.test.ts` (81 checks), `plan-quotas.test.ts` (21 checks), `document-selection.test.ts`, `blog.test.ts` (76 checks), `waitlist.test.ts`, `free-sessions.test.ts`, `queue.test.ts`, `translate.test.ts`, `pdf-route.test.ts`, `db-clean.test.ts` y suites E2E con LLM real.
 
 ---
 
 ## 7. Flujos de Usuario
 
-### 7.1 Flujo de Registro de Coach
+### 7.1 Flujo de Contratación, Registro OTP y Seguimiento de Cliente
 
 ```mermaid
 graph TD
-    A[Coach visita landing] --> B[Click en 'Registrarse']
-    B --> C[Completa formulario de registro]
-    C --> D[Sistema valida datos]
-    D --> E[Envía email de verificación]
-    E --> F[Coach verifica email]
-    F --> G[Completa perfil profesional]
-    G --> H[Accede al dashboard]
-    H --> I[Agrega primer paciente]
+    A[Cliente explora 5 planes en Landing o /dashboard/plans] --> B{¿Cupo disponible?}
+    B -- No --> C[Botón 'Cupos no disponibles' deshabilitado]
+    B -- Sí --> D{¿Es Consulta 1 a 1?}
+    D -- Sí --> E[Pago Stripe Checkout / reserva directa]
+    D -- No --> F[Registro en /register/client + OTP 6 dígitos por email]
+    F --> E
+    E --> G[Webhook / confirm-plan activa plan y acumula créditos]
+    G --> H[Portal /dashboard: completa ClientHealthForm + sube estudios]
+    H --> I[API extrae texto/OCR de sesión actual + cola IA DeepSeek/Gemini]
+    I --> J[Coach revisa/edita y aprueba recomendaciones]
+    J --> K[Cliente ve 'Recomendaciones de Salud' en solo lectura + PDF y citas LiveKit]
 ```
 
-### 7.2 Flujo de Evaluación de Paciente
+### 7.2 Flujo de Renovación o Cambio de Plan y Fin de Programa
 
 ```mermaid
 graph TD
-    A[Paciente recibe invitación] --> B[Accede al sistema]
-    B --> C[Completa formulario inicial]
-    C --> D[Sistema valida respuestas]
-    D --> E[Sube documentos médicos]
-    E --> F[Extracción local + análisis Gemini]
-    F --> G[Coach revisa información]
-    G --> H[Coach crea plan de tratamiento]
-    H --> I[Paciente recibe feedback]
-```
-
-### 7.3 Flujo de Seguimiento Continuo
-
-```mermaid
-graph TD
-    A[Coach asigna formulario de seguimiento] --> B[Paciente recibe notificación]
-    B --> C[Paciente completa formulario]
-    C --> D[Sistema analiza respuestas]
-    D --> E[Genera alertas si hay cambios]
-    E --> F[Coach revisa progreso]
-    F --> G[Ajusta plan si es necesario]
-    G --> H[Comunica cambios al paciente]
+    A[Cliente abre 'Planes' /dashboard/plans] --> B[Compara los 5 programas y cupos en vivo]
+    B --> C[Selecciona renovación o siguiente nivel]
+    C --> D[Stripe Checkout + acumulación automática de meses y sesiones]
+    D --> E[Portal mantiene historial médico y evaluaciones previas]
+    E --> F{¿Ciclo y videollamadas concluidos?}
+    F -- No --> G[Seguimiento activo sin cinta de cierre]
+    F -- Sí --> H[Muestra banner de finalización y acceso a renovación]
 ```
 
 ---
@@ -632,150 +403,99 @@ graph TD
 ## 8. Stack Tecnológico
 
 ### 8.1 Frontend
-- **Framework:** Next.js 15.5.4 con App Router
+- **Framework:** Next.js 16.3.6 (Pages Router en Landing/Dashboard/Form; App Router en Blog/API)
 - **UI Library:** React 19.1.0
-- **Estilos:** Tailwind CSS 4.0 + PostCSS
+- **Estilos:** Tailwind CSS 4.0 / PostCSS
 - **Formularios:** React Hook Form + Yup
-- **Gráficos:** Barras con divs/SVG nativos (sin librería de charts; las finanzas usan barras CSS)
-- **Estado:** React Context + Zustand (si necesario)
+- **Exportación PDF:** `jsPDF` + `jspdf-autotable` (cliente) y descarga binaria API
+- **i18n:** `i18next` + `react-i18next` (6 idiomas)
 
 ### 8.2 Backend
 - **Runtime:** Node.js 18+
-- **Framework:** Next.js API Routes
-- **Base de Datos:** MongoDB 6.0 + Mongoose 8.0
-- **Autenticación:** JWT + bcrypt
-- **Email:** Resend + AWS SES
-- **Archivos:** AWS S3 + Multer
+- **Framework:** Next.js 16.3.6 API Routes (App Router)
+- **Base de Datos:** MongoDB 6.0 + Mongoose 8.0 (incl. cola `ai_jobs` y `plan_quotas`)
+- **Pagos:** Stripe Checkout, Stripe Connect & Webhooks idempotentes
+- **IA & Audio:** DeepSeek V4 Flash (`deepseek-chat`), Google Gemini (`gemini-2.5-flash` / `gemini-4-hydrogen`), Deepgram SDK 5.0
+- **Documentos y PDF:** `pdf-parse`, `mammoth`, `tesseract.js` (OCR fallback local), `pdfkit`, `sharp`
+- **Videollamadas:** LiveKit Cloud + `livekit-server-sdk`
+- **Email & Storage:** Resend + AWS SES (fallback), AWS S3
 
-### 8.3 Infraestructura
-- **Hosting:** Vercel (frontend) + AWS (backend services)
-- **CI/CD:** GitHub Actions
-- **Monitoreo:** Sentry + Datadog
-- **Logs:** AWS CloudWatch
-- **Cache:** Redis (si necesario)
-
-### 8.4 Desarrollo
-- **Lenguaje:** TypeScript 5.8
-- **Package Manager:** npm 9+
-- **Build System:** Turbo (monorepo)
-- **Linting:** ESLint + Prettier
-- **Testing:** Jest + React Testing Library + Cypress
+### 8.3 Infraestructura y Desarrollo
+- **Hosting:** Vercel Hobby (`maxDuration` <= 300s)
+- **Lenguaje & Monorepo:** TypeScript 5.8.3, Turbo, npm, ESLint
 
 ---
 
 ## 9. Roadmap de Desarrollo
 
-### Fase 1: MVP (Mes 1-3)
-- **Sprint 1:** Arquitectura base y autenticación
-- **Sprint 2:** Gestión básica de pacientes
-- **Sprint 3:** Formularios de evaluación inicial
-- **Sprint 4:** Dashboard básico y landing page
+### Fase 1-3: Plataforma Clínica Base, Blindaje Legal y Blog (Completadas)
+- Arquitectura monorepo, cifrado AES-256, bot detection, rate limiter y guardrails.
+- Cola propia sobre MongoDB (`ai_jobs`), traducción dinámica FASE 4 en 6 idiomas, generación PDF y blog multilingüe SEO (`apps/blog`).
+- Cumplimiento legal RGPD Art. 9, CCPA, ePrivacy CMP, FTC *Click to Cancel*, California AB 5, Pre-Call Consent Gate Deepgram y arbitraje JAMS.
 
-### Fase 2: Características Principales (Mes 4-6)
-- **Sprint 5:** Subida y procesamiento de documentos
-- **Sprint 6:** Sistema de mensajería segura
-- **Sprint 7:** Análisis avanzado y reportes
-- **Sprint 8:** Internacionalización y accesibilidad
-
-### Fase 3: Escalabilidad y Optimización (Mes 7-9)
-- **Sprint 9:** Performance y optimización
-- **Sprint 10:** Escalabilidad y alta disponibilidad
-- **Sprint 11:** Integraciones con sistemas de salud
-- **Sprint 12:** Preparación para lanzamiento público
-
-### Fase 4: Crecimiento y Expansión (Mes 10-12)
-- **Sprint 13:** Mobile app nativa
-- **Sprint 14:** Machine learning para predicciones
-- **Sprint 15:** Marketplace de coaches
-- **Sprint 16:** Expansión internacional
+### Fase 4: Portal de Clientes, 5 Planes Comerciales y IA por Programa (Completada - v1.5.0)
+- Catálogo comercial de 5 planes con Stripe Checkout, acumulación de créditos y control administrativo de cupos (`plan_quotas`) + filtro por plan en listado de clientes.
+- Portal unificado para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` OTP, 4 estados, banner condicional `programCompleted`).
+- Agenda automática de videollamadas con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación de planes IA en 3 semanas (`weeklyPhases` para *Reto Tres NEL*) vs. 4 semanas, análisis de fotos de recetas y selección de documentos de evaluación actual con OCR fallback.
 
 ---
 
 ## 10. Métricas de Éxito
 
-### 10.1 Métricas de Producto
-- **Adopción:** 100 coaches activos en 6 meses
-- **Retención:** 80% de coaches retenidos después de 3 meses
-- **Engagement:** 5 formularios completados por paciente/mes
-- **Satisfacción:** NPS > 70, CSAT > 85%
+### 10.1 Métricas de Producto y Negocio
+- **Conversión de Planes:** Activación sin fricción desde landing y portal con tasa de abandono reducida en registro OTP y Stripe Checkout.
+- **Control Operativo:** 0 sobreventas de cupos en programas con límite (`plan_quotas`).
+- **Adopción y Satisfacción:** NPS > 70, CSAT > 85% y eliminación de dudas sobre horarios de videollamada o estado de recomendaciones.
 
 ### 10.2 Métricas Técnicas
-- **Performance:** Page Load Time < 2s, TTFB < 500ms
-- **Disponibilidad:** 99.5% uptime
-- **Errores:** Error rate < 0.1%
-- **Seguridad:** 0 brechas de datos
-
-### 10.3 Métricas de Negocio
-- **Crecimiento:** 20% MoM growth en usuarios
-- **Ingresos:** $50k MRR en 12 meses
-- **Costo:** CAC < $100 por coach
-- **LTV:** LTV > 3x CAC
+- **Performance:** Page Load Time < 2s, respuestas de encolado IA < 1s.
+- **Disponibilidad y Calidad:** 99.5% uptime, 0 errores TypeScript/ESLint, 0 datos de prueba residuales en DB (`db-clean`).
 
 ---
 
 ## 11. Consideraciones de Seguridad
-
-### 11.1 Cumplimiento Normativo
-- **HIPAA:** Para datos de salud en EE.UU.
-- **GDPR:** Para usuarios en la Unión Europea
-- **LGPD:** Para usuarios en Brasil
-- **PIPEDA:** Para usuarios en Canadá
-
-### 11.2 Controles de Seguridad
-- **Autenticación:** MFA, contraseñas fuertes, lockout después de intentos
-- **Autorización:** RBAC con mínimo privilegio necesario
-- **Cifrado:** TLS 1.3, AES-256 para datos en reposo
-- **Auditoría:** Logs completos de todas las operaciones
-- **Backup:** Backup encriptados diarios, retención de 7 años
-
-### 11.3 Respuesta a Incidentes
-- **Detección:** Monitoreo 24/7, alertas automáticas
-- **Contención:** Plan de respuesta documentado
-- **Erradicación:** Procedimientos para eliminar amenazas
-- **Recuperación:** Plan de recuperación de desastres
-- **Lecciones:** Análisis post-incidente y mejora
+- **Cumplimiento Normativo:** HIPAA-ready, GDPR/RGPD Art. 9, LGPD, CCPA/CPRA, Cal. Penal Code § 632.
+- **Controles Técnicos:** Autenticación JWT multi-rol, OTP temporal hasheado, RBAC estricto (clientes solo acceden a sus datos y sesiones `approved`/`sent`), TLS 1.3+, AES-256 en reposo y prevención de secretos hardcodeados verificada antes de cada push.
 
 ---
 
 ## 12. Consideraciones de Privacidad y Cumplimiento Regulatorio
 
 ### 12.1 Principios de Privacidad y Consentimiento Desacoplado (RGPD Art. 9)
-- **Consentimiento Granular:** En el formulario de onboarding (`apps/form`), las casillas legales están estrictamente desacopladas (Términos/Privacidad, Datos de Salud Sensibles, Renuncia a desistimiento y Marketing opcional). Ninguna casilla se presenta premarcada.
-- **Transparencia en IA (DeepSeek & Google Gemini):** Información clara sobre el uso de modelos de lenguaje para asistir en la redacción de planes, con cláusula expresa de no entrenamiento con datos biomédicos del usuario y supervisión humana obligatoria del Coach.
-- **Gestión de Cookies (ePrivacy / EDPB / AEPD):** Banner de cookies CMP con bloqueo preventivo de scripts de terceros, caducidad a 180 días y respeto automático de señales de privacidad del navegador (*Global Privacy Control - GPC*).
+- **Consentimiento Granular:** Casillas estrictamente desacopladas en onboarding (`apps/form` y `ClientHealthForm`), sin premarcado.
+- **Transparencia en IA (DeepSeek & Google Gemini):** Aviso explícito de asistencia IA sin entrenamiento con datos biomédicos y supervisión humana obligatoria del coach antes de habilitar recomendaciones en el portal del cliente.
+- **Gestión de Cookies (ePrivacy / EDPB / AEPD):** Banner CMP con bloqueo preventivo y respeto de señales *Global Privacy Control (GPC)*.
 
 ### 12.2 Blindaje Comercial y de Telecomunicaciones
-- **Grabación y Transcripción en Videollamadas (LiveKit & Deepgram):** Pantalla obligatoria de consentimiento previo (*Pre-call Consent Gate*) para participantes antes de ingresar a la sala, en cumplimiento de legislaciones de telecomunicaciones de dos partes (California Cal. Penal Code § 632).
-- **Cancelación Sin Fricción (*Click to Cancel* - FTC & California ARL):** Portal directo en `/dashboard/trial/cancel` permitiendo cancelar suscripciones en 1 clic sin llamadas forzosas.
-- **Protección de Contratista Independiente (California AB 5 / ABC Test):** Contrato de coaches articulado formalmente para blindar la independencia profesional del asesor, sin subordinación laboral ni exclusividad.
-- **Arbitraje Individual Vinculante y Renuncia a Demandas Colectivas (JAMS):** Cláusula de resolución de disputas vinculante administrada por JAMS en Riverside County, California, con *Class Action Waiver* en los contratos de clientes y coaches.
+- **Grabación y Transcripción en Videollamadas (LiveKit & Deepgram):** Puerta obligatoria de consentimiento previo (*Pre-call Consent Gate*) y control de ventana de acceso (15 min antes de la cita).
+- **Cancelación Sin Fricción (*Click to Cancel* - FTC & California ARL):** Portal `/dashboard/trial/cancel` en 1 clic.
+- **Protección de Contratista Independiente (California AB 5) y Arbitraje JAMS:** Contrato de coaches y arbitraje individual vinculante en Riverside County, CA.
 
 ### 12.3 Derechos de los Usuarios (ARCO / RGPD / CCPA)
-- **Acceso y Rectificación:** Solicitud de expedientes y rectificación de métricas en cualquier momento.
-- **Eliminación y Olvido:** Supresión segura de expedientes médicos y biomarcadores tras la finalización del servicio, respetando plazos fiscales obligatorios (5 a 7 años para registros tributarios).
-- **No Venta ni Compartición de Datos (*Do Not Sell or Share*):** Cumplimiento estricto de la ley de California (CCPA/CPRA).
+- Acceso a historial médico y descarga de recomendaciones en PDF en solo lectura, rectificación de métricas, supresión segura respetando plazos fiscales obligatorios y política estricta *Do Not Sell or Share*.
 
 ---
 
 ## 13. Apéndices
 
 ### 13.1 Glosario de Términos
-- **Coach de Salud:** Profesional certificado que provee coaching de salud
-- **Paciente:** Individuo que recibe servicios de coaching
-- **Formulario de Evaluación:** Cuestionario estructurado para evaluar salud
-- **Extracción local de documentos:** Proceso con dependencias propias (pdf-parse para PDF, mammoth para DOCX, tesseract.js/PaddleOCR para imágenes) — sin AWS Textract
-- **JWT:** JSON Web Token para autenticación
+- **Coach de Salud:** Profesional certificado que supervisa expedientes, aprueba planes y atiende videollamadas.
+- **Portal de Cliente:** Interfaz autenticada (`client`) en `apps/dashboard` para seguimiento de plan, agenda y recomendaciones aprobadas.
+- **Cupos por Plan (`plan_quotas`):** Límite operativo administrado por el coach/admin para restringir o pausar inscripciones por programa.
+- **Extracción local de documentos:** Proceso con dependencias propias (`pdf-parse`, `mammoth`, OCR fallback para PDFs escaneados) sin AWS Textract.
 
 ### 13.2 Referencias
 - [Documentación de Next.js](https://nextjs.org/docs)
 - [Guías de HIPAA Compliance](https://www.hhs.gov/hipaa)
-- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected)
 - [WCAG 2.1 Guidelines](https://www.w3.org/TR/WCAG21)
+- [Stripe Checkout & Connect Docs](https://stripe.com/docs)
 
 ### 13.3 Historial de Revisiones
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
+| 1.5.0   | 2026-11-24  | Equipo Desarrollo   | Portal completo para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` con OTP 6 dígitos, 4 estados y cinta condicional `programCompleted`), catálogo comercial de 5 planes con Stripe Checkout y acumulación de créditos al renovar/cambiar, control de cupos por plan (`plan_quotas`, `409 QUOTA_FULL`, filtro por plan en listado de clientes), agenda LiveKit con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación IA por plan (`weeklyPhases` 3 semanas en Reto Tres NEL vs. 4 semanas en planes mensuales), visor de solo lectura + PDF para clientes, análisis de imagen de recetas, selección de documentos por sesión actual + OCR fallback y suite TDD ampliada (`client-plans-flow` 81 checks, `plan-quotas` 21 checks, `document-selection`, `free-sessions`, `waitlist`). |
+| 1.4.0   | 2026-10-20  | Equipo Desarrollo   | Consolidación de extracción local (OCR/pdf-parse/mammoth) con DeepSeek V4 Flash primario y Gemini 2.5 Flash fallback, mejoras de accesibilidad WCAG 2.1 AA, skeletons Anti-AI y sincronización multi-idioma en 6 idiomas. |
 | 1.3.0   | 2026-10-08  | Equipo Desarrollo   | Blindaje legal completo (RGPD Art. 9, CCPA, cookies CMP, FTC Click to Cancel, California AB 5 y arbitraje JAMS), incorporación formal de apps/blog (76 tests), calificador inteligente de leads con score de compromiso (1-10) en landing, Navbar adaptativo contextual para páginas legales, integración formal de DeepSeek V4 Flash (primario), Google Gemini (fallback) y Deepgram en toda la documentación técnica. |
 | 1.2.0   | 2026-08-12  | Equipo Desarrollo   | Traducción dinámica del contenido IA (FASE 4, 6 idiomas + PDF), cola propia de trabajos sobre MongoDB (worker-on-poll, 202 queued, lease/reintentos), regeneración encolada, suite de tests TDD con perfiles desechables (259 checks + security gate OWASP), despliegue en producción (Vercel Hobby, maxDuration 300), extracción de documentos con dependencias propias (pdf-parse/mammoth/OCR) + Gemini secundario (sin AWS Textract), stacks de dashboard/landing/form corregidos contra la implementación real |
 | 1.1.0   | 2026-06-18  | Equipo Desarrollo   | Dashboard i18n completo (6 idiomas, namespaces coaches/recipes/exercises), gestión de coaches, documentación actualizada |

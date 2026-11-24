@@ -269,10 +269,10 @@ export function evaluateProgramCompletionState(params: {
   videoSessions?: Array<{ status?: unknown; scheduledAt?: unknown }>;
   nowMs?: number;
 }): ProgramCompletionEvaluation {
-  const nowMs = typeof params.nowMs === "number" ? params.nowMs : Date.now();
+  const nowMs = typeof params.nowMs === 'number' ? params.nowMs : Date.now();
   const paidProgramPlans = (params.purchasedPlans || [])
     .filter((item) => {
-      if (item?.status !== "paid" || typeof item.planId !== "string") return false;
+      if (item?.status !== 'paid' || typeof item.planId !== 'string') return false;
       const plan = getPlanById(item.planId);
       return Boolean(plan && plan.maxMonths > 0);
     })
@@ -308,8 +308,8 @@ export function evaluateProgramCompletionState(params: {
   const timeCompleted = cycleEndMs > 0 && nowMs >= cycleEndMs;
   const twoHoursMs = 2 * 60 * 60 * 1000;
   const hasUpcomingVideoSession = (params.videoSessions || []).some((vs) => {
-    const status = typeof vs?.status === "string" ? vs.status : "";
-    if (status !== "scheduled" && status !== "active") return false;
+    const status = typeof vs?.status === 'string' ? vs.status : '';
+    if (status !== 'scheduled' && status !== 'active') return false;
     if (!vs?.scheduledAt) return true;
     const scheduledMs = new Date(String(vs.scheduledAt)).getTime();
     if (Number.isNaN(scheduledMs)) return true;
@@ -323,6 +323,168 @@ export function evaluateProgramCompletionState(params: {
     cycleEndAt: cycleEndMs > 0 ? new Date(cycleEndMs) : null,
     isCompleted: timeCompleted && !hasUpcomingVideoSession,
   };
+}
+
+export const VIDEO_JOIN_EARLY_WINDOW_MS = 15 * 60 * 1000;
+export const VIDEO_JOIN_GRACE_AFTER_END_MS = 30 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface ClientScheduledVideoSlot {
+  sessionId: string;
+  sessionNumber: number;
+  roomName: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  timezone: string;
+  status: 'pending_schedule' | 'scheduled' | 'in_progress' | 'active' | 'completed' | 'cancelled' | string;
+  isEstimated: boolean;
+  canJoin: boolean;
+  unlocksAt: string | null;
+  planId: string | null;
+  planName: string | null;
+}
+
+export function buildClientVideoSessionSchedule(params: {
+  purchasedPlans: Array<{ planId?: unknown; status?: unknown; purchasedAt?: unknown }> | undefined;
+  rawVideoSessions?: Array<Record<string, unknown>>;
+  nowMs?: number;
+}): ClientScheduledVideoSlot[] {
+  const nowMs = typeof params.nowMs === 'number' ? params.nowMs : Date.now();
+  const paidProgramPlans = (params.purchasedPlans || [])
+    .filter((item) => {
+      if (item?.status !== 'paid' || typeof item.planId !== 'string') return false;
+      const plan = getPlanById(item.planId);
+      return Boolean(plan && plan.maxMonths > 0);
+    })
+    .map((item) => ({
+      planId: String(item.planId),
+      purchasedAtMs: item.purchasedAt ? new Date(String(item.purchasedAt)).getTime() : NaN,
+    }))
+    .sort((a, b) => {
+      const aTime = Number.isNaN(a.purchasedAtMs) ? nowMs : a.purchasedAtMs;
+      const bTime = Number.isNaN(b.purchasedAtMs) ? nowMs : b.purchasedAtMs;
+      return aTime - bTime;
+    });
+
+  // 1. Generar los slots esperados de acuerdo a la fecha de inscripción y los planes contratados
+  const expectedSlots: Array<{
+    sessionNumber: number;
+    projectedAtMs: number;
+    planId: string;
+    planName: string;
+  }> = [];
+
+  let cycleEndMs = 0;
+  let globalSessionNum = 1;
+
+  for (const item of paidProgramPlans) {
+    const plan = getPlanById(item.planId);
+    if (!plan) continue;
+    const rawStartMs = !Number.isNaN(item.purchasedAtMs) ? item.purchasedAtMs : nowMs;
+    const cycleStartMs = Math.max(cycleEndMs, rawStartMs);
+    const durationMs = getPlanDurationDays(plan) * DAY_MS;
+    cycleEndMs = cycleStartMs + durationMs;
+
+    const count = plan.livekitSessionsIncluded || 0;
+    for (let i = 1; i <= count; i++) {
+      const offsetDays = plan.id === 'reto_tres_nel' ? 21 : i * 30;
+      expectedSlots.push({
+        sessionNumber: globalSessionNum++,
+        projectedAtMs: cycleStartMs + offsetDays * DAY_MS,
+        planId: plan.id,
+        planName: plan.name,
+      });
+    }
+  }
+
+  // 2. Normalizar y ordenar sesiones reales creadas por el coach
+  const rawSessions = [...(params.rawVideoSessions || [])].sort(
+    (a, b) => Number(a.sessionNumber || 0) - Number(b.sessionNumber || 0)
+  );
+  const usedRawIndices = new Set<number>();
+
+  const toSlotFromReal = (
+    raw: Record<string, unknown>,
+    fallbackNumber: number,
+    planId: string | null,
+    planName: string | null
+  ): ClientScheduledVideoSlot => {
+    const status = String(raw.status || 'scheduled');
+    const durationMinutes = Number(raw.durationMinutes || 45);
+    const scheduledMs = raw.scheduledAt ? new Date(String(raw.scheduledAt)).getTime() : NaN;
+    const validScheduledMs = !Number.isNaN(scheduledMs);
+
+    let canJoin = false;
+    let unlocksAt: string | null = null;
+
+    if (status === 'active' || status === 'in_progress') {
+      canJoin = true;
+    } else if (status === 'scheduled' && validScheduledMs) {
+      const windowStart = scheduledMs - VIDEO_JOIN_EARLY_WINDOW_MS;
+      const windowEnd = scheduledMs + durationMinutes * 60 * 1000 + VIDEO_JOIN_GRACE_AFTER_END_MS;
+      canJoin = nowMs >= windowStart && nowMs <= windowEnd;
+      if (nowMs < windowStart) {
+        unlocksAt = new Date(windowStart).toISOString();
+      }
+    }
+
+    return {
+      sessionId: String(raw.sessionId || `vs_${fallbackNumber}`),
+      sessionNumber: Number(raw.sessionNumber || fallbackNumber),
+      roomName: String(raw.roomName || ''),
+      scheduledAt: validScheduledMs ? new Date(scheduledMs).toISOString() : new Date(nowMs).toISOString(),
+      durationMinutes,
+      timezone: String(raw.timezone || 'UTC'),
+      status,
+      isEstimated: false,
+      canJoin,
+      unlocksAt,
+      planId,
+      planName,
+    };
+  };
+
+  const result: ClientScheduledVideoSlot[] = [];
+
+  for (const expected of expectedSlots) {
+    let matchedIdx = rawSessions.findIndex(
+      (rs, idx) => !usedRawIndices.has(idx) && Number(rs.sessionNumber) === expected.sessionNumber
+    );
+    if (matchedIdx === -1) {
+      matchedIdx = rawSessions.findIndex((_, idx) => !usedRawIndices.has(idx));
+    }
+
+    if (matchedIdx !== -1) {
+      usedRawIndices.add(matchedIdx);
+      result.push(
+        toSlotFromReal(rawSessions[matchedIdx], expected.sessionNumber, expected.planId, expected.planName)
+      );
+    } else {
+      result.push({
+        sessionId: `planned_${expected.planId}_${expected.sessionNumber}`,
+        sessionNumber: expected.sessionNumber,
+        roomName: '',
+        scheduledAt: new Date(expected.projectedAtMs).toISOString(),
+        durationMinutes: 45,
+        timezone: 'UTC',
+        status: 'pending_schedule',
+        isEstimated: true,
+        canJoin: false,
+        unlocksAt: null,
+        planId: expected.planId,
+        planName: expected.planName,
+      });
+    }
+  }
+
+  // Incluir cualquier sesión adicional creada por el coach que exceda los slots base
+  rawSessions.forEach((rs, idx) => {
+    if (!usedRawIndices.has(idx)) {
+      result.push(toSlotFromReal(rs, result.length + 1, null, null));
+    }
+  });
+
+  return result;
 }
 
 export function calculateTotalAllowedMonths(

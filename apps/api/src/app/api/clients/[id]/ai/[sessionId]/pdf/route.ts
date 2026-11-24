@@ -183,6 +183,16 @@ async function getHandler(
       status: (safeDecrypt(lab.status || '') || lab.status || 'normal') as 'normal' | 'alto' | 'bajo',
     }));
     
+    const weeklyPhases = Array.isArray(session.weeklyPhases)
+      ? (session.weeklyPhases as NonNullable<AIRecommendationSession['weeklyPhases']>).map((phase) => ({
+          weekNumber: phase.weekNumber,
+          title: safeDecrypt(phase.title || "") || phase.title || "",
+          nutritionFocus: safeDecrypt(phase.nutritionFocus || "") || phase.nutritionFocus || "",
+          exerciseFocus: safeDecrypt(phase.exerciseFocus || "") || phase.exerciseFocus || "",
+          habitFocus: safeDecrypt(phase.habitFocus || "") || phase.habitFocus || "",
+        }))
+      : undefined;
+
     const weeks = ((session.weeks || []) as AIRecommendationSession['weeks']).map((week) => ({
       weekNumber: week.weekNumber,
       nutrition: {
@@ -422,6 +432,7 @@ async function getHandler(
     let medicalSummaryOut = medicalSummary;
     let medicalComparativeAnalysisOut = medicalComparativeAnalysis;
     let labResultsOut = labResults;
+    let weeklyPhasesOut = weeklyPhases;
     let weeksOut = weeks;
     let checklistOut = checklist;
     type RawStructuredMed = NonNullable<AIRecommendationSession['structuredMedicalAnalysis']>;
@@ -458,6 +469,7 @@ async function getHandler(
           medicalSummary: medicalSummaryOut,
           medicalComparativeAnalysis: medicalComparativeAnalysisOut,
           structuredMedicalAnalysis: structuredMedicalAnalysisOut,
+          weeklyPhases: weeklyPhasesOut,
           weeks: weeksOut,
           checklist: checklistOut,
           labResults: labResultsOut,
@@ -471,6 +483,7 @@ async function getHandler(
       medicalSummaryOut = translatedSession.medicalSummary ?? medicalSummaryOut;
       medicalComparativeAnalysisOut = translatedSession.medicalComparativeAnalysis ?? medicalComparativeAnalysisOut;
       structuredMedicalAnalysisOut = translatedSession.structuredMedicalAnalysis ?? structuredMedicalAnalysisOut;
+      weeklyPhasesOut = translatedSession.weeklyPhases ?? weeklyPhasesOut;
       weeksOut = translatedSession.weeks ?? weeksOut;
       checklistOut = translatedSession.checklist ?? checklistOut;
       labResultsOut = translatedSession.labResults ?? labResultsOut;
@@ -557,7 +570,8 @@ async function getHandler(
 
     const pdfData: PDFRecommendationData = {
       client: { name: clientName, photoBuffer: clientPhotoBuffer, sex: clientSex, age: clientAge, weight: clientWeight, height: clientHeight },
-      session: { summary: summaryOut, vision: visionOut, medicalSummary: medicalSummaryOut, medicalComparativeAnalysis: medicalComparativeAnalysisOut, labResults: labResultsOut, structuredMedicalAnalysis: structuredMedicalAnalysisOut, index: sessionIndex },
+      session: { summary: summaryOut, vision: visionOut, medicalSummary: medicalSummaryOut, medicalComparativeAnalysis: medicalComparativeAnalysisOut, labResults: labResultsOut, structuredMedicalAnalysis: structuredMedicalAnalysisOut, totalWeeks: session.totalWeeks, index: sessionIndex },
+      weeklyPhases: weeklyPhasesOut,
       checklist: checklistOut,
       weeks: weeksOut,
       recipes,

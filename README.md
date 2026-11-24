@@ -8,18 +8,20 @@
 ![React](https://img.shields.io/badge/React-19.1.0-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6)
 ![MongoDB](https://img.shields.io/badge/MongoDB-6.0.0-47A248)
+![Stripe](https://img.shields.io/badge/Payments-Stripe%20Checkout%20%26%20Connect-635BFF)
 ![DeepSeek](https://img.shields.io/badge/AI-DeepSeek%20V4%20Flash-blue)
-![Gemini](https://img.shields.io/badge/AI%20Fallback-Google%20Gemini%202.5-4285F4)
+![Gemini](https://img.shields.io/badge/AI%20Fallback-Google%20Gemini-4285F4)
 ![Deepgram](https://img.shields.io/badge/Audio-Deepgram%20SDK%205.0-13EF93)
 ![Compliance](https://img.shields.io/badge/Legal-RGPD%20%7C%20CCPA%20%7C%20JAMS-success)
 
-**Una plataforma moderna para coaching de salud con agentes de IA multi-experto y flujos de trabajo asíncronos**
+**Una plataforma moderna para coaching de salud con portal de clientes, 5 programas comerciales, agentes de IA diferenciados por plan y flujos asíncronos**
 
 </div>
 
 ## 📋 Tabla de Contenidos
 
 - [✨ Características Principales](#-características-principales)
+- [💳 Modelo Comercial y Portal de Clientes](#-modelo-comercial-y-portal-de-clientes)
 - [🤖 Sistema de Agentes de IA](#-sistema-de-agentes-de-ia)
 - [🔄 Flujos Asíncronos (Cola Propia)](#-flujos-asíncronos-cola-propia)
 - [🌐 SEO Técnico, Sitemaps e Indexación](#-seo-técnico-sitemaps-e-indexación)
@@ -29,7 +31,8 @@
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
 - [📁 Estructura del Proyecto](#-estructura-del-proyecto)
 - [⚙️ Configuración y Desarrollo](#️-configuración-y-desarrollo)
-- [🔧 Scripts Disponibles](#️-scripts-disponibles)
+- [🔧 Scripts Disponibles](#-scripts-disponibles)
+- [🧪 Testing (TDD)](#-testing-tdd)
 - [🌐 Despliegue](#-despliegue)
 - [🤝 Contribución](#-contribución)
 - [📄 Licencia](#-licencia)
@@ -37,90 +40,81 @@
 ## ✨ Características Principales
 
 ### ⚖️ **Blindaje Legal, Regulatorio y de Privacidad (Compliance)**
-- **RGPD Art. 9 & CCPA/CPRA**: Casillas de consentimiento estrictamente desacopladas para el tratamiento de datos de salud y categorías especiales en el formulario de clientes.
+- **RGPD Art. 9 & CCPA/CPRA**: Casillas de consentimiento estrictamente desacopladas para el tratamiento de datos de salud y categorías especiales en el formulario de clientes (`apps/form` y `ClientHealthForm`).
 - **Gestión de Cookies Conforme (ePrivacy & AEPD)**: Bloqueo preventivo de cookies analíticas de terceros, caducidad a 180 días, sin parpadeos vía `useSyncExternalStore` y respeto automático de señales de privacidad del navegador (*Global Privacy Control - GPC*).
-- **Gobernanza de IA Segura**: Garantía contractual de no reentrenamiento de modelos comerciales con datos de salud y supervisión humana obligatoria del coach antes de la entrega de planes.
-- **Telecomunicaciones y Grabación**: Puerta de consentimiento previo (*Pre-call Consent Gate*) para participantes de videollamadas antes de activar la transcripción de LiveKit/Deepgram.
+- **Gobernanza de IA Segura**: Garantía contractual de no reentrenamiento de modelos comerciales con datos de salud y supervisión humana obligatoria del coach antes de aprobar y entregar planes al cliente.
+- **Telecomunicaciones y Grabación**: Puerta de consentimiento previo (*Pre-call Consent Gate*) para participantes de videollamadas antes de activar la transcripción de LiveKit/Deepgram, junto con apertura controlada a 15 minutos antes de la cita.
 - **Protección Laboral (California AB 5 / ABC Test)**: Contrato de coaches diseñado para blindar la condición de contratista independiente e indemnización cruzada a favor de la empresa.
 - **Consumo y Cancelaciones (FTC & California ARL)**: Cancelación en 1 clic de suscripciones de prueba en `/dashboard/trial/cancel`.
 - **Arbitraje Vinculante Individual (JAMS)**: Resolución de controversias mediante arbitraje administrado por JAMS en Riverside County, CA con renuncia a demandas colectivas (*Class Action Waiver*).
 
 ### 🎯 **Plataforma Integral**
-- **Monorepo** con múltiples aplicaciones independientes
-- **Arquitectura modular** y escalable
-- **Compartición de tipos** entre aplicaciones
-- **Desarrollo simultáneo** de todas las apps
-- **i18n multi-idioma** integrado en todas las apps frontend (con detección automática del navegador y soporte RTL)
+- **Monorepo** con **5 aplicaciones independientes** (`landing`, `blog`, `form`, `dashboard`, `api`)
+- **Arquitectura modular** con tipos compartidos en `@nel/types`
+- **Experiencia dual Coach / Cliente** bajo autenticación JWT multi-rol (`coach`, `admin`, `client`)
+- **i18n multi-idioma completo** en 6 idiomas (`es`, `en`, `fr`, `it`, `pt`, `de`) tanto para interfaz administrativa como para todo el portal del cliente, planes IA y PDFs
 
-### 🏥 **Funcionalidades de Salud**
-- **Gestión de pacientes** y seguimiento de salud
-- **Formularios inteligentes** para evaluación médica (con React Hook Form + Yup)
-- **Dashboard analítico** para coaches con recomendaciones de IA
-- **Landing page** profesional y atractiva con **i18n multi-idioma** (es, en, fr, it, pt, de)
-- **API RESTful** para integraciones
+### 💳 **Modelo Comercial y Portal de Clientes**
+- **Catálogo de 5 Programas Comerciales** sincronizado desde `apps/api/src/app/lib/plans.ts`:
+  - `consult_1on1` (*Consulta 1 a 1*): sesión diagnóstica individual con reserva directa sin exigir registro previo ni botones de WhatsApp post-sesión innecesarios.
+  - `reto_tres_nel` (*Reto Tres NEL: Reinicio Ancestral y Circadiano*): programa intensivo de **3 semanas** con enfoque progresivo diferenciado (`weeklyPhases`), 1 videollamada y seguimiento.
+  - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas**.
+  - `plan_2_transformacion` (*Plan 2 — Transformación Profunda*): seguimiento multi-mes con evaluaciones, videollamadas mensuales y comparativa de biomarcadores.
+  - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido multi-mes de seguimiento continuo.
+- **Stripe Checkout & Acumulación de Créditos**: Pagos únicos vía `/api/payments/plan-checkout`, confirmación idempotente (`confirm-plan` + webhooks) y acumulación automática de meses/evaluaciones y videollamadas al renovar o cambiar de plan.
+- **Control de Cupos en Tiempo Real (`plan_quotas`)**: El coach/administrador ajusta límites o pausa planes desde el dashboard de clientes; cuando el cupo se llena, la API responde `409 QUOTA_FULL` y la UI muestra **Cupos no disponibles** en Landing y `/dashboard/plans`.
+- **Filtro por Plan en Dashboard**: Listado de clientes con agrupación y filtro por plan contratado (`planId`).
+- **Portal de Clientes (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`)**:
+  - Registro verificado por **OTP de 6 dígitos** en `/register/client`.
+  - Sidebar limpio exclusivo para rol `client`: **Inicio**, **Planes**, acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
+  - **4 estados adaptativos** en `Inicio`: sin plan contratado, Consulta 1 a 1, historial clínico pendiente (`ClientHealthForm` embebido) y programa activo/completado.
+  - **Cinta de finalización condicional**: visible únicamente cuando `programCompleted === true` (duración concluida y sin videollamadas pendientes).
+  - **Recomendaciones de Salud en Solo Lectura + PDF**: Muestra estado en análisis por el asesor o recomendaciones ya aprobadas (`approved`/`sent`) con visor de solo lectura y descarga directa en PDF en 6 idiomas.
 
-### 🤖 **IA Multi-Experto (LangGraph)**
-- **6 agentes especializados** que colaboran en la generación de recomendaciones
-- **Perfil completo del cliente** compartido entre todos los agentes
-- **Análisis médico con enfoque keto** — interpretación de laboratorios bajo rangos de referencia adaptados a metabolismo bajo en carbohidratos, con atención a electrolitos (sodio, potasio, magnesio)
-- **Planificación nutricional** personalizada en ciclos de **4 semanas (1 mes)**, considerando suplementos existentes para evitar duplicación
-- **Plan de ejercicios** adaptado al nivel y condiciones del cliente
-- **Diseño de hábitos** progresivos y sostenibles
-- **Generación de lista de compras** con deduplicación por ítem y orden por prioridad
-- **Validación de calidad** con loop de revisión automático
-- **Procesamiento de documentos**: extracción LOCAL de texto (PDF con pdf-parse, DOCX con mammoth, imágenes con OCR) + Gemini como secundario (analiza el texto extraído para biomarcadores y resúmenes)
+### 🏥 **Funcionalidades Clínicas y de Contenido**
+- **Gestión de pacientes** y expedientes médicos cifrados (AES-256)
+- **Selección inteligente de documentos (`document-selection.ts`)**: Analiza únicamente los archivos pertenecientes a la evaluación en curso (más resumen clínico de sesiones previas), evitando mezclar estudios antiguos; incluye **OCR fallback local** para PDFs escaneados.
+- **Análisis nutricional por fotografía de recetas** (`/api/recipes/analyze-image`) y catálogo completo de recetas y ejercicios.
+
+### 🤖 **IA Multi-Experto y Pipeline Diferenciado por Plan**
+- **Motor Principal DeepSeek V4 Flash** + **Fallback automático a Google Gemini** en runtime.
+- **Análisis médico con óptica keto** — interpretación de laboratorios bajo rangos de referencia adaptados a metabolismo bajo en carbohidratos, con atención a electrolitos (sodio, potasio, magnesio).
+- **Diferenciación automática según programa**:
+  - **Reto Tres NEL (3 semanas)**: Genera `weeklyPhases` con enfoque distinto para cada una de las 3 semanas.
+  - **Planes mensuales (`plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`)**: Mantiene ciclos completos de **4 semanas**.
+- **Plan nutricional, ejercicios, hábitos y lista de compras** con validación y regeneración encolada.
+- **Procesamiento de documentos**: extracción LOCAL de texto (PDF con `pdf-parse`, DOCX con `mammoth`, imágenes y PDFs escaneados con `tesseract.js`/OCR) + Gemini como secundario sobre el texto extraído.
 
 ### 🌍 **Traducción Dinámica Multi-Idioma (FASE 4)**
-- El pipeline genera SIEMPRE el plan en español (los títulos de recetas deben matchear la DB) y después traduce todo el contenido visible al **idioma del cliente** (`language` en `personalData`: es/en/fr/it/pt/de)
-- **Detección heurística de idioma de origen** de recetas/ejercicios (stopwords, sin LLM)
-- **Traducción por lotes JSON** con DeepSeek: resúmenes, análisis médico, semanas, lista de compras, hábitos y checklist — conservando estructura, IDs, enums y unidades intactos
-- **Paralelización con concurrencia limitada** (2) + `maxTokens` dinámico para acortar FASE 4 sin provocar 503
-- **Traducción de recetas/ejercicios para el PDF** según su idioma real de origen
-- **Resiliencia**: si la traducción falla, se devuelve el texto ORIGINAL (nunca se rompe la generación ni el PDF)
-- **Banner informativo** en el dashboard cuando la sesión está traducida
+- El pipeline genera SIEMPRE el plan en español (para alinear títulos de recetas en DB) y traduce todo el contenido visible al **idioma del cliente** (`language` en `personalData`: `es`/`en`/`fr`/`it`/`pt`/`de`).
+- **Detección heurística de idioma de origen** de recetas/ejercicios (stopwords, sin LLM).
+- **Traducción por lotes JSON** conservando estructura, `weeklyPhases`, IDs, enums y unidades intactos.
+- **Traducción en PDF** (`recommendation-pdf.ts`) y **banner informativo** cuando la sesión fue traducida, con resiliencia ante fallos.
 
 ### 🔄 **Flujos Asíncronos (Cola Propia sobre MongoDB)**
-- **Cola de trabajos 100% propia** sobre MongoDB (patrón *worker-on-poll*, sin servicios externos):
-  - `POST/PUT /api/clients/[id]/ai` → **encola y responde 202** `{status:'queued', jobId}` en <1s (antes: request síncrono de 60-240s con riesgo de timeout)
-  - El **polling del frontend** (GET) reclama el job ATOMICAMENTE y ejecuta el pipeline completo como worker
-  - **Lease de 6 min + reintentos (máx 3)**: si el worker muere por timeout, el job se re-ejecuta; tras agotar intentos, error visible en la UI
-  - **Idempotencia**: dobles clics reutilizan el mismo job (índice único en Mongo)
-  - **Regeneración de sesiones** también encolada (PUT `regenerate_session` → 202)
-- **Transcripción de sesiones** con Deepgram
-- **Reintento automático** ante fallos
+- **Cola de trabajos 100% propia** sobre MongoDB (`ai_jobs`, patrón *worker-on-poll*, sin servicios externos):
+  - `POST/PUT /api/clients/[id]/ai` → **encola y responde 202** `{status:'queued', jobId}` en <1s.
+  - El **polling del frontend** (`GET`) reclama el job atómicamente y ejecuta el pipeline como worker.
+  - **Lease de 6 min + reintentos (máx 3)**: si el worker muere por timeout, el job se re-ejecuta; tras agotar intentos, error visible en la UI (oculto para el rol `client`).
+  - **Idempotencia** y **regeneración de sesiones** encolada.
+- **Transcripción de sesiones** con Deepgram SDK 5.0.
 
-### 📹 **Videollamadas con LiveKit**
-- **Agendamiento de sesiones** con selección de fecha, hora, duración y notas
-- **Detección automática de zona horaria** del coach mediante `Intl.DateTimeFormat`
-- **Salas seguras** con cifrado DTLS-SRTP (WebRTC)
-- **Tokens JWT temporales** para clientes (7 días de validez)
-- **Notificaciones por email** con enlace de acceso único
-- **Grabación cifrada** en AWS S3
-- **Transcripción automática** con Deepgram
-- **Webhooks** para eventos de sala (sesión iniciada, grabación lista, sesión terminada)
+### 📹 **Videollamadas con LiveKit y Ventana de Acceso**
+- **Agenda automática por plan (`buildClientVideoSessionSchedule`)**: Proyecta automáticamente las fechas estimadas de las videollamadas incluidas desde la fecha de inscripción (p. ej. día 21 en *Reto Tres NEL*, mensual cada 30 días en Planes 2 y 3) o refleja las citas confirmadas por el coach.
+- **Control temporal de ingreso (`/video/join` y `/api/video/token`)**: El botón *Unirse a Videollamada* permanece en gris deshabilitado y la API responde `403 SESSION_NOT_YET_STARTED` hasta **15 minutos antes** de la hora programada.
+- **Pre-Call Consent Gate**: Consentimiento expreso previo de grabación y transcripción con Deepgram antes de entrar a la sala WebRTC.
+- **Salas seguras** con DTLS-SRTP, tokens JWT temporales, grabación cifrada en AWS S3 y webhooks.
 
-### 📖 **Gestión de Recetas**
-- **Catálogo completo** con búsqueda, filtros y etiquetas
-- **Análisis nutricional por IA** con cálculo de macros y ratio keto
-- **Modal interactivo** con edición y vista de detalle
-- **Asociación a planes semanales** de nutrición
-
-### 🏋️ **Gestión de Ejercicios**
-- **Biblioteca de ejercicios** con categorías, grupos musculares y niveles de dificultad
-- **Búsqueda y filtros** avanzados
-- **CRUD completo** con modal de creación/edición
-- **Asignación a planes semanales** personalizados
+### 📖 **Gestión de Recetas y Ejercicios**
+- **Recetas**: Catálogo con búsqueda/filtros, cálculo de macros, ratio keto y **análisis nutricional automático desde fotografía** (`POST /api/recipes/analyze-image`).
+- **Ejercicios**: Biblioteca con categorías, grupos musculares, niveles de dificultad y CRUD con propuestas de edición entre coach y admin.
 
 ### 🔒 **Seguridad y Confiabilidad**
-- **Autenticación JWT** para usuarios (coaches y administradores)
-- **FingerprintJS** — huella digital del navegador en todas las apps frontend
-- **Detección de bots** con reglas de fingerprinting (User-Agent, headers, Client Hints, Sec-Fetch-*)
-- **Rate limiting** basado en MongoDB
-- **Protección contra prompt injection** a nivel HTTP
-- **Guardrails** para agentes de IA
-- **Cifrado AES** de datos sensibles (PII, resultados médicos)
-- **Subida segura de archivos** a AWS S3 (con firma de URLs)
-- **Security headers** configurados en Next.js
+- **Autenticación JWT multi-rol** (`coach`, `admin`, `client`) + OTP de 6 dígitos para registro de clientes.
+- **FingerprintJS** + detección de bots (User-Agent, headers, Client Hints, `Sec-Fetch-*`) + rate limiting en MongoDB.
+- **Protección contra prompt injection** y guardrails clínicos para agentes IA.
+- **Cifrado AES-256** de datos sensibles (PII, resultados médicos, sesiones) y subida segura a AWS S3 con URLs prefirmadas.
+- **Zero Hardcoded Secrets**: Todas las credenciales de pruebas se generan dinámicamente en runtime.
 
 #### 🛡️ Bot Detection — Notas Importantes
 
@@ -134,11 +128,11 @@ El bot detector se aplica a todas las rutas críticas (`/api/auth/*`, `/api/clie
 | `Connection: close` | Scripts sin keep-alive | Los navegadores usan `keep-alive` |
 | `Accept: */*` **sin** `Sec-Fetch-*` | Scripts genéricos | Se omite si hay headers `Sec-Fetch-*` (todos los navegadores) o Client Hints (Chromium) |
 
-> **⚠️ Nota**: El check `Accept: */*` se omite cuando la petición tiene headers `Sec-Fetch-*` (`sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`) o Client Hints (`sec-ch-ua`). Los headers `Sec-Fetch-*` los envían **todos** los navegadores modernos (Chrome, Firefox, Safari, Edge), evitando falsos positivos tanto en desarrollo localhost como en producción con cualquier navegador.
+> **⚠️ Nota**: El check `Accept: */*` se omite cuando la petición tiene headers `Sec-Fetch-*` (`sec-fetch-dest`, `sec-fetch-mode`, `sec-fetch-site`) o Client Hints (`sec-ch-ua`), evitando falsos positivos tanto en desarrollo local como en producción.
 
 ## 🤖 Sistema de Agentes de IA
 
-La plataforma utiliza **LangGraph** para orquestar un grafo de 6 agentes especializados que generan recomendaciones de salud personalizadas:
+La plataforma orquesta un flujo multi-experto para generar recomendaciones personalizadas (con nodos de referencia en LangGraph y ejecución optimizada en pipeline secuencial en `composite-recommendation.ts`):
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -146,9 +140,9 @@ La plataforma utiliza **LangGraph** para orquestar un grafo de 6 agentes especia
 └────────────────────────┬────────────────────────────────┘
                          ▼
               ┌─────────────────────┐
-              │   Client Analyzer   │ ← Analiza perfil completo del cliente
+              │   Client Analyzer   │ ← Analiza perfil y documentos de sesión actual
               └────────┬────────────┘
-                       │ (paralelo)
+                       │ (fases clínicas y estilo de vida)
           ┌────────────┼────────────┬──────────────┐
           ▼            ▼            ▼              ▼
    ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
@@ -159,353 +153,192 @@ La plataforma utiliza **LangGraph** para orquestar un grafo de 6 agentes especia
          └─────────────┼────────────┼─────────────┘
                        ▼
               ┌─────────────────────┐
-              │   Recipe Matcher    │ ← Busca recetas compatibles
+              │   Recipe Matcher    │ ← Busca recetas compatibles (3 o 4 semanas)
               └────────┬────────────┘
                        ▼
               ┌─────────────────────┐
-              │ Shopping List Gen   │ ← Genera lista de compras
+              │ Shopping List Gen   │ ← Genera lista de compras consolidada
               └────────┬────────────┘
                        ▼
               ┌─────────────────────┐
-              │ Quality Validator   │ ← Valida y revisa calidad
+              │ Quality & FASE 4    │ ← Valida, traduce (6 idiomas) y cifra
               └────────┬────────────┘
-                       │
-              ┌────────┴─────────┐
-              │  needsRevision?  │───Sí──► Re-planifica nutrición
-              └────────┬─────────┘
-                       │ No
                        ▼
-                    END
+                      END
 ```
 
-### Agentes
-
-| Agente | Función |
-|---|---|
-| **Client Analyzer** | Analiza el perfil completo del cliente (datos personales, médicos, evaluación de salud, salud mental, documentos, notas del coach, sesiones previas) |
-| **Medical Analyst** | Interpreta laboratorios con **óptica keto** (LDL elevado no patológico, triglicéridos bajos, HDL óptimo, glucosa 70-85 mg/dL), recomienda electrolitos y sugiere estudios complementarios |
-| **Nutrition Planner** | Diseña plan nutricional personalizado en ciclos de **4 semanas (1 mes)** considerando suplementos existentes para evitar duplicación |
-| **Exercise Planner** | Crea plan de ejercicios adaptado al nivel, condiciones y objetivos del cliente |
-| **Habit Designer** | Diseña hábitos progresivos y sostenibles basados en el perfil del cliente |
-| **Quality Validator** | Valida la coherencia y calidad de todas las recomendaciones con loop de revisión |
-
-### Perfil Completo del Cliente
-
-Todos los agentes reciben **TODO** los datos del cliente mediante `formatFullClientProfile()`:
-- `personalData` — datos demográficos y antropométricos
+### Perfil Completo del Cliente y Selección Documental
+Todos los agentes reciben el expediente estructurado y **únicamente los documentos de la evaluación vigente** (`document-selection.ts`) más el resumen de sesiones anteriores:
+- `personalData` — datos demográficos, antropométricos e idioma
 - `medicalData` — condiciones médicas, laboratorios, suplementos actuales
-- `healthAssessment` — evaluación de salud del formulario
-- `mentalHealth` — evaluación de salud mental
-- `processedDocuments` — texto extraído localmente (pdf-parse/mammoth/OCR) y analizado por Gemini (laboratorios, estudios)
-- `previousSessions` — sesiones anteriores de recomendaciones
-- `coachNotes` — notas del coach
+- `healthAssessment` & `mentalHealth` — evaluaciones del formulario o `ClientHealthForm`
+- `processedDocuments` — texto extraído localmente (`pdf-parse`/`mammoth`/OCR fallback) y analizado por Gemini
+- `previousSessions` & `coachNotes` — continuidad longitudinal y notas clínicas
 
-### LLM: Google Gemini + DeepSeek
-
-La plataforma usa **dos modelos de lenguaje** con roles distintos:
-- **Google Gemini** — análisis del texto médico extraído LOCALMENTE (nunca recibe el archivo; el path de visión `inlineData` fue eliminado); manejo robusto de errores: SAFETY, MAX_TOKENS, RECITATION
-- **DeepSeek V4 Flash** — generación del plan compuesto (pipeline secuencial 3 fases) y **traducción dinámica FASE 4** (lotes JSON) vía OpenAI Compatible API (`@langchain/openai`) con `temperature: 0.3`
+### LLM: DeepSeek V4 Flash + Google Gemini
+- **DeepSeek V4 Flash** — modelo principal (`deepseek-chat`) para generación del plan compuesto (`composite-recommendation.ts`) y traducción dinámica FASE 4.
+- **Google Gemini** (`gemini-2.5-flash` / `gemini-4-hydrogen`) — fallback automático en runtime ante fallos/timeout de DeepSeek, análisis de texto médico extraído localmente y análisis nutricional de fotografías de recetas.
 
 ## 🔄 Flujos Asíncronos (Cola Propia)
 
-La plataforma usa una **cola de trabajos propia sobre MongoDB** (patrón *worker-on-poll*) para las tareas pesadas de IA — sin servicios de cola externos (no requiere Inngest Cloud, BullMQ ni QStash):
-
 | Componente | Descripción |
 |---|---|
-| `ai-job-queue.ts` | Cola con estados `pending → running → done/failed`, claim atómico, lease de 6 min, reintentos (máx 3), abandono de jobs zombie |
-| `POST /api/clients/[id]/ai` | Encola la generación y responde **202 queued** en <1s |
-| `GET /api/clients/[id]/ai` | Actúa de **worker-on-poll**: reclama el job y ejecuta el pipeline completo (hasta el límite de 300s de Vercel Hobby) |
+| `ai-job-queue.ts` | Cola sobre MongoDB (`ai_jobs`) con estados `pending → running → done/failed`, claim atómico, lease de 6 min, reintentos (máx 3) y abandono de jobs zombie |
+| `POST /api/clients/[id]/ai` | Encola la generación según `planId` y responde **202 queued** en <1s |
+| `GET /api/clients/[id]/ai` | **Worker-on-poll**: reclama el job y ejecuta el pipeline completo (< 300s Vercel Hobby) |
 | `PUT regenerate_session` | Regeneración encolada con validación fail-fast (sesión en `draft`) |
 | `process-transcription` | Procesa transcripciones de sesiones de coaching (Deepgram) |
 
-**Por qué**: en Vercel Hobby no hay procesos persistentes ni workers — la cola propia sobre MongoDB (ya en producción) resuelve los timeouts de generación (antes 60-240s síncronos → 504) con cero dependencias nuevas y el frontend ya soportaba el patrón `queued` + polling.
-
-### 🌐 **SEO Técnico, Sitemaps e Indexación Selectiva**
+## 🌐 SEO Técnico, Sitemaps e Indexación Selectiva
 - **Indexación Selectiva en `robots.txt`**:
-  - **Públicas** (`apps/landing`, `apps/blog`): Permiso explícito de rastreo (`Allow: /`), desautorización de áreas administrativas (`Disallow: /admin`) y declaración de sitemaps oficiales.
-  - **Privadas** (`apps/dashboard`, `apps/form`): Bloqueo total con `User-agent: * Disallow: /` e inyección obligatoria en `<Head>` de `<meta name="robots" content="noindex, nofollow, noarchive" />`.
-- **Sitemaps Dinámicos XML**:
-  - `apps/landing`: Generación vía `/sitemap.xml` de todas las páginas públicas indexables con `<lastmod>`, `<changefreq>` y `<priority>`.
-  - `apps/blog`: Generación en 6 idiomas vía `sitemap.ts` con fecha real de última modificación y etiquetas `<xhtml:link rel="alternate" hreflang="...">`.
-- **Canonical Tags y Redirecciones 301**:
-  - Enlaces canónicos absolutos normalizados en todas las rutas públicas.
-  - Redirección 301 para trailing slashes configurada en `next.config.ts`.
-- **Datos Estructurados (Schema.org / JSON-LD)**:
-  - Landing: Inyección de `HealthAndBeautyBusiness` + `LocalBusiness`, `Person` (Manuel Martínez, Health Coach) y `knowsAbout`.
-  - Blog: Inyección de `BlogPosting` con `headline`, `image`, `datePublished`, `dateModified`, `author` y `publisher`.
+  - **Públicas** (`apps/landing`, `apps/blog`): Permiso de rastreo (`Allow: /`), bloqueo de rutas privadas (`Disallow: /admin`) y sitemaps oficiales.
+  - **Privadas** (`apps/dashboard`, `apps/form`): Bloqueo total (`User-agent: * Disallow: /`) y `<meta name="robots" content="noindex, nofollow, noarchive" />`.
+- **Sitemaps Dinámicos XML**: `/sitemap.xml` en `apps/landing` y `sitemap.ts` multilingüe (`hreflang`) en `apps/blog`.
+- **Canonical Tags, Redirecciones 301 y Schema.org / JSON-LD**: `HealthAndBeautyBusiness`, `LocalBusiness`, `Person` y `BlogPosting`.
 
-### ♿ **Accesibilidad Web (WCAG 2.1 AA) & Skeletons (Principio Anti-AI)**
-- **Skeletons de Carga Asíncrona**:
-  - Eliminación de pantallas en blanco y spinners flotantes; reemplazados por skeletons visuales pulsantes (`animate-pulse`) en listado de clientes, perfil clínico, recetas, finanzas (KPIs y transacciones) y lectura de entradas de blog.
-- **Formularios Accesibles**:
-  - Vinculación explícita de cada `<input>`, `<select>` y `<textarea>` mediante atributo `id` único y etiqueta `<label htmlFor="...">`.
-  - Casillas y toggles de consentimiento totalmente clickeables a través de su label.
-- **Navegación por Teclado y Foco Visible**:
-  - Soporte de tecla `Escape` en modales, focus traps y foco visible en todos los controles (`focus-visible:ring-2 focus-visible:outline-none`).
-- **Contraste de Color**:
-  - Ratios de contraste elevados (>= 4.5:1) sobre blanco o fondos oscuros, elevando clases secundarias de `text-gray-400` a `text-gray-600`.
-- **Core Web Vitals & Optimización de Medios**:
-  - 100% de componentes `<Image fill>` equipados con la propiedad `sizes` adaptada a sus contenedores (0 advertencias en consola).
-  - Carga diferida (`loading="lazy"`, `decoding="async"`) para elementos *below the fold* y tipografías con `display: swap`.
-
-### 🔑 **Navegación & Acceso Directo (Login CTA)**
-- **Acceso Directo al Dashboard**: Botón estilizado y accesible de **Login** con borde distintivo integrado en el Navbar de la Landing page (desktop y menú móvil), enlazando directamente al panel administrativo privado.
+## ♿ Accesibilidad Web (WCAG 2.1 AA) & Skeletons (Principio Anti-AI)
+- **Skeletons de Carga Asíncrona**: Reemplazo de spinners flotantes por skeletons pulsantes (`animate-pulse`) en clientes, perfil clínico, recetas, finanzas y blog.
+- **Formularios Accesibles**: Vinculación explícita `id` ↔ `htmlFor`, soporte `Escape` en modales, `focus-visible:ring-2` y ratios de contraste >= 4.5:1.
+- **Core Web Vitals**: `<Image fill sizes="...">`, carga diferida *below the fold* y `display: swap` en fuentes.
 
 ## 🏗️ Arquitectura del Proyecto
 
-```
+```bash
 NELHEALTHCOACH/
-├── 📁 apps/              # Aplicaciones principales
-│   ├── 🏠 landing/      # Página de inicio
-│   ├── 📝 form/         # Formularios de salud
-│   ├── 📊 dashboard/    # Panel de control con IA
-│   └── 🔌 api/          # API backend + agentes IA
-├── 📁 packages/         # Paquetes compartidos
-│   └── 📦 types/       # Tipos TypeScript compartidos
-└── 📄 package.json     # Configuración del monorepo
+├── 📁 apps/
+│   ├── 🏠 landing/      # Portada comercial, 5 planes, leads y suite legal
+│   ├── 📚 blog/         # Divulgación científica y nutrición evolutiva (SEO)
+│   ├── 📝 form/         # Formularios de salud y contrato RGPD Art. 9
+│   ├── 📊 dashboard/    # Panel dual: centro de mando Coach + Portal de Clientes
+│   └── 🔌 api/          # Backend REST, Stripe, LiveKit, Cola propia y Agentes IA
+├── 📁 packages/
+│   └── 📦 types/        # Tipos TypeScript compartidos (incl. planes y healthForm)
+├── 📁 docs/             # Documentación técnica y PRDs (v1.5.0)
+├── 📄 package.json      # Configuración del monorepo
+└── 📄 turbo.json        # Orquestación Turbo
 ```
 
 ## 🚀 Aplicaciones
 
-El monorepo integra **5 aplicaciones** coordinadas:
+El monorepo integra **5 aplicaciones** coordinadas en Next.js 16.3.6:
 
-### 1. **🏠 Landing Page** (`apps/landing`)
-- **Propósito**: Presentación de propuesta de valor, captación calificada y portal de transparencia legal
-- **Tecnologías**: Next.js 16.3.6 (Pages Router), React 19, Tailwind CSS, i18next
-- **Características**:
-  - Formulario de captación interactivo con **precalificación de compromiso (escala 1 a 10)** y filtro pedagógico de 3 pasos
-  - **Suite legal completa**: `/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`
-  - **Navbar adaptativo contextual**: conmuta automáticamente a navegación entre políticas legales y retorno a la portada en 1 clic
-  - **CookieBanner CMP**: consentimiento previo estricto (RGPD/ePrivacy/AEPD), `useSyncExternalStore` y respeto a Global Privacy Control (GPC)
-  - Multi-idioma integrado en 6 idiomas (es, en, fr, it, pt, de)
-
-### 1b. **📚 Blog de Salud** (`apps/blog`)
-- **Propósito**: Divulgación científica, nutrición cetogénica evolutiva y posicionamiento SEO
-- **Tecnologías**: Next.js 16.3.6, React 19, Tailwind CSS
-- **Características**:
-  - Renderizado SSR/SSG con JSON-LD estructurado (`BlogPosting`, `Blog`) y soporte multilingüe en 6 idiomas
-  - Generación dinámica de feeds RSS 2.0 y sitemap XML
-  - Suite de pruebas de integración automatizadas (76 checks)
-
-### 2. **📝 Formularios de Salud y Contratación** (`apps/form`)
-- **Propósito**: Captura de historial clínico y formalización del contrato de coaching
-- **Tecnologías**: Next.js 16.3.6, React 19, React Hook Form, Yup, i18next
-- **Características**:
-  - Formularios multi-paso validados en tiempo real con React Hook Form + Yup
-  - **Paso 6 de Contrato y Consentimiento Desacoplado**: casillas independientes para Términos/Privacidad, Datos de Salud Sensibles (RGPD Art. 9) y Renuncia a Desistimiento (Art. 103 TRLGDCU)
-  - **Aviso de IA Segura**: cláusula explícita de uso asistido de DeepSeek y Google Gemini, sin reentrenamiento público y con supervisión del coach
-  - **Cláusulas de Protección Legal**: asunción médica de riesgo (*Hold Harmless*) y arbitraje vinculante individual administrado por JAMS (California)
-  - Subida de documentos médicos y analíticas a AWS S3 con URLs prefirmadas
-
-### 3. **📊 Dashboard de Coaching** (`apps/dashboard`)
-- **Propósito**: Centro de mando clínico, supervisión de IA y consultas para coaches
-- **Tecnologías**: Next.js 16.3.6, React 19, MongoDB, DeepSeek, Google Gemini, LiveKit, Deepgram, Stripe
-- **Características**:
-  - Visualización de pacientes con expediente completo y métricas metabólicas
-  - **Contrato de Asesor Blindado (California AB 5)**: registro de coaches con blindaje de contratista independiente, confidencialidad, indemnización total a favor de la empresa y arbitraje individual JAMS
-  - **Recomendaciones de IA Supervisadas**: visor de planes generados con DeepSeek / Google Gemini con disclaimer médico visible y validación humana obligatoria
-  - **Videollamadas con Pre-Call Consent Gate**: pantalla de consentimiento informado previo para grabación y transcripción en tiempo real con Deepgram (cumplimiento telecomunicaciones de dos partes)
-  - **Cancelación Transparente de Periodo de Prueba**: portal en `/dashboard/trial/cancel` en 1 clic (FTC *Click to Cancel* & California ARL)
-  - **Gestión de recetas, ejercicios y coaches** con soporte multi-idioma integral (6 idiomas)
-
-### 4. **🔌 API Backend** (`apps/api`)
-- **Propósito**: Servicios backend, lógica de negocio y agentes de IA
-- **Tecnologías**: Next.js API Routes, MongoDB (incl. cola propia), AWS S3/SES, Google Gemini + DeepSeek, LangGraph (referencia), LiveKit Server SDK
-- **Características**:
-  - Autenticación JWT con roles (coach, admin)
-  - CRUD de pacientes, coaches y usuarios
-  - Registro de coaches con verificación por email
-  - Recuperación de contraseña
-  - Captura de leads desde landing page
-  - Generación de enlaces de formulario personalizados por coach
-  - **Agentes de IA con LangGraph** (6 nodos especializados)
-  - **Análisis de PDFs con Gemini** (laboratorios, estudios médicos)
-  - **Flujos asíncronos con cola propia** (generación y regeneración encoladas, worker-on-poll) y Deepgram para transcripciones
-  - **Transcripción de audio con Deepgram**
-  - **Videollamadas con LiveKit**: creación de salas, tokens JWT, webhooks, grabación
-  - Envío de emails con Resend + AWS SES (fallback)
-  - Almacenamiento en AWS S3 con URLs prefirmadas
-  - **Seguridad**: bot detection, FingerprintJS, rate limiting, prompt injection protection, guardrails
+1. **🏠 Landing Page (`apps/landing`)**: Exhibición de propuesta de valor, comparativa en vivo de los 5 planes con estado de cupos, precalificación de leads (escala 1-10), suite legal completa, CMP GPC y multi-idioma en 6 idiomas.
+2. **📚 Blog de Salud (`apps/blog`)**: Renderizado SSR/SSG con JSON-LD (`BlogPosting`), feeds RSS 2.0, sitemap multilingüe (`hreflang`), moderación de comentarios y suite de tests de 76 checks.
+3. **📝 Formularios de Salud (`apps/form`)**: Captura multi-paso validada (React Hook Form + Yup), subida segura a AWS S3 y Paso 6 contractual desacoplado.
+4. **📊 Dashboard & Portal de Clientes (`apps/dashboard`)**:
+   - **Coaches/Admin**: Clientes (filtro por plan + control de cupos), expedientes clínicos, visor/editor de recomendaciones IA (`3` o `4` semanas), recetas con análisis por foto, ejercicios, finanzas Stripe Connect, contrato AB 5 y cancelación FTC (`/dashboard/trial/cancel`).
+   - **Clientes**: Autoregistro OTP (`/register/client`), portal `/dashboard` en 4 estados (`Inicio`, `Planes`, `Ver mi perfil`), historial embebido `ClientHealthForm`, agenda de videollamadas con ventana 15 min (`/video/join`) y recomendaciones en solo lectura + PDF.
+5. **🔌 API Backend (`apps/api`)**: Endpoints REST Next.js App Router, JWT multi-rol, Stripe Checkout & Webhooks, `plan-quotas`, `client-portal/me`, LiveKit + Deepgram, cola `ai_jobs`, DeepSeek + Gemini fallback, extracción/OCR local y generación PDF.
 
 ## 🛠️ Stack Tecnológico
 
-### **Frontend**
-- **⚛️ React 19.1.0** - Biblioteca UI
-- **🚀 Next.js 15.5.4** - Framework React con SSR
-- **📘 TypeScript 5.8.3** - Tipado estático
-- **🎨 Tailwind CSS 3.3.0** - Framework CSS utility-first
-- **📋 React Hook Form** - Gestión de formularios
-- **✅ Yup** - Validación de esquemas
-- **🌐 i18next + react-i18next** - Internacionalización multi-idioma
-- **🖐️ FingerprintJS** - Huella digital del navegador
-- **📄 jsPDF** - Generación de PDFs en cliente
-
-### **Backend**
-- **🗄️ MongoDB 6.0.0** - Base de datos NoSQL
-- **🐘 Mongoose 8.0.0** - ODM para MongoDB
-- **🔐 JSON Web Tokens** - Autenticación
-- **🔒 CryptoJS** - Cifrado de datos
-- **📧 Resend** - Envío de emails
-- **📄 Multer** - Manejo de uploads
-- **🐘 mammoth** - Parseo de documentos .docx
-- **📄 pdfkit** - Generación de PDFs en servidor
-- **🖼️ sharp** - Procesamiento de imágenes
-- **✅ Zod** - Validación de esquemas en backend
-
-### **Videollamadas**
-- **📹 LiveKit Cloud** - Infraestructura WebRTC
-- **🎥 @livekit/components-react** - Componentes React para salas de video
-- **🔑 livekit-server-sdk** - SDK del servidor para tokens y gestión de salas
-- **📦 livekit-client** - SDK del cliente WebRTC
-
-### **IA y Modelos**
-- **🧠 DeepSeek V4 Flash** - Modelo principal de razonamiento clínico y dietético (`deepseek-chat`)
-- **🤖 Google Gemini 2.5 Flash** - Fallback automático de alta disponibilidad y análisis de texto de biomarcadores
-- **🎙️ Deepgram SDK 5.0.0** - Transcripción en tiempo real de consultas por videollamada
-- **🔄 Cola propia sobre MongoDB** - Flujos asíncronos resilientes (worker-on-poll, 202 queued, lease 6 min, reintentos)
-- **🕸️ LangGraph 1.2.8** - Orquestación de agentes multi-experto (referencia arquitectónica)
-
-### **Infraestructura Cloud**
-- **☁️ AWS SDK** - Integración con servicios AWS (S3, SES)
-- **📦 AWS S3** - Almacenamiento de archivos y grabaciones
-- **📧 AWS SES** - Envío alternativo de emails
-- **🚀 Vercel** - Despliegue y hosting
-
-### **Herramientas de Desarrollo**
-- **📦 Turbo** - Build system para monorepos
-- **🔄 Concurrently** - Ejecución paralela de scripts
-- **🧹 ESLint** - Linting de código
-- **🎯 TypeScript** - Chequeo de tipos
+- **Frontend**: React 19.1.0, Next.js 16.3.6, TypeScript 5.8.3, Tailwind CSS, React Hook Form + Yup, `i18next` / `react-i18next`, FingerprintJS, `jsPDF` + `jspdf-autotable`.
+- **Backend**: Node.js 18+, Next.js 16.3.6 App Router, MongoDB 6.0 + Mongoose 8.0, Zod, CryptoJS (AES-256), Resend + AWS SES, AWS S3, `pdf-parse`, `mammoth`, `tesseract.js`, `pdfkit`, `sharp`.
+- **Pagos**: Stripe Checkout, Stripe Connect & Webhooks idempotentes.
+- **Videollamadas & Audio**: LiveKit Cloud (`livekit-server-sdk`, `livekit-client`, `@livekit/components-react`) + Deepgram SDK 5.0.0.
+- **IA**: DeepSeek V4 Flash (`deepseek-chat`) + Google Gemini (`gemini-2.5-flash` / `gemini-4-hydrogen`) + LangGraph 1.2.8.
 
 ## 📁 Estructura del Proyecto
 
 ```bash
 NELHEALTHCOACH/
-├── 📁 apps/                          # Aplicaciones principales
-│   ├── 📂 api/                      # API Backend + IA
-│   │   ├── 📂 pages/                # Rutas API de Next.js (API Routes legacy)
-│   │   ├── 📂 src/
-│   │   │   ├── 📂 app/
-│   │   │   │   ├── 📂 api/          # App Router API Routes
-│   │   │   │   │   ├── 📂 auth/     # Autenticación (login, register, verify, reset)
-│   │   │   │   │   ├── 📂 clients/  # CRUD de clientes + recomendaciones IA
-│   │   │   │   │   ├── 📂 coaches/  # Gestión de coaches + enlaces
-│   │   │   │   │   ├── 📂 recipes/  # CRUD de recetas + análisis nutricional
-│   │   │   │   │   ├── 📂 exercises/# CRUD de ejercicios
-│   │   │   │   │   ├── 📂 video/    # Videollamadas LiveKit
-│   │   │   │   │   │   ├── 📂 rooms/        # Creación de salas
-│   │   │   │   │   │   ├── 📂 token/        # Generación de tokens LiveKit
-│   │   │   │   │   │   ├── 📂 send-invite/  # Envío de emails de invitación
-│   │   │   │   │   │   ├── 📂 webhook/      # Eventos de sala LiveKit
-│   │   │   │   │   │   └── 📂 health/       # Health check
-│   │   │   │   │   ├── 📂 leads/    # Captura de leads
-│   │   │   │   │   └── 📂 admin/    # Panel admin
-│   │   │   │   ├── 📂 lib/         # Utilidades y configuraciones
-│   │   │   │   │   ├── 📂 agents/      # Agentes LangGraph
-│   │   │   │   │   │   ├── 📂 nodes/   # Nodos del grafo (analyzer, medical, nutrition, exercise, habit, validator)
-│   │   │   │   │   │   ├── 📂 tools/   # Herramientas de agentes
-│   │   │   │   │   │   └── 📂 utils/   # Utilidades (LLM, prompts, audit)
-│   │   │   │   │   ├── 📂 security/    # Bot detection, rate limiter, guardrails, shield
-│   │   │   │   │   └── 📄 ...          # Servicios: video-service, email-service, etc.
-│   │   │   │   └── 📂 inngest/         # Funciones de referencia (deprecadas; la cola propia es la vía activa)
-│   │   │   └── 📂 models/          # Modelos de MongoDB
-│   │   └── 📂 middleware/        # Middleware de autenticación
-│   ├── 📂 dashboard/            # Panel de control del coach
-│   │   ├── 📂 components/       # Componentes React
-│   │   │   ├── 📂 dashboard/    # SessionScheduler, AIRecommendationsModal, etc.
-│   │   │   ├── 📂 recipes/      # RecipeCard, RecipeModal, RecipeFilters, etc.
-│   │   │   ├── 📂 exercises/    # ExerciseCard, ExerciseModal, ExerciseFilters, etc.
-│   │   │   └── 📄 VideoCallRoom.tsx  # Sala de videollamada LiveKit
-│   │   ├── 📂 pages/            # Páginas de Next.js
-│   │   │   ├── 📂 dashboard/    # Dashboard, clients, recipes, exercises
-│   │   │   └── 📄 video/join.tsx # Página pública de videollamada
-│   │   └── 📂 styles/           # Estilos Tailwind
-│   ├── 📂 form/                 # Formularios de salud para pacientes
-│   │   ├── 📂 components/       # Componentes de formulario
-│   │   ├── 📂 schemas/          # Esquemas de validación (Yup)
-│   │   └── 📂 pages/            # Páginas de formularios por paso
-│   └── 📂 landing/              # Landing page pública
-│       ├── 📂 components/       # Componentes de marketing
-│       ├── 📂 sections/         # Secciones (Hero, About, Method, Contact, Testimonials)
-│       ├── 📂 public/           # Assets estáticos (imágenes hero)
-│       └── 📂 i18n/             # Traducciones multi-idioma
-├── 📂 packages/                 # Paquetes compartidos
-│   └── 📂 types/               # Tipos TypeScript compartidos
-│       └── 📄 index.ts         # Exportación de tipos
-├── 📄 package.json             # Configuración del monorepo
-├── 📄 turbo.json              # Configuración de Turbo
-├── 📄 .env                    # Variables de entorno
-├── 📄 .gitignore             # Archivos ignorados por Git
-└── 📄 vercel.json            # Configuración de Vercel
+├── 📁 apps/
+│   ├── 📂 api/
+│   │   ├── 📂 src/app/
+│   │   │   ├── 📂 api/
+│   │   │   │   ├── 📂 auth/            # login, register, verify, reset y client/ (OTP + login)
+│   │   │   │   ├── 📂 blog/            # artículos, comentarios y traducción
+│   │   │   │   ├── 📂 client-portal/me/# estado consolidado, citas proyectadas y cierre
+│   │   │   │   ├── 📂 clients/         # expedientes, upload S3, IA encolada y descarga PDF
+│   │   │   │   ├── 📂 coaches/         # gestión y perfiles de coaches
+│   │   │   │   ├── 📂 exercises/       # CRUD ejercicios + propuestas de edición
+│   │   │   │   ├── 📂 free-sessions/   # disponibilidad y tope de sesiones gratuitas
+│   │   │   │   ├── 📂 leads/           # captura de leads con compromiso (1-10)
+│   │   │   │   ├── 📂 payments/        # Stripe Checkout por plan, confirm-plan, Connect, webhook
+│   │   │   │   ├── 📂 plan-quotas/     # administración de cupos por plan (admin)
+│   │   │   │   ├── 📂 plans/           # catálogo público de los 5 planes con cupo vivo
+│   │   │   │   ├── 📂 recipes/         # CRUD recetas + analyze-image (IA por foto)
+│   │   │   │   ├── 📂 video/           # LiveKit rooms, token (ventana 15 min), webhooks
+│   │   │   │   └── 📂 waitlist/        # lista de espera unificada
+│   │   │   └── 📂 lib/
+│   │   │       ├── 📂 agents/          # nodos LangGraph y utils/llm.ts (DeepSeek + Gemini)
+│   │   │       ├── 📂 security/        # bot detection, rate limiter, guardrails, AES-256
+│   │   │       ├── 📄 composite-recommendation.ts  # pipeline 3 fases + weeklyPhases (Reto)
+│   │   │       ├── 📄 document-selection.ts        # selección documental por sesión actual
+│   │   │       ├── 📄 plans.ts                     # 5 planes, agenda video y finalización
+│   │   │       ├── 📄 recommendation-pdf.ts        # PDF con weeklyPhases y traducciones
+│   │   │       └── 📄 recommendation-translator.ts # traducción FASE 4 y cifrado
+│   │   └── 📂 tests/                   # suite TDD completa y security gate OWASP
+│   ├── 📂 dashboard/
+│   │   └── 📂 src/
+│   │       ├── 📂 components/
+│   │       │   ├── 📂 dashboard/       # Layout, ClientHealthForm, ClientProfileView, AIRecommendationsModal, VideoCallRoom, RecipeModal, ExerciseModal
+│   │       │   └── 📂 ui/
+│   │       ├── 📂 lib/                 # api.ts, client-hooks.ts, locale.ts, i18n.ts (6 idiomas)
+│   │       └── 📂 pages/
+│   │           ├── 📂 dashboard/       # index.tsx, plans.tsx, my-profile.tsx, clients/, trial/cancel.tsx, recipes/, exercises/, finances.tsx
+│   │           ├── 📂 register/        # index.tsx (coach) y client.tsx (OTP)
+│   │           └── 📄 video/join.tsx   # sala pública con bloqueo previo 15 min y consentimiento
+│   ├── 📂 form/                        # formularios de salud y contrato RGPD Art. 9
+│   ├── 📂 landing/                     # portada pública, 5 planes, leads y páginas legales
+│   └── 📂 blog/                        # blog científico multilingüe SSR/SSG
+└── 📁 packages/types/                  # tipos TypeScript compartidos
 ```
 
 ## ⚙️ Configuración y Desarrollo
 
 ### **Prerrequisitos**
-- Node.js 18+
-- npm 9+
+- Node.js 18+ y npm 9+
 - MongoDB (local o Atlas)
-- Cuenta AWS (para S3)
-- API Key de Google Gemini (obligatorio para IA)
-- Cuenta LiveKit Cloud (para videollamadas)
-- API Key de Deepgram (para transcripción de audio, opcional)
+- Cuenta AWS (S3 y SES opcional)
+- API Keys de DeepSeek, Google Gemini, Stripe, LiveKit Cloud y Deepgram (opcional para transcripción)
 
 ### **Instalación**
 
 ```bash
-# Clonar el repositorio
 git clone <repository-url>
 cd NELHEALTHCOACH
-
-# Instalar dependencias
 npm install
-
-# Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus configuraciones
+# Configurar las variables en .env con credenciales propias de entorno
 ```
 
-### **Variables de Entorno**
+### **Variables de Entorno (Plantilla de Referencia)**
 
 ```env
 # ── Base de Datos ──
 MONGODB_URI=mongodb://localhost:27017/nelhealthcoach
 DB_NAME=nel-healthcoach
 
-# ── JWT ──
-JWT_SECRET=tu_secreto_jwt
-
-# ── Cifrado ──
-ENCRYPTION_KEY=clave_de_32_caracteres_para_aes
+# ── Seguridad y Auth ──
+JWT_SECRET=<tu_jwt_secret>
+ENCRYPTION_KEY=<tu_clave_aes_32_caracteres>
 
 # ── AWS ──
-AWS_ACCESS_KEY_ID=tu_access_key
-AWS_SECRET_ACCESS_KEY=tu_secret_key
+AWS_ACCESS_KEY_ID=<tu_aws_access_key>
+AWS_SECRET_ACCESS_KEY=<tu_aws_secret_key>
 AWS_REGION=us-east-1
-AWS_S3_BUCKET=tu_bucket_s3
+AWS_S3_BUCKET=<tu_bucket_s3>
 
 # ── Email ──
-RESEND_API_KEY=tu_api_key_resend
+RESEND_API_KEY=<tu_resend_api_key>
 EMAIL_FROM_ADDRESS=noreply@nelhealthcoach.com
 EMAIL_FROM_NAME=NELHealthCoach
 EMAIL_ENABLED=true
 
 # ── Inteligencia Artificial ──
-DEEPSEEK_API_KEY=tu_api_key_deepseek
-GEMINI_API_KEY=tu_api_key_gemini
+DEEPSEEK_API_KEY=<tu_deepseek_api_key>
+GEMINI_API_KEY=<tu_gemini_api_key>
 GEMINI_MODEL=gemini-2.5-flash
 
-# ── Inngest (opcional — solo Dev Server local; la cola propia NO lo requiere) ──
-# INNGEST_EVENT_KEY=tu_inngest_event_key
-# INNGEST_SIGNING_KEY=tu_inngest_signing_key
-INNGEST_DEV=true
+# ── Stripe (Pagos y Planes) ──
+STRIPE_SECRET_KEY=<tu_stripe_secret_key>
+STRIPE_WEBHOOK_SECRET=<tu_stripe_webhook_secret>
 
-# ── Deepgram (transcripción de audio) ──
-DEEPGRAM_API_KEY=tu_deepgram_api_key
-
-# ── LiveKit (videollamadas) ──
-LIVEKIT_API_KEY=tu_livekit_api_key
-LIVEKIT_API_SECRET=tu_livekit_api_secret
+# ── Deepgram & LiveKit ──
+DEEPGRAM_API_KEY=<tu_deepgram_api_key>
+LIVEKIT_API_KEY=<tu_livekit_api_key>
+LIVEKIT_API_SECRET=<tu_livekit_api_secret>
 LIVEKIT_URL=wss://tu-instancia.livekit.cloud
 
 # ── URLs de Aplicaciones ──
@@ -513,141 +346,63 @@ WEBSITE_URL=https://nelhealthcoach.com
 APP_URL=http://localhost:3000
 FORM_URL=http://localhost:3003
 DASHBOARD_URL=http://localhost:3002
-
-# ── Información de Contacto ──
-CONTACT_EMAIL=contact@nelhealthcoach.com
-CONTACT_PHONE_ES=+52 55 1234 5678
-CONTACT_PHONE_EN=+1 (442) 342-5050
-CONTACT_ADDRESS=33450 Shifting Sands Trail, Cathedral City, CA 92234 (USA)
-
-# ── Admin por Defecto ──
-COACH_EMAIL=coach@nelhealthcoach.com
-COACH_PASSWORD=password_seguro
-ADMIN_EMAIL=admin@nelhealthcoach.com
-ADMIN_PASSWORD=password_seguro
-ADMIN_NAME=Admin
-ADMIN_PHONE=+1 (442) 342-5050
-
-# ── Frontend ──
-NEXT_PUBLIC_SKIP_PHOTO=true
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ## 🔧 Scripts Disponibles
 
-### **Desarrollo**
 ```bash
-# Iniciar todas las aplicaciones en desarrollo
-npm run dev:all
+# Desarrollo
+npm run dev:all        # Inicia las aplicaciones en paralelo
+npm run dev:landing
+npm run dev:blog
+npm run dev:form
+npm run dev:dashboard
+npm run dev:api
 
-# Iniciar aplicación específica
-npm run dev:landing    # Landing page
-npm run dev:form       # Formularios
-npm run dev:dashboard  # Dashboard
-npm run dev:api        # API backend
-```
-
-### **Build y Producción**
-```bash
-# Build de todas las aplicaciones
+# Build y verificación
 npm run build
-
-# Iniciar producción (después de build)
-# En cada aplicación individual:
-cd apps/[app-name]
-npm start
-```
-
-### **Seguridad**
-```bash
-# Verificar configuración de seguridad
-npm run security:check
-```
-
-### **Mantenimiento**
-```bash
-# Limpiar repositorios .git anidados (post-install)
-npm run postinstall
-
-# Linting (en cada aplicación)
-cd apps/[app-name]
 npm run lint
+npm run security:check
 ```
 
 ## 🧪 Testing (TDD)
 
-La plataforma cuenta con una **suite de tests de integración exhaustiva** con perfiles desechables (se crean al iniciar y se borran SIEMPRE al terminar, incluso si el test falla):
+La plataforma cuenta con una **suite de tests de integración exhaustiva** en `apps/api/tests/` con perfiles desechables (creados dinámicamente en runtime, sin credenciales hardcodeadas, y eliminados en `finally`):
 
 ```bash
-# Desde apps/api — suite rápida (192 checks, ~1 min, sin LLM real)
+# Desde apps/api — suite rápida (sin LLM real)
 npm test
 
-# Suite completa (259 checks, incluye LLM real, ~10 min)
+# Suite completa (incluye E2E con LLM real)
 npm run test:e2e
 
 # Gate de seguridad OWASP (estático)
 npm run test:security
 ```
 
-**Cobertura** (detalle en `apps/api/tests/README.md`):
-- **Security gate OWASP** — 401 en todos los routes con auth, sin `eval()`, sin fugas de `error.message` (A10), bcrypt/argon2 (A04), output de LLM validado (LLM05), ownership (A01)
-- **Auth** (13) — registro/login/me/change-password, validación zod, rate limit 429, anti-enumeración de cuentas
-- **Clients** (17) — CRUD, ownership (403/404), cifrado campo a campo, gate de pago 402
-- **Content** (30) — recetas + ejercicios CRUD, cifrado, roles admin/coach con propuestas de edición, moderación
-- **Notifications** (16) — CRUD, ownership por coach, markAllRead, health, stats
-- **Cola propia** (32) — enqueue/claim/lease/reintentos/jobs zombie
-- **Traducción** (72) — estructura JSON, enums, IDs intactos (mock LLM)
-- **PDF route real** (5) — generación, headers, marca %PDF
-- **E2E con LLM real** (67) — traducción, cola (POST→202→worker), regeneración
-- **db-clean** — verifica que la DB queda SIN datos de prueba al final
-
-**Flujo obligatorio**: cada cambio de código → ejecutar el test del módulo tocado → si falla, corregir el código (no el test) → `npm test` completo + `tsc --noEmit` en las 3 apps.
+**Cobertura principal** (detalle en `apps/api/tests/README.md`):
+- **Security gate OWASP** (`security-gate.test.ts`, 21 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
+- **Flujo completo de 5 Planes y Portal de Clientes** (`client-plans-flow.test.ts`, 81 checks) — catálogo, registro OTP 6 dígitos, aislamiento de cliente, ventana de videollamadas de 15 min, `programCompleted` y `weeklyPhases` del Reto Tres NEL.
+- **Control de Cupos por Plan** (`plan-quotas.test.ts`, 21 checks) — disponibilidad en vivo, `409 QUOTA_FULL`, pausas y límites administrativos.
+- **Auth, Clients, Content, Blog, Waitlist, Free Sessions & Document Selection** — CRUD cifrado, blog SSR/SEO (76 checks), lista de espera, sesiones gratuitas y selección documental por evaluación actual.
+- **Cola propia, Traducción, PDF y E2E LLM real** — enqueue/claim/lease/reintentos, FASE 4 JSON, `%PDF` y regeneración.
+- **db-clean** (`db-clean.test.ts`) — confirma 0 registros residuales de prueba en base de datos.
 
 ## 🌐 Despliegue
 
-### **Vercel (Recomendado)**
-El proyecto está configurado para despliegue en Vercel:
+El monorepo está configurado para despliegue en **Vercel** (plan Hobby con `maxDuration` <= 300s en funciones serverless y cola propia `ai_jobs` con reintentos automáticos).
 
-1. Conectar repositorio en Vercel
-2. Configurar variables de entorno en el dashboard
-3. Vercel detectará automáticamente las configuraciones de Next.js
-
-### **Configuración Vercel**
-```json
-{
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev:all",
-  "installCommand": "npm install",
-  "framework": "nextjs"
-}
-```
-
-> **⚠️ Importante (plan Hobby)**: `maxDuration` de las Serverless Functions debe estar entre **1 y 300 segundos**. Valores mayores hacen FALLAR el build con *"Builder returned invalid maxDuration value"*. Valores actuales: `ai/route.ts` = 300, `pdf/route.ts` = 300, `upload` = 120, `inngest` = 120. La cola propia está diseñada para que el worker complete en < 300s (medido: 170-239s) con reintentos automáticos si un request muere.
-
-### **Despliegue Manual**
 ```bash
-# Build para producción
+# Build general
 npm run build
-
-# Desplegar en tu servidor
-# Copiar la carpeta .next de cada aplicación
 ```
 
 ## 🤝 Contribución
 
-¡Las contribuciones son bienvenidas! Sigue estos pasos:
-
-1. **Fork** el repositorio
-2. **Crea una rama** para tu feature (`git checkout -b feature/AmazingFeature`)
-3. **Commit** tus cambios (`git commit -m 'Add: AmazingFeature'`)
-4. **Push** a la rama (`git push origin feature/AmazingFeature`)
-5. **Abre un Pull Request**
-
-### **Guías de Estilo**
-- Usar TypeScript para todo el código nuevo
-- Seguir convenciones de Next.js y React
-- Documentar componentes y funciones
-- Escribir tests cuando sea posible
+1. **Fork** el repositorio y crea tu rama (`git checkout -b feature/AmazingFeature`).
+2. Verifica tipos y tests (`npx tsc --noEmit`, `npx eslint`, suite TDD en `apps/api`).
+3. **Commit** tus cambios y abre un **Pull Request** hacia `dev`.
 
 ---
 
@@ -655,18 +410,11 @@ npm run build
 
 ### **Desarrollado con ❤️ para ayudar a la humanidad**
 
-**👨‍💻 Autor:** [pantokrator14](https://github.com/pantokrator14)
+**👨‍💻 Autor:** [pantokrator14](https://github.com/pantokrator14)  
 **📧 Contacto:** [juliusjosepham@proton.me]
-**🌐 Sitio Web:** [Próximamente]
-
-[![Star History Chart](https://api.star-history.com/svg?repos=pantokrator14/NELHEALTHCOACH&type=Date)](https://star-history.com/#pantokrator14/NELHEALTHCOACH&Date)
 
 </div>
 
 ## 📄 Licencia
 
 Este proyecto es software privado. Todos los derechos reservados.
-
----
-
-> **💡 Nota:** Este proyecto está en activo desarrollo. Las características pueden cambiar y mejorar continuamente.

@@ -3,7 +3,9 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import { apiClient, type CommercialPlan } from '@/lib/api';
+import { getLocalizedPlanFields } from '@/lib/locale';
 import PasswordInput from '@/components/PasswordInput';
 import { useToast } from '@/components/ui/Toast';
 
@@ -17,6 +19,7 @@ const LANDING_URL =
 
 export default function ClientRegisterPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { showToast, ToastComponent } = useToast();
 
   const [step, setStep] = useState<ClientRegisterStep>('credentials');
@@ -82,6 +85,9 @@ export default function ClientRegisterPage() {
   }, [resendCooldown]);
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) || null;
+  const localizedSelectedPlan = selectedPlan
+    ? getLocalizedPlanFields(selectedPlan, t)
+    : null;
   const isSelectedUnavailable = selectedPlan?.availability ? !selectedPlan.availability.available : false;
   const isConsultOnlyPlan = selectedPlanId === 'consult_1on1';
 
@@ -105,12 +111,12 @@ export default function ClientRegisterPage() {
 
     if (!passwordValid) {
       setPasswordDirty(true);
-      setError('Tu contraseña debe cumplir con todos los requisitos de seguridad.');
+      setError(t('clientRegister.errPasswordChecks'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
+      setError(t('clientRegister.errPasswordMismatch'));
       return;
     }
 
@@ -125,9 +131,9 @@ export default function ClientRegisterPage() {
       setEmail(normalizedEmail);
       setResendCooldown(60);
       setStep('verify-code');
-      showToast('Te enviamos un código de 6 dígitos a tu correo.', 'success');
+      showToast(t('clientRegister.toastCodeSent'), 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al crear tu cuenta.';
+      const msg = err instanceof Error ? err.message : t('clientRegister.errCreatingAccount');
       setError(msg);
     } finally {
       setLoading(false);
@@ -140,7 +146,7 @@ export default function ClientRegisterPage() {
 
     const cleanCode = otpCode.replace(/\D/g, '');
     if (cleanCode.length !== 6) {
-      setError('Ingresa el código numérico de 6 dígitos.');
+      setError(t('clientRegister.errOtpFormat'));
       return;
     }
 
@@ -150,10 +156,10 @@ export default function ClientRegisterPage() {
         email: email.trim().toLowerCase(),
         code: cleanCode,
       });
-      showToast('¡Correo verificado! Redirigiendo al inicio de sesión...', 'success');
+      showToast(t('clientRegister.toastVerified'), 'success');
       router.push(`/login?verified=1&email=${encodeURIComponent(email.trim().toLowerCase())}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Código incorrecto o expirado.';
+      const msg = err instanceof Error ? err.message : t('clientRegister.errOtpInvalid');
       setError(msg);
     } finally {
       setLoading(false);
@@ -167,9 +173,9 @@ export default function ClientRegisterPage() {
     try {
       await apiClient.resendClientCode({ email: email.trim().toLowerCase() });
       setResendCooldown(60);
-      showToast('Nuevo código enviado a tu correo.', 'success');
+      showToast(t('clientRegister.toastResent'), 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'No pudimos reenviar el código.';
+      const msg = err instanceof Error ? err.message : t('clientRegister.errResendFailed');
       setError(msg);
     } finally {
       setResending(false);
@@ -189,7 +195,7 @@ export default function ClientRegisterPage() {
   return (
     <>
       <Head>
-        <title>Crear Cuenta de Cliente - NELHEALTHCOACH</title>
+        <title>{t('clientRegister.pageTitle')}</title>
       </Head>
 
       <div className="min-h-screen bg-gradient-to-br from-emerald-500 via-teal-600 to-blue-700 flex items-center justify-center p-4 py-6 sm:py-8">
@@ -208,22 +214,22 @@ export default function ClientRegisterPage() {
             </div>
 
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 mb-3">
-              Portal de Clientes — Manuel Martínez
+              {t('clientRegister.badge')}
             </span>
 
             <h1 className="text-2xl font-bold text-gray-900 text-center">
               {isConsultOnlyPlan
-                ? 'Consulta Privada 1 a 1'
+                ? t('clientRegister.consultTitle')
                 : step === 'credentials'
-                ? 'Crea tu cuenta'
-                : 'Verifica tu correo'}
+                ? t('clientRegister.createAccountTitle')
+                : t('clientRegister.verifyEmailTitle')}
             </h1>
             <p className="text-sm text-gray-500 text-center mt-1">
               {isConsultOnlyPlan
-                ? 'Esta consulta individual se agenda directo sin necesidad de cuenta en el portal.'
+                ? t('clientRegister.consultSubtitle')
                 : step === 'credentials'
-                ? 'Regístrate en segundos para elegir tu plan y comenzar tu programa.'
-                : `Ingresa el código de 6 dígitos que enviamos a ${email}`}
+                ? t('clientRegister.credentialsSubtitle')
+                : t('clientRegister.verifySubtitle', { email })}
             </p>
           </div>
 
@@ -231,9 +237,9 @@ export default function ClientRegisterPage() {
             {isConsultOnlyPlan ? (
               <div className="space-y-4">
                 <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-900 space-y-2">
-                  <p className="font-bold">Videollamada Privada 1 a 1 ($60 USD)</p>
+                  <p className="font-bold">{t('clientRegister.consultBoxTitle')}</p>
                   <p className="text-xs leading-relaxed text-blue-800">
-                    Para reservar tu Consulta Privada 1 a 1 (45 min) no necesitas crear cuenta ni llenar el historial clínico completo. Paga directo desde la página de planes y elige tu horario al instante.
+                    {t('clientRegister.consultBoxDesc')}
                   </p>
                 </div>
 
@@ -243,14 +249,14 @@ export default function ClientRegisterPage() {
                     disabled
                     className="w-full py-3 px-4 rounded-lg font-semibold text-sm bg-gray-200 text-gray-500 border border-gray-300 cursor-not-allowed"
                   >
-                    Cupos no disponibles
+                    {t('clientRegister.unavailableCta')}
                   </button>
                 ) : (
                   <a
                     href={`${LANDING_URL}/#planes`}
                     className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition font-semibold text-sm shadow-sm"
                   >
-                    Agendar Consulta 1 a 1 →
+                    {t('clientRegister.bookConsultBtn')}
                   </a>
                 )}
 
@@ -259,13 +265,13 @@ export default function ClientRegisterPage() {
                   onClick={handleChooseProgramInstead}
                   className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition text-xs font-semibold"
                 >
-                  Prefiero crear cuenta para el Reto o un Plan de seguimiento
+                  {t('clientRegister.chooseProgramInstead')}
                 </button>
               </div>
             ) : (
               <>
                 {/* Banner del plan pre-seleccionado desde la landing */}
-                {selectedPlan && (
+                {selectedPlan && localizedSelectedPlan && (
                   <div
                     className={`mb-5 rounded-xl border p-4 ${
                       isSelectedUnavailable
@@ -280,10 +286,16 @@ export default function ClientRegisterPage() {
                             isSelectedUnavailable ? 'text-amber-800' : 'text-emerald-700'
                           }`}
                         >
-                          {isSelectedUnavailable ? 'Cupos no disponibles' : 'Plan seleccionado'}
+                          {isSelectedUnavailable
+                            ? t('clientRegister.unavailableCta')
+                            : t('clientRegister.selectedPlanLabel')}
                         </p>
-                        <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedPlan.name}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{selectedPlan.durationLabel}</p>
+                        <p className="text-sm font-bold text-gray-900 mt-0.5">
+                          {localizedSelectedPlan.name}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {localizedSelectedPlan.durationLabel}
+                        </p>
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-xs line-through text-gray-400 block">
@@ -300,7 +312,7 @@ export default function ClientRegisterPage() {
                     </div>
                     {isSelectedUnavailable && (
                       <p className="text-xs text-amber-800 mt-2 pt-2 border-t border-amber-200">
-                        Este plan está temporalmente lleno o cerrado. Puedes crear tu cuenta ahora y elegir otro plan con cupos disponibles dentro del portal.
+                        {t('clientRegister.planUnavailableNotice')}
                       </p>
                     )}
                   </div>
@@ -319,7 +331,7 @@ export default function ClientRegisterPage() {
                   <form onSubmit={handleRegisterSubmit} className="space-y-4">
                     <div>
                       <label htmlFor="client-email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Correo electrónico
+                        {t('clientRegister.emailLabel')}
                       </label>
                       <input
                         id="client-email"
@@ -329,14 +341,14 @@ export default function ClientRegisterPage() {
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={loading}
                         autoComplete="email"
-                        placeholder="tucorreo@ejemplo.com"
+                        placeholder={t('clientRegister.emailPlaceholder')}
                         className="w-full px-4 py-3 text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       />
                     </div>
 
                     <div>
                       <label htmlFor="client-password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Contraseña
+                        {t('clientRegister.passwordLabel')}
                       </label>
                       <PasswordInput
                         id="client-password"
@@ -347,7 +359,7 @@ export default function ClientRegisterPage() {
                             setPasswordDirty(true);
                           }
                         }}
-                        placeholder="Mínimo 12 caracteres"
+                        placeholder={t('clientRegister.passwordPlaceholder')}
                         required
                         disabled={loading}
                         autoComplete="new-password"
@@ -355,13 +367,15 @@ export default function ClientRegisterPage() {
 
                       {passwordDirty && (
                         <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
-                          <p className="text-xs font-medium text-gray-600 mb-1">Requisitos de contraseña:</p>
+                          <p className="text-xs font-medium text-gray-600 mb-1">
+                            {t('clientRegister.passwordRequirements')}
+                          </p>
                           {[
-                            { ok: passwordChecks.length, label: 'Mínimo 12 caracteres' },
-                            { ok: passwordChecks.upper, label: 'Al menos 1 letra mayúscula' },
-                            { ok: passwordChecks.lower, label: 'Al menos 1 letra minúscula' },
-                            { ok: passwordChecks.number, label: 'Al menos 1 número' },
-                            { ok: passwordChecks.special, label: 'Al menos 1 carácter especial (!@#$%, etc.)' },
+                            { ok: passwordChecks.length, label: t('clientRegister.reqLength') },
+                            { ok: passwordChecks.upper, label: t('clientRegister.reqUpper') },
+                            { ok: passwordChecks.lower, label: t('clientRegister.reqLower') },
+                            { ok: passwordChecks.number, label: t('clientRegister.reqNumber') },
+                            { ok: passwordChecks.special, label: t('clientRegister.reqSpecial') },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center gap-1.5 text-xs">
                               <span className={item.ok ? 'text-emerald-600 font-bold' : 'text-gray-400'}>
@@ -378,13 +392,13 @@ export default function ClientRegisterPage() {
 
                     <div>
                       <label htmlFor="client-confirm-password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Confirmar contraseña
+                        {t('clientRegister.confirmPasswordLabel')}
                       </label>
                       <PasswordInput
                         id="client-confirm-password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repite tu contraseña"
+                        placeholder={t('clientRegister.confirmPasswordPlaceholder')}
                         required
                         disabled={loading}
                         autoComplete="new-password"
@@ -396,18 +410,18 @@ export default function ClientRegisterPage() {
                       disabled={loading}
                       className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition font-semibold disabled:opacity-50"
                     >
-                      {loading ? 'Creando cuenta...' : 'Crear cuenta y enviar código'}
+                      {loading ? t('clientRegister.creatingAccount') : t('clientRegister.createAccountBtn')}
                     </button>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifySubmit} className="space-y-5">
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-800">
-                      Revisa tu bandeja de entrada (o carpeta de spam). El código tiene validez de 15 minutos.
+                      {t('clientRegister.checkInboxNote')}
                     </div>
 
                     <div>
                       <label htmlFor="otp-code" className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                        Código de verificación de 6 dígitos
+                        {t('clientRegister.otpLabel')}
                       </label>
                       <input
                         id="otp-code"
@@ -428,7 +442,7 @@ export default function ClientRegisterPage() {
                       disabled={loading || otpCode.length !== 6}
                       className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 transition font-semibold disabled:opacity-50"
                     >
-                      {loading ? 'Verificando...' : 'Verificar correo y continuar'}
+                      {loading ? t('clientRegister.verifyingBtn') : t('clientRegister.verifyBtn')}
                     </button>
 
                     <div className="flex items-center justify-between text-xs pt-1">
@@ -439,10 +453,10 @@ export default function ClientRegisterPage() {
                         className="text-emerald-700 hover:text-emerald-900 font-medium disabled:text-gray-400"
                       >
                         {resending
-                          ? 'Reenviando...'
+                          ? t('clientRegister.resendingBtn')
                           : resendCooldown > 0
-                          ? `Reenviar código en ${resendCooldown}s`
-                          : 'Reenviar código'}
+                          ? t('clientRegister.resendIn', { seconds: resendCooldown })
+                          : t('clientRegister.resendCode')}
                       </button>
 
                       <button
@@ -454,7 +468,7 @@ export default function ClientRegisterPage() {
                         }}
                         className="text-gray-500 hover:text-gray-700"
                       >
-                        Cambiar correo
+                        {t('clientRegister.changeEmail')}
                       </button>
                     </div>
                   </form>
@@ -464,15 +478,15 @@ export default function ClientRegisterPage() {
 
             <div className="mt-6 pt-5 border-t border-gray-200 text-center space-y-2">
               <p className="text-sm text-gray-600">
-                ¿Ya tienes una cuenta?{' '}
+                {t('clientRegister.alreadyHaveAccount')}{' '}
                 <Link href="/login" className="text-emerald-700 hover:text-emerald-900 font-semibold">
-                  Iniciar sesión
+                  {t('clientRegister.signInLink')}
                 </Link>
               </p>
               <p className="text-xs text-gray-400">
-                ¿Eres profesional de la salud?{' '}
+                {t('clientRegister.areYouCoach')}{' '}
                 <Link href="/register" className="text-blue-600 hover:text-blue-800 underline">
-                  Registro de asesores
+                  {t('clientRegister.coachRegisterLink')}
                 </Link>
               </p>
             </div>

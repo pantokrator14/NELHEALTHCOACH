@@ -4,6 +4,7 @@ import { useLocalStorageValue } from '@/lib/client-hooks';
 import React from 'react';
 import { apiClient, Exercise, type ClientPlanSummary } from '@/lib/api';
 import { translateApiError, withSupportHint } from '@/lib/apiErrorText';
+import { getDateLocale } from '@/lib/locale';
 
 import RecipeSearchModal from './RecipeSearchModal';
 import ExerciseSearchModal from './ExerciseSearchModal';
@@ -15,7 +16,7 @@ import SessionScheduler from './SessionScheduler';
 import VideoCallRoom from './VideoCallRoom';
 import { useToast } from '@/components/ui/Toast';
 import { sanitizeProviderName, translateGenerationError } from '@/lib/aiVisibleText';
-import { ChecklistItem, VideoSession, TranscriptStatus } from '../../../../../packages/types/src/healthForm';
+import { ChecklistItem, VideoSession, TranscriptStatus, WeeklyPhaseItem } from '../../../../../packages/types/src/healthForm';
 import { Recipe } from '../../../../../packages/types/src/recipe-types';
 import { useTranslation, Trans } from 'react-i18next';
 import i18n from '@/lib/i18n';
@@ -151,6 +152,7 @@ interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
   totalWeeks?: number;
+  weeklyPhases?: WeeklyPhaseItem[];
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent';
@@ -210,6 +212,8 @@ interface ApiAIProgressData {
   sessions?: Array<{
     sessionId: string;
     monthNumber?: number;
+    totalWeeks?: number;
+    weeklyPhases?: WeeklyPhaseItem[];
     summary?: string;
     vision?: string;
     medicalSummary?: string;
@@ -440,6 +444,7 @@ export default function AIRecommendationsModal({
   const [uploadingFile, setUploadingFile] = useState(false);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // ===== ESTADOS DE VIDEOLlAMADA =====
   const [showSessionScheduler, setShowSessionScheduler] = useState(false);
@@ -541,7 +546,8 @@ export default function AIRecommendationsModal({
        return {
          sessionId: session.sessionId,
          monthNumber: session.monthNumber || 1,
-         totalWeeks: (session as { totalWeeks?: number }).totalWeeks || 4,
+         totalWeeks: session.totalWeeks || 4,
+         weeklyPhases: Array.isArray(session.weeklyPhases) ? session.weeklyPhases : undefined,
          createdAt,
          updatedAt,
          status: session.status || 'draft',
@@ -636,7 +642,7 @@ export default function AIRecommendationsModal({
           .filter(({ week }) => week.weekNumber >= startWeek && week.weekNumber <= endWeek);
         months.push({
           monthNumber: month,
-          label: `Mes ${month}`,
+          label: t('ai.monthPeriodLabel', { number: month }),
           weeks,
           startWeek,
           endWeek,
@@ -647,8 +653,8 @@ export default function AIRecommendationsModal({
       const startWeek = activeSession.weeks[0]?.weekNumber || 1;
       const endWeek = activeSession.weeks[activeSession.weeks.length - 1]?.weekNumber || activeSession.weeks.length;
       const periodLabel = activeSession.totalWeeks === 3
-        ? '3 Semanas (Reto)'
-        : `Mes ${activeSession.monthNumber}`;
+        ? t('ai.threeWeeksChallengeLabel')
+        : t('ai.monthPeriodLabel', { number: activeSession.monthNumber });
       months.push({
         monthNumber: activeSession.monthNumber,
         label: periodLabel,
@@ -658,7 +664,7 @@ export default function AIRecommendationsModal({
       });
     }
     return months;
-  }, [activeSession]);
+  }, [activeSession, t]);
 
   // Última sesión de video completada (para lógica de transcripción)
   const latestCompletedVideoSession = useMemo(() => {
@@ -1735,6 +1741,26 @@ export default function AIRecommendationsModal({
     e.target.value = '';
   }, [handleFileUpload]);
 
+  const handleClientDownloadPdf = useCallback(async () => {
+    if (!activeSession) return;
+    try {
+      setDownloadingPdf(true);
+      const { blob, filename } = await apiClient.downloadRecommendationPdf(clientId, activeSession.sessionId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast(translateApiError(err, t, 'ai.downloadPdfError'), 'error');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }, [activeSession, clientId, showToast, t]);
+
   // ===== MANEJADORES DE UI =====
   const handleChangeMonthTab = useCallback((sessionId: string) => {
     setActiveSessionId(sessionId);
@@ -1791,7 +1817,16 @@ export default function AIRecommendationsModal({
             <div className="flex-1 pr-4">
               <div className="flex items-center mb-2">
                 <svg className="w-6 h-6 md:w-8 md:h-8 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                <div className="flex-1"><h2 className="text-xl md:text-2xl font-bold">{t('ai.modalTitle')}</h2></div>
+                <div className="flex-1 flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-bold">
+                    {readOnlyClientMode ? t('ai.healthRecommendationsTitle') : t('ai.modalTitle')}
+                  </h2>
+                  {readOnlyClientMode && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white border border-white/30">
+                      {t('ai.clientReadOnlyBadge')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="hidden md:flex items-center">
@@ -1809,21 +1844,23 @@ export default function AIRecommendationsModal({
           </div>
         </div>
 
-        {/* Banner Regulatorio: Delimitación de IA y Descargo Médico (RGPD & FTC) */}
-        <div
-          role="alert"
-          className="bg-amber-50/90 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2.5 text-xs text-amber-900"
-        >
-          <span className="text-base leading-none shrink-0 mt-0.5">⚖️</span>
-          <div>
-            <strong className="font-semibold block text-amber-950">
-              {t('ai.disclaimerBannerTitle')}
-            </strong>
-            <p className="text-amber-800 leading-relaxed mt-0.5">
-              {t('ai.disclaimerBannerText')}
-            </p>
+        {/* Banner Regulatorio: Delimitación de IA y Descargo Médico (solo vista de coach) */}
+        {!readOnlyClientMode && (
+          <div
+            role="alert"
+            className="bg-amber-50/90 border-b border-amber-200 px-4 py-2.5 flex items-start gap-2.5 text-xs text-amber-900"
+          >
+            <span className="text-base leading-none shrink-0 mt-0.5">⚖️</span>
+            <div>
+              <strong className="font-semibold block text-amber-950">
+                {t('ai.disclaimerBannerTitle')}
+              </strong>
+              <p className="text-amber-800 leading-relaxed mt-0.5">
+                {t('ai.disclaimerBannerText')}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Banner de estado: Generando... o Error */}
         {generating && (
@@ -1970,9 +2007,9 @@ export default function AIRecommendationsModal({
                    >
                      {tab.label}
                      <span className={`ml-2 text-xs px-2 py-1 rounded-full ${session.status === 'approved' ? 'bg-green-100 text-green-800' : session.status === 'sent' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                       {readOnlyClientMode
-                         ? (session.status === 'sent' ? 'Enviado' : 'Disponible')
-                         : (session.status === 'draft' ? 'Borrador' : session.status === 'approved' ? 'Aprobado' : 'Enviado')}
+                        {readOnlyClientMode
+                          ? (session.status === 'sent' ? t('ai.sentStatus') : t('ai.availableStatus'))
+                          : (session.status === 'draft' ? t('ai.draftStatus') : session.status === 'approved' ? t('ai.approvedStatus') : t('ai.sentStatus'))}
                      </span>
                    </button>
                  );
@@ -1986,9 +2023,9 @@ export default function AIRecommendationsModal({
             readOnlyClientMode ? (
               <div className="text-center py-12 max-w-lg mx-auto">
                 <svg className="w-16 h-16 text-green-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                <h3 className="text-xl font-bold text-gray-700 mb-2">Tu plan personalizado está en preparación</h3>
+                <h3 className="text-xl font-bold text-gray-700 mb-2">{t('ai.clientPendingTitle')}</h3>
                 <p className="text-gray-600 mb-6">
-                  Tu asesor Manuel Martínez está revisando tu perfil y estudios médicos. Cuando apruebe tu plan personalizado, podrás verlo aquí.
+                  {t('ai.clientPendingDesc')}
                 </p>
               </div>
             ) : (
@@ -1999,7 +2036,7 @@ export default function AIRecommendationsModal({
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <button onClick={() => setShowNewEvaluationForm(true)} className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">{t('ai.generateFirst')}</button>
                   <button onClick={triggerFileInput} disabled={uploadingFile} className="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                    {uploadingFile ? 'Subiendo...' : 'Subir Archivo de Recomendaciones'}
+                    {uploadingFile ? t('ai.uploadingBtn') : t('ai.uploadRecsFileBtn')}
                   </button>
                 </div>
                 {uploadError && (
@@ -2023,13 +2060,13 @@ export default function AIRecommendationsModal({
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-gray-700 flex items-center text-sm md:text-base">
                         <span className="mr-2">🔍</span>
-                        Resumen del Estado Actual
+                        {t('ai.currentStateTitle')}
                       </h4>
                       {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                         <button
                           onClick={() => handleStartEdit(activeSession.sessionId, 'summary', activeSession.summary)}
                           className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
-                          title="Editar resumen"
+                          title={t('ai.editSummaryTitle')}
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -2074,7 +2111,7 @@ export default function AIRecommendationsModal({
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-gray-700 flex items-center text-sm md:text-base">
                         <span className="mr-2">🎯</span>
-                        {activeSession.totalWeeks === 3 ? 'Visión para las 3 semanas' : 'Visión para el siguiente mes'}
+                        {activeSession.totalWeeks === 3 ? t('ai.visionThreeWeeks') : t('ai.visionOneMonth')}
                       </h4>
                       {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                         <button
@@ -2123,6 +2160,52 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
 
+              {/* Enfoque progresivo por semana (ej. Reto Tres NEL de 3 semanas) */}
+              {activeSession.weeklyPhases && activeSession.weeklyPhases.length > 0 && (
+                <div className="bg-white rounded-xl p-4 md:p-6 border border-emerald-200 shadow-sm">
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-emerald-900 flex items-center text-base md:text-lg gap-2">
+                      <span>🧭</span>
+                      {t('ai.weeklyPhasesTitle')}
+                    </h4>
+                    <p className="text-xs md:text-sm text-gray-600 mt-1">
+                      {t('ai.weeklyPhasesSubtitle')}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {activeSession.weeklyPhases.map((phase) => (
+                      <div
+                        key={phase.weekNumber}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-emerald-200/70 pb-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white">
+                            {t('ai.weekHeading', { number: phase.weekNumber })}
+                          </span>
+                          <span className="text-xs font-semibold text-emerald-900 text-right">
+                            {phase.title}
+                          </span>
+                        </div>
+                        <div className="space-y-2 text-xs md:text-sm text-gray-700">
+                          <div>
+                            <p className="font-semibold text-green-800">{t('ai.nutritionFocusLabel')}:</p>
+                            <p className="text-gray-800 leading-snug">{phase.nutritionFocus}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-blue-800">{t('ai.exerciseFocusLabel')}:</p>
+                            <p className="text-gray-800 leading-snug">{phase.exerciseFocus}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-purple-800">{t('ai.habitFocusLabel')}:</p>
+                            <p className="text-gray-800 leading-snug">{phase.habitFocus}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* === 5 ACORDEONES: Análisis Médico, Nutrición, Ejercicios, Hábitos, Checklist === */}
 
               {/* 🔴 ANÁLISIS MÉDICO — PRIMER ACORDEÓN */}
@@ -2135,7 +2218,7 @@ export default function AIRecommendationsModal({
                   }}
                 >
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span>🏥</span> Análisis Médico y Suplementos
+                    <span>🏥</span> {t('ai.medicalAndSupplementsTitle')}
                   </h3>
                   <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-medical') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2245,7 +2328,7 @@ export default function AIRecommendationsModal({
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                               <div className="flex items-center justify-between mb-2">
                                 <h5 className="font-semibold text-red-800 text-sm flex items-center gap-2">
-                                  <span>🔬</span> Análisis Clínico
+                                  <span>🔬</span> {t('ai.clinicalAnalysisTitle')}
                                 </h5>
                                 {!readOnlyClientMode && !editMode && activeSession.status === 'draft' && (
                                   <button
@@ -2299,7 +2382,7 @@ export default function AIRecommendationsModal({
                         {activeSession.structuredMedicalAnalysis.supplements.length > 0 ? (
                           <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
                             <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
-                              <span>💊</span> Suplementación Estratégica Recomendada
+                              <span>💊</span> {t('ai.supplementsRecommendedTitle')}
                             </h5>
                             <div className="space-y-3">
                               {activeSession.structuredMedicalAnalysis.supplements.map((supp, suppIdx) => (
@@ -2313,7 +2396,7 @@ export default function AIRecommendationsModal({
                                       <p><span className="font-semibold">{t('ai.dose')}</span> {supp.dosage} | <span className="font-semibold">{t('ai.timing')}</span> {supp.timing}</p>
                                       <p className="text-gray-500"><span className="font-semibold">{t('ai.reason')}</span> {supp.rationale}</p>
                                       {supp.contraindications && (
-                                        <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {supp.contraindications}</p>
+                                        <p className="text-red-600 font-medium">⚠️ {t('ai.contraindicationsLabel')}: {supp.contraindications}</p>
                                       )}
                                     </div>
                                   </div>
@@ -2327,7 +2410,7 @@ export default function AIRecommendationsModal({
                               <span>🥗</span> {t('ai.noSupplementsTitle')}
                             </h5>
                             <p className="text-sm text-gray-700 leading-relaxed">
-                              <Trans i18nKey="ai.noSupplementsNeeded" values={{ weeks: '3 a 4 semanas' }} components={{ strong: <strong /> }} />
+                              <Trans i18nKey="ai.noSupplementsNeeded" values={{ weeks: activeSession.totalWeeks === 3 ? t('ai.threeWeeksLabel') : t('ai.threeToFourWeeksLabel') }} components={{ strong: <strong /> }} />
                             </p>
                           </div>
                         )}
@@ -2429,7 +2512,7 @@ export default function AIRecommendationsModal({
                         {activeSession.checklist.filter(i => i.category === 'supplement').length > 0 ? (
                           <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mt-4 shadow-sm">
                             <h5 className="font-semibold text-amber-800 mb-3 text-sm flex items-center gap-2">
-                              <span>💊</span> Suplementación Estratégica Recomendada
+                              <span>💊</span> {t('ai.supplementsRecommendedTitle')}
                             </h5>
                             <div className="space-y-3">
                               {activeSession.checklist.filter(i => i.category === 'supplement').map((item) => (
@@ -2449,7 +2532,7 @@ export default function AIRecommendationsModal({
                                         <p><span className="font-semibold">{t('ai.dose')}</span> {item.details.supplementInfo.dosage} | <span className="font-semibold">{t('ai.timing')}</span> {item.details.supplementInfo.timing}</p>
                                         <p className="text-gray-500"><span className="font-semibold">{t('ai.scientificReason')}</span> {item.details.supplementInfo.rationale}</p>
                                         {item.details.supplementInfo.contraindications && (
-                                          <p className="text-red-600 font-medium">⚠️ Contraindicaciones: {item.details.supplementInfo.contraindications}</p>
+                                          <p className="text-red-600 font-medium">⚠️ {t('ai.contraindicationsLabel')}: {item.details.supplementInfo.contraindications}</p>
                                         )}
                                       </div>
                                     ) : item.notes ? (
@@ -2468,7 +2551,7 @@ export default function AIRecommendationsModal({
                             <p className="text-sm text-gray-700 leading-relaxed">
                               <Trans
                                 i18nKey="ai.noSupplementsNeededDetailed"
-                                values={{ points: '5 a 10 puntos', weeks: '3 a 4 semanas' }}
+                                values={{ points: t('ai.pointsRange'), weeks: activeSession.totalWeeks === 3 ? t('ai.threeWeeksLabel') : t('ai.threeToFourWeeksLabel') }}
                                 components={{ strong: <strong /> }}
                               />
                             </p>
@@ -2505,7 +2588,7 @@ export default function AIRecommendationsModal({
                   }}
                 >
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span>🥗</span> Plan de Nutrición
+                    <span>🥗</span> {t('ai.nutritionPlanTitle')}
                   </h3>
                   <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-nutrition') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2520,6 +2603,7 @@ export default function AIRecommendationsModal({
                         const meals = ['desayuno', 'almuerzo', 'cena'] as const;
                         const mealIcons: Record<string, string> = { desayuno: '🌅', almuerzo: '☀️', cena: '🌙' };
                         const mealLabels: Record<string, string> = { desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena' };
+                        const mealLabelsLocalized: Record<string, string> = { desayuno: t('ai.mealBreakfast'), almuerzo: t('ai.mealLunch'), cena: t('ai.mealDinner') };
                         const nutritionItems = activeSession.checklist.filter(
                           item => item.category === 'nutrition' && item.weekNumber === week.weekNumber
                         );
@@ -2527,7 +2611,7 @@ export default function AIRecommendationsModal({
                         return dayOrder.map((day) => (
                           <div key={day} className={`flex-shrink-0 ${isMaximized ? 'w-64' : 'w-36'} flex flex-col`}>
                             {/* Day header */}
-                            <div className="bg-green-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">{day}</div>
+                            <div className="bg-green-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">{t(`ai.days.${day}`, { defaultValue: day })}</div>
                             {/* Meal cards */}
                             <div className="bg-green-50 rounded-b-lg border border-green-200 border-t-0 p-1.5 space-y-1.5 min-h-[60px]">
                               {meals.map((mealType) => {
@@ -2605,7 +2689,7 @@ export default function AIRecommendationsModal({
                                           <button
                                             onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                             className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/nut:opacity-100 transition-opacity text-[10px] z-10"
-                                            title="Eliminar"
+                                            title={t('ai.deleteTitle')}
                                           >✕</button>
                                         )}
                                         {/* Image placeholder */}
@@ -2628,7 +2712,7 @@ export default function AIRecommendationsModal({
                                         </div>
                                         {/* Meal label + recipe name */}
                                         <p className="text-[10px] font-semibold text-gray-900 line-clamp-1 leading-snug mb-0.5">
-                                          {mealIcons[mealType]} {mealLabels[mealType]}
+                                          {mealIcons[mealType]} {mealLabelsLocalized[mealType]}
                                         </p>
                                         <p
                                           onClick={async () => {
@@ -2647,14 +2731,14 @@ export default function AIRecommendationsModal({
                                     ) : (
                                       <>
                                         <p className="text-[10px] font-semibold text-gray-500 mb-1">
-                                          {mealIcons[mealType]} {mealLabels[mealType]}
+                                          {mealIcons[mealType]} {mealLabelsLocalized[mealType]}
                                         </p>
                                         <span className="text-[10px] text-gray-400 italic">{t('ai.empty')}</span>
                                         {!readOnlyClientMode && activeSession.status === 'draft' && (
                                           <button
                                             onClick={() => { setSearchDay(day); setSearchMeal(mealType); setSearchCategory('nutrition'); setSearchWeek(week.weekNumber); setShowRecipeSearch(true); }}
                                             className="mt-1 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-[10px]"
-                                            title="Agregar receta"
+                                            title={t('ai.addRecipeTitle')}
                                           >+</button>
                                         )}
                                       </>
@@ -2682,7 +2766,7 @@ export default function AIRecommendationsModal({
                                 <button
                                   onClick={() => handleDeleteItem(item.id)}
                                   className="absolute top-1 right-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/alt:opacity-100 transition-opacity text-[10px] z-10"
-                                  title="Eliminar"
+                                  title={t('ai.deleteTitle')}
                                 >✕</button>
                               )}
                               {/* Image / Placeholder */}
@@ -2739,7 +2823,7 @@ export default function AIRecommendationsModal({
                     <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold text-green-800 flex items-center gap-2">
-                          <span>🛒</span> Lista de compras
+                          <span>🛒</span> {t('ai.shoppingListTitle')}
                         </h4>
                         {!readOnlyClientMode && (
                           <button
@@ -2753,9 +2837,9 @@ export default function AIRecommendationsModal({
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                 </svg>
-                                Actualizando lista de ingredientes...
+                                {t('ai.updatingIngredients')}
                               </>
-                            ) : 'Actualizar'}
+                            ) : t('ai.updateBtn')}
                           </button>
                         )}
                       </div>
@@ -2773,7 +2857,7 @@ export default function AIRecommendationsModal({
 
                       {flatShoppingList.length === 0 && !loadingWeeklyPlan && (
                         <p className="text-sm text-green-700 italic">
-                          {readOnlyClientMode ? 'La lista de compras aún no ha sido generada.' : t('ai.pressUpdate')}
+                          {readOnlyClientMode ? t('ai.shoppingListPendingClient') : t('ai.pressUpdate')}
                         </p>
                       )}
 
@@ -2805,7 +2889,7 @@ export default function AIRecommendationsModal({
                   }}
                 >
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span>🏋️</span> Plan de Ejercicios
+                    <span>🏋️</span> {t('ai.exercisePlanTitle')}
                   </h3>
                   <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-exercise') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2876,7 +2960,7 @@ export default function AIRecommendationsModal({
                                 >
                                   {/* Day header */}
                                   <div className="bg-blue-600 text-white rounded-t-lg py-1.5 px-2 text-center font-semibold text-xs">
-                                    {day}
+                                    {t(`ai.days.${day}`, { defaultValue: day })}
                                   </div>
                                   {/* Exercise cards */}
                                   <div className="relative bg-blue-50 rounded-b-lg border border-blue-200 border-t-0 p-1.5 space-y-1.5 min-h-[60px]">
@@ -2943,7 +3027,7 @@ export default function AIRecommendationsModal({
                                           <button
                                             onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                             className="absolute top-0.5 right-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover/ex:opacity-100 transition-opacity text-[10px] z-10"
-                                            title="Eliminar"
+                                            title={t('ai.deleteTitle')}
                                           >✕</button>
                                         )}
                                         {/* Title (click to open detail) */}
@@ -2986,7 +3070,7 @@ export default function AIRecommendationsModal({
                                         onClick={() => { setSearchCategory('exercise'); setSearchWeek(week.weekNumber); setSearchDay(day); setShowExerciseSearch(true); }}
                                         className="w-full py-1 border border-dashed border-blue-300 rounded text-blue-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-100 transition-colors text-[10px] font-medium flex items-center justify-center gap-0.5"
                                       >
-                                        <span className="text-xs leading-none">+</span> Ejercicio
+                                        <span className="text-xs leading-none">+</span> {t('ai.addExerciseBtn')}
                                       </button>
                                     )}
                                   </div>
@@ -3029,7 +3113,7 @@ export default function AIRecommendationsModal({
                   }}
                 >
                   <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span>🧠</span> Plan de Hábitos
+                    <span>🧠</span> {t('ai.habitsPlanTitle')}
                   </h3>
                   <svg className={`w-6 h-6 transform transition-transform ${expandedMonths.includes('accordion-habits') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -3092,7 +3176,7 @@ export default function AIRecommendationsModal({
                                     onClick={() => { setNewHabitType('toAdopt'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-purple-300 text-purple-500 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-colors text-xs"
                                   >
-                                    <span className="text-sm leading-none">+</span> Agregar hábito a adoptar
+                                    <span className="text-sm leading-none">+</span> {t('ai.addHabitToAdopt')}
                                   </button>
                                 )}
                               </div>
@@ -3138,7 +3222,7 @@ export default function AIRecommendationsModal({
                                     onClick={() => { setNewHabitType('toEliminate'); setSearchCategory('habit'); setSearchWeek(week.weekNumber); setEditingItem(null); setShowEditItemModal(true); }}
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border-2 border-dashed border-red-300 text-red-500 hover:text-red-700 hover:border-red-400 hover:bg-red-50 transition-colors text-xs"
                                   >
-                                    <span className="text-sm leading-none">+</span> Agregar hábito a eliminar
+                                    <span className="text-sm leading-none">+</span> {t('ai.addHabitToEliminate')}
                                   </button>
                                 )}
                               </div>
@@ -3151,10 +3235,10 @@ export default function AIRecommendationsModal({
                               <h5 className="font-semibold text-purple-900 text-xs mb-2">{t('ai.habitsRecommendations')}</h5>
                               <ul className="space-y-1 text-xs text-purple-800">
                                 {week.habits.trackingMethod && (
-                                  <li>📊 Seguimiento: {week.habits.trackingMethod}</li>
+                                  <li>📊 {t('ai.trackingShort')}: {week.habits.trackingMethod}</li>
                                 )}
                                 {week.habits.motivationTip && (
-                                  <li>💡 Tip: {week.habits.motivationTip}</li>
+                                  <li>💡 {t('ai.tipShort')}: {week.habits.motivationTip}</li>
                                 )}
                               </ul>
                             </div>
@@ -3176,7 +3260,7 @@ export default function AIRecommendationsModal({
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">{t('ai.aiNotes')}</label><textarea value={coachNotes} onChange={(e) => setCoachNotes(e.target.value)} rows={3} className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" placeholder={t('ai.aiNotesPlaceholder')} /></div>
                 <div className="flex flex-col-reverse sm:flex-row justify-end sm:space-x-3 gap-3 pt-4 border-t border-gray-200">
                   <button onClick={() => { setShowNewEvaluationForm(false); setCoachNotes(''); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg sm:border-0 w-full sm:w-auto text-center">{t('ai.cancel')}</button>
-                  <button onClick={() => handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1)} disabled={generating} className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 w-full sm:w-auto text-center">{generating ? 'Generando...' : 'Generar Nuevas Recomendaciones'}</button>
+                  <button onClick={() => handleGenerateRecommendations(aiProgress ? aiProgress.sessions.length + 1 : 1)} disabled={generating} className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 w-full sm:w-auto text-center">{generating ? t('ai.generatingBtn') : t('ai.generateNewRecsBtn')}</button>
                 </div>
               </div>
             </div>
@@ -3190,12 +3274,17 @@ export default function AIRecommendationsModal({
                 <div className="flex flex-col md:flex-row md:items-center">
                   <div className="flex items-center"><span className="text-sm text-gray-700">{t('ai.status')}: </span><span className={`font-medium px-2 py-1 rounded-full text-xs md:text-sm ml-2 ${activeSession.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : activeSession.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                     {readOnlyClientMode
-                      ? (activeSession.status === 'sent' ? 'Enviado' : 'Aprobado')
-                      : (activeSession.status === 'draft' ? 'Borrador' : activeSession.status === 'approved' ? 'Aprobado' : 'Enviado al cliente')}
+                      ? (activeSession.status === 'sent' ? t('ai.sentStatus') : t('ai.approvedStatus'))
+                      : (activeSession.status === 'draft' ? t('ai.draftStatus') : activeSession.status === 'approved' ? t('ai.approvedStatus') : t('ai.sentToClientStatus'))}
                   </span></div>
-                   <span className="text-sm text-gray-700 md:ml-4">Sesión {activeSessionNumber || 1} • {new Date(activeSession.createdAt).toLocaleDateString()}</span>
+                   <span className="text-sm text-gray-700 md:ml-4">
+                     {t('ai.sessionLabel', {
+                       number: activeSessionNumber || 1,
+                       date: new Date(activeSession.createdAt).toLocaleDateString(getDateLocale(i18n.language)),
+                     })}
+                   </span>
                 </div>
-              ) : <span className="text-sm text-gray-700">{readOnlyClientMode ? 'Esperando aprobación de tu asesor' : t('ai.noActiveSessions')}</span>}
+              ) : <span className="text-sm text-gray-700">{readOnlyClientMode ? t('ai.waitingAdvisorApproval') : t('ai.noActiveSessions')}</span>}
               {!readOnlyClientMode && (
                 <button onClick={() => setFooterExpanded(!footerExpanded)} className="md:hidden ml-2 p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors">
                   <svg className={`w-5 h-5 transform transition-transform ${footerExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
@@ -3203,7 +3292,19 @@ export default function AIRecommendationsModal({
               )}
             </div>
             {readOnlyClientMode ? (
-              <div className="flex justify-end w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 w-full md:w-auto">
+                {activeSession && (
+                  <button
+                    onClick={handleClientDownloadPdf}
+                    disabled={downloadingPdf}
+                    className="w-full md:w-auto px-5 py-2.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors font-medium text-sm md:text-base inline-flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {downloadingPdf ? t('ai.downloadingPdf') : t('ai.downloadPdf')}
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="w-full md:w-auto px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base"
@@ -3220,7 +3321,7 @@ export default function AIRecommendationsModal({
                       className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-gray-100 text-gray-600 border border-gray-200 rounded-lg text-xs md:text-sm font-medium text-center"
                       title={`El plan ${planSummary.name} permite hasta ${planSummary.maxMonths} evaluación(es).`}
                     >
-                      Límite del plan ({planSummary.maxMonths}/{planSummary.maxMonths})
+                      {t('ai.planLimitReachedLabel', { max: planSummary.maxMonths })}
                     </span>
                   ) : canGenerateNewEvaluation ? (
                     <button onClick={() => setShowNewEvaluationForm(true)} className="w-full md:w-auto px-3 py-2 md:px-4 md:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm md:text-base">{t('ai.newEvaluation')}</button>
@@ -3230,7 +3331,7 @@ export default function AIRecommendationsModal({
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Transcribiendo...
+                      {t('ai.transcribingBtn')}
                     </button>
                   ) : hasExistingSessions && transcriptStatus === 'failed' && latestCompletedVideoSession ? (
                     <div className="flex flex-col items-end gap-1">
@@ -3242,12 +3343,12 @@ export default function AIRecommendationsModal({
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        Reintentar Transcripción
+                        {t('ai.retryTranscriptionBtn')}
                       </button>
                       {transcriptError && (
                         <details className="group w-full max-w-xs">
                           <summary className="text-[10px] text-red-400 cursor-pointer hover:text-red-600 transition-colors text-right">
-                            ¿Por qué falló? — ver detalle
+                            {t('ai.whyFailedDetail')}
                           </summary>
                           <p className="text-[10px] text-red-500 bg-red-50 rounded p-1.5 mt-0.5 leading-relaxed whitespace-pre-line">
                             {transcriptError}
