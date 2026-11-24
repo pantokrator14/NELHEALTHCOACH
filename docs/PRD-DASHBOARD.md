@@ -24,7 +24,7 @@ El Dashboard de NELHEALTHCOACH (`apps/dashboard`) integra dos experiencias difer
 
 ### 1.2 Alcance
 - Panel protegido con autenticación JWT y roles (`coach`, `admin`, `client`), con login unificado (`/login`) y autoregistro de clientes con OTP de 6 dígitos (`/register/client`).
-- Sidebar adaptativo por rol: para clientes muestra únicamente **Inicio**, **Planes**, acceso único de perfil inferior (`Ver mi perfil`) y **Cerrar Sesión** (6 idiomas).
+- Sidebar adaptativo por rol: para clientes muestra **Inicio**, **Planes**, módulos condicionales en Plan 2/Plan 3 (**Recetas**, **Ejercicios** y **Escáner Nutricional**), enlace discreto externo al **Centro de Ayuda** (`${LANDING_URL}/ayuda` con `rel="noopener noreferrer"`, también visible para coaches), acceso único de perfil inferior (`Ver mi perfil`) y **Cerrar Sesión** (6 idiomas).
 - Módulos de clientes, recetas (incluyendo análisis de imagen por IA), ejercicios, finanzas y perfil profesional con estados de carga skeleton pulsantes (Principio Anti-AI).
 - Blindaje de indexación con `robots.txt` (`Disallow: /`) y meta `noindex, nofollow, noarchive`.
 - Accesibilidad WCAG 2.1 AA con navegación modal por Escape, `focus-visible` y emparejamiento `id`/`htmlFor`.

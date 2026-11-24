@@ -15,13 +15,14 @@ interface NavSectionItem {
   defaultLabel?: string;
 }
 
-interface LegalNavItem {
+interface SecondaryNavItem {
   href: string;
   labelKey: string;
   defaultLabel: string;
 }
 
-const LEGAL_NAV_ITEMS: LegalNavItem[] = [
+const SECONDARY_NAV_ITEMS: SecondaryNavItem[] = [
+  { href: '/ayuda', labelKey: 'landing.nav.help', defaultLabel: 'Ayuda' },
   { href: '/politica-privacidad', labelKey: 'landing.nav.privacy', defaultLabel: 'Privacidad' },
   { href: '/terminos-condiciones', labelKey: 'landing.nav.terms', defaultLabel: 'Términos' },
   { href: '/aviso-legal', labelKey: 'landing.nav.notice', defaultLabel: 'Aviso Legal' },
@@ -45,7 +46,7 @@ const Navbar: React.FC = () => {
   const [isOverHero, setIsOverHero] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  const isLegalPage = LEGAL_NAV_ITEMS.some((item) => item.href === router.pathname);
+  const isSecondaryPage = SECONDARY_NAV_ITEMS.some((item) => item.href === router.pathname);
 
   const getNavItemLabel = (item: NavSectionItem) => {
     return item.defaultLabel ? t(item.labelKey, item.defaultLabel) : t(item.labelKey);
@@ -108,7 +109,7 @@ const Navbar: React.FC = () => {
   };
 
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!isLegalPage && router.pathname === '/') {
+    if (!isSecondaryPage && router.pathname === '/') {
       e.preventDefault();
       scrollToSection('inicio');
     }
@@ -150,9 +151,9 @@ const Navbar: React.FC = () => {
 
         {/* Navegación Desktop */}
         <nav className="hidden lg:flex items-center space-x-5 xl:space-x-7" aria-label="Navegación principal">
-          {isLegalPage ? (
+          {isSecondaryPage ? (
             <>
-              {LEGAL_NAV_ITEMS.map((item) => {
+              {SECONDARY_NAV_ITEMS.map((item) => {
                 const isActive = router.pathname === item.href;
                 return (
                   <Link
@@ -247,9 +248,9 @@ const Navbar: React.FC = () => {
           }`}
         >
           <div className="flex flex-col space-y-3">
-            {isLegalPage ? (
+            {isSecondaryPage ? (
               <>
-                {LEGAL_NAV_ITEMS.map((item) => {
+                {SECONDARY_NAV_ITEMS.map((item) => {
                   const isActive = router.pathname === item.href;
                   return (
                     <Link

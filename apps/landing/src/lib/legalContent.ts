@@ -357,7 +357,7 @@ const es: Record<LegalPageKey, LegalDocument> = {
       {
         title: '3. Suscripciones Recurrentes y Cancelación Transparente',
         paragraphs: [
-          'Para los planes o membresías mensuales recurrentes, el usuario puede cancelar la renovación automática en cualquier momento antes del vencimiento del ciclo en curso, directamente desde su panel de control o enviando un correo a soporte@nelhealthcoach.com.',
+          'Para los planes o membresías mensuales recurrentes, el usuario puede cancelar la renovación automática en cualquier momento antes del vencimiento del ciclo en curso, directamente desde su panel de control o enviando un correo a support@nelhealthcoach.com.',
           'La cancelación no conlleva penalización alguna y detiene cualquier cargo futuro. El usuario conservará el acceso a su portal hasta el término del ciclo mensual ya pagado.'
         ]
       },
@@ -371,7 +371,7 @@ const es: Record<LegalPageKey, LegalDocument> = {
       {
         title: '5. Atención y Solicitudes',
         paragraphs: [
-          'Para cualquier gestión o consulta relativa a pagos o facturación, comuníquese con soporte@nelhealthcoach.com indicando su correo de registro y número de transacción.'
+          'Para cualquier gestión o consulta relativa a pagos o facturación, comuníquese con support@nelhealthcoach.com indicando su correo de registro y número de transacción.'
         ]
       }
     ]
@@ -735,7 +735,7 @@ const en: Record<LegalPageKey, LegalDocument> = {
       {
         title: '3. Subscriptions & Hassle-Free Cancellation',
         paragraphs: [
-          'For recurring monthly coaching plans, you may cancel automatic renewal at any time before your next billing cycle via your dashboard or by emailing soporte@nelhealthcoach.com.',
+          'For recurring monthly coaching plans, you may cancel automatic renewal at any time before your next billing cycle via your dashboard or by emailing support@nelhealthcoach.com.',
           'Cancellation stops future charges without penalty. You maintain platform access until the end of the current paid billing cycle.'
         ]
       },
@@ -1091,7 +1091,7 @@ const fr: Record<LegalPageKey, LegalDocument> = {
         paragraphs: [
           'Conformément à la directive 2011/83/UE, le client dispose d\'un délai de 14 jours pour exercer son droit de rétractation.',
           'Ce droit s\'éteint dès le commencement d\'exécution des plans personnalisés (nutrition, suppléments, analyse IA ou session de coaching 1 à 1) avec l\'accord préalable du client.',
-          'Les abonnements récurrents peuvent être interrompus à tout moment avant le renouvellement sans frais depuis le compte client ou par email à soporte@nelhealthcoach.com.'
+          'Les abonnements récurrents peuvent être interrompus à tout moment avant le renouvellement sans frais depuis le compte client ou par email à support@nelhealthcoach.com.'
         ]
       }
     ]
@@ -1423,7 +1423,7 @@ const it: Record<LegalPageKey, LegalDocument> = {
         paragraphs: [
           'In conformità con la direttiva 2011/83/UE, il consumatore ha diritto di recedere entro 14 giorni dall\'acquisto.',
           'Il diritto decade una volta avviata l\'esecuzione dei servizi personalizzati (piani nutrizionali, analisi IA o sessioni 1 a 1) con il consenso espresso del cliente.',
-          'Gli abbonamenti possono essere annullati in qualsiasi momento prima del rinnovo mensile senza penali tramite la dashboard o scrivendo a soporte@nelhealthcoach.com.'
+          'Gli abbonamenti possono essere annullati in qualsiasi momento prima del rinnovo mensile senza penali tramite la dashboard o scrivendo a support@nelhealthcoach.com.'
         ]
       }
     ]
@@ -1755,7 +1755,7 @@ const pt: Record<LegalPageKey, LegalDocument> = {
         paragraphs: [
           'Em conformidade com a Diretiva 2011/83/UE, o consumidor tem o direito de rescindir o contrato em 14 dias.',
           'O direito não se aplica após o início da prestação dos serviços personalizados (planos de saúde, análise por IA ou sessões 1 para 1) com o consentimento prévio do cliente.',
-          'As assinaturas recorrentes podem ser canceladas a qualquer momento antes da renovação sem penalidades no painel ou por email para soporte@nelhealthcoach.com.'
+          'As assinaturas recorrentes podem ser canceladas a qualquer momento antes da renovação sem penalidades no painel ou por email para support@nelhealthcoach.com.'
         ]
       }
     ]
@@ -2086,7 +2086,7 @@ const de: Record<LegalPageKey, LegalDocument> = {
         title: '1. Widerrufsrecht und digitale Dienste',
         paragraphs: [
           'NelHealthCoach complies with EU consumer laws (Directive 2011/83/EU). Personalized health plans and AI-generated coaching recommendations initiated with express consent are exempt from statutory withdrawal upon commencement.',
-          'Subscription renewals can be canceled anytime before the next billing cycle without fee via dashboard or email to soporte@nelhealthcoach.com.'
+          'Subscription renewals can be canceled anytime before the next billing cycle without fee via dashboard or email to support@nelhealthcoach.com.'
         ]
       }
     ]

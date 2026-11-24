@@ -258,6 +258,34 @@ async function main() {
     /paidPlans\.some\(\(p\) => p\.planId === activePlanId\)/.test(plansLib) &&
       !/tierRank/.test(plansLib),
   );
+
+  // ═══ 10. Centro de Ayuda (/ayuda), Sitemap y unificación support@ ═══
+  section('10. Centro de Ayuda (/ayuda), Sitemap y soporte unificado');
+  const landingSrcDir = path.resolve(__dirname, '../../landing/src');
+  const dashboardSrcDir = path.resolve(__dirname, '../../dashboard/src');
+  const ayudaPage = fs.readFileSync(path.join(landingSrcDir, 'pages/ayuda.tsx'), 'utf-8');
+  const sitemapPage = fs.readFileSync(path.join(landingSrcDir, 'pages/sitemap.xml.tsx'), 'utf-8');
+  const footerComp = fs.readFileSync(path.join(landingSrcDir, 'components/layout/Footer.tsx'), 'utf-8');
+  const legalContentFile = fs.readFileSync(path.join(landingSrcDir, 'lib/legalContent.ts'), 'utf-8');
+  const dashLayout = fs.readFileSync(path.join(dashboardSrcDir, 'components/dashboard/Layout.tsx'), 'utf-8');
+
+  check(
+    'ayuda.tsx escapa JSON-LD (< -> \u003c), indexa con robots y enlaza soporte@ unificado',
+    /replace\(\/<\/g,\s*'\\\\u003c'\)/.test(ayudaPage) &&
+      /name="robots"\s+content="index, follow"/.test(ayudaPage) &&
+      /FAQPage/.test(ayudaPage),
+  );
+  check('sitemap.xml.tsx indexa /ayuda', /'\/ayuda'/.test(sitemapPage));
+  check(
+    'correo unificado en support@nelhealthcoach.com (sin soporte@ residual)',
+    /support@nelhealthcoach\.com/.test(footerComp) &&
+      !/soporte@nelhealthcoach\.com/.test(footerComp) &&
+      !/soporte@nelhealthcoach\.com/.test(legalContentFile),
+  );
+  check(
+    'dashboard Layout enlaza /ayuda con rel="noopener noreferrer"',
+    /\/ayuda/.test(dashLayout) && /rel="noopener noreferrer"/.test(dashLayout),
+  );
 }
 
 main()

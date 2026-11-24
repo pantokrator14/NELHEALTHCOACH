@@ -1166,6 +1166,7 @@ const en = {
     recipes: "Recipes",
     exercises: "Exercises",
     scanner: "Meal Scanner",
+    help: "Help Center",
   },
   clientPortal: {
     pageTitle: "Home - NELHEALTHCOACH",
@@ -2722,6 +2723,7 @@ const es = {
     recipes: "Recetas",
     exercises: "Ejercicios",
     scanner: "Escáner Nutricional",
+    help: "Centro de Ayuda",
   },
   clientPortal: {
     pageTitle: "Inicio - NELHEALTHCOACH",
@@ -4271,6 +4273,7 @@ const fr = {
     recipes: "Recettes",
     exercises: "Exercices",
     scanner: "Scanner Nutritionnel",
+    help: "Centre d'Aide",
   },
   clientPortal: {
     pageTitle: "Accueil - NELHEALTHCOACH",
@@ -5820,6 +5823,7 @@ const it = {
     recipes: "Ricette",
     exercises: "Esercizi",
     scanner: "Scanner Nutrizionale",
+    help: "Centro Assistenza",
   },
   clientPortal: {
     pageTitle: "Home - NELHEALTHCOACH",
@@ -7369,6 +7373,7 @@ const pt = {
     recipes: "Receitas",
     exercises: "Exercícios",
     scanner: "Scanner Nutricional",
+    help: "Central de Ajuda",
   },
   clientPortal: {
     pageTitle: "Início - NELHEALTHCOACH",
@@ -8918,6 +8923,7 @@ const de = {
     recipes: "Rezepte",
     exercises: "Übungen",
     scanner: "Ernährungs-Scanner",
+    help: "Hilfe-Center",
   },
   clientPortal: {
     pageTitle: "Startseite - NELHEALTHCOACH",

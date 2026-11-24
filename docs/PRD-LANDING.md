@@ -21,7 +21,7 @@ La landing page de NELHEALTHCOACH (`apps/landing`) es la cara pública del negoc
 - Secciones principales: Hero, Método NEL, Sobre Mí (texto canónico armonizado en los 6 idiomas), Biblioteca Científica (`BlogPreview`), Secreto/Lista de espera y Sección de Planes / Contratación (`ContactFormSection`).
 - Catálogo interactivo de 5 productos comerciales (`plans-data.ts`) alineado con el backend (`GET /api/plans`): bloqueo automático de botones a *"Cupos no disponibles"* cuando un plan está lleno.
 - Navbar adaptativo dinámico con botón destacado de acceso al portal/dashboard, toggle inteligente entre *Agendar* y *Contacto* según disponibilidad, navegación legal contextual y retorno a portada en 1 clic.
-- Suite integral de páginas legales en 6 idiomas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`).
+- Suite integral de páginas legales y **Centro de Ayuda (`/ayuda`)** en 6 idiomas (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`, `/ayuda` con FAQ interactivo, búsqueda/filtros, Schema.org `FAQPage` y bloque de soporte exclusivo por correo `support@nelhealthcoach.com` sin WhatsApp).
 - SEO técnico integral: `robots.txt.tsx`, `sitemap.xml.tsx` dinámico, Schema.org JSON-LD (`HealthAndBeautyBusiness`, `LocalBusiness`, `Person`) y canonicals.
 - Cumplimiento de accesibilidad WCAG 2.1 AA y Consent Management Platform (CMP) de cookies con respeto de señales GPC.
 
@@ -60,9 +60,11 @@ apps/landing/
 │   ├── lib/
 │   │   ├── fingerprint.ts      # Detección condicional anti-bots
 │   │   ├── i18n.ts             # Diccionarios i18n (6 idiomas)
-│   │   ├── legalContent.ts     # Textos normativos completos
+│   │   ├── helpContent.ts      # Preguntas frecuentes y soporte en 6 idiomas (/ayuda)
+│   │   ├── legalContent.ts     # Textos normativos completos (correo support@ unificado)
 │   │   └── plans-data.ts       # Definición localizada y estructura de los 5 planes comerciales
 │   ├── pages/
+│   │   ├── ayuda.tsx           # Centro de Ayuda interactivo con Schema.org FAQPage
 │   │   ├── aviso-legal.tsx
 │   │   ├── cookies.tsx
 │   │   ├── index.tsx
@@ -78,7 +80,7 @@ apps/landing/
 
 ### 4.1 Header / Navbar Adaptativo (`Navbar.tsx`)
 - **Logo corporativo**: Scroll suave a `#inicio` en portada; redirección a `/` desde páginas legales.
-- **Navegación contextual**: Muestra secciones en `/` o enlaces legales en páginas de políticas con botón **`← Volver al Inicio`**.
+- **Navegación contextual y Footer**: Muestra secciones en `/` o enlaces secundarios (incluido `/ayuda` y páginas legales) con botón **`← Volver al Inicio`**. El Footer expone enlaces rápidos al Blog y `/ayuda` junto al correo unificado `support@nelhealthcoach.com`.
 - **Botón dinámico de acción**: Consulta disponibilidad y alterna etiqueta/destino entre *Agendar* y *Contacto* según cupos, junto al acceso directo de **Login** hacia el portal.
 
 ### 4.2 Hero, Método NEL & Sobre Mí
@@ -98,7 +100,12 @@ Presenta las **5 opciones comerciales** en dos niveles alineados:
 ### 4.4 Páginas Legales Integradas (`LegalPage.tsx`) y Cookie Banner (`CookieBanner`)
 1. **Política de Privacidad (`/politica-privacidad`)**: RGPD Art. 9, CCPA/CPRA, no venta de datos, garantías de IA (DeepSeek y Google Gemini).
 2. **Términos de Servicio (`/terminos-condiciones`)**: Ley de California y arbitraje vinculante individual **JAMS** (Riverside County, CA).
-3. **Aviso Legal (`/aviso-legal`)**, **Política de Cookies (`/cookies`)** y **Política de Reembolsos y Desistimiento (`/reembolsos`)**.
+3. **Aviso Legal (`/aviso-legal`)**, **Política de Cookies (`/cookies`)** y **Política de Reembolsos y Desistimiento (`/reembolsos`)** (con correo unificado `support@nelhealthcoach.com`).
+
+### 4.5 Centro de Ayuda Público (`/ayuda`) y Sitemap XML (`sitemap.xml.tsx`)
+- **Preguntas Frecuentes Interactivas (6 idiomas)**: Buscador en vivo y filtros por categoría (*Planes y Precios*, *Registro y Documentos*, *Videollamadas y Horarios*, *Bibliotecas y Escáner*, *Pagos y Cancelación*).
+- **Soporte en Casos Extremos (Sin WhatsApp)**: Bloque dedicado que aclara explícitamente la ausencia de atención por WhatsApp en el Centro de Ayuda y canaliza incidencias urgentes únicamente hacia `support@nelhealthcoach.com`.
+- **SEO & Sitemap**: Metadatos canonical, `robots: index, follow`, `Schema.org FAQPage` JSON-LD (con escape seguro `<` → `\u003c`) e indexación en `sitemap.xml.tsx`.
 
 ---
 

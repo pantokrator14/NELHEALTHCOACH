@@ -66,7 +66,7 @@
 - **Filtro por Plan en Dashboard**: Listado de clientes con agrupación y filtro por plan contratado (`planId`).
 - **Portal de Clientes (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`)**:
   - Registro verificado por **OTP de 6 dígitos** en `/register/client`.
-  - Sidebar limpio exclusivo para rol `client`: **Inicio**, **Planes**, acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
+  - Sidebar limpio para rol `client`: **Inicio**, **Planes** (más **Recetas**, **Ejercicios** en solo lectura y **Escáner Nutricional** exclusivamente en Plan 2/Plan 3 activos), acceso discreto al **Centro de Ayuda** (`/ayuda`), acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
   - **4 estados adaptativos** en `Inicio`: sin plan contratado, Consulta 1 a 1, historial clínico pendiente (`ClientHealthForm` embebido) y programa activo/completado.
   - **Cinta de finalización condicional**: visible únicamente cuando `programCompleted === true` (duración concluida y sin videollamadas pendientes).
   - **Recomendaciones de Salud en Solo Lectura + PDF**: Muestra estado en análisis por el asesor o recomendaciones ya aprobadas (`approved`/`sent`) con visor de solo lectura y descarga directa en PDF en 6 idiomas.
@@ -193,7 +193,7 @@ Todos los agentes reciben el expediente estructurado y **únicamente los documen
 - **Indexación Selectiva en `robots.txt`**:
   - **Públicas** (`apps/landing`, `apps/blog`): Permiso de rastreo (`Allow: /`), bloqueo de rutas privadas (`Disallow: /admin`) y sitemaps oficiales.
   - **Privadas** (`apps/dashboard`, `apps/form`): Bloqueo total (`User-agent: * Disallow: /`) y `<meta name="robots" content="noindex, nofollow, noarchive" />`.
-- **Sitemaps Dinámicos XML**: `/sitemap.xml` en `apps/landing` y `sitemap.ts` multilingüe (`hreflang`) en `apps/blog`.
+- **Sitemaps Dinámicos XML y Centro de Ayuda (`/ayuda`)**: `/sitemap.xml` en `apps/landing` (incluye `/ayuda` con `Schema.org FAQPage` JSON-LD en 6 idiomas y canal exclusivo `support@nelhealthcoach.com` para casos extremos, sin WhatsApp) y `sitemap.ts` multilingüe (`hreflang`) en `apps/blog`.
 - **Canonical Tags, Redirecciones 301 y Schema.org / JSON-LD**: `HealthAndBeautyBusiness`, `LocalBusiness`, `Person` y `BlogPosting`.
 
 ## ♿ Accesibilidad Web (WCAG 2.1 AA) & Skeletons (Principio Anti-AI)
@@ -222,7 +222,7 @@ NELHEALTHCOACH/
 
 El monorepo integra **5 aplicaciones** coordinadas en Next.js 16.3.6:
 
-1. **🏠 Landing Page (`apps/landing`)**: Exhibición de propuesta de valor, comparativa en vivo de los 5 planes con estado de cupos, precalificación de leads (escala 1-10), suite legal completa, CMP GPC y multi-idioma en 6 idiomas.
+1. **🏠 Landing Page (`apps/landing`)**: Exhibición de propuesta de valor, comparativa en vivo de los 5 planes con estado de cupos, **Centro de Ayuda (`/ayuda`)** interactivo con FAQ buscable y Schema.org `FAQPage` (escalación exclusiva por correo `support@nelhealthcoach.com` sin WhatsApp), precalificación de leads (escala 1-10), suite legal completa, CMP GPC y multi-idioma en 6 idiomas.
 2. **📚 Blog de Salud (`apps/blog`)**: Renderizado SSR/SSG con JSON-LD (`BlogPosting`), feeds RSS 2.0, sitemap multilingüe (`hreflang`), moderación de comentarios y suite de tests de 76 checks.
 3. **📝 Formularios de Salud (`apps/form`)**: Captura multi-paso validada (React Hook Form + Yup), subida segura a AWS S3 y Paso 6 contractual desacoplado.
 4. **📊 Dashboard & Portal de Clientes (`apps/dashboard`)**:
@@ -382,7 +382,7 @@ npm run test:security
 ```
 
 **Cobertura principal** (detalle en `apps/api/tests/README.md`):
-- **Security gate OWASP** (`security-gate.test.ts`, 21 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
+- **Security gate OWASP** (`security-gate.test.ts`, 29 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
 - **Flujo completo de 5 Planes y Portal de Clientes** (`client-plans-flow.test.ts`, 81 checks) — catálogo, registro OTP 6 dígitos, aislamiento de cliente, ventana de videollamadas de 15 min, `programCompleted` y `weeklyPhases` del Reto Tres NEL.
 - **Control de Cupos por Plan** (`plan-quotas.test.ts`, 21 checks) — disponibilidad en vivo, `409 QUOTA_FULL`, pausas y límites administrativos.
 - **Auth, Clients, Content, Blog, Waitlist, Free Sessions & Document Selection** — CRUD cifrado, blog SSR/SEO (76 checks), lista de espera, sesiones gratuitas y selección documental por evaluación actual.
