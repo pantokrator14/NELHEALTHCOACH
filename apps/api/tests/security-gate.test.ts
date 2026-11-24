@@ -217,6 +217,47 @@ async function main() {
   check('sesiones gratuitas: mutación con rate limit + shield', /secureRoute\(/.test(freeSessionsRoute));
   const leadRoute = fs.readFileSync(path.join(API_DIR, 'leads/route.ts'), 'utf-8');
   check('lead free-session descuenta cupo', /incrementFreeSessionUsage/.test(leadRoute));
+
+  // ═══ 9. Bibliotecas solo lectura + Escáner Nutricional (OWASP A01/A03/A04) ═══
+  section('9. Bibliotecas de solo lectura, Escáner Nutricional y estricto plan activo');
+  const recipesRoute = fs.readFileSync(path.join(API_DIR, 'recipes/route.ts'), 'utf-8');
+  const recipeIdRoute = fs.readFileSync(path.join(API_DIR, 'recipes/[id]/route.ts'), 'utf-8');
+  const exercisesRoute = fs.readFileSync(path.join(API_DIR, 'exercises/route.ts'), 'utf-8');
+  const analyzeImgRoute = fs.readFileSync(path.join(API_DIR, 'recipes/analyze-image/route.ts'), 'utf-8');
+  const plansLib = fs.readFileSync(path.join(LIB_DIR, 'plans.ts'), 'utf-8');
+
+  check(
+    'recipes/exercises exigen requireAnyAuth + resolveEffectiveClientEntitlements + private, no-store',
+    /requireAnyAuth/.test(recipesRoute) &&
+      /resolveEffectiveClientEntitlements/.test(recipesRoute) &&
+      /private, no-store/.test(recipesRoute) &&
+      /requireAnyAuth/.test(recipeIdRoute) &&
+      /resolveEffectiveClientEntitlements/.test(recipeIdRoute) &&
+      /private, no-store/.test(recipeIdRoute) &&
+      /requireAnyAuth/.test(exercisesRoute) &&
+      /resolveEffectiveClientEntitlements/.test(exercisesRoute) &&
+      /private, no-store/.test(exercisesRoute),
+  );
+  check(
+    'clientes solo leen recetas/ejercicios publicados y mutaciones siguen con requireCoachAuth',
+    /isPublished:\s*true/.test(recipesRoute) &&
+      /isPublished:\s*true/.test(exercisesRoute) &&
+      /requireCoachAuth/.test(recipesRoute) &&
+      /requireCoachAuth/.test(exercisesRoute),
+  );
+  check(
+    'analyze-image protege contra IDOR (recipeId bloqueado para client), valida magic bytes y revierte cuota ante fallo',
+    /requireAnyAuth/.test(analyzeImgRoute) &&
+      /scannerEnabled/.test(analyzeImgRoute) &&
+      /role === 'client'/.test(analyzeImgRoute) &&
+      /hasValidImageMagicBytes/.test(analyzeImgRoute) &&
+      /nutritionScans\.count':\s*-1/.test(analyzeImgRoute),
+  );
+  check(
+    'resolveEffectiveClientEntitlements exige pago activo y no hereda acceso de planes previos',
+    /paidPlans\.some\(\(p\) => p\.planId === activePlanId\)/.test(plansLib) &&
+      !/tierRank/.test(plansLib),
+  );
 }
 
 main()

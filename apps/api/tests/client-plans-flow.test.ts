@@ -50,6 +50,7 @@ function section(title: string) {
 
 let testEmail = '';
 let consultLeadEmail = '';
+const extraCleanupEmails: string[] = [];
 let createdClientAccountId = '';
 let createdHealthFormId = '';
 let createdNotificationIdPattern = '';
@@ -1251,9 +1252,11 @@ async function main() {
     );
   }
 
-  // ═══ 10. DUAL-TIMEZONE, BIBLIOTECAS PLAN 2/3 Y ESCÁNER NUTRICIONAL (RBAC/CUOTAS/IDOR) ═══
-  section('10. Dual-Timezone, Bibliotecas Plan 2/3 y Escáner Nutricional');
+  // ═══ 10. DUAL-TIMEZONE, BIBLIOTECAS PLAN 2/3, ESCÁNER NUTRICIONAL Y REVOCACIÓN TRAS DOWNGRADE ═══
+  section('10. Dual-Timezone, Bibliotecas Plan 2/3, Escáner y Revocación por Downgrade');
   {
+    const { resolveEffectiveClientEntitlements } = await import('../src/app/lib/plans');
+
     check(
       'resolveCoachTimezone() usa America/Los_Angeles (California) por defecto',
       resolveCoachTimezone() === 'America/Los_Angeles'
@@ -1264,81 +1267,118 @@ async function main() {
         resolveClientTimezone({ explicitTimezone: 'Invalid/Zone', address: 'Av. Reforma 123, Ciudad de México, México' }) === 'America/Mexico_City'
     );
 
-    const portalRes = await getClientPortalMe(
+    // Regla estricta de plan activo: no conservar privilegios anteriores tras cambiar a un plan inferior o reembolsar
+    const downgradeEnt = resolveEffectiveClientEntitlements(
+      [
+        { planId: 'plan_3_maestria', status: 'paid', purchasedAt: new Date(Date.now() - 180 * 86400000) },
+        { planId: 'plan_1_reinicio', status: 'paid', purchasedAt: new Date() },
+      ],
+      'plan_1_reinicio'
+    );
+    check(
+      'resolveEffectiveClientEntitlements NO conserva acceso de Plan 3 si activePlanId bajó a Plan 1',
+      downgradeEnt.libraryAccess === 'none' && downgradeEnt.scannerEnabled === false && downgradeEnt.scannerMonthlyLimit === 0
+    );
+
+    const refundedEnt = resolveEffectiveClientEntitlements(
+      [{ planId: 'plan_3_maestria', status: 'refunded', purchasedAt: new Date() }],
+      'plan_3_maestria'
+    );
+    check(
+      'resolveEffectiveClientEntitlements revoca todo acceso si las compras están reembolsadas',
+      refundedEnt.libraryAccess === 'none' && refundedEnt.scannerEnabled === false
+    );
+
+    // El cliente de prueba principal bajó de Plan 2 a Plan 1 al final de la Sección 8: debe perder acceso (403)
+    const downgradedPortalRes = await getClientPortalMe(
       authedRequest(`${base}/client-portal/me`, 'GET', clientToken),
       { params: Promise.resolve({}) }
     );
-    const portalJson = await portalRes.json();
-    const limits = portalJson?.data?.planLimits;
+    const downgradedPortalJson = await downgradedPortalRes.json();
+    const downgradedLimits = downgradedPortalJson?.data?.planLimits;
     check(
-      'GET /api/client-portal/me expone clientTimezone, coachTimezone y entitlements de Plan 2 (15 items + 5 escaneos)',
-      portalRes.status === 200 &&
-        typeof portalJson?.data?.clientTimezone === 'string' &&
-        portalJson?.data?.coachTimezone === 'America/Los_Angeles' &&
-        limits?.libraryAccess === 'limited' &&
-        limits?.recipesLimit === 15 &&
-        limits?.exercisesLimit === 15 &&
-        limits?.nutritionScanner?.enabled === true &&
-        limits?.nutritionScanner?.monthlyLimit === 5
-    );
-
-    // Crear cuenta efímera con Plan 1 (sin acceso a bibliotecas ni escáner)
-    const p1Email = `tdd_p1_${Date.now()}_${randomBytes(3).toString('hex')}@test.local`;
-    const p1Account = await ClientAccount.create({
-      email: encrypt(p1Email),
-      emailHash: emailHashVariants(p1Email)[0],
-      passwordHash: randomBytes(24).toString('hex'),
-      coachId: defaultCoach.coachId,
-      emailVerified: true,
-      selectedPlanId: 'plan_1_reinicio',
-      activePlanId: 'plan_1_reinicio',
-      purchasedPlans: [
-        {
-          planId: 'plan_1_reinicio',
-          planName: 'Plan 1: Reinicio Metabólico',
-          amountCents: 15000,
-          stripeSessionId: uniqueId('cs_p1'),
-          status: 'paid',
-          purchasedAt: new Date(),
-          livekitCreditsTotal: 2,
-          livekitCreditsUsed: 0,
-        },
-      ],
-    });
-    registerCleanup('client_accounts', p1Account._id);
-    const plan1Token = jwt.sign(
-      {
-        clientAccountId: p1Account._id.toString(),
-        clientId: null,
-        coachId: defaultCoach.coachId,
-        email: p1Email,
-        role: 'client',
-      },
-      JWT_SECRET,
-      { expiresIn: '1h' }
+      'GET /api/client-portal/me expone clientTimezone, coachTimezone y revoca bibliotecas/escáner tras bajar de Plan 2 a Plan 1',
+      downgradedPortalRes.status === 200 &&
+        typeof downgradedPortalJson?.data?.clientTimezone === 'string' &&
+        downgradedPortalJson?.data?.coachTimezone === 'America/Los_Angeles' &&
+        downgradedLimits?.libraryAccess === 'none' &&
+        downgradedLimits?.nutritionScanner?.enabled === false
     );
 
     const p1RecRes = await listRecipes(
-      authedRequest(`${base}/recipes`, 'GET', plan1Token),
+      authedRequest(`${base}/recipes`, 'GET', clientToken),
       { params: Promise.resolve({}) }
     );
-    check('Plan 1 GET /api/recipes → 403 FORBIDDEN', p1RecRes.status === 403, `status=${p1RecRes.status}`);
+    check('Cliente que bajó a Plan 1 GET /api/recipes → 403 FORBIDDEN', p1RecRes.status === 403, `status=${p1RecRes.status}`);
 
     const p1ExRes = await listExercises(
-      authedRequest(`${base}/exercises`, 'GET', plan1Token),
+      authedRequest(`${base}/exercises`, 'GET', clientToken),
       { params: Promise.resolve({}) }
     );
-    check('Plan 1 GET /api/exercises → 403 FORBIDDEN', p1ExRes.status === 403, `status=${p1ExRes.status}`);
+    check('Cliente que bajó a Plan 1 GET /api/exercises → 403 FORBIDDEN', p1ExRes.status === 403, `status=${p1ExRes.status}`);
 
     const p1ScanRes = await analyzeRecipeImage(
-      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan1Token, {
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', clientToken, {
         imageBase64: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64'),
         mimeType: 'image/jpeg',
         servings: 1,
       }),
       { params: Promise.resolve({}) }
     );
-    check('Plan 1 POST /api/recipes/analyze-image → 403 FORBIDDEN', p1ScanRes.status === 403, `status=${p1ScanRes.status}`);
+    check('Cliente que bajó a Plan 1 POST /api/recipes/analyze-image → 403 FORBIDDEN', p1ScanRes.status === 403, `status=${p1ScanRes.status}`);
+
+    // Cuenta efímera con Plan 2 activo (15 items lectura + 5 escaneos/mes)
+    const p2Email = `tdd_p2_${Date.now()}_${randomBytes(3).toString('hex')}@test.local`;
+    extraCleanupEmails.push(p2Email);
+    const p2Account = await ClientAccount.create({
+      email: encrypt(p2Email),
+      emailHash: emailHashVariants(p2Email)[0],
+      passwordHash: randomBytes(24).toString('hex'),
+      coachId: defaultCoach.coachId,
+      emailVerified: true,
+      selectedPlanId: 'plan_2_transformacion',
+      activePlanId: 'plan_2_transformacion',
+      purchasedPlans: [
+        {
+          planId: 'plan_2_transformacion',
+          planName: 'Plan 2: Transformación Celular',
+          amountCents: 34000,
+          stripeSessionId: uniqueId('cs_p2'),
+          status: 'paid',
+          purchasedAt: new Date(),
+          livekitCreditsTotal: 4,
+          livekitCreditsUsed: 0,
+        },
+      ],
+    });
+    registerCleanup('client_accounts', p2Account._id);
+    const plan2Token = jwt.sign(
+      {
+        clientAccountId: p2Account._id.toString(),
+        clientId: null,
+        coachId: defaultCoach.coachId,
+        email: p2Email,
+        role: 'client',
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const p2PortalRes = await getClientPortalMe(
+      authedRequest(`${base}/client-portal/me`, 'GET', plan2Token),
+      { params: Promise.resolve({}) }
+    );
+    const p2PortalJson = await p2PortalRes.json();
+    const p2Limits = p2PortalJson?.data?.planLimits;
+    check(
+      'Plan 2 GET /api/client-portal/me expone entitlements correctos (15 items + 5 escaneos)',
+      p2PortalRes.status === 200 &&
+        p2Limits?.libraryAccess === 'limited' &&
+        p2Limits?.recipesLimit === 15 &&
+        p2Limits?.exercisesLimit === 15 &&
+        p2Limits?.nutritionScanner?.enabled === true &&
+        p2Limits?.nutritionScanner?.monthlyLimit === 5
+    );
 
     // Crear borrador de receta (isPublished=false) y verificar que Plan 2 no pueda leerlo por ID (IDOR/borrador)
     const adminToken = coachToken(new ObjectId().toString(), 'admin');
@@ -1363,7 +1403,7 @@ async function main() {
     if (draftRecId) {
       registerCleanup('recipes', String(draftRecId));
       const p2DraftRes = await getRecipeById(
-        authedRequest(`${base}/recipes/${draftRecId}`, 'GET', clientToken),
+        authedRequest(`${base}/recipes/${draftRecId}`, 'GET', plan2Token),
         { params: Promise.resolve({ id: String(draftRecId) }) }
       );
       check(
@@ -1375,7 +1415,7 @@ async function main() {
 
     // Plan 2 GET /api/recipes y /api/exercises: 200, máximo 15 items, meta.accessTier === 'limited'
     const p2RecListRes = await listRecipes(
-      authedRequest(`${base}/recipes`, 'GET', clientToken),
+      authedRequest(`${base}/recipes`, 'GET', plan2Token),
       { params: Promise.resolve({}) }
     );
     const p2RecListJson = await p2RecListRes.json();
@@ -1388,7 +1428,7 @@ async function main() {
     );
 
     const p2ExListRes = await listExercises(
-      authedRequest(`${base}/exercises`, 'GET', clientToken),
+      authedRequest(`${base}/exercises`, 'GET', plan2Token),
       { params: Promise.resolve({}) }
     );
     const p2ExListJson = await p2ExListRes.json();
@@ -1402,7 +1442,7 @@ async function main() {
 
     // IDOR bloqueado en scanner (recipeId no permitido para clientes)
     const idorScanRes = await analyzeRecipeImage(
-      authedRequest(`${base}/recipes/analyze-image`, 'POST', clientToken, {
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan2Token, {
         recipeId: new ObjectId().toString(),
         servings: 1,
       }),
@@ -1412,7 +1452,7 @@ async function main() {
 
     // Magic bytes inválidos → 400 (sin consumir cuota mensual)
     const badMagicRes = await analyzeRecipeImage(
-      authedRequest(`${base}/recipes/analyze-image`, 'POST', clientToken, {
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan2Token, {
         imageBase64: Buffer.from('NOT_AN_IMAGE_PAYLOAD_123456').toString('base64'),
         mimeType: 'image/jpeg',
         servings: 1,
@@ -1423,11 +1463,11 @@ async function main() {
 
     // Cuota agotada (5/5) → 429 QUOTA_EXCEEDED
     const monthKey = new Date().toISOString().slice(0, 7);
-    await ClientAccount.findByIdAndUpdate(createdClientAccountId, {
+    await ClientAccount.findByIdAndUpdate(p2Account._id, {
       nutritionScans: { monthKey, count: 5 },
     });
     const exhaustedRes = await analyzeRecipeImage(
-      authedRequest(`${base}/recipes/analyze-image`, 'POST', clientToken, {
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan2Token, {
         imageBase64: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64'),
         mimeType: 'image/jpeg',
         servings: 1,
@@ -1439,6 +1479,149 @@ async function main() {
       'Plan 2 POST /api/recipes/analyze-image con cuota 5/5 agotada → 429 QUOTA_EXCEEDED',
       exhaustedRes.status === 429 && exhaustedJson?.code === 'QUOTA_EXCEEDED',
       `status=${exhaustedRes.status} code=${exhaustedJson?.code}`
+    );
+
+    // Cuenta efímera con Plan 3 activo (catálogo completo + 30 escaneos/mes) y posterior downgrade a Plan 1
+    const p3Email = `tdd_p3_${Date.now()}_${randomBytes(3).toString('hex')}@test.local`;
+    extraCleanupEmails.push(p3Email);
+    const p3Account = await ClientAccount.create({
+      email: encrypt(p3Email),
+      emailHash: emailHashVariants(p3Email)[0],
+      passwordHash: randomBytes(24).toString('hex'),
+      coachId: defaultCoach.coachId,
+      emailVerified: true,
+      selectedPlanId: 'plan_3_maestria',
+      activePlanId: 'plan_3_maestria',
+      purchasedPlans: [
+        {
+          planId: 'plan_3_maestria',
+          planName: 'Plan 3: Maestría y Longevidad',
+          amountCents: 59000,
+          stripeSessionId: uniqueId('cs_p3'),
+          status: 'paid',
+          purchasedAt: new Date(),
+          livekitCreditsTotal: 7,
+          livekitCreditsUsed: 0,
+        },
+      ],
+    });
+    registerCleanup('client_accounts', p3Account._id);
+    const plan3Token = jwt.sign(
+      {
+        clientAccountId: p3Account._id.toString(),
+        clientId: null,
+        coachId: defaultCoach.coachId,
+        email: p3Email,
+        role: 'client',
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const p3PortalRes = await getClientPortalMe(
+      authedRequest(`${base}/client-portal/me`, 'GET', plan3Token),
+      { params: Promise.resolve({}) }
+    );
+    const p3PortalJson = await p3PortalRes.json();
+    const p3Limits = p3PortalJson?.data?.planLimits;
+    check(
+      'Plan 3 GET /api/client-portal/me expone catálogo full y 30 escaneos/mes',
+      p3PortalRes.status === 200 &&
+        p3Limits?.libraryAccess === 'full' &&
+        p3Limits?.recipesLimit === null &&
+        p3Limits?.exercisesLimit === null &&
+        p3Limits?.nutritionScanner?.enabled === true &&
+        p3Limits?.nutritionScanner?.monthlyLimit === 30
+    );
+
+    const p3RecRes = await listRecipes(
+      authedRequest(`${base}/recipes`, 'GET', plan3Token),
+      { params: Promise.resolve({}) }
+    );
+    const p3RecJson = await p3RecRes.json();
+    check(
+      'Plan 3 GET /api/recipes → 200 con meta.accessTier=full y meta.limit=null',
+      p3RecRes.status === 200 &&
+        p3RecJson?.meta?.accessTier === 'full' &&
+        p3RecJson?.meta?.limit === null
+    );
+
+    const p3ExRes = await listExercises(
+      authedRequest(`${base}/exercises`, 'GET', plan3Token),
+      { params: Promise.resolve({}) }
+    );
+    const p3ExJson = await p3ExRes.json();
+    check(
+      'Plan 3 GET /api/exercises → 200 con meta.accessTier=full y meta.limit=null',
+      p3ExRes.status === 200 &&
+        p3ExJson?.meta?.accessTier === 'full' &&
+        p3ExJson?.meta?.limit === null
+    );
+
+    // Con 5/30 usos, Plan 3 NO alcanza cuota (llega a validación 400 de magic bytes)
+    await ClientAccount.findByIdAndUpdate(p3Account._id, {
+      nutritionScans: { monthKey, count: 5 },
+    });
+    const p3UnderQuotaRes = await analyzeRecipeImage(
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan3Token, {
+        imageBase64: Buffer.from('NOT_AN_IMAGE_PAYLOAD_123456').toString('base64'),
+        mimeType: 'image/jpeg',
+        servings: 1,
+      }),
+      { params: Promise.resolve({}) }
+    );
+    check(
+      'Plan 3 con 5/30 usos NO bloquea por cuota (valida payload → 400)',
+      p3UnderQuotaRes.status === 400,
+      `status=${p3UnderQuotaRes.status}`
+    );
+
+    // Con 30/30 usos, Plan 3 sí bloquea con 429
+    await ClientAccount.findByIdAndUpdate(p3Account._id, {
+      nutritionScans: { monthKey, count: 30 },
+    });
+    const p3ExhaustedRes = await analyzeRecipeImage(
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan3Token, {
+        imageBase64: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64'),
+        mimeType: 'image/jpeg',
+        servings: 1,
+      }),
+      { params: Promise.resolve({}) }
+    );
+    const p3ExhaustedJson = await p3ExhaustedRes.json();
+    check(
+      'Plan 3 con 30/30 usos → 429 QUOTA_EXCEEDED',
+      p3ExhaustedRes.status === 429 && p3ExhaustedJson?.code === 'QUOTA_EXCEEDED',
+      `status=${p3ExhaustedRes.status} code=${p3ExhaustedJson?.code}`
+    );
+
+    // Downgrade Plan 3 → Plan 1 debe revocar acceso a bibliotecas y escáner inmediatamente
+    await recordClientPlanPurchase({
+      clientAccountId: p3Account._id.toString(),
+      planId: 'plan_1_reinicio',
+      stripeSessionId: uniqueId('cs_p3_downgrade_p1'),
+    });
+    const p3AfterDowngradeRec = await listRecipes(
+      authedRequest(`${base}/recipes`, 'GET', plan3Token),
+      { params: Promise.resolve({}) }
+    );
+    const p3AfterDowngradeEx = await listExercises(
+      authedRequest(`${base}/exercises`, 'GET', plan3Token),
+      { params: Promise.resolve({}) }
+    );
+    const p3AfterDowngradeScan = await analyzeRecipeImage(
+      authedRequest(`${base}/recipes/analyze-image`, 'POST', plan3Token, {
+        imageBase64: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64'),
+        mimeType: 'image/jpeg',
+        servings: 1,
+      }),
+      { params: Promise.resolve({}) }
+    );
+    check(
+      'Downgrade Plan 3 → Plan 1 revoca inmediatamente recetas, ejercicios y escáner (403)',
+      p3AfterDowngradeRec.status === 403 &&
+        p3AfterDowngradeEx.status === 403 &&
+        p3AfterDowngradeScan.status === 403
     );
 
     // Asegurar que createExercise siga referenciado sin warning
@@ -1474,6 +1657,9 @@ main()
       }
       if (consultLeadEmail) {
         notifFilters.push({ message: { $regex: consultLeadEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
+      }
+      for (const extraEmail of extraCleanupEmails) {
+        notifFilters.push({ message: { $regex: extraEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
       }
       if (createdNotificationIdPattern) {
         notifFilters.push({ link: `/dashboard/clients/${createdNotificationIdPattern}` });

@@ -299,7 +299,7 @@ PlanQuota {
   2. Estado 1 (sin plan), Estado 2 (Consulta 1 a 1), Estado 3 (historial pendiente con `ClientHealthForm` embebido) y Estado 4 (programa activo o completado).
   3. Cinta de felicitación de fin de programa visible exclusivamente cuando `programCompleted === true`.
   4. Vista `ClientProfileView` en modo `client` con tarjeta **Recomendaciones de Salud** en solo lectura + descarga PDF directa (sin edición por parte del cliente y sin textos duplicados).
-  5. Acceso en solo lectura a bibliotecas (`/dashboard/recipes`, `/dashboard/exercises`) limitado a 15 ítems publicados en Plan 2 y catálogo completo en Plan 3; y **Escáner Nutricional con IA (`/dashboard/scanner`)** con 5 escaneos/mes en Plan 2 y 30/mes en Plan 3.
+  5. Acceso en solo lectura a bibliotecas (`/dashboard/recipes`, `/dashboard/exercises`) limitado a 15 ítems publicados en Plan 2 y catálogo completo en Plan 3; y **Escáner Nutricional con IA (`/dashboard/scanner`)** con 5 escaneos/mes en Plan 2 y 30/mes en Plan 3 (regidos estrictamente por el `activePlanId` pagado vigente, sin heredar privilegios anteriores si el cliente cambia a un plan menor).
 
 ### 5.3 Formularios, IA y Documentos Médicos
 

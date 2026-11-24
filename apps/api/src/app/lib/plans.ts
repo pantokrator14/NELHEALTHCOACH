@@ -295,46 +295,41 @@ export function getPlanEntitlements(planId: string | null | undefined): PlanEnti
 }
 
 export function resolveEffectiveClientEntitlements(
-  purchasedPlans?: Array<{ planId?: unknown; status?: unknown }> | undefined,
+  purchasedPlans?: Array<{ planId?: unknown; status?: unknown; purchasedAt?: unknown }> | undefined,
   activePlanId?: string | null
 ): PlanEntitlements {
-  const paidPlanIds = (purchasedPlans || [])
-    .filter((item) => item?.status === 'paid' && isValidPlanId(item.planId))
-    .map((item) => item.planId as PlanId);
+  const allPurchases = Array.isArray(purchasedPlans) ? purchasedPlans : [];
+  const paidPlans = allPurchases.filter(
+    (item): item is { planId: PlanId; status: 'paid'; purchasedAt?: unknown } =>
+      item?.status === 'paid' && isValidPlanId(item.planId)
+  );
 
-  const candidateIds: PlanId[] = [...paidPlanIds];
-  if (paidPlanIds.length === 0 && isValidPlanId(activePlanId)) {
-    // Fallback solo si no existen registros de purchasedPlans aún (cuentas legacy)
-    if (!purchasedPlans || purchasedPlans.length === 0) {
-      candidateIds.push(activePlanId);
+  // Si existen compras registradas, exigir al menos un plan pagado vigente
+  // y evaluar ESTRICTAMENTE el plan activo actual (sin heredar accesos de planes anteriores).
+  if (allPurchases.length > 0) {
+    if (paidPlans.length === 0) {
+      return getPlanEntitlements(null);
     }
-  } else if (isValidPlanId(activePlanId) && paidPlanIds.length > 0) {
-    candidateIds.push(activePlanId);
+
+    if (isValidPlanId(activePlanId) && paidPlans.some((p) => p.planId === activePlanId)) {
+      return getPlanEntitlements(activePlanId);
+    }
+
+    // Fallback seguro: tomar el último plan pagado cronológicamente
+    const sortedPaid = [...paidPlans].sort((a, b) => {
+      const aTime = a.purchasedAt ? new Date(String(a.purchasedAt)).getTime() : 0;
+      const bTime = b.purchasedAt ? new Date(String(b.purchasedAt)).getTime() : 0;
+      return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+    });
+    return getPlanEntitlements(sortedPaid[0]?.planId ?? null);
   }
 
-  let best: PlanEntitlements = getPlanEntitlements(null);
-  const tierRank: Record<LibraryAccessTier, number> = { none: 0, limited: 1, full: 2 };
-
-  for (const id of candidateIds) {
-    const ent = getPlanEntitlements(id);
-    if (tierRank[ent.libraryAccess] > tierRank[best.libraryAccess]) {
-      best = {
-        ...best,
-        libraryAccess: ent.libraryAccess,
-        recipesLimit: ent.recipesLimit,
-        exercisesLimit: ent.exercisesLimit,
-      };
-    }
-    if (ent.scannerEnabled && ent.scannerMonthlyLimit > best.scannerMonthlyLimit) {
-      best = {
-        ...best,
-        scannerEnabled: true,
-        scannerMonthlyLimit: ent.scannerMonthlyLimit,
-      };
-    }
+  // Fallback solo si no existen registros de purchasedPlans aún (cuentas legacy)
+  if (isValidPlanId(activePlanId)) {
+    return getPlanEntitlements(activePlanId);
   }
 
-  return best;
+  return getPlanEntitlements(null);
 }
 
 export function getPlanStripePriceId(plan: CommercialPlan): string | undefined {
