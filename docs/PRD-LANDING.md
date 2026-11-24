@@ -105,7 +105,7 @@ Presenta las **5 opciones comerciales** en dos niveles alineados:
 ### 4.5 Centro de Ayuda Público (`/ayuda`) y Sitemap XML (`sitemap.xml.tsx`)
 - **Preguntas Frecuentes Interactivas (6 idiomas)**: Buscador en vivo y filtros por categoría (*Planes y Precios*, *Registro y Documentos*, *Videollamadas y Horarios*, *Bibliotecas y Escáner*, *Pagos y Cancelación*).
 - **Soporte en Casos Extremos (Sin WhatsApp)**: Bloque dedicado que aclara explícitamente la ausencia de atención por WhatsApp en el Centro de Ayuda y canaliza incidencias urgentes únicamente hacia `support@nelhealthcoach.com`.
-- **SEO & Sitemap**: Metadatos canonical, `robots: index, follow`, `Schema.org FAQPage` JSON-LD (con escape seguro `<` → `\u003c`) e indexación en `sitemap.xml.tsx`.
+- **SEO, Sitemap & Redirecciones 301**: Metadatos canonical, `robots: index, follow`, `Schema.org FAQPage` JSON-LD (con escape seguro `<` → `\u003c`), indexación en `sitemap.xml.tsx` y redirecciones permanentes `301` desde `/help` y `/faq` hacia `/ayuda` en `next.config.ts`.
 
 ---
 

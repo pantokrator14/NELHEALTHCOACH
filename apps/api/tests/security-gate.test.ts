@@ -275,7 +275,14 @@ async function main() {
       /name="robots"\s+content="index, follow"/.test(ayudaPage) &&
       /FAQPage/.test(ayudaPage),
   );
+  const landingNextConfig = fs.readFileSync(path.resolve(__dirname, '../../landing/next.config.ts'), 'utf-8');
   check('sitemap.xml.tsx indexa /ayuda', /'\/ayuda'/.test(sitemapPage));
+  check(
+    'next.config.ts redirige 301 /help y /faq hacia /ayuda',
+    /source:\s*'\/help'/.test(landingNextConfig) &&
+      /source:\s*'\/faq'/.test(landingNextConfig) &&
+      /destination:\s*'\/ayuda'/.test(landingNextConfig),
+  );
   check(
     'correo unificado en support@nelhealthcoach.com (sin soporte@ residual)',
     /support@nelhealthcoach\.com/.test(footerComp) &&
