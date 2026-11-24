@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import { useTranslation } from 'react-i18next';
 import Layout from '@/components/dashboard/Layout';
 import ClientProfileView from '@/components/dashboard/ClientProfileView';
 import { apiClient } from '@/lib/api';
@@ -9,6 +10,7 @@ import { useClientIdFromToken, useUserRole } from '@/lib/client-hooks';
 
 export default function MyClientProfilePage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const userRole = useUserRole();
   const tokenClientId = useClientIdFromToken();
   const [fallbackClientId, setFallbackClientId] = useState<string | null>(null);
@@ -52,12 +54,12 @@ export default function MyClientProfilePage() {
     return (
       <>
         <Head>
-          <title>Mi Perfil - NELHEALTHCOACH</title>
+          <title>{t('clientProfile.pageTitle')}</title>
         </Head>
         <Layout>
           <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] gap-3">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-            <p className="text-sm text-gray-500">Cargando tu perfil...</p>
+            <p className="text-sm text-gray-500">{t('clientProfile.loading')}</p>
           </div>
         </Layout>
       </>

@@ -7,6 +7,7 @@ import Head from 'next/head'
 import EditClientModal from './EditClientModal'
 import { apiClient, type ClientPlanSummary } from '@/lib/api'
 import { generateClientPDF } from '@/lib/pdfGenerator'
+import { getDateLocale, getLocalizedPlanFields } from '@/lib/locale'
 import Image from 'next/image'
 import AIRecommendationsModal from './AIRecommendationsModal'
 import { translateGenerationError } from '@/lib/aiVisibleText'
@@ -125,7 +126,7 @@ export interface ClientProfileViewProps {
 }
 
 export default function ClientProfileView({ clientId, mode }: ClientProfileViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('personal')
@@ -160,7 +161,6 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   const extractionPollRef = useRef<NodeJS.Timeout | null>(null)
   const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Función auxiliar para parsear campos que pueden ser string JSON o array
   const parseArrayField = (field: unknown): string[] => {
     if (Array.isArray(field)) return field;
     if (typeof field === 'string') {
@@ -174,22 +174,13 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
     return [];
   };
 
-  /**
-   * Hace polling del estado de extracción para cada fileKey.
-   * Cuando todas las extracciones completan, muestra toast de éxito.
-   * Timeout después de 30 segundos.
-   */
   const pollExtractionStatus = useCallback(async (fileKeys: string[]) => {
     if (fileKeys.length === 0) return
-
-    console.log(`📄 Iniciando polling de extracción para ${fileKeys.length} documento(s)`)
 
     const checkAll = async () => {
       const statuses = await Promise.all(
         fileKeys.map((key) => apiClient.checkExtractionStatus(clientId, key))
       )
-
-      console.log('📄 Estado de extracción:', Object.fromEntries(fileKeys.map((k, i) => [k.substring(0, 30), statuses[i]])))
 
       const allDone = statuses.every((s) => s === 'completed' || s === 'failed')
       if (allDone) {
@@ -198,8 +189,6 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
         setExtractingFileKeys([])
 
         const failedCount = statuses.filter((s) => s === 'failed').length
-        const completedCount = statuses.filter((s) => s === 'completed').length
-        console.log(`📄 Extracción completada: ${completedCount} exitoso(s), ${failedCount} fallido(s)`)
         if (failedCount === 0) {
           showToast(t('clients.allDocumentsExtracted'), 'success')
         } else {
@@ -208,18 +197,14 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
       }
     }
 
-    // Poll cada 3 segundos
     extractionPollRef.current = setInterval(checkAll, 3000)
 
-    // Timeout total de 120 segundos (la extracción de PDFs puede ser lenta)
     extractionTimeoutRef.current = setTimeout(() => {
-      console.warn('⏱️ Timeout de extracción (120s) — los documentos podrían no estar disponibles para análisis')
       if (extractionPollRef.current) clearInterval(extractionPollRef.current)
       setExtractingFileKeys([])
       showToast(t('clients.extractionError'), 'warning')
     }, 120000)
 
-    // Primer check inmediato
     checkAll()
   }, [clientId, showToast, t])
 
@@ -228,14 +213,12 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
       if (!clientId) return
       const result = await apiClient.getClient(clientId)
       setClient(result.data)
-      // Update AI status based on existing sessions
       const sessions = result.data?.aiProgress?.sessions
       if (sessions && sessions.length > 0) {
         setAiGenerationStatus('ready')
         setAiError(null)
         setIsGeneratingAI(false)
       } else {
-        // Sin sesiones de IA — esperando que el coach genere manualmente
         setAiGenerationStatus('idle')
         setAiError(null)
         setIsGeneratingAI(false)
@@ -255,14 +238,13 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
       return
     }
     void (async () => {
-      await Promise.resolve(); // frontera async (set-state-in-effect)
+      await Promise.resolve();
       if (clientId) {
         fetchClient()
       }
     })()
   }, [clientId, router, fetchClient])
 
-  // Cleanup extraction polling al desmontar
   useEffect(() => {
     return () => {
       if (extractionPollRef.current) clearInterval(extractionPollRef.current)
@@ -270,19 +252,12 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
     }
   }, [])
 
-  // Polling: check if AI recommendations are ready when queued
   useEffect(() => {
     if (aiGenerationStatus !== 'queued' || !clientId) return
 
     let pollCount = 0
     let slow = false
     let timer: ReturnType<typeof setInterval> | undefined
-    // Etapa rápida: 60 × 10s = 10 min. Con documentos médicos el pipeline
-    // (FASE 1/2 con modelo reasoner + 32000 tokens) puede no caber en una sola
-    // invocación de 300s en Vercel Hobby: la cola reintenta el job hasta 3 veces
-    // (lease de 6 min por intento), así que el job puede terminar hasta
-    // ~20-25 min después del envío (con sesión nueva o error final).
-    // Etapa lenta: 40 × 30s = 20 min extra para capturar ese estado final.
     const FAST_POLLS = 60
     const SLOW_POLLS = 40
 
@@ -296,18 +271,15 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
         const sessions = result.data?.aiProgress?.sessions
         const genError = result.data?.generationError as { message?: string } | undefined
 
-        // ¿Error final de generación reportado por el worker de la cola?
         if (genError?.message) {
           stop()
           finish()
-          // Mensaje localizado (el backend manda detalle técnico en español)
           const friendlyError = translateGenerationError(genError.message, t)
           setAiError(friendlyError)
           showToast(friendlyError, 'error')
           return
         }
 
-        // ¿Sesiones encontradas? (incluye reintentos posteriores de la cola)
         if (result.success && sessions && sessions.length > 0) {
           stop()
           finish()
@@ -318,22 +290,15 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
           return
         }
       } catch {
-        // Ignorar errores transitorios (incluye el 504 del worker al morir
-        // por el límite de 300s): la cola reintentará el job en el próximo poll.
+        // Ignore transient poll errors
       }
 
-      // Sin estado terminal aún → decidir el siguiente tick
       if (!slow && pollCount >= FAST_POLLS) {
-        // 10 min sin resultado: avisar (traducido) que sigue en segundo plano
-        // y bajar la frecuencia en vez de abandonar.
         slow = true
         stop()
         showToast(t('ai.generationStillRunning'), 'warning')
         timer = setInterval(tick, 30000)
       } else if (slow && pollCount >= FAST_POLLS + SLOW_POLLS) {
-        // ~30 min sin estado terminal (no debería pasar: la cola falla el job
-        // definitivamente tras 3 intentos): detener y dejar que el banner o
-        // una recarga capturen el estado real.
         stop()
         finish()
       }
@@ -341,10 +306,16 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
 
     timer = setInterval(tick, 10000)
     return stop
-  }, [clientId, aiGenerationStatus, client?.personalData?.name, fetchClient, showToast, t]) // aiGenerationStatus es necesario para disparar/re-detener el polling
+  }, [clientId, aiGenerationStatus, client?.personalData?.name, fetchClient, showToast, t])
 
   const handleDelete = async () => {
-    if (mode !== 'coach' || !clientId || !confirm(`¿Estás seguro de que deseas eliminar a ${client?.personalData.name}?`)) return
+    if (
+      mode !== 'coach' ||
+      !clientId ||
+      !confirm(t('clientProfile.confirmDeleteClient', { name: client?.personalData.name || '' }))
+    ) {
+      return
+    }
     try {
       await apiClient.deleteClient(clientId)
       router.push('/dashboard/clients')
@@ -368,12 +339,12 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   }
 
   const getMentalHealthLabel = (field: string, value: string): string => {
-    if (!value) return 'No especificado'
+    if (!value) return t('clientProfile.notSpecified')
     return mentalHealthOptions[field]?.[value] || valueLabels[value] || value
   }
 
   const getEvaluationLabel = (value: string | undefined): string => {
-    if (!value) return 'No especificado'
+    if (!value) return t('clientProfile.notSpecified')
     return valueLabels[value] || value
   }
 
@@ -427,7 +398,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   useEffect(() => {
     if (!selectedDocument?.key || !clientId) return;
     void (async () => {
-      await Promise.resolve(); // frontera async (set-state-in-effect)
+      await Promise.resolve();
       setLoadingDocUrl(true)
       try {
         const url = await apiClient.getDocumentDownloadURL(clientId, selectedDocument.key)
@@ -477,7 +448,13 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   }
 
   const handleDeleteDocument = async (document: UploadedFile) => {
-    if (mode !== 'coach' || !clientId || !confirm(`¿Eliminar documento "${document.name}"?`)) return
+    if (
+      mode !== 'coach' ||
+      !clientId ||
+      !confirm(t('clientProfile.confirmDeleteDoc', { name: document.name }))
+    ) {
+      return
+    }
     try {
       await apiClient.deleteDocument(clientId, document.key)
       await fetchClient()
@@ -537,7 +514,6 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
       setSelectedFiles([])
       setIsDocumentsModalOpen(false)
 
-      // Iniciar polling de extracción si se subieron documentos
       if (uploadedKeys.length > 0) {
         setExtractingFileKeys(uploadedKeys)
         showToast(t('clients.extractingDocuments'), 'info')
@@ -551,11 +527,8 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
     }
   }
 
-  // Umbrales para detectar screenshots multi-página cosidos verticalmente
-  // Usamos AND: solo se advierte si la imagen es MUY alta Y MUY estrecha
-  // Esto evita falsos positivos con documentos escaneados/fotografiados (alta pero con ratio normal ~1.4:1)
-  const MAX_IMAGE_HEIGHT = 6000 // píxeles — un A4 escaneado a 300dpi mide ~3508px
-  const MAX_ASPECT_RATIO = 5 // alto / ancho — 2 screenshots cosidos dan ~4.4:1, 3+ dan ~6.6:1
+  const MAX_IMAGE_HEIGHT = 6000
+  const MAX_ASPECT_RATIO = 5
 
   const checkImageDimensions = (file: File): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -575,7 +548,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
 
       img.onerror = () => {
         URL.revokeObjectURL(url)
-        resolve(false) // si no se puede leer, dejamos pasar
+        resolve(false)
       }
 
       img.src = url
@@ -617,15 +590,16 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
     setSelectedFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const dateLocale = getDateLocale(i18n.language)
+
   if (loading) {
     return (
       <>
         <Head>
-          <title>Cargando Perfil - NELHEALTHCOACH</title>
+          <title>{t('clientProfile.pageTitle')}</title>
         </Head>
         <Layout>
           <div className="p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 min-h-full animate-pulse">
-            {/* Columna izquierda Skeleton - 30% */}
             <div className="w-full lg:w-1/3">
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <div className="flex flex-col items-center text-center mb-6">
@@ -633,15 +607,11 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   <div className="h-7 bg-gray-200 rounded w-44 mb-2" />
                   <div className="h-4 bg-gray-200 rounded w-56" />
                 </div>
-
-                {/* Pestañas Skeleton */}
                 <div className="mb-6 flex space-x-1 bg-gray-100 p-1 rounded-lg">
                   <div className="flex-1 h-9 bg-gray-200 rounded-md" />
                   <div className="flex-1 h-9 bg-gray-200 rounded-md" />
                   <div className="flex-1 h-9 bg-gray-200 rounded-md" />
                 </div>
-
-                {/* Datos de contacto Skeleton */}
                 <div className="space-y-4">
                   <div className="p-3 bg-gray-50 rounded-lg space-y-2">
                     <div className="h-3 bg-gray-200 rounded w-20" />
@@ -658,10 +628,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 </div>
               </div>
             </div>
-
-            {/* Columna derecha Skeleton - 70% Bloques Clínicos */}
             <div className="w-full lg:w-2/3 space-y-6">
-              {/* Bloque Clínico 1 */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
                   <div className="h-6 bg-gray-200 rounded w-48" />
@@ -678,8 +645,6 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   </div>
                 </div>
               </div>
-
-              {/* Bloque Clínico 2 */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
                   <div className="h-6 bg-gray-200 rounded w-56" />
@@ -689,28 +654,6 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   <div className="h-4 bg-gray-200 rounded w-full" />
                   <div className="h-4 bg-gray-200 rounded w-5/6" />
                   <div className="h-4 bg-gray-200 rounded w-4/6" />
-                </div>
-              </div>
-
-              {/* Bloque Clínico 3 */}
-              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
-                  <div className="h-6 bg-gray-200 rounded w-40" />
-                  <div className="h-6 bg-gray-200 rounded-full w-28" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-3 bg-gray-200 rounded w-16" />
-                    <div className="h-5 bg-gray-200 rounded w-24" />
-                  </div>
-                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-3 bg-gray-200 rounded w-16" />
-                    <div className="h-5 bg-gray-200 rounded w-24" />
-                  </div>
-                  <div className="h-20 bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-3 bg-gray-200 rounded w-16" />
-                    <div className="h-5 bg-gray-200 rounded w-24" />
-                  </div>
                 </div>
               </div>
             </div>
@@ -726,13 +669,13 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
         <div className="p-8 text-center">
           <div className="text-gray-400 text-6xl mb-4">❌</div>
           <h3 className="text-xl font-semibold text-gray-600 mb-2">
-            {mode === 'client' ? 'Perfil no encontrado' : 'Cliente no encontrado'}
+            {mode === 'client' ? t('clientProfile.notFoundProfile') : t('clientProfile.notFoundClient')}
           </h3>
           <button
             onClick={() => router.push(mode === 'client' ? '/dashboard' : '/dashboard/clients')}
             className="text-blue-600 hover:text-blue-800 font-medium"
           >
-            {mode === 'client' ? 'Volver a mi portal' : 'Volver a la lista'}
+            {mode === 'client' ? t('clientProfile.backToSummary') : t('clientProfile.backToList')}
           </button>
         </div>
       </Layout>
@@ -740,6 +683,9 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   }
 
   const { firstName, lastName } = getNames(client.personalData.name)
+  const localizedPlanSummary = client.planSummary
+    ? getLocalizedPlanFields(client.planSummary, t)
+    : null
 
   return (
     <>
@@ -758,7 +704,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   <div className="relative mb-4">
                     <Image
                       src={client.personalData.profilePhoto.url}
-                      alt={`Foto de ${firstName} ${lastName}`}
+                      alt={`${firstName} ${lastName}`}
                       className="w-44 h-44 sm:w-56 sm:h-56 rounded-full object-cover border-4 border-blue-500 shadow-lg"
                       width={240}
                       height={240}
@@ -767,7 +713,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <button
                       onClick={() => setIsProfilePhotoModalOpen(true)}
                       className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
-                      title="Cambiar foto"
+                      title={t('clientProfile.changePhotoTitle')}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -785,7 +731,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <button
                       onClick={() => setIsProfilePhotoModalOpen(true)}
                       className="absolute bottom-2 right-2 bg-blue-700 text-white p-3 rounded-full shadow-lg hover:bg-blue-800 transition"
-                      title="Agregar foto"
+                      title={t('clientProfile.addPhotoTitle')}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -795,40 +741,56 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 )}
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">{firstName} {lastName}</h1>
                 <p className="text-gray-600 text-sm">
-                  Cliente desde el {new Date(client.submissionDate).toLocaleDateString('es-ES', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
+                  {t('clientProfile.clientSince', {
+                    date: new Date(client.submissionDate).toLocaleDateString(dateLocale, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    }),
                   })}
                 </p>
-                {client.planSummary && (
+                {client.planSummary && localizedPlanSummary && (
                   <div className="mt-3 inline-flex flex-col items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2 text-xs">
                     <span className="font-bold text-emerald-900">
-                      {client.planSummary.name} · {client.planSummary.durationLabel}
+                      {localizedPlanSummary.name} · {localizedPlanSummary.durationLabel}
                     </span>
                     {mode === 'coach' && (
                       <span className="text-[11px] text-emerald-700">
                         {client.planSummary.videoCreditsTotal > 0
-                          ? `Videollamadas: ${client.planSummary.videoCreditsRemaining}/${client.planSummary.videoCreditsTotal} · `
-                          : 'Sin videollamadas · '}
-                        Máx. {client.planSummary.maxMonths} eval. IA
+                          ? t('clientProfile.videoCreditsCoach', {
+                              remaining: client.planSummary.videoCreditsRemaining,
+                              total: client.planSummary.videoCreditsTotal,
+                              maxMonths: client.planSummary.maxMonths,
+                            })
+                          : t('clientProfile.noVideoCallsCoach', {
+                              maxMonths: client.planSummary.maxMonths,
+                            })}
                       </span>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Navegación de pestañas - SOLO Personal, Médico y Emocional */}
+              {/* Navegación de pestañas */}
               <div className="mb-6 overflow-x-auto">
                 <div className="flex space-x-1 bg-blue-50 p-1 rounded-lg min-w-max">
-                  <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'personal' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-600 hover:text-blue-700 hover:bg-white'}`}>
-                    Personal
+                  <button
+                    onClick={() => setActiveTab('personal')}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'personal' ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-600 hover:text-blue-700 hover:bg-white'}`}
+                  >
+                    {t('clientProfile.tabPersonal')}
                   </button>
-                  <button onClick={() => setActiveTab('medical')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'medical' ? 'bg-yellow-600 text-white shadow-sm' : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'}`}>
-                    Médico
+                  <button
+                    onClick={() => setActiveTab('medical')}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'medical' ? 'bg-yellow-600 text-white shadow-sm' : 'text-yellow-600 hover:text-yellow-900 hover:bg-white'}`}
+                  >
+                    {t('clientProfile.tabMedical')}
                   </button>
-                  <button onClick={() => setActiveTab('mental')} className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'mental' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-600 hover:text-purple-900 hover:bg-white'}`}>
-                    Emocional
+                  <button
+                    onClick={() => setActiveTab('mental')}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${activeTab === 'mental' ? 'bg-purple-600 text-white shadow-sm' : 'text-purple-600 hover:text-purple-900 hover:bg-white'}`}
+                  >
+                    {t('clientProfile.tabMental')}
                   </button>
                 </div>
               </div>
@@ -838,66 +800,68 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 {activeTab === 'personal' && (
                   <>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Email</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.emailLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.email}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Teléfono</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.phoneLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.phone}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Dirección</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.addressLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.address}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Fecha de nacimiento</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.birthDateLabel')}</label>
                       <p className="text-gray-800 font-medium">
-                        {client.personalData.birthDate ? new Date(client.personalData.birthDate).toLocaleDateString() : 'No especificado'}
+                        {client.personalData.birthDate
+                          ? new Date(client.personalData.birthDate).toLocaleDateString(dateLocale)
+                          : t('clientProfile.notSpecified')}
                       </p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Género</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.genderLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.gender}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Edad</label>
-                      <p className="text-gray-800 font-medium">{client.personalData.age} años</p>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.ageLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.age} {t('clientProfile.yearsUnit')}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Peso</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.weightLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.weight} kg</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Altura</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.heightLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.height} cm</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Estado civil</label>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.maritalStatusLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.maritalStatus}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Educación</label>
-                      <p className="text-gray-800 font-medium">{client.personalData.education || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.educationLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.education || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-700 mb-1">Ocupación</label>
-                      <p className="text-gray-800 font-medium">{client.personalData.occupation || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.occupationLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.personalData.occupation || t('clientProfile.notSpecified')}</p>
                     </div>
                     {client.personalData.bodyFatPercentage && (
                       <div className="bg-blue-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-blue-700 mb-1">% grasa corporal</label>
+                        <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.bodyFatLabel')}</label>
                         <p className="text-gray-800 font-medium">{client.personalData.bodyFatPercentage}</p>
                       </div>
                     )}
                     {client.personalData.weightVariation && (
                       <div className="bg-blue-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-blue-700 mb-1">Variación de peso (6 meses)</label>
+                        <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.weightVariationLabel')}</label>
                         <p className="text-gray-800 font-medium">{valueLabels[client.personalData.weightVariation] || client.personalData.weightVariation}</p>
                       </div>
                     )}
                     {client.personalData.dislikedFoodsActivities && (
                       <div className="bg-blue-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-blue-700 mb-1">Alimentos/actividades no deseadas</label>
+                        <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.dislikedFoodsLabel')}</label>
                         <p className="text-gray-800 font-medium">{client.personalData.dislikedFoodsActivities}</p>
                       </div>
                     )}
@@ -907,48 +871,48 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 {activeTab === 'medical' && (
                   <div className="space-y-4">
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Mayor queja</label>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.mainComplaintLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.medicalData.mainComplaint}</p>
                     </div>
                     {client.medicalData.mainComplaintIntensity && (
                       <div className="bg-yellow-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-yellow-700 mb-1">Intensidad (1-10)</label>
+                        <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.intensityLabel')}</label>
                         <p className="text-gray-800 font-medium">{client.medicalData.mainComplaintIntensity}</p>
                       </div>
                     )}
                     {client.medicalData.mainComplaintImpact && (
                       <div className="bg-yellow-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-yellow-700 mb-1">Impacto en actividades</label>
+                        <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.impactLabel')}</label>
                         <p className="text-gray-800 font-medium">{client.medicalData.mainComplaintImpact}</p>
                       </div>
                     )}
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Medicamentos</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.medications || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.medicationsLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.medications || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Suplementos</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.supplements || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.supplementsLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.supplements || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Condiciones actuales/pasadas</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.conditionsLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.currentPastConditions || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Historial adicional</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.additionalMedicalHistory || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.additionalHistoryLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.additionalMedicalHistory || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Alergias</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.allergies || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.allergiesLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.allergies || t('clientProfile.notSpecified')}</p>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-yellow-700 mb-1">Cirugías</label>
-                      <p className="text-gray-800 font-medium">{client.medicalData.surgeries || 'No especificado'}</p>
+                      <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.surgeriesLabel')}</label>
+                      <p className="text-gray-800 font-medium">{client.medicalData.surgeries || t('clientProfile.notSpecified')}</p>
                     </div>
                     {client.medicalData.appetiteChanges && (
                       <div className="bg-yellow-50 p-3 rounded-lg">
-                        <label className="text-sm font-medium text-yellow-700 mb-1">Cambios en apetito/sed</label>
+                        <label className="text-sm font-medium text-yellow-700 mb-1">{t('clientProfile.appetiteChangesLabel')}</label>
                         <p className="text-gray-800 font-medium">{valueLabels[client.medicalData.appetiteChanges] || client.medicalData.appetiteChanges}</p>
                       </div>
                     )}
@@ -988,28 +952,28 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Descargar información en PDF
+                    {t('clientProfile.downloadPdfBtn')}
                   </button>
                 )}
                 <button onClick={() => setIsEditModalOpen(true)} className="w-full mt-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  Editar Información
+                  {t('clientProfile.editInfoBtn')}
                 </button>
                 {mode === 'coach' && (
                   <button onClick={handleDelete} className="w-full mt-2 bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition font-medium flex items-center justify-center">
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                    Eliminar Cliente
+                    {t('clientProfile.deleteClientBtn')}
                   </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Columna derecha - 70% con nuevas tarjetas */}
+          {/* Columna derecha - 70% */}
           <div className="w-full lg:w-2/3 space-y-6">
             {/* TARJETA OBJETIVOS (ámbar) */}
             <div className="bg-amber-50 rounded-xl shadow-md border border-amber-200 p-6">
@@ -1019,7 +983,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-amber-800">Objetivos</h2>
+                <h2 className="text-2xl font-bold text-amber-800">{t('clientProfile.objectivesTitle')}</h2>
               </div>
               <div className="space-y-4">
                 {(() => {
@@ -1046,7 +1010,9 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 {client.medicalData.previousCoachExperience !== undefined && (
                   <div className="bg-white p-4 rounded-lg border border-amber-200">
                     <label className="text-sm font-medium text-amber-700 mb-2 block">{objectivesQuestions.previousCoachExperience}</label>
-                    <p className="text-gray-800 font-medium">{client.medicalData.previousCoachExperience ? 'Sí' : 'No'}</p>
+                    <p className="text-gray-800 font-medium">
+                      {client.medicalData.previousCoachExperience ? t('clientProfile.yes') : t('clientProfile.no')}
+                    </p>
                   </div>
                 )}
                 {client.medicalData.previousCoachExperienceDetails && (
@@ -1064,7 +1030,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
               </div>
             </div>
 
-            {/* TARJETA ESTILO DE VIDA Y CONTEXTO (teal) - AHORA CON TODAS LAS PREGUNTAS */}
+            {/* TARJETA ESTILO DE VIDA Y CONTEXTO (teal) */}
             <div className="bg-teal-50 rounded-xl shadow-md border border-teal-200 p-6">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center mr-3">
@@ -1072,88 +1038,80 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-teal-800">Estilo de Vida y Contexto</h2>
+                <h2 className="text-2xl font-bold text-teal-800">{t('clientProfile.lifestyleTitle')}</h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Empleo */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">💼</span>
-                    Historial de empleos
+                    {t('clientProfile.employmentHistoryLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.employmentHistory || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.employmentHistory || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Vivienda */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">🏠</span>
-                    Historial de Vivienda
+                    {t('clientProfile.housingHistoryLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.housingHistory || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.housingHistory || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Hobbies */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">🎨</span>
-                    Hobbies e Intereses
+                    {t('clientProfile.hobbiesLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.hobbies || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.hobbies || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Día típico entre semana */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">📅</span>
-                    Día típico entre semana
+                    {t('clientProfile.typicalWeekdayLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.typicalWeekday || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.typicalWeekday || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Día típico fin de semana */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">🎉</span>
-                    Día típico fin de semana
+                    {t('clientProfile.typicalWeekendLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.typicalWeekend || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.typicalWeekend || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Quién cocina / comida fuera */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">🍳</span>
-                    Quién cocina / comida fuera
+                    {t('clientProfile.whoCooksLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.whoCooks || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.whoCooks || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Nivel de actividad física */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">🏃</span>
-                    Nivel de actividad física
+                    {t('clientProfile.activityLevelLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.currentActivityLevel || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.currentActivityLevel || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
-                {/* Limitaciones físicas */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-teal-200">
                   <h3 className="font-semibold text-teal-700 mb-2 flex items-center">
                     <span className="mr-2 text-lg">⚠️</span>
-                    Limitaciones físicas
+                    {t('clientProfile.physicalLimitationsLabel')}
                   </h3>
                   <p className="text-gray-700 text-sm min-h-[60px]">
-                    {client.medicalData.physicalLimitations || <span className="text-gray-600 italic">No especificado</span>}
+                    {client.medicalData.physicalLimitations || <span className="text-gray-600 italic">{t('clientProfile.notSpecified')}</span>}
                   </p>
                 </div>
               </div>
@@ -1167,19 +1125,23 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-pink-700">Evaluaciones de Salud</h2>
+                <h2 className="text-2xl font-bold text-pink-700">{t('clientProfile.evaluationsTitle')}</h2>
               </div>
               <div className="space-y-4">
                 {Object.entries(evaluationQuestions).map(([key, evaluation]) => {
                   const answers = getEvaluationAnswers(client.medicalData[key as keyof Client['medicalData']])
                   const isExpanded = expandedEvaluations[key]
+                  const marked = answers.filter(a => a && a !== 'no' && a !== 'nunca').length
                   return (
                     <div key={key} className="bg-white rounded-lg border border-pink-200 overflow-hidden">
                       <button onClick={() => toggleEvaluation(key)} className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-pink-100 transition-colors">
                         <div className="flex items-center">
                           <span className="font-semibold text-pink-700">{evaluation.title}</span>
                           <span className="ml-2 text-sm text-pink-500 bg-pink-100 px-2 py-1 rounded-full">
-                            {answers.filter(a => a && a !== 'no' && a !== 'nunca').length} de {evaluation.questions.length} marcados
+                            {t('clientProfile.markedCount', {
+                              count: marked,
+                              total: evaluation.questions.length,
+                            })}
                           </span>
                         </div>
                         <svg className={`w-5 h-5 text-pink-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1221,19 +1183,22 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   </div>
                   <div>
                     <div className="flex items-center flex-wrap gap-2">
-                      <h2 className="text-xl sm:text-2xl font-bold text-indigo-700">Documentos Médicos</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-indigo-700">{t('clientProfile.medicalDocsTitle')}</h2>
                       <span className="bg-indigo-100 text-indigo-800 text-xs sm:text-sm px-3 py-1 rounded-full font-medium">
-                        {client.medicalData.documents?.length || 0} {client.medicalData.documents?.length === 1 ? 'archivo' : 'archivos'}
+                        {client.medicalData.documents?.length || 0}{' '}
+                        {client.medicalData.documents?.length === 1
+                          ? t('clientProfile.docCountSingle')
+                          : t('clientProfile.docCountPlural')}
                       </span>
                     </div>
-                    <p className="text-gray-600 text-sm mt-1">Documentos clínicos, análisis y estudios médicos</p>
+                    <p className="text-gray-600 text-sm mt-1">{t('clientProfile.medicalDocsSubtitle')}</p>
                   </div>
                 </div>
                 <button onClick={() => setIsDocumentsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-4 rounded-lg transition flex items-center justify-center w-full sm:w-auto shadow-sm">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Agregar Documentos
+                  {t('clientProfile.addDocumentsBtn')}
                 </button>
               </div>
               {client.medicalData.documents && client.medicalData.documents.length > 0 ? (
@@ -1241,7 +1206,11 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   {client.medicalData.documents.map((doc, index) => (
                     <div key={index} className="bg-white rounded-lg p-4 border border-indigo-200 hover:shadow-md transition-shadow relative group">
                       {mode === 'coach' && (
-                        <button onClick={() => handleDeleteDocument(doc)} className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition opacity-0 group-hover:opacity-100 focus:opacity-100 z-10" title="Eliminar documento">
+                        <button
+                          onClick={() => handleDeleteDocument(doc)}
+                          className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 transition opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
+                          title={t('clientProfile.deleteDocTitle')}
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
@@ -1272,8 +1241,11 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => { setSelectedDocument(doc); setIsDocumentModalOpen(true); }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-3 rounded-lg transition text-sm font-medium">
-                        Ver Documento
+                      <button
+                        onClick={() => { setSelectedDocument(doc); setIsDocumentModalOpen(true); }}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center py-2 px-3 rounded-lg transition text-sm font-medium"
+                      >
+                        {t('clientProfile.viewDocumentBtn')}
                       </button>
                     </div>
                   ))}
@@ -1283,19 +1255,19 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   <svg className="w-12 h-12 text-indigo-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <p className="text-indigo-500 font-medium mb-2">No hay documentos cargados</p>
-                  <p className="text-gray-600 text-sm mb-4 max-w-md mx-auto">Puedes subir análisis clínicos, recetas, estudios médicos y otros documentos importantes.</p>
+                  <p className="text-indigo-500 font-medium mb-2">{t('clientProfile.noDocumentsTitle')}</p>
+                  <p className="text-gray-600 text-sm mb-4 max-w-md mx-auto">{t('clientProfile.noDocumentsDesc')}</p>
                   <button onClick={() => setIsDocumentsModalOpen(true)} className="text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center">
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Agregar el primer documento
+                    {t('clientProfile.addFirstDocBtn')}
                   </button>
                 </div>
               )}
             </div>
 
-            {/* TARJETA RECOMENDACIONES IA (verde) */}
+            {/* TARJETA RECOMENDACIONES DE SALUD / IA (verde) */}
             <div className="bg-green-50 rounded-xl shadow-md border border-green-100 p-6">
               <div className="flex items-center mb-6">
                 <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center mr-3">
@@ -1303,10 +1275,13 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-green-700">Recomendaciones de IA</h2>
+                <h2 className="text-2xl font-bold text-green-700">
+                  {mode === 'client'
+                    ? t('clientProfile.healthRecommendationsTitle')
+                    : t('clientProfile.aiRecommendationsCoachTitle')}
+                </h2>
               </div>
               <div className="text-center py-4">
-                {/* Estado: Sin recomendaciones aún (idle) */}
                 {aiGenerationStatus === 'idle' && mode === 'coach' && (
                   <button
                     onClick={() => setIsAIModalOpen(true)}
@@ -1315,18 +1290,17 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                    Generar Recomendaciones con IA
+                    {t('clientProfile.generateAiBtn')}
                   </button>
                 )}
                 {aiGenerationStatus === 'idle' && mode === 'client' && (
                   <div className="bg-white border border-green-200 rounded-lg p-4 max-w-xl mx-auto">
                     <p className="text-green-900 font-medium text-sm">
-                      Tu asesor Manuel Martínez está revisando tu perfil. Cuando apruebe tu plan personalizado aparecerá aquí.
+                      {t('clientProfile.clientPendingRecs')}
                     </p>
                   </div>
                 )}
 
-                {/* Estado: Generando (Inngest procesando automáticamente al registrar cliente) */}
                 {aiGenerationStatus === 'queued' && (
                   <button
                     disabled
@@ -1336,11 +1310,10 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Generando recomendaciones. Por favor, espere...
+                    {t('clientProfile.generatingWaitBtn')}
                   </button>
                 )}
 
-                {/* Estado: Listo para ver (recomendaciones generadas) */}
                 {aiGenerationStatus === 'ready' && (
                   <button
                     onClick={() => setIsAIModalOpen(true)}
@@ -1349,17 +1322,19 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                     <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                    Ver Recomendaciones
+                    {t('clientProfile.viewRecommendationsBtn')}
                   </button>
                 )}
 
                 {!(mode === 'client' && aiGenerationStatus === 'idle') && (
                   <p className="text-gray-600 text-sm mt-3">
                     {aiGenerationStatus === 'queued'
-                      ? 'La IA está procesando las recomendaciones automáticamente. Esto puede tomar unos minutos.'
+                      ? t('clientProfile.queuedHint')
                       : aiGenerationStatus === 'idle'
-                      ? 'Genera recomendaciones personalizadas de nutrición, ejercicio y hábitos con IA avanzada.'
-                      : 'Recomendaciones personalizadas generadas por IA avanzada'}
+                      ? t('clientProfile.idleHintCoach')
+                      : mode === 'client'
+                      ? t('clientProfile.clientRecsReadOnlyHint')
+                      : t('clientProfile.readyHintCoach')}
                   </p>
                 )}
               </div>
@@ -1378,12 +1353,11 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
         )}
         {isDocumentModalOpen && selectedDocument && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            {/* Navigation arrows outside the modal (fixed on overlay) */}
             {documents.length > 1 && hasPrevDoc && (
               <button
                 onClick={() => { const idx = documents.findIndex(d => d.key === selectedDocument?.key); if (idx > 0) { setSelectedDocument(documents[idx - 1]); setDocViewUrl(''); } }}
                 className="fixed left-4 top-1/2 -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
-                aria-label="Documento anterior"
+                aria-label={t('clientProfile.prevDocAria')}
               >
                 <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
               </button>
@@ -1392,13 +1366,12 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
               <button
                 onClick={() => { const idx = documents.findIndex(d => d.key === selectedDocument?.key); if (idx >= 0 && idx < documents.length - 1) { setSelectedDocument(documents[idx + 1]); setDocViewUrl(''); } }}
                 className="fixed right-4 top-1/2 -translate-y-1/2 z-[60] w-10 h-10 md:w-12 md:h-12 bg-white/90 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center text-gray-800 hover:bg-white hover:scale-110 transition-all border border-gray-200"
-                aria-label="Siguiente documento"
+                aria-label={t('clientProfile.nextDocAria')}
               >
                 <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
               </button>
             )}
             <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
-              {/* Header */}
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
                 <div className="min-w-0 flex-1">
                   <h3 className="text-xl font-bold text-gray-800 truncate">{selectedDocument.name}</h3>
@@ -1414,43 +1387,42 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                   <a href={docViewUrl || selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center text-sm" download>
                     <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Descargar
+                    {t('clientProfile.downloadBtn')}
                   </a>
-                  <button onClick={() => { setIsDocumentModalOpen(false); setSelectedDocument(null); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition" title="Cerrar (ESC)">
+                  <button onClick={() => { setIsDocumentModalOpen(false); setSelectedDocument(null); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition" title={t('clientProfile.closeEscTitle')}>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               </div>
-              {/* Body */}
               <div className="flex-1 overflow-auto p-6">
-                  {selectedDocument.type.includes('image') ? (
-                    <div className="flex justify-center">
-                      <Image src={docViewUrl || selectedDocument.url} alt={selectedDocument.name} width={800} height={600} className="max-w-full max-h-full object-contain" />
+                {selectedDocument.type.includes('image') ? (
+                  <div className="flex justify-center">
+                    <Image src={docViewUrl || selectedDocument.url} alt={selectedDocument.name} width={800} height={600} className="max-w-full max-h-full object-contain" />
+                  </div>
+                ) : selectedDocument.name.includes('.pdf') ? (
+                  <iframe src={docViewUrl || selectedDocument.url} className="w-full h-[70vh] border-0 rounded" title={selectedDocument.name} />
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     </div>
-                  ) : selectedDocument.name.includes('.pdf') ? (
-                    <iframe src={docViewUrl || selectedDocument.url} className="w-full h-[70vh] border-0 rounded" title={selectedDocument.name} />
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                      </div>
-                      <h4 className="text-lg font-semibold text-gray-800 mb-2">Vista previa no disponible</h4>
-                      <p className="text-gray-600 mb-6">Este tipo de archivo no se puede previsualizar en el navegador.</p>
-                      <a href={docViewUrl || selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium inline-flex items-center" download>
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Descargar Archivo
-                      </a>
-                    </div>
-                  )}
-                </div>
+                    <h4 className="text-lg font-semibold text-gray-800 mb-2">{t('clientProfile.previewUnavailableTitle')}</h4>
+                    <p className="text-gray-600 mb-6">{t('clientProfile.previewUnavailableDesc')}</p>
+                    <a href={docViewUrl || selectedDocument.url} target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium inline-flex items-center" download>
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      {t('clientProfile.downloadFileBtn')}
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-          {isProfilePhotoModalOpen && (
+          </div>
+        )}
+        {isProfilePhotoModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                <h3 className="text-xl font-bold text-gray-800">Cambiar Foto de Perfil</h3>
+                <h3 className="text-xl font-bold text-gray-800">{t('clientProfile.changePhotoModalTitle')}</h3>
                 <button onClick={() => setIsProfilePhotoModalOpen(false)} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1459,20 +1431,20 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
               </div>
               <div className="p-6">
                 <div className="text-center mb-6">
-                  <p className="text-gray-600 mb-4">Selecciona una nueva imagen para el perfil</p>
+                  <p className="text-gray-600 mb-4">{t('clientProfile.selectNewImagePrompt')}</p>
                   <label className="block bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition font-medium cursor-pointer text-center">
                     <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    Seleccionar Archivo
+                    {t('clientProfile.selectFileBtn')}
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleProfilePhotoChange(file); }} />
                   </label>
-                  <p className="text-xs text-gray-500 mt-2">Formatos: JPG, PNG, GIF, WEBP (Máx. 5MB)</p>
+                  <p className="text-xs text-gray-500 mt-2">{t('clientProfile.photoFormatsHint')}</p>
                 </div>
                 {uploading && (
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                    <p className="text-gray-600 mt-2">Subiendo imagen...</p>
+                    <p className="text-gray-600 mt-2">{t('clientProfile.uploadingImage')}</p>
                   </div>
                 )}
               </div>
@@ -1483,7 +1455,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                <h3 className="text-xl font-bold text-gray-800">Agregar Documentos Médicos</h3>
+                <h3 className="text-xl font-bold text-gray-800">{t('clientProfile.addDocsModalTitle')}</h3>
                 <button onClick={() => { setIsDocumentsModalOpen(false); setSelectedFiles([]); }} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1495,17 +1467,17 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                   <svg className="w-12 h-12 text-indigo-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-indigo-600 font-medium mb-2">Arrastra y suelta archivos aquí</p>
-                  <p className="text-gray-500 text-sm mb-4">o</p>
+                  <p className="text-indigo-600 font-medium mb-2">{t('clientProfile.dragDropHint')}</p>
+                  <p className="text-gray-500 text-sm mb-4">{t('clientProfile.orLabel')}</p>
                   <label className="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition font-medium cursor-pointer">
-                    Seleccionar Archivos
+                    {t('clientProfile.selectFilesBtn')}
                     <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileSelect(e.target.files)} />
                   </label>
-                  <p className="text-xs text-gray-500 mt-3">Formatos: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX (Máx. 5MB por archivo)</p>
+                  <p className="text-xs text-gray-500 mt-3">{t('clientProfile.docFormatsHint')}</p>
                 </div>
                 {selectedFiles.length > 0 && (
                   <div className="mb-6">
-                    <h4 className="font-semibold text-gray-800 mb-3">Archivos seleccionados:</h4>
+                    <h4 className="font-semibold text-gray-800 mb-3">{t('clientProfile.selectedFilesTitle')}</h4>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {selectedFiles.map((file, index) => (
                         <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
@@ -1529,20 +1501,20 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
               </div>
               <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
                 <button onClick={() => { setIsDocumentsModalOpen(false); setSelectedFiles([]); }} className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">
-                  Cancelar
+                  {t('clientProfile.cancelBtn')}
                 </button>
                 <button onClick={handleUploadDocuments} disabled={selectedFiles.length === 0 || uploading} className="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
                   {uploading ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Subiendo...
+                      {t('clientProfile.uploadingBtn')}
                     </>
                   ) : (
                     <>
                       <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
-                      Subir Documentos ({selectedFiles.length})
+                      {t('clientProfile.uploadDocsBtn', { count: selectedFiles.length })}
                     </>
                   )}
                 </button>
@@ -1561,14 +1533,11 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
             generationStatus={aiGenerationStatus}
             generationError={aiError}
             onRecommendationsGenerated={(info?: { status: string; jobId?: string }) => {
-              // Si viene con status 'queued', Inngest está procesando → activar polling
               if (info?.status === 'queued') {
                 setAiGenerationStatus('queued')
                 setAiJobId(info.jobId || null)
                 setAiError(null)
-                // setIsGeneratingAI se mantiene true hasta que el polling encuentre resultados
               } else {
-                // Respuesta sincrónica (fallback del backend sin Inngest) → datos listos ya
                 setAiGenerationStatus('ready')
                 setIsGeneratingAI(false)
                 setAiError(null)

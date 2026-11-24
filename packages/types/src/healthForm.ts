@@ -180,6 +180,14 @@ export interface ClientDetails extends HealthFormData {
   aiProgress?: ClientAIProgress;
 }
 
+export interface WeeklyPhaseItem {
+  weekNumber: number;
+  title: string;
+  nutritionFocus: string;
+  exerciseFocus: string;
+  habitFocus: string;
+}
+
 export interface AIRecommendationWeek {
   weekNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   medicalAnalysis?: {
@@ -215,12 +223,13 @@ export interface AIRecommendationWeek {
 export interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
-  totalWeeks?: number; // Número total de semanas en el plan (4 para 1 mes, 12 para 3 meses)
+  totalWeeks?: number; // Número total de semanas en el plan (3 para Reto Tres NEL, 4 para planes mensuales)
+  weeklyPhases?: WeeklyPhaseItem[]; // Enfoque progresivo diferenciado por semana (ej. 3 semanas del Reto Tres NEL)
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent' | 'completed';
   summary: string; // encriptado - Análisis de situación actual y resumen
-  vision: string; // encriptado - Visión a largo plazo (12 semanas)
+  vision: string; // encriptado - Visión a largo plazo (3 semanas o 1 mes)
   // Nuevos campos para análisis médico
   medicalSummary?: string; // encriptado - Resumen del análisis de laboratorio y exámenes
   medicalComparativeAnalysis?: string; // encriptado - Análisis comparativo entre sesiones (solo sesiones > 1)

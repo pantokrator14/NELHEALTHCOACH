@@ -122,6 +122,14 @@ export interface PDFChecklistItem {
   };
 }
 
+export interface PDFWeeklyPhaseData {
+  weekNumber: number;
+  title: string;
+  nutritionFocus: string;
+  exerciseFocus: string;
+  habitFocus: string;
+}
+
 export interface PDFWeekData {
   weekNumber: number;
   nutrition: { focus: string; shoppingList: Array<{ item: string; quantity: string; priority: string }> };
@@ -136,6 +144,7 @@ export interface PDFRecommendationData {
     vision: string;
     medicalSummary?: string;
     medicalComparativeAnalysis?: string;
+    totalWeeks?: number;
     index?: number;
     labResults?: Array<{ name: string; value: string; range: string; status: 'normal' | 'alto' | 'bajo' }>;
     structuredMedicalAnalysis?: {
@@ -143,6 +152,7 @@ export interface PDFRecommendationData {
       supplements: Array<{ name: string; dosage: string; timing: string; rationale: string; contraindications?: string; }>;
     };
   };
+  weeklyPhases?: PDFWeeklyPhaseData[];
   checklist: PDFChecklistItem[];
   weeks: PDFWeekData[];
   recipes: Record<string, PDFRecipeData>;
@@ -483,10 +493,60 @@ function buildSummarySection(doc: PDFKit.PDFDocument, data: PDFRecommendationDat
 function buildVisionSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
   doc.y = checkSpace(doc, startY, 40);
   doc.save().fillColor(COLORS.blue).font('Helvetica-Bold').fontSize(FONT_SIZES.sectionTitle);
-  doc.text('Visión para los próximos meses', MARGIN, doc.y);
+  const isThreeWeeks = data.session.totalWeeks === 3 || (data.weeklyPhases?.length ?? 0) === 3;
+  doc.text(isThreeWeeks ? 'Visión para las próximas 3 semanas' : 'Visión para los próximos meses', MARGIN, doc.y);
   doc.y += 8;
   doc.restore();
   if (data.session.vision) doc.y = buildHighlightBlock(doc, data.session.vision, doc.y, COLORS.lightBlue, '#F5F9FF');
+  return doc.y;
+}
+
+function buildWeeklyPhasesSection(doc: PDFKit.PDFDocument, data: PDFRecommendationData, startY: number): number {
+  const phases = data.weeklyPhases || [];
+  if (phases.length === 0) return startY;
+
+  doc.y = checkSpace(doc, startY, 50);
+  doc.y = drawBanner(doc, doc.y, 'Enfoque Progresivo por Semanas', COLORS.titleBlue);
+
+  const cardPad = 10;
+  const textW = USABLE_WIDTH - cardPad * 2;
+
+  for (const phase of phases) {
+    const rows: Array<{ label: string; value: string }> = [
+      { label: 'Nutrición:', value: phase.nutritionFocus },
+      { label: 'Ejercicio:', value: phase.exerciseFocus },
+      { label: 'Hábitos:', value: phase.habitFocus },
+    ].filter((r) => Boolean(r.value));
+
+    doc.font('Helvetica-Bold').fontSize(10);
+    let cardH = cardPad + doc.heightOfString(phase.title, { width: textW }) + 6;
+    doc.font('Helvetica').fontSize(FONT_SIZES.small);
+    for (const r of rows) {
+      cardH += doc.heightOfString(`${r.label} ${r.value}`, { width: textW, lineGap: 1 }) + 4;
+    }
+    cardH += cardPad;
+
+    doc.y = checkSpace(doc, doc.y, cardH + 6);
+    const cardY = doc.y;
+    drawCard(doc, MARGIN, cardY, USABLE_WIDTH, cardH, '#F0F7FF', COLORS.lightBlue);
+
+    let cursorY = cardY + cardPad;
+    doc.save().fillColor(COLORS.titleBlue).font('Helvetica-Bold').fontSize(10);
+    doc.text(phase.title, MARGIN + cardPad, cursorY, { width: textW });
+    cursorY += doc.heightOfString(phase.title, { width: textW }) + 6;
+    doc.restore();
+
+    for (const r of rows) {
+      doc.save().fontSize(FONT_SIZES.small).fillColor(COLORS.text);
+      doc.font('Helvetica-Bold').text(`${r.label} `, MARGIN + cardPad, cursorY, { continued: true, width: textW });
+      doc.font('Helvetica').text(r.value, { width: textW, lineGap: 1 });
+      cursorY = doc.y + 4;
+      doc.restore();
+    }
+
+    doc.y = cardY + cardH + 8;
+  }
+
   return doc.y;
 }
 
@@ -1134,6 +1194,9 @@ export function generateRecommendationPDF(raw_data: PDFRecommendationData): Prom
       doc.y = buildDisclaimer(doc, doc.y, data.client?.language || "es");
       doc.y = buildSummarySection(doc, data, doc.y);
       doc.y = buildVisionSection(doc, data, doc.y);
+      if (data.weeklyPhases && data.weeklyPhases.length > 0) {
+        doc.y = buildWeeklyPhasesSection(doc, data, doc.y);
+      }
       
       // -- SECCIÓN 2: Análisis Médico
       const hasMed = data.session.structuredMedicalAnalysis?.exams?.length || data.session.labResults?.length || data.session.medicalSummary;

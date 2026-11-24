@@ -10,6 +10,8 @@ import {
   generateParticipantToken,
   getVideoSession,
 } from '@/app/lib/video-service';
+import { VIDEO_JOIN_EARLY_WINDOW_MS } from '@/app/lib/plans';
+import { safeDecrypt } from '@/app/lib/encryption';
 import { logger } from '@/app/lib/logger';
 import { getHealthFormsCollection } from '@/app/lib/database';
 import { apiHandler } from '@/app/lib/apiHandler';
@@ -44,7 +46,7 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const auth = requireCoachAuth(request);
+      requireCoachAuth(request);
 
       const token = await generateParticipantToken({
         roomName: body.roomName,
@@ -61,9 +63,11 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
 
       return NextResponse.json({
         success: true,
+        roomName: body.roomName,
         data: {
           token,
           serverUrl: process.env.LIVEKIT_URL,
+          roomName: body.roomName,
         },
       });
     }
@@ -95,10 +99,28 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
         );
       }
 
+      // Bloquear ingreso anticipado del cliente antes de la fecha/hora programada (-15 min)
+      if (session.status === 'scheduled' && session.scheduledAt) {
+        const scheduledMs = new Date(session.scheduledAt).getTime();
+        if (!Number.isNaN(scheduledMs) && Date.now() < scheduledMs - VIDEO_JOIN_EARLY_WINDOW_MS) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'La videollamada aún no está disponible. Podrás unirte 15 minutos antes de la fecha y hora programadas.',
+              code: 'SESSION_NOT_YET_STARTED',
+              scheduledAt: new Date(scheduledMs).toISOString(),
+              unlocksAt: new Date(scheduledMs - VIDEO_JOIN_EARLY_WINDOW_MS).toISOString(),
+            },
+            { status: 403 }
+          );
+        }
+      }
+
       // Obtener el nombre del cliente desde la BD
       const collection = await getHealthFormsCollection();
       const doc = await collection.findOne({ _id: new ObjectId(decoded.sub) });
-      const clientName = doc?.personalData?.name ?? 'Cliente';
+      const rawName = doc?.personalData?.name ? String(doc.personalData.name) : '';
+      const clientName = (rawName ? safeDecrypt(rawName) : '') || 'Cliente';
 
       // Usar el roomName de la sesión (ya almacenada en BD)
       const roomName = session.roomName;
@@ -119,9 +141,11 @@ async function postHandler(request: NextRequest): Promise<NextResponse> {
 
       return NextResponse.json({
         success: true,
+        roomName,
         data: {
           token,
           serverUrl: process.env.LIVEKIT_URL,
+          roomName,
         },
       });
     }

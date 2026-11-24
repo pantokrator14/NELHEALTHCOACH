@@ -1026,6 +1026,195 @@ async function main() {
     );
   }
 
+
+  // ═══ 9. CRONOGRAMA DE VIDEOLLAMADAS, GUARD -15 MIN Y FASES DE RETO 3 SEMANAS ═══
+  section('9. Cronograma de videollamadas por plan, bloqueo anticipado y Reto 3 semanas');
+  {
+    const { buildClientVideoSessionSchedule } = await import('../src/app/lib/plans');
+    const { POST: postVideoToken } = await import('../src/app/api/video/token/route');
+    const { generateClientSessionToken } = await import('../src/app/lib/auth');
+    const { encryptSessionFields } = await import('../src/app/lib/recommendation-translator');
+
+    const fixedNow = Date.UTC(2026, 5, 1, 12, 0, 0);
+    const retoSchedule = buildClientVideoSessionSchedule({
+      purchasedPlans: [{ planId: 'reto_tres_nel', status: 'paid', purchasedAt: new Date(fixedNow) }],
+      rawVideoSessions: [],
+      nowMs: fixedNow,
+    });
+    const diffDaysReto = retoSchedule[0]
+      ? Math.round((new Date(retoSchedule[0].scheduledAt).getTime() - fixedNow) / (24 * 60 * 60 * 1000))
+      : -1;
+    check(
+      'reto_tres_nel genera 1 videollamada estimada a +21 días con canJoin=false',
+      retoSchedule.length === 1 &&
+        retoSchedule[0].isEstimated === true &&
+        retoSchedule[0].canJoin === false &&
+        retoSchedule[0].status === 'pending_schedule' &&
+        diffDaysReto === 21
+    );
+
+    const plan2Schedule = buildClientVideoSessionSchedule({
+      purchasedPlans: [{ planId: 'plan_2_transformacion', status: 'paid', purchasedAt: new Date(fixedNow) }],
+      rawVideoSessions: [],
+      nowMs: fixedNow,
+    });
+    check('plan_2_transformacion genera 3 slots de videollamada', plan2Schedule.length === 3);
+
+    const plan3Schedule = buildClientVideoSessionSchedule({
+      purchasedPlans: [{ planId: 'plan_3_maestria', status: 'paid', purchasedAt: new Date(fixedNow) }],
+      rawVideoSessions: [],
+      nowMs: fixedNow,
+    });
+    check('plan_3_maestria genera 6 slots de videollamada', plan3Schedule.length === 6);
+
+    const lockedFutureAt = new Date(fixedNow + 2 * 60 * 60 * 1000);
+    const lockedSchedule = buildClientVideoSessionSchedule({
+      purchasedPlans: [{ planId: 'reto_tres_nel', status: 'paid', purchasedAt: new Date(fixedNow) }],
+      rawVideoSessions: [
+        {
+          sessionId: 'vs_locked_unit',
+          sessionNumber: 1,
+          roomName: 'room_locked_unit',
+          scheduledAt: lockedFutureAt,
+          durationMinutes: 45,
+          timezone: 'UTC',
+          status: 'scheduled',
+        },
+      ],
+      nowMs: fixedNow,
+    });
+    check(
+      'Sesión agendada a +2h queda bloqueada (canJoin=false, unlocksAt informado)',
+      lockedSchedule.length === 1 &&
+        lockedSchedule[0].isEstimated === false &&
+        lockedSchedule[0].canJoin === false &&
+        typeof lockedSchedule[0].unlocksAt === 'string'
+    );
+
+    const withinWindowAt = new Date(fixedNow + 10 * 60 * 1000);
+    const openSchedule = buildClientVideoSessionSchedule({
+      purchasedPlans: [{ planId: 'reto_tres_nel', status: 'paid', purchasedAt: new Date(fixedNow) }],
+      rawVideoSessions: [
+        {
+          sessionId: 'vs_open_unit',
+          sessionNumber: 1,
+          roomName: 'room_open_unit',
+          scheduledAt: withinWindowAt,
+          durationMinutes: 45,
+          timezone: 'UTC',
+          status: 'scheduled',
+        },
+      ],
+      nowMs: fixedNow,
+    });
+    check(
+      'Sesión dentro de la ventana de -15 min habilita ingreso (canJoin=true)',
+      openSchedule.length === 1 && openSchedule[0].canJoin === true && openSchedule[0].unlocksAt === null
+    );
+
+    // Probar bloqueo real en POST /api/video/token + GET /api/client-portal/me
+    const futureTokenSessionAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    await db.collection('healthforms').updateOne(
+      { _id: new ObjectId(createdHealthFormId) },
+      {
+        $set: {
+          videoSessions: [
+            {
+              sessionId: 'vs_future_locked',
+              sessionNumber: 1,
+              roomName: 'room_future_locked',
+              scheduledAt: futureTokenSessionAt,
+              durationMinutes: 45,
+              timezone: 'UTC',
+              status: 'scheduled',
+            },
+          ],
+        },
+      }
+    );
+
+    const earlyVideoJwt = generateClientSessionToken(createdHealthFormId, 'vs_future_locked', testEmail, 3600);
+    const earlyJoinRes = await postVideoToken(
+      anonRequest(`${base}/video/token`, 'POST', {
+        role: 'client',
+        roomName: 'room_future_locked',
+        sessionToken: earlyVideoJwt,
+      }),
+      { params: Promise.resolve({}) }
+    );
+    const earlyJoinJson = await earlyJoinRes.json();
+    check(
+      'POST /api/video/token rechaza ingreso anticipado con 403 SESSION_NOT_YET_STARTED',
+      earlyJoinRes.status === 403 &&
+        earlyJoinJson?.code === 'SESSION_NOT_YET_STARTED' &&
+        typeof earlyJoinJson?.scheduledAt === 'string' &&
+        typeof earlyJoinJson?.unlocksAt === 'string',
+      `status=${earlyJoinRes.status} code=${earlyJoinJson?.code}`
+    );
+
+    const portalLockedRes = await getClientPortalMe(
+      authedRequest(`${base}/client-portal/me`, 'GET', clientToken),
+      { params: Promise.resolve({}) }
+    );
+    const portalLockedJson = await portalLockedRes.json();
+    const portalVideoSlots = (portalLockedJson?.data?.videoSessions || []) as Array<Record<string, unknown>>;
+    const lockedSlot = portalVideoSlots.find((s) => s.sessionId === 'vs_future_locked');
+    check(
+      'GET /api/client-portal/me expone sesión futura con canJoin=false y joinLink=null',
+      portalLockedRes.status === 200 &&
+        Boolean(lockedSlot) &&
+        lockedSlot?.canJoin === false &&
+        lockedSlot?.joinLink === null
+    );
+
+    // Encriptación de weeklyPhases para Reto 3 semanas vs planes mensuales de 4 semanas
+    const encReto = encryptSessionFields({
+      summary: 'Resumen reto',
+      vision: 'Visión 21 días',
+      weeklyPhases: [
+        {
+          weekNumber: 1,
+          title: 'Semana 1: Depuración',
+          nutritionFocus: 'Eliminar azúcares',
+          exerciseFocus: 'Movilidad diaria',
+          habitFocus: 'Luz solar matutina',
+        },
+        {
+          weekNumber: 2,
+          title: 'Semana 2: Sincronización',
+          nutritionFocus: 'Ventana 12/12',
+          exerciseFocus: 'Fuerza moderada',
+          habitFocus: 'Sin pantallas nocturnas',
+        },
+        {
+          weekNumber: 3,
+          title: 'Semana 3: Energía',
+          nutritionFocus: 'Cetosis limpia',
+          exerciseFocus: 'Zona 2 + fuerza',
+          habitFocus: 'Sueño profundo 8h',
+        },
+      ],
+      weeks: [],
+    });
+    check(
+      'encryptSessionFields cifra y conserva las 3 fases semanales del Reto Tres NEL',
+      Array.isArray(encReto.weeklyPhases) &&
+        encReto.weeklyPhases.length === 3 &&
+        decrypt(encReto.weeklyPhases[0].title) === 'Semana 1: Depuración' &&
+        decrypt(encReto.weeklyPhases[2].habitFocus) === 'Sueño profundo 8h'
+    );
+
+    const encFourWeeks = encryptSessionFields({
+      summary: 'Resumen 4 semanas',
+      vision: 'Visión 1 mes',
+      weeks: [],
+    });
+    check(
+      'Sesiones de 4 semanas mantienen weeklyPhases sin definir (sin regresión)',
+      (encFourWeeks as { weeklyPhases?: unknown }).weeklyPhases === undefined
+    );
+  }
+
   await mongo.close();
 }
 

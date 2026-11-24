@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import { useTranslation } from 'react-i18next'
 import { useIsAdmin, useUserRole } from '@/lib/client-hooks'
 import Image from 'next/image'
 import { apiClient, type ClientPortalData } from '@/lib/api'
@@ -20,6 +21,7 @@ interface CoachData {
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const { t } = useTranslation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [coachData, setCoachData] = useState<CoachData | null>(null)
   const [clientPortal, setClientPortal] = useState<ClientPortalData | null>(null)
@@ -86,7 +88,7 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   const fullName = isClient
-    ? (clientPortal?.clientName || clientPortal?.email || 'Mi Cuenta')
+    ? (clientPortal?.clientName || clientPortal?.email || t('clientSidebar.myAccount'))
     : (coachData ? `${coachData.firstName} ${coachData.lastName}` : 'Coach')
   const photoUrl = isClient ? null : (coachData?.profilePhoto?.url || null)
 
@@ -95,7 +97,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Botón de toggle para móviles */}
       <button
         type="button"
-        aria-label="Abrir menú"
+        aria-label={t('clientSidebar.openMenu')}
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         className="lg:hidden fixed top-3 left-3 z-50 p-2.5 bg-blue-600 text-white rounded-xl shadow-lg"
       >
@@ -148,7 +150,7 @@ export default function Layout({ children }: LayoutProps) {
         <nav className="flex-1 p-4 overflow-y-auto">
           {isClient ? (
             <div className="space-y-2">
-              {/* Mi Portal */}
+              {/* Inicio */}
               <button
                 onClick={() => navigateTo('/dashboard')}
                 className="w-full text-left px-4 py-3 rounded-lg hover:bg-blue-600 transition-all duration-200 flex items-center group"
@@ -158,7 +160,7 @@ export default function Layout({ children }: LayoutProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                   </svg>
                 </div>
-                <span className="font-medium">Mi Portal</span>
+                <span className="font-medium">{t('clientSidebar.summary')}</span>
               </button>
 
               {/* Planes */}
@@ -171,7 +173,7 @@ export default function Layout({ children }: LayoutProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <span className="font-medium">Planes</span>
+                <span className="font-medium">{t('clientSidebar.plans')}</span>
               </button>
             </div>
           ) : (
@@ -276,7 +278,7 @@ export default function Layout({ children }: LayoutProps) {
               <span className="font-medium truncate block">{fullName}</span>
               {isClient && clientPortal?.healthFormId && (
                 <span className="text-[11px] text-blue-200 block leading-tight">
-                  Ver mi perfil
+                  {t('clientSidebar.viewProfile')}
                 </span>
               )}
             </div>
@@ -294,7 +296,7 @@ export default function Layout({ children }: LayoutProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </div>
-            <span className="font-medium">Cerrar Sesión</span>
+            <span className="font-medium">{t('clientSidebar.logout')}</span>
           </button>
         </div>
       </div>

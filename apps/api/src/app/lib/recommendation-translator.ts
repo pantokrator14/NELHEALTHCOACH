@@ -60,12 +60,21 @@ export interface TranslatableWeek {
   };
 }
 
+export interface TranslatableWeeklyPhase {
+  weekNumber: number;
+  title: string;
+  nutritionFocus: string;
+  exerciseFocus: string;
+  habitFocus: string;
+}
+
 export interface TranslatableSession {
   summary?: string;
   vision?: string;
   medicalSummary?: string;
   medicalComparativeAnalysis?: string;
   structuredMedicalAnalysis?: unknown;
+  weeklyPhases?: TranslatableWeeklyPhase[];
   weeks?: TranslatableWeek[];
   checklist?: unknown[];
   baselineMetrics?: unknown;
@@ -97,6 +106,17 @@ export function encryptSessionFields<T extends TranslatableSession>(
     vision: encrypt(session.vision || ''),
     medicalSummary: encrypt(session.medicalSummary || ''),
     medicalComparativeAnalysis: encrypt(session.medicalComparativeAnalysis || ''),
+    ...(Array.isArray(session.weeklyPhases) && session.weeklyPhases.length > 0
+      ? {
+          weeklyPhases: session.weeklyPhases.map((phase) => ({
+            weekNumber: phase.weekNumber,
+            title: encrypt(phase.title || ""),
+            nutritionFocus: encrypt(phase.nutritionFocus || ""),
+            exerciseFocus: encrypt(phase.exerciseFocus || ""),
+            habitFocus: encrypt(phase.habitFocus || ""),
+          })),
+        }
+      : {}),
     weeks: (session.weeks || []).map((week) => ({
       weekNumber: week.weekNumber,
       nutrition: {
@@ -360,6 +380,13 @@ export async function translateSessionContent<T extends TranslatableSession>(
         ? translateJsonBatch(session.structuredMedicalAnalysis, targetLang, sourceHint, llm)
         : Promise.resolve(null),
       apply: (res) => { if (res) translated.structuredMedicalAnalysis = res; },
+    },
+    {
+      key: 'weeklyPhases',
+      run: () => Array.isArray(session.weeklyPhases) && session.weeklyPhases.length > 0
+        ? translateJsonBatch(session.weeklyPhases, targetLang, sourceHint, llm)
+        : Promise.resolve(null),
+      apply: (res) => { if (Array.isArray(res)) translated.weeklyPhases = res as T['weeklyPhases']; },
     },
     {
       key: 'weeks',

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import Layout from '@/components/dashboard/Layout';
 import {
   apiClient,
@@ -11,10 +12,12 @@ import {
   type ClientPortalData,
 } from '@/lib/api';
 import { useUserRole, useLocalStorageValue } from '@/lib/client-hooks';
+import { getLocalizedPlanFields } from '@/lib/locale';
 import { useToast } from '@/components/ui/Toast';
 
 export default function ClientPlansPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const userRole = useUserRole();
   const pendingPlanFromStorage = useLocalStorageValue('pendingSelectedPlanId');
   const { showToast, ToastComponent } = useToast();
@@ -45,7 +48,7 @@ export default function ClientPlansPage() {
         if (portalRes?.data) setPortal(portalRes.data);
       } catch (err) {
         if (!active) return;
-        showToast(err instanceof Error ? err.message : 'Error al cargar los planes', 'error');
+        showToast(err instanceof Error ? err.message : t('clientPlans.loadError'), 'error');
       } finally {
         if (active) setLoading(false);
       }
@@ -55,7 +58,7 @@ export default function ClientPlansPage() {
     return () => {
       active = false;
     };
-  }, [router, showToast, userRole]);
+  }, [router, showToast, t, userRole]);
 
   const handleCheckout = async (planId: CommercialPlanId) => {
     setCheckingOutPlanId(planId);
@@ -70,7 +73,7 @@ export default function ClientPlansPage() {
         window.location.assign(res.data.url);
         return;
       }
-      throw new Error('No se recibió el enlace de pago de Stripe.');
+      throw new Error(t('clientPlans.stripeLinkMissing'));
     } catch (err) {
       const apiErr = err as ApiClientError;
       if (apiErr?.status === 409 || apiErr?.code === 'QUOTA_FULL') {
@@ -81,30 +84,34 @@ export default function ClientPlansPage() {
           })
           .catch(() => undefined);
       }
-      showToast(err instanceof Error ? err.message : 'Error al iniciar el pago', 'error');
+      showToast(err instanceof Error ? err.message : t('clientPlans.paymentStartError'), 'error');
       setCheckingOutPlanId(null);
     }
   };
 
   const orderedPlans = [...plans].sort((a, b) => a.order - b.order);
   const highlightedPlanId = portal?.selectedPlanId || pendingPlanFromStorage || null;
+  const activePlanLocalizedName = portal?.activePlan
+    ? getLocalizedPlanFields(portal.activePlan, t).name
+    : t('clientPlans.programDefaultName');
 
   const renderPlanCard = (plan: CommercialPlan) => {
-    const isPopular = Boolean(plan.badge);
+    const localized = getLocalizedPlanFields(plan, t);
+    const isPopular = Boolean(localized.badge);
     const isPreselected = highlightedPlanId === plan.id && !portal?.hasPaidPlan;
     const isActive = portal?.activePlanId === plan.id && portal?.hasPaidPlan;
     const isBusy = checkingOutPlanId === plan.id;
     const isUnavailable = plan.availability ? !plan.availability.available : false;
 
     const ctaText = isUnavailable
-      ? 'Cupos no disponibles'
+      ? t('clientPlans.unavailableCta')
       : plan.id === 'consult_1on1'
-      ? plan.ctaLabel
+      ? localized.ctaLabel
       : isActive
-      ? `Renovar este plan — $${plan.launchPriceUsd}`
+      ? t('clientPlans.renewPlanCta', { price: plan.launchPriceUsd })
       : portal?.hasPaidPlan
-      ? `Cambiar a este plan — $${plan.launchPriceUsd}`
-      : plan.ctaLabel;
+      ? t('clientPlans.changePlanCta', { price: plan.launchPriceUsd })
+      : localized.ctaLabel;
 
     return (
       <div
@@ -123,36 +130,36 @@ export default function ClientPlansPage() {
           {/* Badges */}
           <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2.5 min-h-[1.5rem]">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700">
-              {plan.durationLabel}
+              {localized.durationLabel}
             </span>
 
             {isUnavailable && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">
-                Sin cupos
+                {t('clientPlans.noSpotsBadge')}
               </span>
             )}
-            {!isUnavailable && plan.badge && (
+            {!isUnavailable && localized.badge && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white uppercase tracking-wide">
-                {plan.badge}
+                {localized.badge}
               </span>
             )}
-            {!isUnavailable && isPreselected && !plan.badge && (
+            {!isUnavailable && isPreselected && !localized.badge && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800">
-                Tu elección previa
+                {t('clientPlans.preselectedBadge')}
               </span>
             )}
             {isActive && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                Plan activo
+                {t('clientPlans.activePlanBadge')}
               </span>
             )}
           </div>
 
           <h2 className="text-base xl:text-[17px] font-bold text-gray-900 leading-snug md:min-h-[3.25rem]">
-            {plan.name}
+            {localized.name}
           </h2>
           <p className="text-xs text-gray-600 mt-1.5 leading-relaxed md:min-h-[4.25rem]">
-            {plan.description}
+            {localized.description}
           </p>
 
           {/* Precios */}
@@ -166,24 +173,31 @@ export default function ClientPlansPage() {
               </span>
             </div>
             <p className="text-[11px] font-semibold text-emerald-700 mt-1 leading-snug">
-              Ahorras ${plan.savingsUsd} USD ({plan.discountPercent}% de descuento)
+              {t('clientPlans.savingsText', {
+                savings: plan.savingsUsd,
+                percent: plan.discountPercent,
+              })}
             </p>
           </div>
 
           {/* Modalidad */}
           <div className="mt-3.5 bg-blue-50/70 rounded-xl p-2.5 border border-blue-100 md:min-h-[4.75rem]">
-            <p className="text-[10px] font-semibold text-blue-900 uppercase tracking-wide">Modalidad</p>
-            <p className="text-[11px] text-blue-800 mt-0.5 leading-snug">{plan.modalitySummary}</p>
+            <p className="text-[10px] font-semibold text-blue-900 uppercase tracking-wide">
+              {t('clientPlans.modalityLabel')}
+            </p>
+            <p className="text-[11px] text-blue-800 mt-0.5 leading-snug">
+              {localized.modalitySummary}
+            </p>
           </div>
 
           {/* Ruta (si aplica) */}
-          {plan.roadmap && plan.roadmap.length > 0 && (
+          {localized.roadmap.length > 0 && (
             <div className="mt-3.5">
               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Ruta del programa
+                {t('clientPlans.roadmapLabel')}
               </p>
               <ul className="space-y-1">
-                {plan.roadmap.map((stepText) => (
+                {localized.roadmap.map((stepText) => (
                   <li key={stepText} className="text-[11px] text-gray-700 flex items-start gap-1.5 leading-snug">
                     <span className="text-emerald-600 font-bold shrink-0">→</span>
                     <span>{stepText}</span>
@@ -196,10 +210,10 @@ export default function ClientPlansPage() {
           {/* Qué incluye */}
           <div className="mt-3.5">
             <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Incluye
+              {t('clientPlans.includesLabel')}
             </p>
             <ul className="space-y-1.5">
-              {plan.includes.map((item) => (
+              {localized.includes.map((item) => (
                 <li key={item} className="text-xs text-gray-700 flex items-start gap-1.5 leading-snug">
                   <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -228,7 +242,7 @@ export default function ClientPlansPage() {
             {isBusy ? (
               <>
                 <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                Conectando con Stripe...
+                {t('clientPlans.connectingStripe')}
               </>
             ) : (
               ctaText
@@ -242,7 +256,7 @@ export default function ClientPlansPage() {
   return (
     <>
       <Head>
-        <title>Planes y Tarifas de Lanzamiento - NELHEALTHCOACH</title>
+        <title>{t('clientPlans.pageTitle')}</title>
       </Head>
 
       <Layout>
@@ -252,13 +266,13 @@ export default function ClientPlansPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/20 uppercase tracking-wider mb-2">
-                  🔥 Cupos limitados por mes
+                  {t('clientPlans.limitedSpots')}
                 </span>
                 <h1 className="text-2xl md:text-3xl font-bold">
-                  Elige tu Plan con Manuel Martínez
+                  {t('clientPlans.heroTitle')}
                 </h1>
                 <p className="text-sm text-emerald-100 mt-1">
-                  Pago único seguro con Stripe. Acceso inmediato a tu portal personalizado.
+                  {t('clientPlans.heroSubtitle')}
                 </p>
               </div>
               {portal?.hasPaidPlan && (
@@ -266,7 +280,7 @@ export default function ClientPlansPage() {
                   href="/dashboard"
                   className="inline-flex items-center justify-center px-4 py-2.5 bg-white text-emerald-800 rounded-xl font-semibold text-sm hover:bg-emerald-50 transition shrink-0"
                 >
-                  ← Volver a Mi Portal
+                  {t('clientPlans.backToSummary')}
                 </Link>
               )}
             </div>
@@ -282,13 +296,15 @@ export default function ClientPlansPage() {
             >
               {portal.programCompleted ? (
                 <p>
-                  <strong>🏆 ¡Felicidades por completar tu {portal.activePlan?.name || 'programa'}!</strong>{' '}
-                  Tu historial médico y evaluaciones siguen guardados. Elige aquí el plan que deseas renovar o el siguiente nivel para continuar tu seguimiento.
+                  <strong>
+                    {t('clientPlans.completedBannerTitle', { planName: activePlanLocalizedName })}
+                  </strong>{' '}
+                  {t('clientPlans.completedBannerBody')}
                 </p>
               ) : (
                 <p>
-                  <strong>ℹ️ Renovación o cambio de plan:</strong>{' '}
-                  Tu cuenta y progreso actuales permanecen activos. Si renuevas tu plan o cambias a uno nuevo, sus meses de evaluación y sesiones de videollamada se sumarán automáticamente a tu cuenta.
+                  <strong>{t('clientPlans.activeSwitchBannerTitle')}</strong>{' '}
+                  {t('clientPlans.activeSwitchBannerBody')}
                 </p>
               )}
             </div>
@@ -296,7 +312,7 @@ export default function ClientPlansPage() {
 
           {paymentCancelled && (
             <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
-              El proceso de pago fue cancelado. No se realizó ningún cargo; puedes seleccionar un plan cuando estés listo.
+              {t('clientPlans.paymentCancelledBanner')}
             </div>
           )}
 
@@ -310,10 +326,10 @@ export default function ClientPlansPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">
-                  Planes y Programas Disponibles
+                  {t('clientPlans.availablePrograms')}
                 </h2>
                 <span className="text-[11px] font-medium text-gray-400 md:hidden">
-                  Desliza →
+                  {t('clientPlans.swipeHint')}
                 </span>
               </div>
               <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 items-stretch md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 md:gap-4 md:overflow-visible">

@@ -58,6 +58,14 @@ export interface MedicalOutput {
   };
 }
 
+export interface WeeklyPhaseItem {
+  weekNumber: number;
+  title: string;
+  nutritionFocus: string;
+  exerciseFocus: string;
+  habitFocus: string;
+}
+
 /** Fase 2: Plan de estilo de vida + clientInsights (sin datos médicos crudos) */
 export interface LifestyleOutput {
   clientInsights: {
@@ -104,6 +112,7 @@ export interface LifestyleOutput {
     recipe: string;
     description: string;
   }>;
+  weeklyPhases?: WeeklyPhaseItem[];
 }
 
 /** Fase 3: Solo lista de compras (extraída del weeklyPlan de Fase 2) */
@@ -180,6 +189,7 @@ export interface CompositeOutput {
     recipe: string;
     description: string;
   }>;
+  weeklyPhases?: WeeklyPhaseItem[];
 }
 
 // ── Formateo de datos ──────────────────────────────────────
@@ -315,12 +325,55 @@ function buildLifestylePrompt(
   ).join("\n");
 
   const planTotalWeeks = input.totalWeeks && input.totalWeeks > 0 ? input.totalWeeks : 4;
-  const durationLabelText = planTotalWeeks === 3 ? "3 semanas (21 días)" : `${planTotalWeeks} semanas (1 mes)`;
-  const programContext = input.planName
+  const isRetoTresWeeks = input.planId === "reto_tres_nel" || planTotalWeeks === 3;
+  const durationLabelText = isRetoTresWeeks ? "3 semanas (21 días)" : `${planTotalWeeks} semanas (1 mes)`;
+  const programContext = input.planName || isRetoTresWeeks
     ? `## CONTEXTO DEL PROGRAMA CONTRATADO
-- Programa: ${input.planName} (${durationLabelText})
+- Programa: ${input.planName || (isRetoTresWeeks ? "Reto Tres NEL: Reinicio Ancestral y Circadiano" : "Plan Mensual")} (${durationLabelText})
 ${input.planRoadmap?.length ? `- Ruta del programa: ${input.planRoadmap.join(" → ")}` : ""}
+${isRetoTresWeeks ? `- ARQUITECTURA DE 3 SEMANAS CON ENFOQUE PROGRESIVO DIFERENCIADO:
+  * Semana 1 — Limpieza y Desinflamación: hidratación estratégica, priorizar proteína real y fibra en cada comida, eliminar ultraprocesados, azúcares añadidos y aceites refinados, e iniciar movilidad/fuerza suave.
+  * Semana 2 — Ritmo Circadiano y Ayuno: alinear horarios de comida con la luz solar, cenar ligero 2-3 horas antes de dormir, practicar una ventana nocturna progresiva y prudente de descanso digestivo (12h a 14h solo si no hay contraindicación médica, embarazo, hipoglucemia ni medicación que lo impida), higiene lumínica nocturna y constancia en el entrenamiento.
+  * Semana 3 — Energía y Estabilidad: consolidar hábitos ancestrales y circadianos, estabilizar energía diaria y respuesta glucémica, progresar gradualmente en fuerza y definir el cierre hacia el siguiente nivel.` : ""}
 - Ajusta el enfoque, la visión y los hábitos a esta duración y ruta.`
+    : "";
+
+  const weeklyPhasesInstruction = isRetoTresWeeks
+    ? `
+
+### 6. weeklyPhases — ENFOQUE PROGRESIVO POR SEMANA (OBLIGATORIO PARA RETO DE 3 SEMANAS)
+- Genera EXACTAMENTE 3 elementos (weekNumber: 1, 2 y 3), cada uno personalizado al historial médico y objetivo del cliente:
+  * Semana 1: Limpieza y Desinflamación
+  * Semana 2: Ritmo Circadiano y Ayuno (manteniendo prudencia clínica ante condiciones médicas o medicación)
+  * Semana 3: Energía y Estabilidad
+- Cada objeto debe incluir: "weekNumber", "title", "nutritionFocus", "exerciseFocus", "habitFocus".`
+    : "";
+
+  const weeklyPhasesJsonSample = isRetoTresWeeks
+    ? `,
+  "weeklyPhases": [
+    {
+      "weekNumber": 1,
+      "title": "Semana 1: Limpieza y Desinflamación",
+      "nutritionFocus": "Enfoque nutricional de esta semana adaptado al cliente...",
+      "exerciseFocus": "Enfoque de movimiento/fuerza para iniciar...",
+      "habitFocus": "Hábito clave de desinflamación e hidratación..."
+    },
+    {
+      "weekNumber": 2,
+      "title": "Semana 2: Ritmo Circadiano y Ayuno",
+      "nutritionFocus": "Ventanas de comida alineadas al día y descanso digestivo prudente...",
+      "exerciseFocus": "Progresión constante moderada...",
+      "habitFocus": "Exposición solar matutina y reducción de pantallas nocturnas..."
+    },
+    {
+      "weekNumber": 3,
+      "title": "Semana 3: Energía y Estabilidad",
+      "nutritionFocus": "Consolidación metabólica y densidad nutricional sostenida...",
+      "exerciseFocus": "Consolidación de fuerza y capacidad funcional...",
+      "habitFocus": "Sostenibilidad de hábitos y preparación para el siguiente nivel..."
+    }
+  ]`
     : "";
 
   const medicalContext = medicalResult.structuredMedicalAnalysis.exams.length > 0
@@ -386,7 +439,7 @@ ${exerciseList || "- No hay ejercicios en la DB"}
 - trackingMethod, motivationTip
 
 ### 5. alternatives — alternativas de recetas (OBLIGATORIO: al menos 3)
-- alternatives: array con "meal", "recipe" (TÍTULO EXACTO), "description"
+- alternatives: array con "meal", "recipe" (TÍTULO EXACTO), "description"${weeklyPhasesInstruction}
 
 \`\`\`json
 {
@@ -420,7 +473,7 @@ ${exerciseList || "- No hay ejercicios en la DB"}
     "notes": "..."
   },
   "habitPlan": { "toAdopt": [...], "toEliminate": [...], "trackingMethod": "...", "motivationTip": "..." },
-  "alternatives": [...]
+  "alternatives": [...]${weeklyPhasesJsonSample}
 }
 \`\`\`
 
@@ -1295,6 +1348,64 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
   // FUSIÓN FINAL: Combinar Fase 1 + Fase 2 + Fase 3 en CompositeOutput
   // ══════════════════════════════════════════════════════════
 
+  const isRetoTresWeeks = input.planId === "reto_tres_nel" || input.totalWeeks === 3;
+  const resolvedWeeklyPhases: WeeklyPhaseItem[] | undefined = (() => {
+    const rawPhases = Array.isArray(lifestyleResult.weeklyPhases) ? lifestyleResult.weeklyPhases : [];
+    const normalized = rawPhases
+      .filter((p) => p && typeof p === "object")
+      .map((p, idx) => ({
+        weekNumber: typeof p.weekNumber === "number" ? p.weekNumber : idx + 1,
+        title: String(p.title || "").trim(),
+        nutritionFocus: String(p.nutritionFocus || "").trim(),
+        exerciseFocus: String(p.exerciseFocus || "").trim(),
+        habitFocus: String(p.habitFocus || "").trim(),
+      }))
+      .filter((p) => p.title && (p.nutritionFocus || p.exerciseFocus || p.habitFocus));
+
+    if (!isRetoTresWeeks) {
+      return normalized.length > 0 ? normalized : undefined;
+    }
+
+    const firstHabit = lifestyleResult.habitPlan?.toAdopt?.[0]?.habit || "Hidratación temprana y constancia diaria";
+    const secondHabit = lifestyleResult.habitPlan?.toAdopt?.[1]?.habit || "Luz solar matutina y cena temprana antes del anochecer";
+    const fallbackDefaults: WeeklyPhaseItem[] = [
+      {
+        weekNumber: 1,
+        title: input.planRoadmap?.[0] || "Semana 1: Limpieza y Desinflamación",
+        nutritionFocus: "Prioriza proteína real, vegetales fibrosos y grasas saludables en tus 3 comidas eliminando ultraprocesados y azúcares añadidos.",
+        exerciseFocus: lifestyleResult.exercisePlan?.notes || "Adaptación progresiva de movilidad y técnica base 3 a 4 días a la semana.",
+        habitFocus: firstHabit,
+      },
+      {
+        weekNumber: 2,
+        title: input.planRoadmap?.[1] || "Semana 2: Ritmo Circadiano y Ayuno",
+        nutritionFocus: "Alinea tus horarios de comida con la luz del día, cena ligero 2-3 horas antes de dormir y aplica un descanso digestivo nocturno prudente (12-14h si tu salud y medicación lo permiten).",
+        exerciseFocus: "Mantén la constancia semanal ajustando el esfuerzo percibido y priorizando la recuperación nocturna.",
+        habitFocus: secondHabit,
+      },
+      {
+        weekNumber: 3,
+        title: input.planRoadmap?.[2] || "Semana 3: Energía y Estabilidad",
+        nutritionFocus: "Consolida comidas densas en nutrientes para sostener energía estable sin picos ni caídas a lo largo del día.",
+        exerciseFocus: "Progresión funcional segura en repeticiones o control del tiempo bajo tensión según tu respuesta física.",
+        habitFocus: lifestyleResult.habitPlan?.motivationTip || "Cierra los 21 días registrando tu adherencia para definir el siguiente nivel junto a tu asesor.",
+      },
+    ];
+
+    return [1, 2, 3].map((wk) => {
+      const matched = normalized.find((p) => p.weekNumber === wk);
+      const fb = fallbackDefaults[wk - 1];
+      if (!matched) return fb;
+      return {
+        weekNumber: wk,
+        title: matched.title || fb.title,
+        nutritionFocus: matched.nutritionFocus || fb.nutritionFocus,
+        exerciseFocus: matched.exerciseFocus || fb.exerciseFocus,
+        habitFocus: matched.habitFocus || fb.habitFocus,
+      };
+    });
+  })();
+
   const result: CompositeOutput = {
     clientInsights: {
       ...lifestyleResult.clientInsights,
@@ -1310,6 +1421,7 @@ export async function generateCompositeRecommendation(input: CompositeInput): Pr
     exercisePlan: lifestyleResult.exercisePlan,
     habitPlan: lifestyleResult.habitPlan,
     alternatives: lifestyleResult.alternatives,
+    ...(resolvedWeeklyPhases ? { weeklyPhases: resolvedWeeklyPhases } : {}),
   };
 
   // Validaciones de estructura mínima (throw si faltan secciones críticas)
