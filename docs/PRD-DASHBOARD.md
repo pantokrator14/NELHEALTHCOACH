@@ -24,7 +24,7 @@ El Dashboard de NELHEALTHCOACH (`apps/dashboard`) integra dos experiencias difer
 
 ### 1.2 Alcance
 - Panel protegido con autenticación JWT y roles (`coach`, `admin`, `client`), con login unificado (`/login`) y autoregistro de clientes con OTP de 6 dígitos (`/register/client`).
-- Sidebar adaptativo por rol: para clientes muestra únicamente **Inicio**, **Planes**, acceso único de perfil inferior (`Ver mi perfil`) y **Cerrar Sesión** (6 idiomas).
+- Sidebar adaptativo por rol: para clientes muestra **Inicio**, **Planes**, módulos condicionales en Plan 2/Plan 3 (**Recetas**, **Ejercicios** y **Escáner Nutricional**), enlace discreto externo al **Centro de Ayuda** (`${LANDING_URL}/ayuda` con `rel="noopener noreferrer"`, también visible para coaches), acceso único de perfil inferior (`Ver mi perfil`) y **Cerrar Sesión** (6 idiomas).
 - Módulos de clientes, recetas (incluyendo análisis de imagen por IA), ejercicios, finanzas y perfil profesional con estados de carga skeleton pulsantes (Principio Anti-AI).
 - Blindaje de indexación con `robots.txt` (`Disallow: /`) y meta `noindex, nofollow, noarchive`.
 - Accesibilidad WCAG 2.1 AA con navegación modal por Escape, `focus-visible` y emparejamiento `id`/`htmlFor`.
@@ -133,6 +133,11 @@ Flujo de afiliación con 12 secciones legales adaptadas a la jurisprudencia de C
 ### 4.5 Visor de Recomendaciones (`AIRecommendationsModal.tsx`)
 - **Modo Coach**: Edición de textos, notas, checklist, regeneración y botones de *Aprobar* y *Enviar al cliente*. Incluye aviso médico visible en los 6 idiomas.
 - **Modo Cliente (`readOnlyClientMode`)**: Cabecera *"Recomendaciones de Salud"*, badge *"Solo lectura • Descarga en PDF"*, botón de descarga PDF directa conectado al backend, ocultamiento de controles de edición/IA y soporte para bloques de **3 semanas (`weeklyPhases`)** en el Reto Tres NEL o estándar de **4 semanas** en los demás planes.
+
+### 4.5b Bibliotecas de Solo Lectura y Escáner Nutricional (`/dashboard/recipes`, `/dashboard/exercises`, `/dashboard/scanner`)
+- **Bibliotecas Plan 2 y Plan 3:** Plan 2 accede en solo lectura a 15 recetas y 15 ejercicios publicados; Plan 3 accede al catálogo completo en solo lectura; los demás planes quedan ocultos en el sidebar y redirigidos a `/dashboard`.
+- **Escáner Nutricional (`/dashboard/scanner`):** Carga o captura fotográfica (JPG, PNG, WEBP, GIF hasta 10 MB) con barra de cuota mensual (5/mes Plan 2; 30/mes Plan 3) y desglose nutricional por porción y perfil energético metabólico.
+- **Agenda Dual-Timezone Coach (`SessionScheduler.tsx`):** Programación desde el perfil del cliente con vista previa simultánea de horario del coach y horario del cliente.
 
 ### 4.6 Cancelación Transparente de Periodo de Prueba (`/dashboard/trial/cancel`)
 Cumplimiento estricto con FTC (*Click to Cancel Rule*) y California ARL mediante cancelación en línea en un solo clic.

@@ -10,7 +10,12 @@ import {
   calculateTotalAllowedMonths,
   evaluateProgramCompletionState,
   getPlanById,
+  resolveEffectiveClientEntitlements,
 } from '@/app/lib/plans';
+import {
+  resolveClientTimezone,
+  resolveCoachTimezone,
+} from '@/app/lib/timezone';
 import { generateClientSessionLink } from '@/app/lib/video-service';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logger } from '@/app/lib/logger';
@@ -55,8 +60,9 @@ async function getHandler(request: NextRequest) {
       0
     );
 
-    // Resolver datos públicos de Manuel Martínez (o coach asignado)
+    // Resolver datos públicos y zona horaria de Manuel Martínez (o coach asignado)
     let assignedCoach: Record<string, unknown> | null = null;
+    let coachTimezone = resolveCoachTimezone();
     try {
       const coachDoc = await Coach.findById(account.coachId).lean() as Record<string, unknown> | null;
       if (coachDoc) {
@@ -65,34 +71,52 @@ async function getHandler(request: NextRequest) {
           const decryptedPhoto = decryptFileObject(coachDoc.profilePhoto as Record<string, unknown>);
           photoUrl = decryptedPhoto?.url || null;
         }
+        coachTimezone = resolveCoachTimezone(coachDoc.timezone as string | undefined);
         assignedCoach = {
           id: account.coachId,
           name: `${decrypt(String(coachDoc.firstName || ''))} ${decrypt(String(coachDoc.lastName || ''))}`.trim(),
           email: coachDoc.email ? decrypt(String(coachDoc.email)) : '',
           phone: coachDoc.phone ? decrypt(String(coachDoc.phone)) : '',
           profilePhotoUrl: photoUrl,
+          timezone: coachTimezone,
         };
       }
     } catch {
       assignedCoach = null;
     }
 
-    // Sesiones de videollamada y estado de recomendaciones si ya completó el historial
+    // Sesiones de videollamada, zona horaria del cliente y estado de recomendaciones
     let rawSessions: Array<Record<string, unknown>> = [];
     let hasApprovedRecommendations = false;
     let evaluationsCompleted = 0;
     let clientName = '';
+    let clientExplicitTz: string | null = null;
+    let clientAddress: string | null = null;
 
     if (account.healthFormId && ObjectId.isValid(account.healthFormId)) {
       const healthForms = await getHealthFormsCollection();
       const healthDoc = await healthForms.findOne(
         { _id: new ObjectId(account.healthFormId) },
-        { projection: { 'personalData.name': 1, videoSessions: 1, 'aiProgress.sessions': 1 } }
+        {
+          projection: {
+            'personalData.name': 1,
+            'personalData.address': 1,
+            'personalData.timezone': 1,
+            videoSessions: 1,
+            'aiProgress.sessions': 1,
+          },
+        }
       );
       if (healthDoc) {
         clientName = healthDoc.personalData?.name
           ? decrypt(String(healthDoc.personalData.name))
           : '';
+        clientAddress = healthDoc.personalData?.address
+          ? decrypt(String(healthDoc.personalData.address))
+          : null;
+        clientExplicitTz = healthDoc.personalData?.timezone
+          ? decrypt(String(healthDoc.personalData.timezone))
+          : null;
         rawSessions = (healthDoc.videoSessions as Array<Record<string, unknown>>) || [];
 
         const aiSessions = (healthDoc.aiProgress?.sessions as Array<{ status?: string }>) || [];
@@ -104,9 +128,15 @@ async function getHandler(request: NextRequest) {
       }
     }
 
+    const clientTimezone = resolveClientTimezone({
+      explicitTimezone: clientExplicitTz,
+      address: clientAddress,
+    });
+
     const scheduledSlots = buildClientVideoSessionSchedule({
       purchasedPlans,
       rawVideoSessions: rawSessions,
+      defaultTimezone: clientTimezone,
     });
 
     const videoSessions = scheduledSlots.map((slot) => {
@@ -147,12 +177,29 @@ async function getHandler(request: NextRequest) {
       activePlan && hasPaidProgramPlan && completionState.isCompleted
     );
 
-    return NextResponse.json({
+    const entitlements = resolveEffectiveClientEntitlements(
+      purchasedPlans,
+      account.activePlanId || null
+    );
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
+    const scanState = account.nutritionScans as
+      | { monthKey?: string; count?: number; lastScanAt?: Date | null }
+      | undefined;
+    const usedThisMonth =
+      scanState?.monthKey === currentMonthKey ? Number(scanState.count || 0) : 0;
+    const remainingThisMonth = Math.max(
+      0,
+      entitlements.scannerMonthlyLimit - usedThisMonth
+    );
+
+    const res = NextResponse.json({
       success: true,
       data: {
         id: account._id.toString(),
         email: clientEmail,
         clientName,
+        clientTimezone,
+        coachTimezone,
         coachId: account.coachId,
         assignedCoach,
         emailVerified: account.emailVerified,
@@ -167,6 +214,16 @@ async function getHandler(request: NextRequest) {
               whatsappTier: activePlan.whatsappTier,
               includesVideoCalls: activePlan.livekitSessionsIncluded > 0,
               includesBiomarkerComparison: effectiveMaxMonths > 1,
+              libraryAccess: entitlements.libraryAccess,
+              recipesLimit: entitlements.recipesLimit,
+              exercisesLimit: entitlements.exercisesLimit,
+              nutritionScanner: {
+                enabled: entitlements.scannerEnabled,
+                monthlyLimit: entitlements.scannerMonthlyLimit,
+                usedThisMonth,
+                remainingThisMonth,
+                monthKey: currentMonthKey,
+              },
             }
           : null,
         hasPaidPlan: paidPlans.length > 0,
@@ -182,6 +239,8 @@ async function getHandler(request: NextRequest) {
         hasApprovedRecommendations,
       },
     });
+    res.headers.set('Cache-Control', 'private, no-store');
+    return res;
   } catch (error: unknown) {
     const structured = error as { status?: number; message?: string };
     if (structured?.status === 401 || structured?.status === 403) {

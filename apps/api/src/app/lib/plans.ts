@@ -17,6 +17,21 @@ export type WhatsappSupportTier =
   | 'direct'
   | 'priority';
 
+export type LibraryAccessTier = 'none' | 'limited' | 'full';
+
+export const PLAN_2_LIMITED_RECIPES_COUNT = 15;
+export const PLAN_2_LIMITED_EXERCISES_COUNT = 15;
+export const PLAN_2_MONTHLY_SCANS_LIMIT = 5;
+export const PLAN_3_MONTHLY_SCANS_LIMIT = 30;
+
+export interface PlanEntitlements {
+  libraryAccess: LibraryAccessTier;
+  recipesLimit: number | null;
+  exercisesLimit: number | null;
+  scannerEnabled: boolean;
+  scannerMonthlyLimit: number;
+}
+
 export interface CommercialPlan {
   id: PlanId;
   tier: 'top' | 'core';
@@ -133,9 +148,9 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
     priceCents: 15000,
     discountPercent: 25,
     savingsUsd: 50,
-    videoProvider: 'none',
-    livekitSessionsIncluded: 0,
-    modalitySummary: 'Plataforma Web + Soporte semanal asincrónico vía WhatsApp',
+    videoProvider: 'livekit',
+    livekitSessionsIncluded: 2,
+    modalitySummary: 'Plataforma Web + Soporte semanal vía WhatsApp + 2 videollamadas 1 a 1 (inicial y cierre)',
     whatsappSupport: 'Soporte semanal asincrónico vía WhatsApp',
     whatsappTier: 'weekly_async',
     description:
@@ -149,6 +164,7 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
       'Protocolo base y guía de alimentos limpios en plataforma web',
       'Lista de compras ancestral y recomendaciones personalizadas',
       'Soporte semanal asincrónico vía WhatsApp',
+      '2 videollamadas 1 a 1 en plataforma (1 inicial + 1 de cierre)',
     ],
     ctaLabel: 'Elegir Plan 1 — $150',
     requiresHealthForm: true,
@@ -170,8 +186,8 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
     discountPercent: 24.4,
     savingsUsd: 110,
     videoProvider: 'livekit',
-    livekitSessionsIncluded: 3,
-    modalitySummary: 'Plataforma Web + WhatsApp directo + 3 sesiones 1 a 1 por videollamada (1 mensual)',
+    livekitSessionsIncluded: 4,
+    modalitySummary: 'Plataforma Web + WhatsApp directo + 4 sesiones 1 a 1 por videollamada (1 inicial + 1 mensual)',
     whatsappSupport: 'Acompañamiento directo vía WhatsApp',
     whatsappTier: 'direct',
     description:
@@ -184,8 +200,10 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
     includes: [
       'Todo lo incluido en el Plan 1: Reinicio Metabólico',
       'Acompañamiento directo vía WhatsApp con Manuel Martínez',
-      '3 sesiones de seguimiento 1 a 1 por videollamada en la plataforma (1 mensual)',
+      '4 sesiones 1 a 1 por videollamada en la plataforma (1 inicial + 1 mensual)',
       'Seguimiento evolutivo de análisis clínicos y recomendaciones',
+      'Acceso de lectura a selección de recetas ancestrales y ejercicios (15 de cada biblioteca)',
+      'Escáner nutricional por foto con IA (hasta 5 análisis por mes)',
     ],
     ctaLabel: 'Elegir Plan 2 — $340',
     requiresHealthForm: true,
@@ -206,8 +224,8 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
     discountPercent: 34.4,
     savingsUsd: 310,
     videoProvider: 'livekit',
-    livekitSessionsIncluded: 6,
-    modalitySummary: 'Plataforma Web + WhatsApp prioritario + 6 sesiones 1 a 1 por videollamada (1 mensual)',
+    livekitSessionsIncluded: 7,
+    modalitySummary: 'Plataforma Web + WhatsApp prioritario + 7 sesiones 1 a 1 por videollamada (1 inicial + 1 mensual)',
     whatsappSupport: 'Canal prioritario en WhatsApp',
     whatsappTier: 'priority',
     description:
@@ -220,8 +238,10 @@ export const COMMERCIAL_PLANS: CommercialPlan[] = [
     includes: [
       'Acceso completo a la plataforma web y evolución de biomarcadores',
       'Canal prioritario en WhatsApp durante los 6 meses',
-      '6 sesiones de seguimiento 1 a 1 por videollamada en la plataforma (1 mensual)',
+      '7 sesiones 1 a 1 por videollamada en la plataforma (1 inicial + 1 mensual)',
       'Ajustes continuos de nutrición, suplementación y hábitos',
+      'Acceso completo de lectura a toda la biblioteca de recetas ancestrales y ejercicios',
+      'Escáner nutricional por foto con IA ampliado (hasta 30 análisis por mes)',
     ],
     ctaLabel: 'Elegir Plan 3 — $590',
     requiresHealthForm: true,
@@ -244,6 +264,72 @@ export function isValidPlanId(planId: unknown): planId is PlanId {
 export function getPlanById(planId: string): CommercialPlan | null {
   if (!isValidPlanId(planId)) return null;
   return PLANS_BY_ID[planId];
+}
+
+export function getPlanEntitlements(planId: string | null | undefined): PlanEntitlements {
+  if (planId === 'plan_3_maestria') {
+    return {
+      libraryAccess: 'full',
+      recipesLimit: null,
+      exercisesLimit: null,
+      scannerEnabled: true,
+      scannerMonthlyLimit: PLAN_3_MONTHLY_SCANS_LIMIT,
+    };
+  }
+  if (planId === 'plan_2_transformacion') {
+    return {
+      libraryAccess: 'limited',
+      recipesLimit: PLAN_2_LIMITED_RECIPES_COUNT,
+      exercisesLimit: PLAN_2_LIMITED_EXERCISES_COUNT,
+      scannerEnabled: true,
+      scannerMonthlyLimit: PLAN_2_MONTHLY_SCANS_LIMIT,
+    };
+  }
+  return {
+    libraryAccess: 'none',
+    recipesLimit: 0,
+    exercisesLimit: 0,
+    scannerEnabled: false,
+    scannerMonthlyLimit: 0,
+  };
+}
+
+export function resolveEffectiveClientEntitlements(
+  purchasedPlans?: Array<{ planId?: unknown; status?: unknown; purchasedAt?: unknown }> | undefined,
+  activePlanId?: string | null
+): PlanEntitlements {
+  const allPurchases = Array.isArray(purchasedPlans) ? purchasedPlans : [];
+  const paidPlans = allPurchases.filter(
+    (item): item is { planId: PlanId; status: 'paid'; purchasedAt?: unknown } =>
+      item?.status === 'paid' && isValidPlanId(item.planId)
+  );
+
+  // Si existen compras registradas, exigir al menos un plan pagado vigente
+  // y evaluar ESTRICTAMENTE el plan activo actual (sin heredar accesos de planes anteriores).
+  if (allPurchases.length > 0) {
+    if (paidPlans.length === 0) {
+      return getPlanEntitlements(null);
+    }
+
+    if (isValidPlanId(activePlanId) && paidPlans.some((p) => p.planId === activePlanId)) {
+      return getPlanEntitlements(activePlanId);
+    }
+
+    // Fallback seguro: tomar el último plan pagado cronológicamente
+    const sortedPaid = [...paidPlans].sort((a, b) => {
+      const aTime = a.purchasedAt ? new Date(String(a.purchasedAt)).getTime() : 0;
+      const bTime = b.purchasedAt ? new Date(String(b.purchasedAt)).getTime() : 0;
+      return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+    });
+    return getPlanEntitlements(sortedPaid[0]?.planId ?? null);
+  }
+
+  // Fallback solo si no existen registros de purchasedPlans aún (cuentas legacy)
+  if (isValidPlanId(activePlanId)) {
+    return getPlanEntitlements(activePlanId);
+  }
+
+  return getPlanEntitlements(null);
 }
 
 export function getPlanStripePriceId(plan: CommercialPlan): string | undefined {
@@ -348,8 +434,10 @@ export function buildClientVideoSessionSchedule(params: {
   purchasedPlans: Array<{ planId?: unknown; status?: unknown; purchasedAt?: unknown }> | undefined;
   rawVideoSessions?: Array<Record<string, unknown>>;
   nowMs?: number;
+  defaultTimezone?: string;
 }): ClientScheduledVideoSlot[] {
   const nowMs = typeof params.nowMs === 'number' ? params.nowMs : Date.now();
+  const fallbackTz = params.defaultTimezone || 'UTC';
   const paidProgramPlans = (params.purchasedPlans || [])
     .filter((item) => {
       if (item?.status !== 'paid' || typeof item.planId !== 'string') return false;
@@ -387,7 +475,16 @@ export function buildClientVideoSessionSchedule(params: {
 
     const count = plan.livekitSessionsIncluded || 0;
     for (let i = 1; i <= count; i++) {
-      const offsetDays = plan.id === 'reto_tres_nel' ? 21 : i * 30;
+      let offsetDays: number;
+      if (plan.id === 'reto_tres_nel') {
+        offsetDays = 21;
+      } else if (i === 1) {
+        // Sesión inicial de arranque en Plan 1, Plan 2 y Plan 3
+        offsetDays = 1;
+      } else {
+        // Sesiones mensuales de seguimiento y cierre (días 30, 60, 90...)
+        offsetDays = (i - 1) * 30;
+      }
       expectedSlots.push({
         sessionNumber: globalSessionNum++,
         projectedAtMs: cycleStartMs + offsetDays * DAY_MS,
@@ -434,7 +531,7 @@ export function buildClientVideoSessionSchedule(params: {
       roomName: String(raw.roomName || ''),
       scheduledAt: validScheduledMs ? new Date(scheduledMs).toISOString() : new Date(nowMs).toISOString(),
       durationMinutes,
-      timezone: String(raw.timezone || 'UTC'),
+      timezone: String(raw.timezone || fallbackTz),
       status,
       isEstimated: false,
       canJoin,
@@ -466,7 +563,7 @@ export function buildClientVideoSessionSchedule(params: {
         roomName: '',
         scheduledAt: new Date(expected.projectedAtMs).toISOString(),
         durationMinutes: 45,
-        timezone: 'UTC',
+        timezone: fallbackTz,
         status: 'pending_schedule',
         isEstimated: true,
         canJoin: false,

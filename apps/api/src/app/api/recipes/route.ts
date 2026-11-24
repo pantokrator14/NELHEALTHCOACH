@@ -2,32 +2,64 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { z } from 'zod';
 import { getRecipesCollection, connectMongoose } from '@/app/lib/database';
 import { logger } from '@/app/lib/logger';
-import { MongoClient, ObjectId } from 'mongodb';
-import { encrypt, decrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
-import { requireCoachAuth } from '@/app/lib/auth';
+import { ObjectId } from 'mongodb';
+import { encrypt, encryptFileObject, decryptFileObject, safeDecrypt } from '@/app/lib/encryption';
+import { requireCoachAuth, requireAnyAuth } from '@/app/lib/auth';
 import { recipeSchema } from '@/app/lib/schemas/index';
 import EditProposal from '@/app/models/EditProposal';
+import ClientAccount from '@/app/models/ClientAccount';
+import { resolveEffectiveClientEntitlements, type LibraryAccessTier } from '@/app/lib/plans';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { logAuditEvent } from '@/app/lib/auditLogger';
 
-// GET: Obtener recetas
+// GET: Obtener recetas (autenticado: coach/admin o cliente Plan 2/3 con acceso limitado/completo)
 async function getHandler(request: NextRequest) {
   return logger.time('RECIPES', 'Obtener recetas', async () => {
     try {
+      const auth = requireAnyAuth(request);
+
       const searchParams = request.nextUrl.searchParams;
       const query = searchParams.get('search') || '';
       const mode = searchParams.get('mode') || 'full'; // 'search' o 'full'
       const limitParam = searchParams.get('limit');
 
-      // Determinar si el usuario es admin (para mostrar no publicados)
-      let isAdmin = false;
-      try {
-        const auth = requireCoachAuth(request);
-        isAdmin = auth.role === 'admin';
-      } catch {
-        // No autenticado: solo ver publicados
+      const isAdmin = auth.role === 'admin';
+      let accessTier: LibraryAccessTier = 'full';
+      let tierLimit: number | null = null;
+
+      if (auth.role === 'client') {
+        await connectMongoose();
+        const account = await ClientAccount.findById(auth.clientAccountId)
+          .select('purchasedPlans activePlanId')
+          .lean() as { purchasedPlans?: Array<{ planId?: unknown; status?: unknown }>; activePlanId?: string | null } | null;
+
+        if (!account) {
+          return NextResponse.json(
+            { success: false, message: 'Cuenta de cliente no encontrada', code: 'NOT_FOUND' },
+            { status: 404 }
+          );
+        }
+
+        const entitlements = resolveEffectiveClientEntitlements(
+          account.purchasedPlans,
+          account.activePlanId || null
+        );
+
+        if (entitlements.libraryAccess === 'none') {
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'Tu plan actual no incluye acceso a la biblioteca de recetas. Actualiza al Plan 2 o Plan 3.',
+              code: 'FORBIDDEN',
+            },
+            { status: 403 }
+          );
+        }
+
+        accessTier = entitlements.libraryAccess;
+        tierLimit = entitlements.recipesLimit;
       }
-      
+
       const collection = await getRecipesCollection();
 
       // 1. Obtener recetas (solo publicadas para no-admin)
@@ -35,9 +67,19 @@ async function getHandler(request: NextRequest) {
       if (!isAdmin) {
         filter.isPublished = true;
       }
-      const recipes = await collection.find(filter).toArray();
 
-      // 2. Desencriptar todas las recetas
+      const totalPublishedCount = await collection.countDocuments(
+        isAdmin ? {} : { isPublished: true }
+      );
+
+      let cursor = collection.find(filter).sort({ createdAt: 1, _id: 1 });
+      if (accessTier === 'limited' && tierLimit !== null) {
+        cursor = cursor.limit(tierLimit);
+      }
+
+      const recipes = await cursor.toArray();
+
+      // 2. Desencriptar recetas permitidas
       const decryptedRecipes = recipes.map(recipe => ({
         id: recipe._id.toString(),
         title: safeDecrypt(recipe.title),
@@ -58,10 +100,10 @@ async function getHandler(request: NextRequest) {
 
       let results = decryptedRecipes;
 
-      // 3. Filtrar por búsqueda si hay query
+      // 3. Filtrar por búsqueda si hay query (solo sobre el subconjunto permitido)
       if (query) {
         const searchLower = query.toLowerCase();
-        results = decryptedRecipes.filter(recipe => 
+        results = decryptedRecipes.filter(recipe =>
           recipe.title.toLowerCase().includes(searchLower) ||
           recipe.description.toLowerCase().includes(searchLower) ||
           recipe.ingredients.some((ing: string) => ing.toLowerCase().includes(searchLower)) ||
@@ -70,12 +112,17 @@ async function getHandler(request: NextRequest) {
           (recipe.author && recipe.author.toLowerCase().includes(searchLower))
         );
 
-        // Aplicar límite SOLO si hay búsqueda y se especificó (por defecto 100)
         const limit = limitParam ? parseInt(limitParam) : 100;
         results = results.slice(0, limit);
       }
 
-      // 4. Si mode es 'search', devolver solo campos básicos (incluso si no hay búsqueda, pero normalmente se usa con búsqueda)
+      const meta = {
+        accessTier,
+        limit: tierLimit,
+        totalPublishedCount,
+      };
+
+      // 4. Si mode es 'search', devolver solo campos básicos
       if (mode === 'search') {
         const searchResults = results.map(recipe => ({
           id: recipe.id,
@@ -84,29 +131,35 @@ async function getHandler(request: NextRequest) {
           image: recipe.image,
           cookTime: recipe.cookTime,
         }));
-        const res = NextResponse.json({ success: true, data: searchResults });
-        if (!isAdmin) {
-          res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
-          res.headers.set('CDN-Cache-Control', 'max-age=1800');
-        }
+        const res = NextResponse.json({ success: true, data: searchResults, meta });
+        res.headers.set('Cache-Control', 'private, no-store');
         return res;
       }
 
-      // Modo 'full': devolver todos los campos (sin límite cuando no hay búsqueda)
-      const res = NextResponse.json({ success: true, data: results });
-      if (!isAdmin) {
-        res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
-        res.headers.set('CDN-Cache-Control', 'max-age=1800');
-      }
+      const res = NextResponse.json({ success: true, data: results, meta });
+      res.headers.set('Cache-Control', 'private, no-store');
       return res;
 
     } catch (error: unknown) {
+      const structured = error as { status?: number; message?: string };
+      if (structured?.status === 401 || structured?.status === 403) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: structured.message || 'No autorizado',
+            code: structured.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          },
+          { status: structured.status }
+        );
+      }
       logger.error('RECIPES', 'Error en búsqueda', error);
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Error en búsqueda',
-          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }), code: 'INTERNAL'},
+          ...(process.env.NODE_ENV === 'development' && error instanceof Error && { detail: error.message }),
+          code: 'INTERNAL',
+        },
         { status: 500 }
       );
     }
@@ -118,9 +171,10 @@ export const GET = apiHandler(getHandler);
 async function postHandler(request: NextRequest) {
   return logger.time('RECIPES', 'Crear nueva receta', async () => {
     try {
+      // Autenticación requerida primero (coach/admin)
+      const auth = requireCoachAuth(request);
       const data = await request.json();
 
-      // Request context para audit logs
       const reqCtx = {
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
@@ -146,16 +200,12 @@ async function postHandler(request: NextRequest) {
       }
 
       const recipesCollection = await getRecipesCollection();
-
-      // Obtener info del coach para el campo author (autenticación requerida)
-      const auth = requireCoachAuth(request);
       const authorName = auth.email || 'NelHealthCoach';
       const isAdmin = auth.role === 'admin';
 
       // Si no es admin, la creación necesita aprobación
       const isPublished = isAdmin ? (data.isPublished !== undefined ? data.isPublished : true) : false;
 
-      // ✅ ENCRIPTAR DIRECTAMENTE CADA CAMPO (sin funciones wrapper)
       const encryptedRecipeData: Record<string, unknown> = {
         title: encrypt(data.title),
         description: encrypt(data.description),
@@ -180,7 +230,6 @@ async function postHandler(request: NextRequest) {
         updatedAt: new Date(),
       };
 
-      // ✅ ENCRIPTAR IMAGEN SI EXISTE
       if (data.image && typeof data.image === 'object') {
         encryptedRecipeData.image = encryptFileObject(data.image);
       } else {
@@ -196,7 +245,6 @@ async function postHandler(request: NextRequest) {
       
       const result = await recipesCollection.insertOne(encryptedRecipeData);
 
-      // Si no es admin, crear propuesta de creación para moderación
       if (!isAdmin) {
         await connectMongoose();
         await EditProposal.create({
@@ -214,7 +262,6 @@ async function postHandler(request: NextRequest) {
           coachId: auth.coachId,
         });
 
-        // Devolver la receta (con indicador de pendiente)
         const insertedRecipe = await recipesCollection.findOne({ _id: result.insertedId });
 
         if (!insertedRecipe) {
@@ -281,7 +328,6 @@ async function postHandler(request: NextRequest) {
         throw new Error('No se pudo recuperar la receta recién creada');
       }
       
-      // ✅ DESENCRIPTAR PARA RESPONSE
       const decryptedRecipe: Record<string, unknown> = {
         ...insertedRecipe,
         id: insertedRecipe._id.toString(),
@@ -308,7 +354,6 @@ async function postHandler(request: NextRequest) {
         updatedAt: insertedRecipe.updatedAt,
       };
 
-      // ✅ DESENCRIPTAR IMAGEN SI EXISTE
       if (insertedRecipe.image) {
         decryptedRecipe.image = decryptFileObject(insertedRecipe.image);
       } else {
@@ -334,7 +379,6 @@ async function postHandler(request: NextRequest) {
       
     } catch (error: unknown) {
       const apiError = error as { status?: number; message?: string };
-      // Si es un error estructurado (auth), devolver su status específico
       if (apiError?.status) {
         return NextResponse.json(
           { success: false, message: apiError.message || 'Error' },
@@ -353,8 +397,7 @@ async function postHandler(request: NextRequest) {
 export const POST = apiHandler(postHandler);
 
 // OPTIONS: Para CORS
-export async function OPTIONS(request: Request) {
-  console.log('🔧 [OPTIONS /recipes]');
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {

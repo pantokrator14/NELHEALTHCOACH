@@ -10,6 +10,7 @@ import { generateClientPDF } from '@/lib/pdfGenerator'
 import { getDateLocale, getLocalizedPlanFields } from '@/lib/locale'
 import Image from 'next/image'
 import AIRecommendationsModal from './AIRecommendationsModal'
+import SessionScheduler from './SessionScheduler'
 import { translateGenerationError } from '@/lib/aiVisibleText'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../ui/Toast'
@@ -50,6 +51,7 @@ interface Client {
     bodyFatPercentage?: string;
     weightVariation?: string;
     dislikedFoodsActivities?: string;
+    timezone?: string;
   }
   medicalData: {
     // Básicos
@@ -150,6 +152,7 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
   const [uploading, setUploading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isAIModalOpen, setIsAIModalOpen] = useState(false)
+  const [isSessionSchedulerOpen, setIsSessionSchedulerOpen] = useState(false)
   const [, setIsGeneratingAI] = useState(false)
   const [aiGenerationStatus, setAiGenerationStatus] = useState<'idle' | 'queued' | 'ready'>('idle')
   const [, setAiJobId] = useState<string | null>(null)
@@ -811,6 +814,12 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                       <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.addressLabel')}</label>
                       <p className="text-gray-800 font-medium">{client.personalData.address}</p>
                     </div>
+                    {client.personalData.timezone && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.timezoneLabel')}</label>
+                        <p className="text-gray-800 font-medium">{client.personalData.timezone}</p>
+                      </div>
+                    )}
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <label className="text-sm font-medium text-blue-700 mb-1">{t('clientProfile.birthDateLabel')}</label>
                       <p className="text-gray-800 font-medium">
@@ -953,6 +962,17 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     {t('clientProfile.downloadPdfBtn')}
+                  </button>
+                )}
+                {mode === 'coach' && (
+                  <button
+                    onClick={() => setIsSessionSchedulerOpen(true)}
+                    className="w-full mt-2 bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 transition font-medium flex items-center justify-center"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    {t('clientProfile.scheduleVideoBtn')}
                   </button>
                 )}
                 <button onClick={() => setIsEditModalOpen(true)} className="w-full mt-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center">
@@ -1543,6 +1563,21 @@ export default function ClientProfileView({ clientId, mode }: ClientProfileViewP
                 setAiError(null)
                 fetchClient()
               }
+            }}
+          />
+        )}
+        {isSessionSchedulerOpen && client && mode === 'coach' && clientId && (
+          <SessionScheduler
+            clientId={clientId}
+            clientName={client.personalData.name}
+            clientEmail={client.personalData.email}
+            clientTimezone={client.personalData.timezone}
+            clientAddress={client.personalData.address}
+            onClose={() => setIsSessionSchedulerOpen(false)}
+            onSessionCreated={() => {
+              setIsSessionSchedulerOpen(false);
+              showToast(t('clientProfile.videoScheduledToast'), 'success');
+              fetchClient();
             }}
           />
         )}

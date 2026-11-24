@@ -6,6 +6,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nelhealthcoach
 
 const PAGES: Array<{ path: string; changefreq: string; priority: string; lastmod: string }> = [
   { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-10-10' },
+  { path: '/ayuda', changefreq: 'weekly', priority: '0.8', lastmod: '2026-11-24' },
   { path: '/terminos-condiciones', changefreq: 'monthly', priority: '0.5', lastmod: '2026-10-10' },
   { path: '/politica-privacidad', changefreq: 'monthly', priority: '0.5', lastmod: '2026-10-10' },
   { path: '/cookies', changefreq: 'monthly', priority: '0.5', lastmod: '2026-10-10' },

@@ -135,7 +135,7 @@ export interface AIResponseNutritionItem {
     frequency?: string;
     duration?: string;
     equipment?: string[];
-    // Campos adicionales para nutrición cetogénica terapéutica
+    // Campos adicionales para nutrición ancestral y optimización metabólica
     macros?: {
       protein?: string;
       fat?: string;
@@ -590,7 +590,7 @@ export class AIService {
           weeks.push({
             weekNumber,
             nutrition: {
-              focus: encrypt(weekResp.nutrition?.focus || 'Nutrición keto'),
+              focus: encrypt(weekResp.nutrition?.focus || 'Nutrición ancestral'),
               shoppingList: ((weekResp.nutrition?.shoppingList || []) as Array<{
                 item?: string;
                 name?: string;
@@ -712,8 +712,8 @@ export class AIService {
       const endWeek = totalWeeks; // Terminar en el total de semanas
     
     // ===== SISTEMA Y ROL =====
-    const systemRole = `Eres experto en nutrición keto terapéutica y ejercicio inteligente. Crea un plan de 4 semanas (1 mes) para ${clientName} (nivel: ${experienceLevel}). Incluye:
-1. NUTRICIÓN KETO TERAPÉUTICA: Elimina azúcar, alcohol, gluten, procesados. Prioriza alimentos orgánicos. 3 comidas/día. Incluye macros, calorías y propósito metabólico.
+    const systemRole = `Eres experto en nutrición ancestral, evolutiva, optimización metabólica y ejercicio inteligente. Crea un plan de 4 semanas (1 mes) para ${clientName} (nivel: ${experienceLevel}). Incluye:
+1. NUTRICIÓN ANCESTRAL Y OPTIMIZACIÓN METABÓLICA: Elimina azúcar, alcohol, gluten y ultraprocesados. Prioriza alimentos reales, orgánicos y densos en nutrientes según la tolerancia del cliente. 3 comidas/día. Incluye macros, calorías y propósito metabólico.
 2. EJERCICIO INTELIGENTE: Miércoles, sábado, domingo. Incluye sets, repeticiones, progresión.
 3. HÁBITOS: 1-2 hábitos semanales (adoptar/eliminar).
 
@@ -732,9 +732,9 @@ Genera 4 semanas detalladas con progresión clara.`;
     // ===== ADAPTACIONES POR NIVEL =====
     const levelConfigs = {
       principiante: {
-        enfoque: 'Fundamentos keto, hábitos básicos, ejercicio sencillo',
+        enfoque: 'Fundamentos de nutrición ancestral, hábitos básicos, ejercicio sencillo',
         progresion: '1 nuevo item/semana',
-        dieta: 'Keto estándar (75%G/20%P/5%C)',
+        dieta: 'Nutrición ancestral limpia, baja en refinados y densidad nutricional',
         descMax: '50 chars',
         recetaMaxIng: '5 ingredientes',
         ejercicio: 'Cuerpo libre, caminatas, movilidad',
@@ -743,7 +743,7 @@ Genera 4 semanas detalladas con progresión clara.`;
       intermedio: {
         enfoque: 'Refinamiento técnico, variedad ejercicios',
         progresion: '2-4 items/semana, variar preparaciones',
-        dieta: 'Keto + posible ciclado carbos (1-2 días/semana)',
+        dieta: 'Nutrición ancestral + flexibilidad metabólica con carbohidratos limpios estratégicos',
         descMax: '75 chars',
         recetaMaxIng: '7 ingredientes',
         ejercicio: 'Pesos, intervalos, movilidad avanzada',
@@ -752,7 +752,7 @@ Genera 4 semanas detalladas con progresión clara.`;
       avanzado: {
         enfoque: 'Optimización avanzada, periodización',
         progresion: '3-4 items/semana, intensidad máxima',
-        dieta: 'Keto dirigida, ayuno intermitente opcional',
+        dieta: 'Optimización metabólica avanzada, alimentos reales y ventanas alimentarias opcionales',
         descMax: '100 chars',
         recetaMaxIng: '10 ingredientes',
         ejercicio: 'Fuerza avanzada, HIIT, recuperación',
@@ -921,7 +921,7 @@ ${medicalData.medications ? `• Medicamentos: ${this.safeDecryptString(medicalD
 ${medicalData.mainComplaint ? `• Queja principal: ${this.safeDecryptString(medicalData.mainComplaint)}` : ''}
 ${medicalData.surgeries ? `• Cirugías: ${this.safeDecryptString(medicalData.surgeries)}` : ''}
 ${personalData.occupation ? `• Impacto ocupación: ${this.safeDecryptString(personalData.occupation)}` : ''}
-• Base de datos de recetas: El sistema tiene una base de datos de recetas cetogénicas. Sugiere nombres de recetas que puedan coincidir (ej: "Omelette de espinacas y queso", "Salmón al horno con verduras", "Ensalada de aguacate y pollo").`;
+• Base de datos de recetas: El sistema tiene una base de datos de recetas de nutrición ancestral y optimización metabólica. Sugiere nombres de recetas que puedan coincidir (ej: "Omelette de espinacas y queso", "Salmón al horno con verduras", "Ensalada de aguacate y pollo").`;
 
   // ===== CONSTRUCCIÓN DEL PROMPT FINAL =====
   const prompt = `${systemRole}
@@ -1135,7 +1135,7 @@ ${responseSchema}
 
         const body = {
           systemInstruction: {
-            parts: [{ text: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.' }],
+            parts: [{ text: 'Eres un asistente médico especializado en nutrición ancestral, optimización metabólica, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.' }],
           },
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -1296,7 +1296,7 @@ ${responseSchema}
           messages: [
             {
               role: 'system',
-              content: 'Eres un asistente médico especializado en nutrición keto, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.',
+              content: 'Eres un asistente médico especializado en nutrición ancestral, optimización metabólica, ejercicio y formación de hábitos. Devuelve siempre JSON válido con la estructura específica solicitada.',
             },
             { role: 'user', content: prompt },
           ],
@@ -1409,7 +1409,7 @@ ${responseSchema}
 
       const body = {
         systemInstruction: {
-          parts: [{ text: 'Eres un asistente médico especializado en nutrición keto. Devuelve SOLO JSON válido.' }],
+          parts: [{ text: 'Eres un asistente médico especializado en nutrición ancestral y optimización metabólica. Devuelve SOLO JSON válido.' }],
         },
         contents: [{ parts: [{ text: prompt.substring(0, 3000) }] }],
         generationConfig: {
@@ -1680,7 +1680,7 @@ ${responseSchema}
     }
 
     // Resumen y visión mejorados
-    const summary = `Análisis inicial para ${clientName}, ${clientAge} años (Nivel: ${experienceLevel}). Se recomienda enfoque keto progresivo adaptado al nivel de experiencia. El plan incluye alimentación basada en grasas saludables, ejercicio gradual y formación de hábitos sostenibles.`;
+    const summary = `Análisis inicial para ${clientName}, ${clientAge} años (Nivel: ${experienceLevel}). Se recomienda enfoque progresivo de nutrición ancestral y optimización metabólica adaptado al nivel de experiencia. El plan incluye alimentación basada en alimentos reales y grasas naturales, ejercicio gradual y formación de hábitos sostenibles.`;
 
     const vision = `VISIÓN A 1 AÑO PARA ${clientName.toUpperCase()}:
     
@@ -1708,7 +1708,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       vision: encrypt(vision),
       baselineMetrics: {
         currentLifestyle: ['Dieta variable', 'Actividad física irregular', 'Hábitos inconsistentes'],
-        targetLifestyle: ['Dieta keto adaptada', 'Ejercicio regular', 'Hábitos saludables establecidos']
+        targetLifestyle: ['Nutrición ancestral adaptada', 'Ejercicio regular', 'Hábitos saludables establecidos']
       },
       weeks,
       checklist: allChecklistItems
@@ -1735,7 +1735,7 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       weeks.push({
         weekNumber,
         nutrition: {
-          focus: encrypt(`Adaptación keto semana ${weekNumber}`),
+          focus: encrypt(`Adaptación metabólica semana ${weekNumber}`),
           shoppingList: [
             { item: encrypt('Huevos'), quantity: encrypt('12 unidades'), priority: 'high' },
             { item: encrypt('Aguacates'), quantity: encrypt('3 unidades'), priority: 'high' }
@@ -2227,11 +2227,11 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
 
   private static getMockAIResponse(): string {
     return JSON.stringify({
-      summary: "Cliente con interés en mejorar su salud mediante dieta keto y hábitos saludables. Presenta fatiga y necesidad de control de peso.",
+      summary: "Cliente con interés en mejorar su salud mediante nutrición ancestral, optimización metabólica y hábitos saludables. Presenta fatiga y necesidad de equilibrio corporal.",
       vision: "VISIÓN A 1 AÑO: Al seguir consistentemente el plan, el cliente alcanzará su peso ideal, mejorará su energía, tendrá un sueño reparador y establecerá hábitos saludables sostenibles que transformarán su calidad de vida.",
       baselineMetrics: {
         currentLifestyle: ["Dieta alta en carbohidratos", "Sedentarismo", "Sueño irregular"],
-        targetLifestyle: ["Dieta keto adaptada", "Actividad física regular", "Rutina de sueño consistente"]
+        targetLifestyle: ["Nutrición ancestral adaptada", "Actividad física regular", "Rutina de sueño consistente"]
       },
       weeks: [
         {
@@ -2752,8 +2752,8 @@ El camino requiere consistencia, pero los beneficios en salud y bienestar serán
       }
 
       // Categorías y tags
-      const category = ['keto', 'AI-generated'];
-      const tags = ['ai-generated', 'keto', 'health'];
+      const category = ['ancestral', 'AI-generated'];
+      const tags = ['ai-generated', 'ancestral', 'metabolic-health'];
       // Añadir etiquetas basadas en descripción
       if (description.toLowerCase().includes('desayuno') || description.toLowerCase().includes('breakfast')) {
         tags.push('breakfast');

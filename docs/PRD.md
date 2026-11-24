@@ -83,7 +83,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
   - Riesgo de sobreventa de plazas o ingreso anticipado a salas de video
 
 #### **Clientes / Pacientes (Usuario Secundario)**
-- **Demografía:** Adultos que contratan programas de salud evolutiva y cetogénica (25-70 años)
+- **Demografía:** Adultos que contratan programas de salud evolutiva, nutrición ancestral y optimización metabólica (25-70 años)
 - **Necesidades:**
   - Contratar cualquiera de los 5 planes desde la landing o portal de planes con transparencia de cupos
   - Completar su historial médico sin fricción y consultar el progreso de su programa
@@ -95,10 +95,10 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
   - Interfaces recargadas o con botones duplicados
 
 ### 3.2 Mercado Objetivo
-- **Segmento:** Coaching de salud preventivo, nutrición cetogénica evolutiva y optimización metabólica
+- **Segmento:** Coaching de salud preventivo, nutrición ancestral, evolutiva y optimización metabólica
 - **Tamaño de Mercado:** $7 billones globalmente (salud digital)
 - **Crecimiento:** 25% CAGR en salud digital
-- **Competencia:** Plataformas como BetterHelp o Noom, diferenciándose por integración clínica end-to-end, OCR/análisis de biomarcadores con óptica keto y supervisión humana obligatoria.
+- **Competencia:** Plataformas como BetterHelp o Noom, diferenciándose por integración clínica end-to-end, OCR/análisis de biomarcadores con enfoque evolutivo y metabólico y supervisión humana obligatoria.
 
 ---
 
@@ -142,7 +142,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
   - Catálogo sincronizado con `GET /api/plans` mostrando cupos en vivo (*Cupos no disponibles* cuando el cupo está lleno)
   - Flujo inteligente de contratación: *Consulta 1 a 1* con reserva directa sin cuenta obligatoria vs. los 4 programas con continuidad vía `/register/client?plan=...`
   - Formulario de captación con precalificación de compromiso (escala 1 a 10) y filtro pedagógico de 3 pasos
-  - Suite legal completa (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`) + Navbar adaptativo contextual y CMP con respeto de señales GPC
+  - Suite legal completa (`/politica-privacidad`, `/terminos-condiciones`, `/aviso-legal`, `/cookies`, `/reembolsos`) y **Centro de Ayuda (`/ayuda`)** indexado en `sitemap.xml.tsx` con `Schema.org FAQPage` JSON-LD, búsqueda interactiva y canal único por correo `support@nelhealthcoach.com` (sin WhatsApp) + Navbar adaptativo contextual y CMP con respeto de señales GPC
   - i18n multi-idioma (es, en, fr, it, pt, de)
 
 #### **4.2.1b Aplicación Blog (`apps/blog`)**
@@ -169,7 +169,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 - **Características:**
   - **Experiencia Coach/Admin:** Listado de clientes con **filtro por plan**, gestión operativa de cupos por plan (`plan_quotas`), expediente clínico con selección de documentos por sesión, editor/aprobador de planes IA (`3` o `4` semanas según plan), análisis de fotos de recetas, finanzas Stripe Connect, agenda LiveKit y cancelación FTC (`/dashboard/trial/cancel`).
   - **Experiencia Cliente (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`, `/register/client`):**
-    - Sidebar simplificado sin enlaces redundantes: **Inicio**, **Planes**, acceso único inferior (**Ver mi perfil**) y **Cerrar Sesión**.
+    - Sidebar simplificado por plan: **Inicio**, **Planes** (+ **Recetas**, **Ejercicios** y **Escáner Nutricional** en Plan 2/3 activos), acceso discreto externo al **Centro de Ayuda** (`/ayuda`), acceso único inferior (**Ver mi perfil**) y **Cerrar Sesión**.
     - Portal en 4 estados (`sin plan`, `consulta 1 a 1`, `historial pendiente con ClientHealthForm`, `programa activo/completado`).
     - Cinta de finalización condicional (`programCompleted === true` únicamente al concluir duración y videollamadas).
     - Lista cronológica de videollamadas del plan con botón deshabilitado hasta 15 min antes (`/video/join`).
@@ -299,6 +299,7 @@ PlanQuota {
   2. Estado 1 (sin plan), Estado 2 (Consulta 1 a 1), Estado 3 (historial pendiente con `ClientHealthForm` embebido) y Estado 4 (programa activo o completado).
   3. Cinta de felicitación de fin de programa visible exclusivamente cuando `programCompleted === true`.
   4. Vista `ClientProfileView` en modo `client` con tarjeta **Recomendaciones de Salud** en solo lectura + descarga PDF directa (sin edición por parte del cliente y sin textos duplicados).
+  5. Acceso en solo lectura a bibliotecas (`/dashboard/recipes`, `/dashboard/exercises`) limitado a 15 ítems publicados en Plan 2 y catálogo completo en Plan 3; y **Escáner Nutricional con IA (`/dashboard/scanner`)** con 5 escaneos/mes en Plan 2 y 30/mes en Plan 3 (regidos estrictamente por el `activePlanId` pagado vigente, sin heredar privilegios anteriores si el cliente cambia a un plan menor).
 
 ### 5.3 Formularios, IA y Documentos Médicos
 
@@ -319,7 +320,7 @@ PlanQuota {
   1. Cola propia (`ai_jobs`) respondiendo `202 queued` en < 1s con worker-on-poll y lease de 6 min.
   2. En *Reto Tres NEL* genera 3 semanas diferenciadas (`weeklyPhases`); en Planes 1, 2 y 3 mantiene ciclos de 4 semanas.
   3. En estado `draft` solo es visible/editable por el coach; al pasar a `approved` / `sent` se habilita en el portal del cliente en solo lectura + PDF.
-  4. Análisis nutricional de fotografías de recetas vía `/api/recipes/analyze-image`.
+  4. Análisis nutricional de fotografías vía `/api/recipes/analyze-image` con validación de *magic bytes*, cuotas atómicas mensuales en Plan 2 (5/mes) y Plan 3 (30/mes), reembolso ante fallo upstream y bloqueo IDOR de `recipeId` para clientes.
 
 ### 5.4 Videollamadas, Agenda y Cumplimiento
 
@@ -331,6 +332,7 @@ PlanQuota {
   1. Tarjeta **Mis Videollamadas** en el portal mostrando las citas incluidas en el plan con botón deshabilitado en gris hasta el inicio de la ventana permitida.
   2. `/api/video/token` valida ventana de acceso devolviendo `403 SESSION_NOT_YET_STARTED` con `scheduledAt` y `unlocksAt` antes de los 15 minutos previos.
   3. Pre-Call Consent Gate obligatorio antes de activar transcripción en tiempo real con Deepgram en `/video/join`.
+  4. Programación por el coach desde `ClientProfileView` (`SessionScheduler`) e invitaciones/recordatorios automáticos (previo e inminente) en zona horaria dual: California (`America/Los_Angeles`) para Manuel Martínez y zona local detectada/inferida para el cliente.
 
 #### **RF-008: Generación de Reportes PDF y Multi-Idioma**
 - **ID:** RF-008
@@ -436,7 +438,12 @@ graph TD
 ### Fase 4: Portal de Clientes, 5 Planes Comerciales y IA por Programa (Completada - v1.5.0)
 - Catálogo comercial de 5 planes con Stripe Checkout, acumulación de créditos y control administrativo de cupos (`plan_quotas`) + filtro por plan en listado de clientes.
 - Portal unificado para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` OTP, 4 estados, banner condicional `programCompleted`).
-- Agenda automática de videollamadas con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación de planes IA en 3 semanas (`weeklyPhases` para *Reto Tres NEL*) vs. 4 semanas, análisis de fotos de recetas y selección de documentos de evaluación actual con OCR fallback.
+- Agenda automática dual-timezone de videollamadas con recordatorios automatizados y bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), bibliotecas de solo lectura (Plan 2 limitado / Plan 3 completo), escáner nutricional por foto con cuotas mensuales (Plan 2: 5/mes, Plan 3: 30/mes), diferenciación de planes IA en 3 semanas (`weeklyPhases` para *Reto Tres NEL*) vs. 4 semanas y selección de documentos con OCR fallback.
+
+### Fase 5 Roadmap: Integración con Smartwatch y Wearables para Plan 3 (Largo Plazo — Planificada)
+- **Alcance exclusivo Plan 3 (*Maestría y Longevidad*):** Sincronización opcional de métricas biométricas provenientes de dispositivos vestibles (Apple HealthKit, Google Health Connect, Garmin, Oura y WHOOP) para enriquecer la precisión del seguimiento clínico y los análisis de IA.
+- **Métricas objetivo:** Variabilidad de la frecuencia cardíaca (HRV), fases y calidad del sueño, frecuencia cardíaca en reposo, gasto energético y minutos de actividad/Zona 2.
+- **Requisitos de cumplimiento:** Consentimiento granular adicional conforme a RGPD Art. 9 / CCPA, cifrado AES-256 en reposo y almacenamiento estrictamente fuera del alcance de v1.5 (pendiente de desarrollo en una fase futura).
 
 ---
 
@@ -494,7 +501,7 @@ graph TD
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
-| 1.5.0   | 2026-11-24  | Equipo Desarrollo   | Portal completo para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` con OTP 6 dígitos, 4 estados y cinta condicional `programCompleted`), catálogo comercial de 5 planes con Stripe Checkout y acumulación de créditos al renovar/cambiar, control de cupos por plan (`plan_quotas`, `409 QUOTA_FULL`, filtro por plan en listado de clientes), agenda LiveKit con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación IA por plan (`weeklyPhases` 3 semanas en Reto Tres NEL vs. 4 semanas en planes mensuales), visor de solo lectura + PDF para clientes, análisis de imagen de recetas, selección de documentos por sesión actual + OCR fallback y suite TDD ampliada (`client-plans-flow` 81 checks, `plan-quotas` 21 checks, `document-selection`, `free-sessions`, `waitlist`). |
+| 1.5.0   | 2026-11-24  | Equipo Desarrollo   | Portal completo para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` con OTP 6 dígitos, 4 estados y cinta condicional `programCompleted`), catálogo comercial de 5 planes con Stripe Checkout y acumulación de créditos al renovar/cambiar, control de cupos por plan (`plan_quotas`, `409 QUOTA_FULL`, filtro por plan en listado de clientes), agenda LiveKit con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación IA por plan (`weeklyPhases` 3 semanas en Reto Tres NEL vs. 4 semanas en planes mensuales), visor de solo lectura + PDF para clientes, análisis de imagen de recetas, selección de documentos por sesión actual + OCR fallback centro de ayuda `/ayuda` en 6 idiomas con JSON-LD `FAQPage`, sitemap actualizado, unificación de `support@nelhealthcoach.com`, enlace discreto en dashboard y suite TDD ampliada (`client-plans-flow` 105 checks, `security-gate` 29 checks, `plan-quotas` 21 checks, `document-selection`, `free-sessions`, `waitlist`). |
 | 1.4.0   | 2026-10-20  | Equipo Desarrollo   | Consolidación de extracción local (OCR/pdf-parse/mammoth) con DeepSeek V4 Flash primario y Gemini 2.5 Flash fallback, mejoras de accesibilidad WCAG 2.1 AA, skeletons Anti-AI y sincronización multi-idioma en 6 idiomas. |
 | 1.3.0   | 2026-10-08  | Equipo Desarrollo   | Blindaje legal completo (RGPD Art. 9, CCPA, cookies CMP, FTC Click to Cancel, California AB 5 y arbitraje JAMS), incorporación formal de apps/blog (76 tests), calificador inteligente de leads con score de compromiso (1-10) en landing, Navbar adaptativo contextual para páginas legales, integración formal de DeepSeek V4 Flash (primario), Google Gemini (fallback) y Deepgram en toda la documentación técnica. |
 | 1.2.0   | 2026-08-12  | Equipo Desarrollo   | Traducción dinámica del contenido IA (FASE 4, 6 idiomas + PDF), cola propia de trabajos sobre MongoDB (worker-on-poll, 202 queued, lease/reintentos), regeneración encolada, suite de tests TDD con perfiles desechables (259 checks + security gate OWASP), despliegue en producción (Vercel Hobby, maxDuration 300), extracción de documentos con dependencias propias (pdf-parse/mammoth/OCR) + Gemini secundario (sin AWS Textract), stacks de dashboard/landing/form corregidos contra la implementación real |

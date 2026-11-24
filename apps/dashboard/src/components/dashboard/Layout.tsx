@@ -8,6 +8,10 @@ import { clearAuthToken } from '@/lib/authSession'
 import TrialBanner from './TrialBanner'
 import NotificationBell from '@/components/ui/NotificationBell'
 
+const LANDING_URL =
+  process.env.NEXT_PUBLIC_WEBSITE_URL ||
+  (process.env.NODE_ENV === 'production' ? 'https://www.nelhealthcoach.com' : 'http://localhost:3000')
+
 interface LayoutProps {
   children: ReactNode
 }
@@ -175,6 +179,53 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
                 <span className="font-medium">{t('clientSidebar.plans')}</span>
               </button>
+
+              {(clientPortal?.planLimits?.libraryAccess === 'limited' ||
+                clientPortal?.planLimits?.libraryAccess === 'full') && (
+                <>
+                  {/* Recetas (Solo lectura Plan 2/3) */}
+                  <button
+                    onClick={() => navigateTo('/dashboard/recipes')}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-green-600 transition-all duration-200 flex items-center group"
+                  >
+                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-green-600 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                    </div>
+                    <span className="font-medium">{t('clientSidebar.recipes')}</span>
+                  </button>
+
+                  {/* Ejercicios (Solo lectura Plan 2/3) */}
+                  <button
+                    onClick={() => navigateTo('/dashboard/exercises')}
+                    className="w-full text-left px-4 py-3 rounded-lg hover:bg-cyan-600 transition-all duration-200 flex items-center group"
+                  >
+                    <div className="w-8 h-8 bg-cyan-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-cyan-600 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <span className="font-medium">{t('clientSidebar.exercises')}</span>
+                  </button>
+                </>
+              )}
+
+              {clientPortal?.planLimits?.nutritionScanner?.enabled && (
+                /* Escáner Nutricional (Plan 2 y Plan 3) */
+                <button
+                  onClick={() => navigateTo('/dashboard/scanner')}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-amber-600 transition-all duration-200 flex items-center group"
+                >
+                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white group-hover:text-amber-600 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span className="font-medium">{t('clientSidebar.scanner')}</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -255,8 +306,28 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         )}
 
+        {/* Centro de Ayuda — acceso discreto externo */}
+        <div className="px-4 pb-1">
+          <a
+            href={`${LANDING_URL}/ayuda`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full px-4 py-2 rounded-lg text-blue-100/90 hover:text-white hover:bg-blue-600/70 transition-all duration-200 flex items-center justify-between text-sm group focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+          >
+            <span className="flex items-center gap-2.5">
+              <svg className="w-4 h-4 shrink-0 text-blue-200 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{t('clientSidebar.help', 'Centro de Ayuda')}</span>
+            </span>
+            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+
         {/* Perfil — acceso único justo encima de la línea divisoria */}
-        <div className="p-4">
+        <div className="p-4 pt-2">
           <button
             onClick={() =>
               navigateTo(

@@ -85,6 +85,10 @@ const convertPersonalDataForApi = (data: PersonalDataFormValues): FormPayload['p
       result[key] = value;
     }
   });
+  if (!result.timezone && typeof Intl !== 'undefined') {
+    const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (detectedTz) result.timezone = detectedTz;
+  }
   return result;
 };
 

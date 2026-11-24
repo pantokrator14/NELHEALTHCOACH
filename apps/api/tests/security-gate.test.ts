@@ -217,6 +217,82 @@ async function main() {
   check('sesiones gratuitas: mutación con rate limit + shield', /secureRoute\(/.test(freeSessionsRoute));
   const leadRoute = fs.readFileSync(path.join(API_DIR, 'leads/route.ts'), 'utf-8');
   check('lead free-session descuenta cupo', /incrementFreeSessionUsage/.test(leadRoute));
+
+  // ═══ 9. Bibliotecas solo lectura + Escáner Nutricional (OWASP A01/A03/A04) ═══
+  section('9. Bibliotecas de solo lectura, Escáner Nutricional y estricto plan activo');
+  const recipesRoute = fs.readFileSync(path.join(API_DIR, 'recipes/route.ts'), 'utf-8');
+  const recipeIdRoute = fs.readFileSync(path.join(API_DIR, 'recipes/[id]/route.ts'), 'utf-8');
+  const exercisesRoute = fs.readFileSync(path.join(API_DIR, 'exercises/route.ts'), 'utf-8');
+  const analyzeImgRoute = fs.readFileSync(path.join(API_DIR, 'recipes/analyze-image/route.ts'), 'utf-8');
+  const plansLib = fs.readFileSync(path.join(LIB_DIR, 'plans.ts'), 'utf-8');
+
+  check(
+    'recipes/exercises exigen requireAnyAuth + resolveEffectiveClientEntitlements + private, no-store',
+    /requireAnyAuth/.test(recipesRoute) &&
+      /resolveEffectiveClientEntitlements/.test(recipesRoute) &&
+      /private, no-store/.test(recipesRoute) &&
+      /requireAnyAuth/.test(recipeIdRoute) &&
+      /resolveEffectiveClientEntitlements/.test(recipeIdRoute) &&
+      /private, no-store/.test(recipeIdRoute) &&
+      /requireAnyAuth/.test(exercisesRoute) &&
+      /resolveEffectiveClientEntitlements/.test(exercisesRoute) &&
+      /private, no-store/.test(exercisesRoute),
+  );
+  check(
+    'clientes solo leen recetas/ejercicios publicados y mutaciones siguen con requireCoachAuth',
+    /isPublished:\s*true/.test(recipesRoute) &&
+      /isPublished:\s*true/.test(exercisesRoute) &&
+      /requireCoachAuth/.test(recipesRoute) &&
+      /requireCoachAuth/.test(exercisesRoute),
+  );
+  check(
+    'analyze-image protege contra IDOR (recipeId bloqueado para client), valida magic bytes y revierte cuota ante fallo',
+    /requireAnyAuth/.test(analyzeImgRoute) &&
+      /scannerEnabled/.test(analyzeImgRoute) &&
+      /role === 'client'/.test(analyzeImgRoute) &&
+      /hasValidImageMagicBytes/.test(analyzeImgRoute) &&
+      /nutritionScans\.count':\s*-1/.test(analyzeImgRoute),
+  );
+  check(
+    'resolveEffectiveClientEntitlements exige pago activo y no hereda acceso de planes previos',
+    /paidPlans\.some\(\(p\) => p\.planId === activePlanId\)/.test(plansLib) &&
+      !/tierRank/.test(plansLib),
+  );
+
+  // ═══ 10. Centro de Ayuda (/ayuda), Sitemap y unificación support@ ═══
+  section('10. Centro de Ayuda (/ayuda), Sitemap y soporte unificado');
+  const landingSrcDir = path.resolve(__dirname, '../../landing/src');
+  const dashboardSrcDir = path.resolve(__dirname, '../../dashboard/src');
+  const ayudaPage = fs.readFileSync(path.join(landingSrcDir, 'pages/ayuda.tsx'), 'utf-8');
+  const sitemapPage = fs.readFileSync(path.join(landingSrcDir, 'pages/sitemap.xml.tsx'), 'utf-8');
+  const footerComp = fs.readFileSync(path.join(landingSrcDir, 'components/layout/Footer.tsx'), 'utf-8');
+  const legalContentFile = fs.readFileSync(path.join(landingSrcDir, 'lib/legalContent.ts'), 'utf-8');
+  const dashLayout = fs.readFileSync(path.join(dashboardSrcDir, 'components/dashboard/Layout.tsx'), 'utf-8');
+
+  check(
+    'ayuda.tsx escapa JSON-LD (< -> \u003c), indexa con robots y enlaza soporte@ unificado',
+    /replace\(\/<\/g,\s*'\\\\u003c'\)/.test(ayudaPage) &&
+      /name="robots"\s+content="index, follow"/.test(ayudaPage) &&
+      /FAQPage/.test(ayudaPage),
+  );
+  const landingNextConfig = fs.readFileSync(path.resolve(__dirname, '../../landing/next.config.ts'), 'utf-8');
+  check('sitemap.xml.tsx indexa /ayuda', /'\/ayuda'/.test(sitemapPage));
+  check(
+    'next.config.ts redirige 301 /help y /faq hacia /ayuda',
+    /source:\s*'\/help'/.test(landingNextConfig) &&
+      /source:\s*'\/faq'/.test(landingNextConfig) &&
+      /destination:\s*'\/ayuda'/.test(landingNextConfig),
+  );
+  check(
+    'correo unificado en support@nelhealthcoach.com (sin soporte@ residual)',
+    /support@nelhealthcoach\.com/.test(footerComp) &&
+      !/soporte@nelhealthcoach\.com/.test(footerComp) &&
+      !/soporte@nelhealthcoach\.com/.test(legalContentFile),
+  );
+  check(
+    'dashboard Layout enlaza /ayuda con rel="noopener noreferrer"',
+    /\/ayuda/.test(dashLayout) && /rel="noopener noreferrer"/.test(dashLayout),
+  );
 }
 
 main()

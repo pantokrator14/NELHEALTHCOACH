@@ -51,6 +51,7 @@ export const personalDataSchema = yup.object({
   // Idioma del cliente: usado para traducir dinámicamente las recomendaciones
   // (plan + PDF) al generarlas. Default 'es' para clientes existentes.
   language: yup.string().oneOf(['es', 'en', 'it', 'pt', 'fr', 'de']).default('es'),
+  timezone: yup.string().optional(),
   // Nuevos campos
   bodyFatPercentage: yup.string().optional(),
   weightVariation: yup.string().oneOf(['estable', 'bajo', 'subido'], 'Selecciona una opción').required('Selecciona una opción'),

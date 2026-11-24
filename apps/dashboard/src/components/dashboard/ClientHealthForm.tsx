@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/lib/api';
 import { setAuthToken } from '@/lib/authSession';
 import {
@@ -96,6 +97,7 @@ export default function ClientHealthForm({
   activePlanName,
   onCompleted,
 }: ClientHealthFormProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -325,6 +327,10 @@ export default function ClientHealthForm({
         personalData: {
           ...personal,
           email: clientEmail,
+          timezone:
+            typeof Intl !== 'undefined'
+              ? Intl.DateTimeFormat().resolvedOptions().timeZone
+              : undefined,
           age: personal.age ? Number(personal.age) : '',
           weight: personal.weight ? Number(personal.weight) : '',
           height: personal.height ? Number(personal.height) : '',
@@ -632,14 +638,15 @@ export default function ClientHealthForm({
             </div>
 
             <div>
-              <label className={labelClass}>Dirección / Ciudad *</label>
+              <label className={labelClass}>{t('clientPortal.addressFieldLabel')}</label>
               <input
                 type="text"
                 value={personal.address}
                 onChange={(e) => setPersonal((p) => ({ ...p, address: e.target.value }))}
                 className={inputClass}
-                placeholder="Ciudad, País"
+                placeholder={t('clientPortal.addressFieldPlaceholder')}
               />
+              <p className="text-xs text-gray-500 mt-1">{t('clientPortal.addressFieldHint')}</p>
             </div>
 
             <div>

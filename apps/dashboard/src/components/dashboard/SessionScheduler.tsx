@@ -1,9 +1,9 @@
 // apps/dashboard/src/components/dashboard/SessionScheduler.tsx
 //
 // Modal para agendar una nueva sesión de videollamada con el cliente.
-// Ahora crea una solicitud pendiente de pago (PendingSession).
-// El coach selecciona fecha/hora, duración, y opcionalmente añade notas.
-// Se envía email al cliente para que pague y se confirme la sesión.
+// Si el cliente tiene créditos LiveKit incluidos en su plan, agenda la sala de inmediato
+// y envía invitaciones y recordatorios duales (zona horaria del coach y del cliente).
+// Si no tiene créditos disponibles, crea una solicitud PendingSession para pago con Stripe.
 
 import { useState } from 'react';
 
@@ -15,6 +15,8 @@ interface SessionSchedulerProps {
   clientId: string;
   clientName: string;
   clientEmail: string;
+  clientTimezone?: string;
+  clientAddress?: string;
   onClose: () => void;
   onSessionCreated: (data: {
     pendingSessionId: string;
@@ -39,21 +41,29 @@ export default function SessionScheduler({
   clientId,
   clientName,
   clientEmail,
+  clientTimezone,
+  clientAddress,
   onClose,
   onSessionCreated,
 }: SessionSchedulerProps) {
   const [date, setDate] = useState(() => {
-    // Por defecto: mañana a las 10:00
+    // Por defecto: mañana a las 10:00 (en formato local del selector datetime-local)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(10, 0, 0, 0);
-    return tomorrow.toISOString().slice(0, 16); // formato datetime-local
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`;
   });
 
   const [duration, setDuration] = useState(60);
   const [coachNotes, setCoachNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const coachLocalTz =
+    typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles'
+      : 'America/Los_Angeles';
 
   // ── Enviar formulario ──
 
@@ -64,16 +74,18 @@ export default function SessionScheduler({
 
       // Validar fecha futura
       const selectedDate = new Date(date);
-      if (selectedDate <= new Date()) {
+      if (isNaN(selectedDate.getTime()) || selectedDate <= new Date()) {
         setError('La fecha debe ser futura');
         setSubmitting(false);
         return;
       }
 
-      // Detectar zona horaria del navegador del coach
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // Zona horaria detectada del navegador del coach
+      const timezone =
+        typeof Intl !== 'undefined'
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : 'America/Los_Angeles';
 
-      // Crear solicitud pendiente de pago (en lugar de crear sala directamente)
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No autorizado');
 
@@ -97,7 +109,7 @@ export default function SessionScheduler({
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(
-          (errData as { message?: string }).message || 'Error al crear la solicitud'
+          (errData as { message?: string }).message || 'Error al agendar la videollamada'
         );
       }
 
@@ -123,32 +135,37 @@ export default function SessionScheduler({
     }
   }
 
-  // ── Formatear fecha para mostrar ──
+  // ── Formatear fechas para vista previa dual-TZ ──
 
-  const formattedDate = (() => {
+  const formatInTz = (tz?: string): string | null => {
     try {
       const d = new Date(date);
+      if (isNaN(d.getTime())) return null;
       return d.toLocaleString('es-MX', {
-        weekday: 'long',
+        weekday: 'short',
         year: 'numeric',
-        month: 'long',
+        month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        ...(tz ? { timeZone: tz, timeZoneName: 'short' } : {}),
       });
     } catch {
-      return date;
+      return null;
     }
-  })();
+  };
+
+  const formattedCoachDate = formatInTz(coachLocalTz) || date;
+  const formattedClientDate = clientTimezone ? formatInTz(clientTimezone) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Encabezado */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-          <h2 className="text-xl font-bold text-white">Solicitar Videollamada</h2>
-          <p className="text-blue-100 text-sm mt-1">
-            {clientName} — Sesión de seguimiento
+        <div className="flex-shrink-0 bg-gradient-to-r from-emerald-600 to-teal-700 px-6 py-4">
+          <h2 className="text-xl font-bold text-white">Programar Videollamada</h2>
+          <p className="text-emerald-100 text-sm mt-1">
+            {clientName} — Sesión con recordatorios automáticos
           </p>
         </div>
 
@@ -157,16 +174,34 @@ export default function SessionScheduler({
           {/* Fecha y hora */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha y hora de la sesión
+              Fecha y hora de la sesión ({coachLocalTz})
             </label>
             <input
               type="datetime-local"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               min={new Date().toISOString().slice(0, 16)}
             />
-            <p className="text-xs text-gray-500 mt-1">{formattedDate}</p>
+          </div>
+
+          {/* Vista previa en ambas zonas horarias */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3.5 text-xs space-y-1.5">
+            <p className="font-semibold text-blue-900">
+              🕒 Vista previa de horarios (coach y cliente)
+            </p>
+            <p className="text-blue-800">
+              <strong>Tu horario ({coachLocalTz}):</strong> {formattedCoachDate}
+            </p>
+            {formattedClientDate ? (
+              <p className="text-blue-800">
+                <strong>Horario del cliente ({clientTimezone}):</strong> {formattedClientDate}
+              </p>
+            ) : (
+              <p className="text-blue-700">
+                <strong>Horario del cliente:</strong> se calculará automáticamente según su perfil{clientAddress ? ` (${clientAddress})` : ''}.
+              </p>
+            )}
           </div>
 
           {/* Duración */}
@@ -177,7 +212,7 @@ export default function SessionScheduler({
             <select
               value={duration}
               onChange={(e) => setDuration(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
               <option value={30}>30 minutos</option>
               <option value={45}>45 minutos</option>
@@ -197,20 +232,20 @@ export default function SessionScheduler({
               onChange={(e) => setCoachNotes(e.target.value)}
               placeholder="Ej: Revisar avances en hábito de sueño, ajustar plan de ejercicio..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
             />
           </div>
 
           {/* Info del flujo */}
-          <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+          <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
             <div className="flex items-start gap-3">
               <span className="text-lg">💡</span>
-              <div className="text-sm text-yellow-800">
+              <div className="text-sm text-amber-900">
                 <p className="font-medium mb-1">¿Cómo funciona?</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Se enviará un email al cliente para que realice el pago.</li>
-                  <li>Una vez pagado, podrás confirmar y crear la sala.</li>
-                  <li>El cliente recibirá el enlace para unirse a la videollamada.</li>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Si el cliente tiene sesiones incluidas en su plan, la sala se confirma de inmediato y ambos reciben invitación con su hora local.</li>
+                  <li>Se enviarán recordatorios por correo e internos cuando falten menos de 24 horas y 15 minutos antes de iniciar.</li>
+                  <li>Si el cliente no tiene créditos disponibles en su plan, se le enviará primero un enlace de pago.</li>
                 </ul>
               </div>
             </div>
@@ -236,12 +271,12 @@ export default function SessionScheduler({
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+            className="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {submitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white" />
-                Creando solicitud...
+                Agendando...
               </>
             ) : (
               <>
@@ -253,7 +288,7 @@ export default function SessionScheduler({
                 >
                   <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
                 </svg>
-                Solicitar videollamada
+                Confirmar videollamada
               </>
             )}
           </button>

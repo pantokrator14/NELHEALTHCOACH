@@ -617,9 +617,14 @@ export default function Dashboard() {
                             <h3 className="text-lg font-bold text-gray-900">
                               {t('clientPortal.videoCallsTitle')}
                             </h3>
-                            <p className="text-xs text-gray-500 mt-1 mb-3">
+                            <p className="text-xs text-gray-500 mt-1 mb-2">
                               {t('clientPortal.videoCallsSubtitle')}
                             </p>
+                            {portal.clientTimezone && (
+                              <p className="text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1 inline-block mb-3">
+                                🕒 {t('clientPortal.timezoneNote', { tz: portal.clientTimezone })}
+                              </p>
+                            )}
 
                             {portal.videoSessions.length === 0 ? (
                               <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-100">
@@ -629,23 +634,29 @@ export default function Dashboard() {
                               <div className="space-y-3">
                                 {portal.videoSessions.map((vs) => {
                                   const canJoinNow = Boolean(vs.canJoin && vs.joinLink)
-                                  const formattedDate = new Date(vs.scheduledAt).toLocaleString(
-                                    dateLocale,
-                                    {
-                                      dateStyle: 'medium',
-                                      timeStyle: 'short',
+                                  const tzOpt = vs.timezone || portal.clientTimezone || undefined
+                                  const formatSessionDate = (iso: string) => {
+                                    try {
+                                      return new Date(iso).toLocaleString(dateLocale, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                        ...(tzOpt ? { timeZone: tzOpt, timeZoneName: 'short' } : {}),
+                                      })
+                                    } catch {
+                                      return new Date(iso).toLocaleString(dateLocale, {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })
                                     }
-                                  )
+                                  }
+                                  const formattedDate = formatSessionDate(vs.scheduledAt)
                                   const noteText = vs.isEstimated
                                     ? t('clientPortal.estimatedDateNote')
                                     : canJoinNow
                                     ? t('clientPortal.confirmedDateNote')
                                     : vs.unlocksAt
                                     ? t('clientPortal.unlocksAtNote', {
-                                        date: new Date(vs.unlocksAt).toLocaleString(dateLocale, {
-                                          dateStyle: 'medium',
-                                          timeStyle: 'short',
-                                        }),
+                                        date: formatSessionDate(vs.unlocksAt),
                                       })
                                     : t('clientPortal.confirmedDateNote')
                                   const statusBadgeClass =
@@ -741,6 +752,66 @@ export default function Dashboard() {
                             {t('clientPortal.goToProfileBtn')}
                           </Link>
                         </div>
+
+                        {(portal.planLimits?.libraryAccess === 'limited' ||
+                          portal.planLimits?.libraryAccess === 'full') && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 p-5 md:p-6 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h3 className="text-base font-bold text-gray-900">
+                                {t('clientPortal.librariesCardTitle')}
+                              </h3>
+                              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {portal.planLimits.libraryAccess === 'limited'
+                                  ? t('clientPortal.librariesLimitedBadge', {
+                                      limit: portal.planLimits.recipesLimit || 15,
+                                    })
+                                  : t('clientPortal.librariesFullBadge')}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {t('clientPortal.librariesCardDesc')}
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                              <Link
+                                href="/dashboard/recipes"
+                                className="inline-flex items-center justify-center px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition"
+                              >
+                                {t('clientPortal.recipesLibraryBtn')}
+                              </Link>
+                              <Link
+                                href="/dashboard/exercises"
+                                className="inline-flex items-center justify-center px-3 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition"
+                              >
+                                {t('clientPortal.exercisesLibraryBtn')}
+                              </Link>
+                            </div>
+                          </div>
+                        )}
+
+                        {portal.planLimits?.nutritionScanner?.enabled && (
+                          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 md:p-6 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h3 className="text-base font-bold text-gray-900">
+                                {t('clientPortal.scannerCardTitle')}
+                              </h3>
+                              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                {t('clientPortal.scannerQuotaBadge', {
+                                  remaining: portal.planLimits.nutritionScanner.remainingThisMonth,
+                                  limit: portal.planLimits.nutritionScanner.monthlyLimit,
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {t('clientPortal.scannerCardDesc')}
+                            </p>
+                            <Link
+                              href="/dashboard/scanner"
+                              className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold transition"
+                            >
+                              {t('clientPortal.scannerOpenBtn')}
+                            </Link>
+                          </div>
+                        )}
 
                         {portal.assignedCoach && (
                           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6">

@@ -7,6 +7,7 @@ import { logger } from '@/app/lib/logger';
 import { encrypt, decrypt } from '@/app/lib/encryption';
 import { connectMongoose } from '@/app/lib/database';
 import { apiHandler } from '@/app/lib/apiHandler';
+import { resolveCoachTimezone, isValidTimeZone } from '@/app/lib/timezone';
 
 function encryptPhoto(photo: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!photo) return null;
@@ -117,7 +118,7 @@ async function getHandler(request: NextRequest) {
         specialties: coach.specialties || [],
         yearsOfExperience: coach.yearsOfExperience || 0,
         bio: coach.bio ? decrypt(coach.bio) : '',
-        timezone: coach.timezone || '',
+        timezone: resolveCoachTimezone(coach.timezone),
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,
@@ -140,7 +141,6 @@ async function getHandler(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    // SEC: requireCoachAuth/requireAnyAuth lanzan error estructurado { status: 401/403 }
     const structured = error as { status?: number; message?: string };
     if (structured?.status === 401 || structured?.status === 403) {
       return NextResponse.json(
@@ -248,6 +248,16 @@ async function putHandler(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Coach no encontrado', code: 'NOT_FOUND'}, { status: 404 });
     }
 
+    if (body.timezone !== undefined) {
+      if (typeof body.timezone !== 'string' || (body.timezone.trim() && !isValidTimeZone(body.timezone))) {
+        return NextResponse.json(
+          { success: false, message: 'Zona horaria IANA inválida', code: 'VALIDATION' },
+          { status: 400 }
+        );
+      }
+      coach.timezone = body.timezone.trim() || 'America/Los_Angeles';
+    }
+
     if (body.firstName !== undefined) coach.firstName = encrypt(body.firstName.trim());
     if (body.lastName !== undefined) coach.lastName = encrypt(body.lastName.trim());
     if (body.phone !== undefined) coach.phone = encrypt(body.phone);
@@ -255,7 +265,6 @@ async function putHandler(request: NextRequest) {
     if (body.specialties !== undefined) coach.specialties = body.specialties;
     if (body.yearsOfExperience !== undefined) coach.yearsOfExperience = body.yearsOfExperience;
     if (body.bio !== undefined) coach.bio = encrypt(body.bio.trim());
-    if (body.timezone !== undefined) coach.timezone = body.timezone;
     if (body.profilePhoto !== undefined) {
       coach.profilePhoto = encryptPhoto(body.profilePhoto) as unknown as typeof coach.profilePhoto;
     }
@@ -285,7 +294,7 @@ async function putHandler(request: NextRequest) {
         specialties: coach.specialties || [],
         yearsOfExperience: coach.yearsOfExperience || 0,
         bio: coach.bio ? decrypt(coach.bio) : '',
-        timezone: coach.timezone || '',
+        timezone: resolveCoachTimezone(coach.timezone),
         profilePhoto: decryptPhoto(coach.profilePhoto as unknown as Record<string, unknown> | null),
         role: coach.role,
         emailVerified: coach.emailVerified,

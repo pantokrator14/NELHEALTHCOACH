@@ -58,15 +58,15 @@
 - **Catálogo de 5 Programas Comerciales** sincronizado desde `apps/api/src/app/lib/plans.ts`:
   - `consult_1on1` (*Consulta 1 a 1*): sesión diagnóstica individual con reserva directa sin exigir registro previo ni botones de WhatsApp post-sesión innecesarios.
   - `reto_tres_nel` (*Reto Tres NEL: Reinicio Ancestral y Circadiano*): programa intensivo de **3 semanas** con enfoque progresivo diferenciado (`weeklyPhases`), 1 videollamada y seguimiento.
-  - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas**.
-  - `plan_2_transformacion` (*Plan 2 — Transformación Profunda*): seguimiento multi-mes con evaluaciones, videollamadas mensuales y comparativa de biomarcadores.
-  - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido multi-mes de seguimiento continuo.
+  - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas** con WhatsApp semanal y **2 videollamadas 1 a 1** (inicial y cierre).
+  - `plan_2_transformacion` (*Plan 2 — Transformación Celular*): seguimiento de 3 meses con evaluaciones, WhatsApp directo, comparativa de biomarcadores y **4 videollamadas 1 a 1** (1 inicial + 1 mensual).
+  - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido de 6 meses con WhatsApp prioritario y **7 videollamadas 1 a 1** (1 inicial + 1 mensual).
 - **Stripe Checkout & Acumulación de Créditos**: Pagos únicos vía `/api/payments/plan-checkout`, confirmación idempotente (`confirm-plan` + webhooks) y acumulación automática de meses/evaluaciones y videollamadas al renovar o cambiar de plan.
 - **Control de Cupos en Tiempo Real (`plan_quotas`)**: El coach/administrador ajusta límites o pausa planes desde el dashboard de clientes; cuando el cupo se llena, la API responde `409 QUOTA_FULL` y la UI muestra **Cupos no disponibles** en Landing y `/dashboard/plans`.
 - **Filtro por Plan en Dashboard**: Listado de clientes con agrupación y filtro por plan contratado (`planId`).
 - **Portal de Clientes (`/dashboard`, `/dashboard/plans`, `/dashboard/my-profile`)**:
   - Registro verificado por **OTP de 6 dígitos** en `/register/client`.
-  - Sidebar limpio exclusivo para rol `client`: **Inicio**, **Planes**, acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
+  - Sidebar limpio para rol `client`: **Inicio**, **Planes** (más **Recetas**, **Ejercicios** en solo lectura y **Escáner Nutricional** exclusivamente en Plan 2/Plan 3 activos), acceso discreto al **Centro de Ayuda** (`/ayuda`), acceso único inferior **Ver mi perfil** y **Cerrar Sesión**.
   - **4 estados adaptativos** en `Inicio`: sin plan contratado, Consulta 1 a 1, historial clínico pendiente (`ClientHealthForm` embebido) y programa activo/completado.
   - **Cinta de finalización condicional**: visible únicamente cuando `programCompleted === true` (duración concluida y sin videollamadas pendientes).
   - **Recomendaciones de Salud en Solo Lectura + PDF**: Muestra estado en análisis por el asesor o recomendaciones ya aprobadas (`approved`/`sent`) con visor de solo lectura y descarga directa en PDF en 6 idiomas.
@@ -78,7 +78,7 @@
 
 ### 🤖 **IA Multi-Experto y Pipeline Diferenciado por Plan**
 - **Motor Principal DeepSeek V4 Flash** + **Fallback automático a Google Gemini** en runtime.
-- **Análisis médico con óptica keto** — interpretación de laboratorios bajo rangos de referencia adaptados a metabolismo bajo en carbohidratos, con atención a electrolitos (sodio, potasio, magnesio).
+- **Análisis médico con óptica de nutrición ancestral y optimización metabólica** — interpretación de laboratorios bajo rangos de referencia funcionales y adaptados a flexibilidad metabólica, con atención a electrolitos (sodio, potasio, magnesio).
 - **Diferenciación automática según programa**:
   - **Reto Tres NEL (3 semanas)**: Genera `weeklyPhases` con enfoque distinto para cada una de las 3 semanas.
   - **Planes mensuales (`plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`)**: Mantiene ciclos completos de **4 semanas**.
@@ -100,17 +100,17 @@
 - **Transcripción de sesiones** con Deepgram SDK 5.0.
 
 ### 📹 **Videollamadas con LiveKit y Ventana de Acceso**
-- **Agenda automática por plan (`buildClientVideoSessionSchedule`)**: Proyecta automáticamente las fechas estimadas de las videollamadas incluidas desde la fecha de inscripción (p. ej. día 21 en *Reto Tres NEL*, mensual cada 30 días en Planes 2 y 3) o refleja las citas confirmadas por el coach.
+- **Agenda automática dual-timezone (`buildClientVideoSessionSchedule` + `timezone.ts`)**: Proyecta automáticamente las fechas de las videollamadas incluidas desde la fecha de inscripción y envía invitaciones, notificaciones al asesor y recordatorios automatizados (previo e inminente) adaptados a la zona horaria del coach (`America/Los_Angeles` en California) y a la zona horaria local del cliente.
 - **Control temporal de ingreso (`/video/join` y `/api/video/token`)**: El botón *Unirse a Videollamada* permanece en gris deshabilitado y la API responde `403 SESSION_NOT_YET_STARTED` hasta **15 minutos antes** de la hora programada.
 - **Pre-Call Consent Gate**: Consentimiento expreso previo de grabación y transcripción con Deepgram antes de entrar a la sala WebRTC.
 - **Salas seguras** con DTLS-SRTP, tokens JWT temporales, grabación cifrada en AWS S3 y webhooks.
 
 ### 📖 **Gestión de Recetas y Ejercicios**
-- **Recetas**: Catálogo con búsqueda/filtros, cálculo de macros, ratio keto y **análisis nutricional automático desde fotografía** (`POST /api/recipes/analyze-image`).
+- **Recetas y Escáner Nutricional**: Catálogo con búsqueda/filtros, cálculo de macros, perfil energético metabólico y **escáner nutricional desde fotografía** (`POST /api/recipes/analyze-image`) habilitado en modo lectura/análisis con cuota mensual para Plan 2 (5/mes) y Plan 3 (30/mes), con validación por *magic bytes* y protección IDOR.
 - **Ejercicios**: Biblioteca con categorías, grupos musculares, niveles de dificultad y CRUD con propuestas de edición entre coach y admin.
 
 ### 🔒 **Seguridad y Confiabilidad**
-- **Autenticación JWT multi-rol** (`coach`, `admin`, `client`) + OTP de 6 dígitos para registro de clientes.
+- **Autenticación JWT multi-rol y RBAC estricto** (`coach`, `admin`, `client`) + OTP de 6 dígitos, acceso autenticado obligatorio a catálogos (`401`/`403` según plan) y `Cache-Control: private, no-store`.
 - **FingerprintJS** + detección de bots (User-Agent, headers, Client Hints, `Sec-Fetch-*`) + rate limiting en MongoDB.
 - **Protección contra prompt injection** y guardrails clínicos para agentes IA.
 - **Cifrado AES-256** de datos sensibles (PII, resultados médicos, sesiones) y subida segura a AWS S3 con URLs prefirmadas.
@@ -193,7 +193,7 @@ Todos los agentes reciben el expediente estructurado y **únicamente los documen
 - **Indexación Selectiva en `robots.txt`**:
   - **Públicas** (`apps/landing`, `apps/blog`): Permiso de rastreo (`Allow: /`), bloqueo de rutas privadas (`Disallow: /admin`) y sitemaps oficiales.
   - **Privadas** (`apps/dashboard`, `apps/form`): Bloqueo total (`User-agent: * Disallow: /`) y `<meta name="robots" content="noindex, nofollow, noarchive" />`.
-- **Sitemaps Dinámicos XML**: `/sitemap.xml` en `apps/landing` y `sitemap.ts` multilingüe (`hreflang`) en `apps/blog`.
+- **Sitemaps Dinámicos XML y Centro de Ayuda (`/ayuda`)**: `/sitemap.xml` en `apps/landing` (incluye `/ayuda` con `Schema.org FAQPage` JSON-LD en 6 idiomas y canal exclusivo `support@nelhealthcoach.com` para casos extremos, sin WhatsApp) y `sitemap.ts` multilingüe (`hreflang`) en `apps/blog`.
 - **Canonical Tags, Redirecciones 301 y Schema.org / JSON-LD**: `HealthAndBeautyBusiness`, `LocalBusiness`, `Person` y `BlogPosting`.
 
 ## ♿ Accesibilidad Web (WCAG 2.1 AA) & Skeletons (Principio Anti-AI)
@@ -222,7 +222,7 @@ NELHEALTHCOACH/
 
 El monorepo integra **5 aplicaciones** coordinadas en Next.js 16.3.6:
 
-1. **🏠 Landing Page (`apps/landing`)**: Exhibición de propuesta de valor, comparativa en vivo de los 5 planes con estado de cupos, precalificación de leads (escala 1-10), suite legal completa, CMP GPC y multi-idioma en 6 idiomas.
+1. **🏠 Landing Page (`apps/landing`)**: Exhibición de propuesta de valor, comparativa en vivo de los 5 planes con estado de cupos, **Centro de Ayuda (`/ayuda`)** interactivo con FAQ buscable y Schema.org `FAQPage` (escalación exclusiva por correo `support@nelhealthcoach.com` sin WhatsApp), precalificación de leads (escala 1-10), suite legal completa, CMP GPC y multi-idioma en 6 idiomas.
 2. **📚 Blog de Salud (`apps/blog`)**: Renderizado SSR/SSG con JSON-LD (`BlogPosting`), feeds RSS 2.0, sitemap multilingüe (`hreflang`), moderación de comentarios y suite de tests de 76 checks.
 3. **📝 Formularios de Salud (`apps/form`)**: Captura multi-paso validada (React Hook Form + Yup), subida segura a AWS S3 y Paso 6 contractual desacoplado.
 4. **📊 Dashboard & Portal de Clientes (`apps/dashboard`)**:
@@ -382,7 +382,7 @@ npm run test:security
 ```
 
 **Cobertura principal** (detalle en `apps/api/tests/README.md`):
-- **Security gate OWASP** (`security-gate.test.ts`, 21 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
+- **Security gate OWASP** (`security-gate.test.ts`, 29 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
 - **Flujo completo de 5 Planes y Portal de Clientes** (`client-plans-flow.test.ts`, 81 checks) — catálogo, registro OTP 6 dígitos, aislamiento de cliente, ventana de videollamadas de 15 min, `programCompleted` y `weeklyPhases` del Reto Tres NEL.
 - **Control de Cupos por Plan** (`plan-quotas.test.ts`, 21 checks) — disponibilidad en vivo, `409 QUOTA_FULL`, pausas y límites administrativos.
 - **Auth, Clients, Content, Blog, Waitlist, Free Sessions & Document Selection** — CRUD cifrado, blog SSR/SEO (76 checks), lista de espera, sesiones gratuitas y selección documental por evaluación actual.

@@ -118,19 +118,28 @@ async function main() {
     const byId = await res.json();
     check('título desencriptado', /Receta TDD/.test(byId?.data?.title || ''), byId?.data?.title?.slice(0, 30));
 
-    // GET sin token: recetas públicas
+    // GET sin token: endurecido OWASP (requiere autenticación coach/admin o cliente Plan 2/3)
     res = await getRecipe(new NextRequest(`${base}/recipes/${recipeId}`, { method: 'GET' }), { params: Promise.resolve({ id: String(recipeId) }) });
-    check('GET by id sin token → 200 (público)', res.status === 200, `status=${res.status}`);
+    check('GET by id sin token → 401', res.status === 401, `status=${res.status}`);
   }
   res = await listRecipes(new NextRequest(`${base}/recipes`, { method: 'GET' }), { params: Promise.resolve({}) });
+  check('GET lista recipes sin token → 401', res.status === 401, `status=${res.status}`);
+
+  res = await listRecipes(authedRequest(`${base}/recipes`, 'GET', token), { params: Promise.resolve({}) });
   const listBody = await res.json();
-  check('GET lista → 200', res.status === 200, `status=${res.status}`);
+  check('GET lista recipes con token coach → 200', res.status === 200, `status=${res.status}`);
   const recs = listBody?.data || listBody?.recipes || [];
   check('lista es array', Array.isArray(recs));
   if (Array.isArray(recs) && recipeId) {
     const found = recs.some((r: { id?: string; _id?: { toString(): string } }) => r.id === recipeId || r._id?.toString?.() === recipeId);
-    check('la receta recién creada (publicada) aparece en lista pública', found, `recipeId=${recipeId}`);
+    check('la receta recién creada (publicada) aparece en lista autenticada', found, `recipeId=${recipeId}`);
   }
+
+  res = await listExercises(new NextRequest(`${base}/exercises`, { method: 'GET' }), { params: Promise.resolve({}) });
+  check('GET lista exercises sin token → 401', res.status === 401, `status=${res.status}`);
+
+  res = await listExercises(authedRequest(`${base}/exercises`, 'GET', token), { params: Promise.resolve({}) });
+  check('GET lista exercises con token coach → 200', res.status === 200, `status=${res.status}`);
 
   // ═══ 4. RECIPES: update/delete (workflow EditProposal para coaches) ═══
   section('4. Recipes — update/delete + roles');

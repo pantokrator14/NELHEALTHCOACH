@@ -6,6 +6,7 @@
 // arrays porque el frontend usa checkboxes; el route handler las stringifica.
 
 import { z } from 'zod';
+import { isValidTimeZone } from '@/app/lib/timezone';
 
 // ─── Medical Data ───
 
@@ -81,6 +82,12 @@ const personalDataSchema = z.object({
   maritalStatus: z.string().max(50).default(''),
   education: z.string().max(200).default(''),
   occupation: z.string().max(200).default(''),
+  timezone: z
+    .string()
+    .max(100)
+    .refine((val) => !val || isValidTimeZone(val), 'Zona horaria IANA inválida')
+    .optional()
+    .default(''),
   profilePhoto: z.unknown().optional(),
   // Idioma del cliente: recomendar/traducir contenido en su idioma.
   // Default 'es' — los clientes existentes (sin el campo) quedan en español.

@@ -15,9 +15,9 @@ const SOCIAL_LINKS = [
 /**
  * Pie de página con:
  * - Información de la empresa y datos fiscales
- * - Enlaces rápidos
+ * - Enlaces rápidos (Blog y Centro de Ayuda)
  * - Enlaces legales estructurados
- * - Información de contacto y soporte
+ * - Información de contacto y soporte (support@nelhealthcoach.com)
  * - Redes sociales
  * - Descargo médico legal indeleble
  */
@@ -49,6 +49,11 @@ const Footer: React.FC = () => {
                 >
                   {t('landing.nav.blog')}
                 </a>
+              </li>
+              <li>
+                <Link href="/ayuda" className="text-gray-400 hover:text-white transition-colors">
+                  {t('landing.footer.help', 'Centro de Ayuda')}
+                </Link>
               </li>
             </ul>
           </div>
@@ -88,8 +93,8 @@ const Footer: React.FC = () => {
             <h4 className="text-lg font-semibold mb-4">{t('landing.footer.contact')}</h4>
             <address className="not-italic text-gray-400 text-sm space-y-2">
               <p>
-                <a href="mailto:soporte@nelhealthcoach.com" className="hover:text-white transition-colors">
-                  soporte@nelhealthcoach.com
+                <a href="mailto:support@nelhealthcoach.com" className="hover:text-white transition-colors">
+                  support@nelhealthcoach.com
                 </a>
               </p>
               <p>+1 (442) 342-5050 · {t('landing.footer.spanishSupport')}</p>
@@ -115,9 +120,9 @@ const Footer: React.FC = () => {
           <div className="flex space-x-4">
             {SOCIAL_LINKS.map((social) => (
               <a 
-                key={social.name}
-                href={social.href}
-                target="_blank"
+                key={social.name} 
+                href={social.href} 
+                target="_blank" 
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 rounded-full"
                 aria-label={`Síguenos en ${social.label}`}

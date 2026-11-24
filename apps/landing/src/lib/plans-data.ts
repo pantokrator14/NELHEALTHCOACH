@@ -128,7 +128,7 @@ const ES_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: 'Ahorras $50 (25% desc.)',
-      modality: 'Plataforma Web + Soporte semanal vía WhatsApp',
+      modality: 'Plataforma Web + WhatsApp semanal + 2 videollamadas 1 a 1 (inicial y cierre)',
       roadmap: [
         'Paso 1: Freno a la Inflamación',
         'Paso 2: Activación Metabólica',
@@ -136,8 +136,8 @@ const ES_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Protocolo base y guía de alimentos en portal web',
-        'Lista de compras ancestral y recomendaciones',
-        'Soporte semanal asincrónico vía WhatsApp',
+        'Lista de compras ancestral y soporte semanal vía WhatsApp',
+        '2 videollamadas 1 a 1 en plataforma (1 inicial + 1 de cierre)',
       ],
       ctaLabel: 'Plan 1 — $150',
     },
@@ -150,7 +150,7 @@ const ES_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: 'Ahorras $110 (24% desc.)',
-      modality: 'Web + WhatsApp directo + 3 videollamadas 1 a 1 (1/mes)',
+      modality: 'Web + WhatsApp directo + 4 videollamadas 1 a 1 (inicial + 1/mes)',
       roadmap: [
         'Paso 1: Sincronización Circadiana',
         'Paso 2: Flexibilidad Metabólica',
@@ -159,7 +159,9 @@ const ES_COPY: LandingPlansCopy = {
       includes: [
         'Todo lo del Plan 1 dentro de tu portal',
         'Acompañamiento directo vía WhatsApp con Manuel',
-        '3 videollamadas 1 a 1 en plataforma (1/mes)',
+        '4 videollamadas 1 a 1 en plataforma (1 inicial + 1/mes)',
+        'Biblioteca de recetas ancestrales y ejercicios en solo lectura (15 de cada una)',
+        'Escáner nutricional por foto con IA (hasta 5 análisis/mes)',
       ],
       ctaLabel: 'Plan 2 — $340',
     },
@@ -171,7 +173,7 @@ const ES_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: 'Ahorras $310 (34% desc.)',
-      modality: 'Web + WhatsApp prioritario + 6 videollamadas 1 a 1 (1/mes)',
+      modality: 'Web + WhatsApp prioritario + 7 videollamadas 1 a 1 (inicial + 1/mes)',
       roadmap: [
         'Paso 1: Reducción Carga Tóxica',
         'Paso 2: Fuerza Biológica',
@@ -180,7 +182,9 @@ const ES_COPY: LandingPlansCopy = {
       includes: [
         'Portal completo y evolución de biomarcadores',
         'Canal prioritario en WhatsApp los 6 meses',
-        '6 videollamadas 1 a 1 en plataforma (1/mes)',
+        '7 videollamadas 1 a 1 en plataforma (1 inicial + 1/mes)',
+        'Acceso completo de lectura a todas las recetas ancestrales y ejercicios',
+        'Escáner nutricional por foto con IA ampliado (hasta 30 análisis/mes)',
       ],
       ctaLabel: 'Plan 3 — $590',
     },
@@ -261,7 +265,7 @@ const EN_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: 'Save $50 (25% off)',
-      modality: 'Web Platform + Weekly async WhatsApp support',
+      modality: 'Web Platform + Weekly WhatsApp + 2 1-on-1 video calls (initial & closing)',
       roadmap: [
         'Step 1: Stop Inflammation',
         'Step 2: Metabolic Activation',
@@ -269,8 +273,8 @@ const EN_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Core clean-food protocol inside the web portal',
-        'Ancestral shopping list & recommendations',
-        'Weekly asynchronous WhatsApp support',
+        'Ancestral shopping list & weekly async WhatsApp support',
+        '2 1-on-1 platform video calls (1 initial + 1 closing)',
       ],
       ctaLabel: 'Plan 1 — $150',
     },
@@ -283,7 +287,7 @@ const EN_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: 'Save $110 (24% off)',
-      modality: 'Web + Direct WhatsApp + 3 1-on-1 video calls (1/mo)',
+      modality: 'Web + Direct WhatsApp + 4 1-on-1 video calls (initial + 1/mo)',
       roadmap: [
         'Step 1: Circadian Sync & Sleep',
         'Step 2: Metabolic Flexibility',
@@ -292,7 +296,9 @@ const EN_COPY: LandingPlansCopy = {
       includes: [
         'Everything in Plan 1 inside your portal',
         'Direct WhatsApp guidance with Manuel',
-        '3 monthly 1-on-1 platform video calls',
+        '4 1-on-1 platform video calls (1 initial + 1/mo)',
+        'Read-only ancestral recipes & exercises libraries (15 items each)',
+        'AI nutritional photo scanner (up to 5 scans/month)',
       ],
       ctaLabel: 'Plan 2 — $340',
     },
@@ -304,7 +310,7 @@ const EN_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: 'Save $310 (34% off)',
-      modality: 'Web + Priority WhatsApp + 6 1-on-1 video calls (1/mo)',
+      modality: 'Web + Priority WhatsApp + 7 1-on-1 video calls (initial + 1/mo)',
       roadmap: [
         'Step 1: Toxic Load Reduction',
         'Step 2: Biological Strength',
@@ -313,7 +319,9 @@ const EN_COPY: LandingPlansCopy = {
       includes: [
         'Full portal access & biomarker progress tracking',
         'Priority WhatsApp channel all 6 months',
-        '6 monthly 1-on-1 platform video calls',
+        '7 1-on-1 platform video calls (1 initial + 1/mo)',
+        'Full read-only access to the complete recipes & exercises libraries',
+        'Expanded AI nutritional photo scanner (up to 30 scans/month)',
       ],
       ctaLabel: 'Plan 3 — $590',
     },
@@ -394,7 +402,7 @@ const FR_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: 'Économisez 50 $ (-25 %)',
-      modality: 'Plateforme Web + Support hebdomadaire WhatsApp',
+      modality: 'Web + WhatsApp hebdo + 2 appels vidéo 1 à 1 (initial et final)',
       roadmap: [
         'Étape 1 : Freiner l’Inflammation',
         'Étape 2 : Activation Métabolique',
@@ -402,8 +410,8 @@ const FR_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Protocole de base et guide alimentaire sur le portail',
-        'Liste de courses ancestrale et recommandations',
-        'Support asynchrone hebdomadaire sur WhatsApp',
+        'Liste de courses ancestrale et support hebdo WhatsApp',
+        '2 appels vidéo 1 à 1 sur la plateforme (1 initial + 1 final)',
       ],
       ctaLabel: 'Plan 1 — $150',
     },
@@ -416,7 +424,7 @@ const FR_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: 'Économisez 110 $ (-24 %)',
-      modality: 'Web + WhatsApp direct + 3 appels vidéo 1 à 1 (1/mois)',
+      modality: 'Web + WhatsApp direct + 4 appels vidéo 1 à 1 (initial + 1/mois)',
       roadmap: [
         'Étape 1 : Synchro Circadienne',
         'Étape 2 : Flexibilité Métabolique',
@@ -425,7 +433,9 @@ const FR_COPY: LandingPlansCopy = {
       includes: [
         'Tout le Plan 1 inclus dans votre portail',
         'Accompagnement direct WhatsApp avec Manuel',
-        '3 appels vidéo 1 à 1 sur la plateforme (1/mois)',
+        '4 appels vidéo 1 à 1 sur la plateforme (1 initial + 1/mois)',
+        'Bibliothèques de recettes ancestrales et d’exercices en lecture seule (15 chacun)',
+        'Scanner nutritionnel photo avec IA (jusqu’à 5 analyses/mois)',
       ],
       ctaLabel: 'Plan 2 — $340',
     },
@@ -437,7 +447,7 @@ const FR_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: 'Économisez 310 $ (-34 %)',
-      modality: 'Web + WhatsApp prioritaire + 6 appels vidéo 1 à 1 (1/mois)',
+      modality: 'Web + WhatsApp prioritaire + 7 appels vidéo 1 à 1 (initial + 1/mois)',
       roadmap: [
         'Étape 1 : Réduction Charge Toxique',
         'Étape 2 : Force Biologique',
@@ -446,7 +456,9 @@ const FR_COPY: LandingPlansCopy = {
       includes: [
         'Accès complet et suivi continu des biomarqueurs',
         'Canal WhatsApp prioritaire pendant 6 mois',
-        '6 appels vidéo 1 à 1 sur la plateforme (1/mois)',
+        '7 appels vidéo 1 à 1 sur la plateforme (1 initial + 1/mois)',
+        'Accès complet en lecture seule à toutes les recettes ancestrales et exercices',
+        'Scanner nutritionnel photo IA étendu (jusqu’à 30 analyses/mois)',
       ],
       ctaLabel: 'Plan 3 — $590',
     },
@@ -527,7 +539,7 @@ const IT_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: 'Risparmi $50 (-25%)',
-      modality: 'Piattaforma Web + Supporto settimanale WhatsApp',
+      modality: 'Web + WhatsApp sett. + 2 videochiamate 1 a 1 (iniziale e finale)',
       roadmap: [
         'Passo 1: Stop all’Infiammazione',
         'Passo 2: Attivazione Metabolica',
@@ -535,8 +547,8 @@ const IT_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Protocollo base e guida alimentare nel portale',
-        'Lista della spesa ancestrale e raccomandazioni',
-        'Supporto asincrono settimanale su WhatsApp',
+        'Lista della spesa ancestrale e supporto WhatsApp settimanale',
+        '2 videochiamate 1 a 1 in piattaforma (1 iniziale + 1 finale)',
       ],
       ctaLabel: 'Piano 1 — $150',
     },
@@ -549,7 +561,7 @@ const IT_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: 'Risparmi $110 (-24%)',
-      modality: 'Web + WhatsApp diretto + 3 videochiamate 1 a 1 (1/mese)',
+      modality: 'Web + WhatsApp diretto + 4 videochiamate 1 a 1 (iniziale + 1/mese)',
       roadmap: [
         'Passo 1: Sincronia Circadiana',
         'Passo 2: Flessibilità Metabolica',
@@ -558,7 +570,9 @@ const IT_COPY: LandingPlansCopy = {
       includes: [
         'Tutto ciò del Piano 1 nel tuo portale',
         'Supporto diretto WhatsApp con Manuel',
-        '3 videochiamate 1 a 1 in piattaforma (1/mese)',
+        '4 videochiamate 1 a 1 in piattaforma (1 iniziale + 1/mese)',
+        'Librerie di ricette ancestrali ed esercizi in sola lettura (15 ciascuna)',
+        'Scanner nutrizionale fotografico con IA (fino a 5 analisi/mese)',
       ],
       ctaLabel: 'Piano 2 — $340',
     },
@@ -570,7 +584,7 @@ const IT_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: 'Risparmi $310 (-34%)',
-      modality: 'Web + WhatsApp prioritario + 6 videochiamate 1 a 1 (1/mese)',
+      modality: 'Web + WhatsApp prioritario + 7 videochiamate 1 a 1 (iniziale + 1/mese)',
       roadmap: [
         'Passo 1: Riduzione Carico Tossico',
         'Passo 2: Forza Biologica',
@@ -579,7 +593,9 @@ const IT_COPY: LandingPlansCopy = {
       includes: [
         'Accesso completo e monitoraggio biomarcatori',
         'Canale WhatsApp prioritario per 6 mesi',
-        '6 videochiamate 1 a 1 in piattaforma (1/mese)',
+        '7 videochiamate 1 a 1 in piattaforma (1 iniziale + 1/mese)',
+        'Accesso completo in sola lettura a tutte le ricette ancestrali e gli esercizi',
+        'Scanner nutrizionale fotografico IA esteso (fino a 30 analisi/mese)',
       ],
       ctaLabel: 'Piano 3 — $590',
     },
@@ -660,7 +676,7 @@ const PT_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: 'Economize $50 (25% desc.)',
-      modality: 'Plataforma Web + Suporte semanal via WhatsApp',
+      modality: 'Web + WhatsApp semanal + 2 chamadas de vídeo 1 a 1 (inicial e final)',
       roadmap: [
         'Passo 1: Freio à Inflamação',
         'Passo 2: Ativação Metabólica',
@@ -668,8 +684,8 @@ const PT_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Protocolo base e guia alimentar no portal web',
-        'Lista de compras ancestral e recomendações',
-        'Suporte semanal assíncrono via WhatsApp',
+        'Lista de compras ancestral e suporte semanal via WhatsApp',
+        '2 chamadas de vídeo 1 a 1 na plataforma (1 inicial + 1 final)',
       ],
       ctaLabel: 'Plano 1 — $150',
     },
@@ -682,7 +698,7 @@ const PT_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: 'Economize $110 (24% desc.)',
-      modality: 'Web + WhatsApp direto + 3 chamadas de vídeo 1 a 1 (1/mês)',
+      modality: 'Web + WhatsApp direto + 4 chamadas de vídeo 1 a 1 (inicial + 1/mês)',
       roadmap: [
         'Passo 1: Sincronização Circadiana',
         'Passo 2: Flexibilidade Metabólica',
@@ -691,7 +707,9 @@ const PT_COPY: LandingPlansCopy = {
       includes: [
         'Tudo do Plano 1 dentro do seu portal',
         'Acompanhamento direto via WhatsApp com Manuel',
-        '3 chamadas de vídeo 1 a 1 na plataforma (1/mês)',
+        '4 chamadas de vídeo 1 a 1 na plataforma (1 inicial + 1/mês)',
+        'Bibliotecas de receitas ancestrais e exercícios somente leitura (15 itens cada)',
+        'Scanner nutricional por foto com IA (até 5 análises/mês)',
       ],
       ctaLabel: 'Plano 2 — $340',
     },
@@ -703,7 +721,7 @@ const PT_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: 'Economize $310 (34% desc.)',
-      modality: 'Web + WhatsApp prioritário + 6 chamadas de vídeo 1 a 1 (1/mês)',
+      modality: 'Web + WhatsApp prioritário + 7 chamadas de vídeo 1 a 1 (inicial + 1/mês)',
       roadmap: [
         'Passo 1: Redução Carga Tóxica',
         'Passo 2: Força Biológica',
@@ -712,7 +730,9 @@ const PT_COPY: LandingPlansCopy = {
       includes: [
         'Portal completo e evolução de biomarcadores',
         'Canal prioritário no WhatsApp por 6 meses',
-        '6 chamadas de vídeo 1 a 1 na plataforma (1/mês)',
+        '7 chamadas de vídeo 1 a 1 na plataforma (1 inicial + 1/mês)',
+        'Acesso completo somente leitura a toda a biblioteca de receitas ancestrais e exercícios',
+        'Scanner nutricional por foto com IA ampliado (até 30 análises/mês)',
       ],
       ctaLabel: 'Plano 3 — $590',
     },
@@ -793,7 +813,7 @@ const DE_COPY: LandingPlansCopy = {
       regularPrice: 200,
       launchPrice: 150,
       savingsText: '$50 sparen (25% Rabatt)',
-      modality: 'Web-Plattform + Wöchentlicher WhatsApp-Support',
+      modality: 'Web-Plattform + Wöchentl. WhatsApp + 2 Videoanrufe 1:1 (Start & Abschluss)',
       roadmap: [
         'Schritt 1: Entzündung stoppen',
         'Schritt 2: Stoffwechsel aktivieren',
@@ -801,8 +821,8 @@ const DE_COPY: LandingPlansCopy = {
       ],
       includes: [
         'Basisprotokoll & Lebensmittel-Guide im Web-Portal',
-        'Evolutionäre Einkaufsliste & Empfehlungen',
-        'Wöchentlicher asynchroner WhatsApp-Support',
+        'Evolutionäre Einkaufsliste & wöchentlicher WhatsApp-Support',
+        '2 1:1 Videoanrufe in der Plattform (1 Start + 1 Abschluss)',
       ],
       ctaLabel: 'Plan 1 — $150',
     },
@@ -815,7 +835,7 @@ const DE_COPY: LandingPlansCopy = {
       regularPrice: 450,
       launchPrice: 340,
       savingsText: '$110 sparen (24% Rabatt)',
-      modality: 'Web + Direkter WhatsApp + 3 Videoanrufe 1:1 (1/Monat)',
+      modality: 'Web + Direkter WhatsApp + 4 Videoanrufe 1:1 (Start + 1/Monat)',
       roadmap: [
         'Schritt 1: Zirkadiane Synchronisation',
         'Schritt 2: Stoffwechsel-Flexibilität',
@@ -824,7 +844,9 @@ const DE_COPY: LandingPlansCopy = {
       includes: [
         'Alles aus Plan 1 in deinem persönlichen Portal',
         'Direkte WhatsApp-Begleitung mit Manuel',
-        '3 monatliche 1:1 Videoanrufe in der Plattform',
+        '4 1:1 Videoanrufe in der Plattform (1 Start + 1/Monat)',
+        'Lesezugriff auf evolutionäre Rezept- und Übungsbibliotheken (je 15 Einträge)',
+        'KI-Foto-Ernährungsscanner (bis zu 5 Analysen/Monat)',
       ],
       ctaLabel: 'Plan 2 — $340',
     },
@@ -836,7 +858,7 @@ const DE_COPY: LandingPlansCopy = {
       regularPrice: 900,
       launchPrice: 590,
       savingsText: '$310 sparen (34% Rabatt)',
-      modality: 'Web + Prioritäts-WhatsApp + 6 Videoanrufe 1:1 (1/Monat)',
+      modality: 'Web + Prioritäts-WhatsApp + 7 Videoanrufe 1:1 (Start + 1/Monat)',
       roadmap: [
         'Schritt 1: Toxinbelastung senken',
         'Schritt 2: Biologische Resilienz',
@@ -845,7 +867,9 @@ const DE_COPY: LandingPlansCopy = {
       includes: [
         'Voller Portalzugang & Biomarker-Verlauf',
         'Prioritäts-WhatsApp-Kanal für 6 Monate',
-        '6 monatliche 1:1 Videoanrufe in der Plattform',
+        '7 1:1 Videoanrufe in der Plattform (1 Start + 1/Monat)',
+        'Voller Lesezugriff auf die gesamte Rezept- und Übungsbibliothek',
+        'Erweiterter KI-Foto-Ernährungsscanner (bis zu 30 Analysen/Monat)',
       ],
       ctaLabel: 'Plan 3 — $590',
     },
