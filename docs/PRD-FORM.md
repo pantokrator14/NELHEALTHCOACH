@@ -53,7 +53,8 @@ El formulario de evaluación de NELHEALTHCOACH (`apps/form`) captura de forma se
 apps/form/
 ├── src/
 │   ├── components/
-│   │   ├── ContractStep.tsx      # Paso 6: Contrato y casillas desacopladas
+│   │   ├── ContractStep.tsx      # Contrato y casillas desacopladas
+│   │   ├── PaymentStep.tsx       # Pago de onboarding con tarifa del coach (se omite con ?free=1)
 │   │   ├── CookieBanner.tsx      # CMP de cookies adaptado
 │   │   ├── PersonalDataStep.tsx  # Datos personales e idioma
 │   │   ├── MedicalDataStep.tsx   # Historial clínico y documentos

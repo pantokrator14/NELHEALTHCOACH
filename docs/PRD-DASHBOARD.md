@@ -125,6 +125,7 @@ Flujo de afiliación con 12 secciones legales adaptadas a la jurisprudencia de C
 ### 4.3 Gestión de Clientes y Cupos por Plan (`pages/dashboard/clients/index.tsx`)
 - Filtro de clientes por plan contratado (`planId`) para agrupar el seguimiento según programa.
 - Panel de control de cupos por plan (solo admin / Manuel Martínez) para pausar o limitar inscripciones activas por producto.
+- Generación de enlaces de registro diferenciada: el administrador (Manuel Martínez) dispone únicamente del **Link gratuito** (`?free=1`, ocultándose el link con pago ya que sus clientes pagan planes directamente en el portal), mientras que los coaches independientes mantienen únicamente su **Link con pago** reflejando la tarifa configurada (`sessionPrice`).
 
 ### 4.4 Pre-Call Consent Gate y Ventana de Videollamadas (`VideoCallRoom.tsx`, `video/join.tsx`)
 - Bloqueo preventivo antes de 15 minutos previos a la cita (`not_started` con fecha programada y hora exacta de apertura).

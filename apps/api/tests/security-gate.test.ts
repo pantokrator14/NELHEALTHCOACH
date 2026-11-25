@@ -293,6 +293,38 @@ async function main() {
     'dashboard Layout enlaza /ayuda con rel="noopener noreferrer"',
     /\/ayuda/.test(dashLayout) && /rel="noopener noreferrer"/.test(dashLayout),
   );
+
+  // ═══ 11. Email OTP responsivo + enlaces de coach con tarifa y solo link gratuito para admin ═══
+  section('11. Email OTP responsivo, link gratuito admin y checkout con tarifa de coach');
+  const emailTemplates = fs.readFileSync(path.join(LIB_DIR, 'email-templates.ts'), 'utf-8');
+  const coachLinkRoute = fs.readFileSync(path.join(API_DIR, 'coaches/link/route.ts'), 'utf-8');
+  const clientCheckoutRoute = fs.readFileSync(path.join(API_DIR, 'payments/create-client-checkout/route.ts'), 'utf-8');
+  const dashClientsPage = fs.readFileSync(path.join(dashboardSrcDir, 'pages/dashboard/clients/index.tsx'), 'utf-8');
+
+  check(
+    'email OTP usa tabla fluida (table-layout: fixed) y media query móvil sin desbordamiento',
+    /table-layout:\s*fixed/.test(emailTemplates) &&
+      /@media only screen and \(max-width: 480px\)/.test(emailTemplates) &&
+      /max-width:\s*42px/.test(emailTemplates),
+  );
+  check(
+    'coaches/link bloquea type=paid para admin y solo permite type=free a admin',
+    /type === 'paid' && isAdmin/.test(coachLinkRoute) &&
+      /type === 'free' && !isAdmin/.test(coachLinkRoute),
+  );
+  check(
+    'dashboard/clients oculta "Link con pago" para isAdmin y muestra tarifa dinámica a coaches',
+    /\{!isAdmin && \(/.test(dashClientsPage) &&
+      /coachSessionPriceUsd/.test(dashClientsPage),
+  );
+  check(
+    'create-client-checkout protege con secureRoute/rateLimit, valida returnUrl y aplica sessionPrice/Connect',
+    /secureRoute/.test(clientCheckoutRoute) &&
+      /requireRateLimit/.test(clientCheckoutRoute) &&
+      /sanitizeReturnUrl/.test(clientCheckoutRoute) &&
+      /transfer_data/.test(clientCheckoutRoute) &&
+      /coach\.sessionPrice/.test(clientCheckoutRoute),
+  );
 }
 
 main()
