@@ -89,7 +89,7 @@ apps/landing/
 ### 4.3 Sección de Planes y Contratación (`ContactFormSection.tsx` + `plans-data.ts`)
 Presenta las **5 opciones comerciales** en dos niveles alineados:
 1. **Consulta Privada de Diagnóstico 1 a 1** ($60 USD · 45 min): Reserva directa mediante pago en Stripe y agenda en línea sin crear cuenta completa.
-2. **Reto Tres NEL: Reinicio Ancestral y Circadiano** ($97 USD · 3 semanas): Programa guiado de 21 días con WhatsApp y 1 videollamada de cierre en la plataforma.
+2. **Reto 3S NEL: Reinicio Ancestral y Circadiano** ($97 USD · 3 semanas): Programa guiado de 21 días con WhatsApp y 1 videollamada de cierre en la plataforma.
 3. **Plan 1: Reinicio Metabólico** ($150 USD · 1 mes): Plataforma web + soporte semanal vía WhatsApp + 2 videollamadas 1 a 1 (inicial y cierre).
 4. **Plan 2: Transformación Celular** ($340 USD · 3 meses · Recomendado): Plataforma web + WhatsApp directo + 4 videollamadas (1 inicial + 1 mensual) + seguimiento de biomarcadores + acceso limitado a bibliotecas (15 recetas y 15 ejercicios) y 5 escaneos nutricionales/mes.
 5. **Plan 3: Maestría y Longevidad** ($590 USD · 6 meses): Plataforma web + WhatsApp prioritario + 7 videollamadas (1 inicial + 1 mensual) + seguimiento integral + bibliotecas completas de recetas y ejercicios + 30 escaneos nutricionales/mes.

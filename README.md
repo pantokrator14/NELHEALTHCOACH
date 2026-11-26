@@ -57,7 +57,7 @@
 ### 💳 **Modelo Comercial y Portal de Clientes**
 - **Catálogo de 5 Programas Comerciales** sincronizado desde `apps/api/src/app/lib/plans.ts`:
   - `consult_1on1` (*Consulta 1 a 1*): sesión diagnóstica individual con reserva directa sin exigir registro previo ni botones de WhatsApp post-sesión innecesarios.
-  - `reto_tres_nel` (*Reto Tres NEL: Reinicio Ancestral y Circadiano*): programa intensivo de **3 semanas** con enfoque progresivo diferenciado (`weeklyPhases`), 1 videollamada y seguimiento.
+  - `reto_tres_nel` (*Reto 3S NEL: Reinicio Ancestral y Circadiano*): programa intensivo de **3 semanas** con enfoque progresivo diferenciado (`weeklyPhases`), 1 videollamada y seguimiento.
   - `plan_1_reinicio` (*Plan 1 — Reinicio Metabólico*): acompañamiento mensual de **4 semanas** con WhatsApp semanal y **2 videollamadas 1 a 1** (inicial y cierre).
   - `plan_2_transformacion` (*Plan 2 — Transformación Celular*): seguimiento de 3 meses con evaluaciones, WhatsApp directo, comparativa de biomarcadores y **4 videollamadas 1 a 1** (1 inicial + 1 mensual).
   - `plan_3_maestria` (*Plan 3 — Maestría y Longevidad*): programa extendido de 6 meses con WhatsApp prioritario y **7 videollamadas 1 a 1** (1 inicial + 1 mensual).
@@ -80,7 +80,7 @@
 - **Motor Principal DeepSeek V4 Flash** + **Fallback automático a Google Gemini** en runtime.
 - **Análisis médico con óptica de nutrición ancestral y optimización metabólica** — interpretación de laboratorios bajo rangos de referencia funcionales y adaptados a flexibilidad metabólica, con atención a electrolitos (sodio, potasio, magnesio).
 - **Diferenciación automática según programa**:
-  - **Reto Tres NEL (3 semanas)**: Genera `weeklyPhases` con enfoque distinto para cada una de las 3 semanas.
+  - **Reto 3S NEL (3 semanas)**: Genera `weeklyPhases` con enfoque distinto para cada una de las 3 semanas.
   - **Planes mensuales (`plan_1_reinicio`, `plan_2_transformacion`, `plan_3_maestria`)**: Mantiene ciclos completos de **4 semanas**.
 - **Plan nutricional, ejercicios, hábitos y lista de compras** con validación y regeneración encolada.
 - **Procesamiento de documentos**: extracción LOCAL de texto (PDF con `pdf-parse`, DOCX con `mammoth`, imágenes y PDFs escaneados con `tesseract.js`/OCR) + Gemini como secundario sobre el texto extraído.
@@ -383,7 +383,7 @@ npm run test:security
 
 **Cobertura principal** (detalle en `apps/api/tests/README.md`):
 - **Security gate OWASP** (`security-gate.test.ts`, 29 checks) — 401 en rutas protegidas, prevención de fugas `error.message` (A10), bcrypt/argon2 (A04), ownership (A01) y validación LLM (LLM05).
-- **Flujo completo de 5 Planes y Portal de Clientes** (`client-plans-flow.test.ts`, 81 checks) — catálogo, registro OTP 6 dígitos, aislamiento de cliente, ventana de videollamadas de 15 min, `programCompleted` y `weeklyPhases` del Reto Tres NEL.
+- **Flujo completo de 5 Planes y Portal de Clientes** (`client-plans-flow.test.ts`, 81 checks) — catálogo, registro OTP 6 dígitos, aislamiento de cliente, ventana de videollamadas de 15 min, `programCompleted` y `weeklyPhases` del Reto 3S NEL.
 - **Control de Cupos por Plan** (`plan-quotas.test.ts`, 21 checks) — disponibilidad en vivo, `409 QUOTA_FULL`, pausas y límites administrativos.
 - **Auth, Clients, Content, Blog, Waitlist, Free Sessions & Document Selection** — CRUD cifrado, blog SSR/SEO (76 checks), lista de espera, sesiones gratuitas y selección documental por evaluación actual.
 - **Cola propia, Traducción, PDF y E2E LLM real** — enqueue/claim/lease/reintentos, FASE 4 JSON, `%PDF` y regeneración.

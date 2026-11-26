@@ -1,7 +1,7 @@
 // apps/form/src/components/PaymentStep.tsx
-// Paso de pago: el cliente paga $150 antes de continuar con el formulario
+// Paso de pago: el cliente paga la tarifa configurada por su coach (default $150) antes de continuar con el formulario
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 
 interface PaymentStepProps {
@@ -10,17 +10,47 @@ interface PaymentStepProps {
   clientEmail?: string;
   /** Nombre del cliente */
   clientName?: string;
-  /** ID del coach referido (se pasa a metadata para notificar al coach del pago) */
+  /** ID del coach referido (se pasa a metadata para notificar al coach del pago y usar su tarifa) */
   coachId?: string;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const DEFAULT_AMOUNT = Number(process.env.NEXT_PUBLIC_CLIENT_SESSION_AMOUNT) || 150;
 
 const PaymentStep: React.FC<PaymentStepProps> = ({
   coachId,
 }) => {
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionAmount, setSessionAmount] = useState<number>(DEFAULT_AMOUNT);
+  const [loadedCoachId, setLoadedCoachId] = useState<string | null>(null);
+
+  const loadingFee = Boolean(coachId) && loadedCoachId !== coachId;
+
+  useEffect(() => {
+    if (!coachId) return;
+
+    let active = true;
+    fetch(`${API_BASE_URL}/api/payments/create-client-checkout?coachId=${encodeURIComponent(coachId)}`)
+      .then((res) => res.json())
+      .then((result) => {
+        if (!active) return;
+        const amountUsd = result?.data?.amountUsd;
+        if (result?.success && typeof amountUsd === 'number' && amountUsd >= 50) {
+          setSessionAmount(amountUsd);
+        }
+      })
+      .catch(() => {
+        // Fallback silencioso a tarifa por defecto
+      })
+      .finally(() => {
+        if (active) setLoadedCoachId(coachId);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [coachId]);
 
   const handlePay = async () => {
     setLoading(true);
@@ -59,8 +89,6 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
     }
   };
 
-  const sessionAmount = Number(process.env.NEXT_PUBLIC_CLIENT_SESSION_AMOUNT) || 150;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-400 via-teal-500 to-teal-600 py-12 px-4">
       <div className="max-w-lg mx-auto">
@@ -71,7 +99,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
               <div className="relative w-48 h-16">
                 <Image
                   src="/logo.png"
-                sizes="192px"
+                  sizes="192px"
                   alt="NELHEALTHCOACH"
                   fill
                   className="object-contain"
@@ -92,13 +120,13 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Sesión de coaching</span>
                   <span className="font-semibold text-gray-800">
-                    ${sessionAmount}.00 USD
+                    {loadingFee ? 'Cargando...' : `$${sessionAmount}.00 USD`}
                   </span>
                 </div>
                 <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
                   <span className="font-medium text-gray-700">Total</span>
                   <span className="text-xl font-bold text-teal-700">
-                    ${sessionAmount}.00 USD
+                    {loadingFee ? '...' : `$${sessionAmount}.00 USD`}
                   </span>
                 </div>
               </div>
@@ -147,7 +175,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
 
             <button
               onClick={handlePay}
-              disabled={loading}
+              disabled={loading || loadingFee}
               className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (

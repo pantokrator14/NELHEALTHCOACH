@@ -42,8 +42,8 @@ interface PlanDisplayMeta {
 const PLAN_DISPLAY_ORDER: PlanDisplayMeta[] = [
   {
     id: 'reto_tres_nel',
-    shortLabel: 'Reto Tres NEL',
-    fullLabel: 'Reto Tres NEL: Reinicio Ancestral y Circadiano',
+    shortLabel: 'Reto 3S NEL',
+    fullLabel: 'Reto 3S NEL: Reinicio Ancestral y Circadiano',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
   },
   {
@@ -89,6 +89,7 @@ export default function Clients() {
 
   const [copyMsg, setCopyMsg] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [coachSessionPriceUsd, setCoachSessionPriceUsd] = useState<number>(150);
 
   // Control de cupos por plan (solo admin / Manuel Martínez)
   const [planQuotas, setPlanQuotas] = useState<PlanQuotaAdminItem[]>([]);
@@ -127,6 +128,24 @@ export default function Clients() {
 
     fetchClients();
   }, [router, userRole]);
+
+  useEffect(() => {
+    if (userRole !== 'coach') return;
+    let active = true;
+    apiClient
+      .getProfile()
+      .then((res) => {
+        if (!active) return;
+        const cents = res?.data?.stripeConnect?.sessionPrice;
+        if (typeof cents === 'number' && cents >= 5000) {
+          setCoachSessionPriceUsd(Math.round(cents / 100));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [userRole]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -237,7 +256,8 @@ export default function Clients() {
     try {
       const res = await apiClient.getCoachLink('paid');
       await navigator.clipboard.writeText(res.data.link);
-      setCopyMsg('✅ Enlace con pago copiado al portapapeles');
+      const feeUsd = typeof res?.data?.sessionPriceUsd === 'number' ? res.data.sessionPriceUsd : coachSessionPriceUsd;
+      setCopyMsg(`✅ Enlace con pago ($${feeUsd} USD) copiado al portapapeles`);
       setShowDropdown(false);
       setTimeout(() => setCopyMsg(''), 3000);
     } catch {
@@ -493,28 +513,30 @@ export default function Clients() {
 
                 {showDropdown && (
                   <div className="absolute left-0 right-0 sm:left-auto sm:right-0 mt-2 w-full sm:w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={handleCopyRegisterLink}
-                      className="w-full flex items-start gap-3 px-4 py-3.5 hover:bg-blue-50 transition text-left border-b border-gray-100"
-                    >
-                      <div className="flex-shrink-0 w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">Link con pago</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          El cliente paga $150 USD por la consulta de onboarding
-                        </p>
-                      </div>
-                    </button>
+                    {!isAdmin && (
+                      <button
+                        type="button"
+                        onClick={handleCopyRegisterLink}
+                        className="w-full flex items-start gap-3 px-4 py-3.5 hover:bg-blue-50 transition text-left"
+                      >
+                        <div className="flex-shrink-0 w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">Link con pago</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            El cliente paga ${coachSessionPriceUsd} USD por la consulta de onboarding
+                          </p>
+                        </div>
+                      </button>
+                    )}
 
                     {isAdmin && (
                       <button

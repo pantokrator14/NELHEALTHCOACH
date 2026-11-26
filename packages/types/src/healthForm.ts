@@ -224,8 +224,8 @@ export interface AIRecommendationWeek {
 export interface AIRecommendationSession {
   sessionId: string;
   monthNumber: number;
-  totalWeeks?: number; // Número total de semanas en el plan (3 para Reto Tres NEL, 4 para planes mensuales)
-  weeklyPhases?: WeeklyPhaseItem[]; // Enfoque progresivo diferenciado por semana (ej. 3 semanas del Reto Tres NEL)
+  totalWeeks?: number; // Número total de semanas en el plan (3 para Reto 3S NEL, 4 para planes mensuales)
+  weeklyPhases?: WeeklyPhaseItem[]; // Enfoque progresivo diferenciado por semana (ej. 3 semanas del Reto 3S NEL)
   createdAt: Date;
   updatedAt: Date;
   status: 'draft' | 'approved' | 'sent' | 'completed';

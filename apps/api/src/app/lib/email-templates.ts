@@ -1082,8 +1082,8 @@ export function generateVerificationCodeEmailHTML(data: {
   const digitCellsHtml = safeDigits
     .map(
       (digit) => `
-                        <td style="padding: 0 4px;">
-                            <div style="width: 42px; height: 52px; line-height: 52px; background: #ffffff; border: 1.5px solid #90CAF9; border-radius: 8px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 26px; font-weight: 700; color: #1565C0; text-align: center; box-shadow: 0 2px 6px rgba(25,118,210,0.08);">
+                        <td class="otp-td" style="width: 16.66%; padding: 0 3px; text-align: center;">
+                            <div class="otp-digit" style="width: 100%; max-width: 42px; height: 48px; line-height: 46px; margin: 0 auto; box-sizing: border-box; background: #ffffff; border: 1.5px solid #90CAF9; border-radius: 8px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 24px; font-weight: 700; color: #1565C0; text-align: center; box-shadow: 0 2px 6px rgba(25,118,210,0.08);">
                                 ${escapeHtmlText(digit)}
                             </div>
                         </td>`
@@ -1097,13 +1097,23 @@ export function generateVerificationCodeEmailHTML(data: {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Código de verificación - NELHEALTHCOACH</title>
+    <style>
+        @media only screen and (max-width: 480px) {
+            body { padding: 10px 6px !important; }
+            .otp-header { padding: 28px 18px !important; }
+            .otp-body { padding: 22px 14px !important; }
+            .otp-box { padding: 18px 6px !important; }
+            .otp-td { padding: 0 2px !important; }
+            .otp-digit { height: 42px !important; line-height: 40px !important; font-size: 20px !important; border-radius: 6px !important; }
+        }
+    </style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px;">
-    <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 30px; text-align: center;">
-            <img src="${escapeHtmlText(logoWhite)}" alt="NELHEALTHCOACH" style="max-width: 200px; height: auto;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 14px 10px;">
+    <div style="max-width: 480px; width: 100%; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); box-sizing: border-box;">
+        <div class="otp-header" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 36px 24px; text-align: center;">
+            <img src="${escapeHtmlText(logoWhite)}" alt="NELHEALTHCOACH" style="max-width: 200px; width: 100%; height: auto;">
         </div>
-        <div style="padding: 30px;">
+        <div class="otp-body" style="padding: 28px 20px; box-sizing: border-box;">
             <div style="text-align: center; margin-bottom: 25px;">
                 <div style="font-size: 48px; margin-bottom: 10px;">🔐</div>
                 <h1 style="margin: 0; font-size: 22px; color: #1976D2;">Verifica tu cuenta</h1>
@@ -1116,11 +1126,11 @@ export function generateVerificationCodeEmailHTML(data: {
             </p>
 
             <!-- Caja del código OTP de 6 dígitos -->
-            <div style="background: #f8fbff; border: 2px dashed #2196F3; border-radius: 12px; padding: 22px 12px; margin: 25px 0; text-align: center;">
+            <div class="otp-box" style="background: #f8fbff; border: 2px dashed #2196F3; border-radius: 12px; padding: 20px 8px; margin: 24px 0; text-align: center; box-sizing: border-box;">
                 <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #1976D2; text-transform: uppercase; margin-bottom: 14px;">
                     Código de verificación
                 </div>
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="width: 100%; max-width: 294px; table-layout: fixed; margin: 0 auto; border-collapse: collapse;">
                     <tr>${digitCellsHtml}
                     </tr>
                 </table>

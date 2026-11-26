@@ -436,7 +436,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                {/* ESTADO 3: Pagó Reto Tres NEL o Plan 1/2/3 y falta completar historial */}
+                {/* ESTADO 3: Pagó Reto 3S NEL o Plan 1/2/3 y falta completar historial */}
                 {portal.hasPaidPlan &&
                   portal.activePlan?.requiresHealthForm &&
                   !portal.healthFormId && (

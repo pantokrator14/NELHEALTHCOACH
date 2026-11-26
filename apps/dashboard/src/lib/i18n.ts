@@ -1516,7 +1516,7 @@ const en = {
       ctaLabel: "Book Consultation — $60",
     },
     reto_tres_nel: {
-      name: "Three NEL Challenge",
+      name: "3S NEL Challenge",
       badge: "",
       durationLabel: "3 weeks",
       modalitySummary: "Web + PDF Guide + WhatsApp + 1 closing video call",
@@ -3073,7 +3073,7 @@ const es = {
       ctaLabel: "Agendar Consulta — $60",
     },
     reto_tres_nel: {
-      name: "Reto Tres NEL",
+      name: "Reto 3S NEL",
       badge: "",
       durationLabel: "3 semanas",
       modalitySummary: "Web + Guía PDF + WhatsApp + 1 videollamada de cierre",
@@ -4623,7 +4623,7 @@ const fr = {
       ctaLabel: "Réserver la Consultation — 60 $",
     },
     reto_tres_nel: {
-      name: "Défi Trois NEL",
+      name: "Défi 3S NEL",
       badge: "",
       durationLabel: "3 semaines",
       modalitySummary: "Web + Guide PDF + WhatsApp + 1 visio de clôture",
@@ -6173,7 +6173,7 @@ const it = {
       ctaLabel: "Prenota Consulenza — 60 $",
     },
     reto_tres_nel: {
-      name: "Sfida Tre NEL",
+      name: "Sfida 3S NEL",
       badge: "",
       durationLabel: "3 settimane",
       modalitySummary: "Web + Guida PDF + WhatsApp + 1 videochiamata finale",
@@ -7723,7 +7723,7 @@ const pt = {
       ctaLabel: "Agendar Consulta — $60",
     },
     reto_tres_nel: {
-      name: "Desafio Três NEL",
+      name: "Desafio 3S NEL",
       badge: "",
       durationLabel: "3 semanas",
       modalitySummary: "Web + Guia PDF + WhatsApp + 1 videochamada de encerramento",
@@ -9273,7 +9273,7 @@ const de = {
       ctaLabel: "Beratung buchen — 60 $",
     },
     reto_tres_nel: {
-      name: "Drei-NEL-Challenge",
+      name: "3S-NEL-Challenge",
       badge: "",
       durationLabel: "3 Wochen",
       modalitySummary: "Web + PDF-Leitfaden + WhatsApp + 1 Abschluss-Call",

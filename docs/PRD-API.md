@@ -12,7 +12,7 @@
 ### 1.1 Propósito
 La API de NELHEALTHCOACH (`apps/api`) es el núcleo transaccional, clínico y de IA del ecosistema, proporcionando:
 - Procesamiento y almacenamiento cifrado (AES-256) de historiales médicos, documentos clínicos y evaluaciones.
-- Pipeline secuencial multi-fase de IA para generación de recomendaciones personalizadas (3 semanas con enfoque progresivo para *Reto Tres NEL* o ciclos de 4 semanas para los planes mensuales).
+- Pipeline secuencial multi-fase de IA para generación de recomendaciones personalizadas (3 semanas con enfoque progresivo para *Reto 3S NEL* o ciclos de 4 semanas para los planes mensuales).
 - Catálogo único de 5 planes comerciales, control de cupos por plan (`plan_quotas`), pagos únicos vía Stripe Checkout y webhooks idempotentes.
 - Portal de clientes con registro OTP de 6 dígitos, login por rol (`client`), auto-gestión de perfil y agenda de videollamadas con LiveKit + Deepgram.
 - Análisis de fotografías de recetas con Gemini y extracción/OCR local de documentos médicos por sesión.
@@ -110,7 +110,7 @@ apps/api/
 6. **Recordatorios Dual-Timezone (`timezone.ts`, `/api/video/rooms`, `session-reminders.ts`)**: Horario de California (`America/Los_Angeles` por defecto) para Manuel Martínez y zona IANA del navegador o inferida desde dirección para cada cliente en correos de invitación y cron de recordatorios (previo e inminente).
 
 ### 4.4 Generación de Documentos PDF (`recommendation-pdf.ts`)
-- Generación de reportes clínicos en PDF mediante streams binarios (`Uint8Array`) compatibles con Next.js 16, incluyendo las fases semanales del Reto Tres NEL cuando aplican y disclaimers médicos localizados.
+- Generación de reportes clínicos en PDF mediante streams binarios (`Uint8Array`) compatibles con Next.js 16, incluyendo las fases semanales del Reto 3S NEL cuando aplican y disclaimers médicos localizados.
 
 ---
 

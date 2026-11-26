@@ -1,7 +1,7 @@
 // apps/api/src/app/api/video/rooms/route.ts
 //
 // POST: Agenda una videollamada LiveKit.
-// Si el cliente tiene créditos de LiveKit incluidos en su plan activo (Reto Tres NEL, Plan 1, Plan 2, Plan 3),
+// Si el cliente tiene créditos de LiveKit incluidos en su plan activo (Reto 3S NEL, Plan 1, Plan 2, Plan 3),
 // consume 1 crédito y agenda la sala LiveKit inmediatamente sin cobrar de nuevo.
 // Si no tiene créditos incluidos, crea PendingSession y envía link de pago al cliente.
 // GET: Lista las sesiones pendientes (para que el coach vea estado de pagos).

@@ -125,6 +125,7 @@ Flujo de afiliación con 12 secciones legales adaptadas a la jurisprudencia de C
 ### 4.3 Gestión de Clientes y Cupos por Plan (`pages/dashboard/clients/index.tsx`)
 - Filtro de clientes por plan contratado (`planId`) para agrupar el seguimiento según programa.
 - Panel de control de cupos por plan (solo admin / Manuel Martínez) para pausar o limitar inscripciones activas por producto.
+- Generación de enlaces de registro diferenciada: el administrador (Manuel Martínez) dispone únicamente del **Link gratuito** (`?free=1`, ocultándose el link con pago ya que sus clientes pagan planes directamente en el portal), mientras que los coaches independientes mantienen únicamente su **Link con pago** reflejando la tarifa configurada (`sessionPrice`).
 
 ### 4.4 Pre-Call Consent Gate y Ventana de Videollamadas (`VideoCallRoom.tsx`, `video/join.tsx`)
 - Bloqueo preventivo antes de 15 minutos previos a la cita (`not_started` con fecha programada y hora exacta de apertura).
@@ -132,7 +133,7 @@ Flujo de afiliación con 12 secciones legales adaptadas a la jurisprudencia de C
 
 ### 4.5 Visor de Recomendaciones (`AIRecommendationsModal.tsx`)
 - **Modo Coach**: Edición de textos, notas, checklist, regeneración y botones de *Aprobar* y *Enviar al cliente*. Incluye aviso médico visible en los 6 idiomas.
-- **Modo Cliente (`readOnlyClientMode`)**: Cabecera *"Recomendaciones de Salud"*, badge *"Solo lectura • Descarga en PDF"*, botón de descarga PDF directa conectado al backend, ocultamiento de controles de edición/IA y soporte para bloques de **3 semanas (`weeklyPhases`)** en el Reto Tres NEL o estándar de **4 semanas** en los demás planes.
+- **Modo Cliente (`readOnlyClientMode`)**: Cabecera *"Recomendaciones de Salud"*, badge *"Solo lectura • Descarga en PDF"*, botón de descarga PDF directa conectado al backend, ocultamiento de controles de edición/IA y soporte para bloques de **3 semanas (`weeklyPhases`)** en el Reto 3S NEL o estándar de **4 semanas** en los demás planes.
 
 ### 4.5b Bibliotecas de Solo Lectura y Escáner Nutricional (`/dashboard/recipes`, `/dashboard/exercises`, `/dashboard/scanner`)
 - **Bibliotecas Plan 2 y Plan 3:** Plan 2 accede en solo lectura a 15 recetas y 15 ejercicios publicados; Plan 3 accede al catálogo completo en solo lectura; los demás planes quedan ocultos en el sidebar y redirigidos a `/dashboard`.

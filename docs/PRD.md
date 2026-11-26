@@ -38,7 +38,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
 
 ### 1.3 Diferenciadores Clave
 1. **Arquitectura Monorepo:** 5 aplicaciones Next.js 16.3.6 coordinadas con tipos compartidos (`@nel/types`).
-2. **Procesamiento e Inteligencia Artificial Multi-Modelo y por Plan:** Extracción LOCAL de documentos médicos (`pdf-parse`, `mammoth`, OCR fallback para PDFs escaneados) por sesión actual (`document-selection.ts`) + razonamiento clínico y dietético en **DeepSeek V4 Flash** con fallback automático a **Google Gemini** (`gemini-2.5-flash` / `gemini-4-hydrogen`), diferenciado según duración del plan (3 semanas progresivas `weeklyPhases` en *Reto Tres NEL* vs. ciclos de 4 semanas en planes mensuales) y análisis de fotografías de recetas.
+2. **Procesamiento e Inteligencia Artificial Multi-Modelo y por Plan:** Extracción LOCAL de documentos médicos (`pdf-parse`, `mammoth`, OCR fallback para PDFs escaneados) por sesión actual (`document-selection.ts`) + razonamiento clínico y dietético en **DeepSeek V4 Flash** con fallback automático a **Google Gemini** (`gemini-2.5-flash` / `gemini-4-hydrogen`), diferenciado según duración del plan (3 semanas progresivas `weeklyPhases` en *Reto 3S NEL* vs. ciclos de 4 semanas en planes mensuales) y análisis de fotografías de recetas.
 3. **Modelo Comercial de 5 Planes con Control de Cupos:** Catálogo único sincronizado entre Landing, Formularios, Dashboard y API, con cobro en Stripe Checkout, acumulación automática de créditos al renovar o escalar de plan y bloqueo en tiempo real de cupos (`plan_quotas`).
 4. **Seguridad de Nivel Médico y Telecomunicaciones:** Cifrado AES-256 campo a campo, RBAC estricto (`coach`, `admin`, `client`), ventana temporal de ingreso a LiveKit (15 minutos antes de la cita) y consentimiento previo para transcripción con Deepgram.
 
@@ -184,7 +184,7 @@ NELHEALTHCOACH es una plataforma integral de coaching de salud diseñada para co
   - Catálogo único de 5 planes (`plans.ts`), control de cupos (`/api/plans`, `/api/plan-quotas`), Stripe Checkout (`/api/payments/plan-checkout`, `confirm-plan`, webhooks idempotentes)
   - Endpoint consolidado `/api/client-portal/me` con cálculo de estado, agenda proyectada de videollamadas (`buildClientVideoSessionSchedule`) y finalización (`evaluateProgramCompletionState`)
   - Cola asíncrona propia sobre MongoDB (`ai_jobs`, 202 queued, lease 6 min, hasta 3 reintentos)
-  - Pipeline secuencial multi-fase diferenciado por plan (`weeklyPhases` 3 semanas para *Reto Tres NEL* vs. 4 semanas en planes mensuales), traducción dinámica FASE 4, OCR fallback local y análisis de imágenes de recetas (`/api/recipes/analyze-image`)
+  - Pipeline secuencial multi-fase diferenciado por plan (`weeklyPhases` 3 semanas para *Reto 3S NEL* vs. 4 semanas en planes mensuales), traducción dinámica FASE 4, OCR fallback local y análisis de imágenes de recetas (`/api/recipes/analyze-image`)
   - Ventana de ingreso LiveKit (`403 SESSION_NOT_YET_STARTED` antes de 15 min) y generación de PDFs (`pdfkit` / `Uint8Array`)
 
 ### 4.3 Base de Datos
@@ -235,7 +235,7 @@ ClientAccount {
     sessions: [{
       sessionNumber: Number
       status: ['draft', 'approved', 'sent']
-      weeklyPhases: Array // Fases semanales progresivas (3 semanas en Reto Tres NEL)
+      weeklyPhases: Array // Fases semanales progresivas (3 semanas en Reto 3S NEL)
       translations: Object // es/en/fr/it/pt/de
     }]
     generationError: String
@@ -318,7 +318,7 @@ PlanQuota {
 - **Descripción:** Pipeline secuencial asíncrono con DeepSeek V4 Flash + fallback Gemini y supervisión humana obligatoria.
 - **Criterios de Aceptación:**
   1. Cola propia (`ai_jobs`) respondiendo `202 queued` en < 1s con worker-on-poll y lease de 6 min.
-  2. En *Reto Tres NEL* genera 3 semanas diferenciadas (`weeklyPhases`); en Planes 1, 2 y 3 mantiene ciclos de 4 semanas.
+  2. En *Reto 3S NEL* genera 3 semanas diferenciadas (`weeklyPhases`); en Planes 1, 2 y 3 mantiene ciclos de 4 semanas.
   3. En estado `draft` solo es visible/editable por el coach; al pasar a `approved` / `sent` se habilita en el portal del cliente en solo lectura + PDF.
   4. Análisis nutricional de fotografías vía `/api/recipes/analyze-image` con validación de *magic bytes*, cuotas atómicas mensuales en Plan 2 (5/mes) y Plan 3 (30/mes), reembolso ante fallo upstream y bloqueo IDOR de `recipeId` para clientes.
 
@@ -340,7 +340,7 @@ PlanQuota {
 - **Descripción:** Descarga de planes clínicos en el idioma del cliente (6 idiomas) respetando estructura de 3 o 4 semanas.
 - **Criterios de Aceptación:**
   1. Generación streaming vía `Uint8Array` compatible con Next.js 16 y descarga directa desde el modal tanto para coach como para cliente.
-  2. Inclusión de `weeklyPhases` cuando el cliente cursa el *Reto Tres NEL* y disclaimer médico localizado.
+  2. Inclusión de `weeklyPhases` cuando el cliente cursa el *Reto 3S NEL* y disclaimer médico localizado.
 
 ---
 
@@ -438,7 +438,7 @@ graph TD
 ### Fase 4: Portal de Clientes, 5 Planes Comerciales y IA por Programa (Completada - v1.5.0)
 - Catálogo comercial de 5 planes con Stripe Checkout, acumulación de créditos y control administrativo de cupos (`plan_quotas`) + filtro por plan en listado de clientes.
 - Portal unificado para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` OTP, 4 estados, banner condicional `programCompleted`).
-- Agenda automática dual-timezone de videollamadas con recordatorios automatizados y bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), bibliotecas de solo lectura (Plan 2 limitado / Plan 3 completo), escáner nutricional por foto con cuotas mensuales (Plan 2: 5/mes, Plan 3: 30/mes), diferenciación de planes IA en 3 semanas (`weeklyPhases` para *Reto Tres NEL*) vs. 4 semanas y selección de documentos con OCR fallback.
+- Agenda automática dual-timezone de videollamadas con recordatorios automatizados y bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), bibliotecas de solo lectura (Plan 2 limitado / Plan 3 completo), escáner nutricional por foto con cuotas mensuales (Plan 2: 5/mes, Plan 3: 30/mes), diferenciación de planes IA en 3 semanas (`weeklyPhases` para *Reto 3S NEL*) vs. 4 semanas y selección de documentos con OCR fallback.
 
 ### Fase 5 Roadmap: Integración con Smartwatch y Wearables para Plan 3 (Largo Plazo — Planificada)
 - **Alcance exclusivo Plan 3 (*Maestría y Longevidad*):** Sincronización opcional de métricas biométricas provenientes de dispositivos vestibles (Apple HealthKit, Google Health Connect, Garmin, Oura y WHOOP) para enriquecer la precisión del seguimiento clínico y los análisis de IA.
@@ -501,7 +501,7 @@ graph TD
 
 | Versión | Fecha       | Autor               | Cambios Principales           |
 |---------|-------------|---------------------|-------------------------------|
-| 1.5.0   | 2026-11-24  | Equipo Desarrollo   | Portal completo para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` con OTP 6 dígitos, 4 estados y cinta condicional `programCompleted`), catálogo comercial de 5 planes con Stripe Checkout y acumulación de créditos al renovar/cambiar, control de cupos por plan (`plan_quotas`, `409 QUOTA_FULL`, filtro por plan en listado de clientes), agenda LiveKit con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación IA por plan (`weeklyPhases` 3 semanas en Reto Tres NEL vs. 4 semanas en planes mensuales), visor de solo lectura + PDF para clientes, análisis de imagen de recetas, selección de documentos por sesión actual + OCR fallback centro de ayuda `/ayuda` en 6 idiomas con JSON-LD `FAQPage`, sitemap actualizado, unificación de `support@nelhealthcoach.com`, enlace discreto en dashboard y suite TDD ampliada (`client-plans-flow` 105 checks, `security-gate` 29 checks, `plan-quotas` 21 checks, `document-selection`, `free-sessions`, `waitlist`). |
+| 1.5.0   | 2026-11-24  | Equipo Desarrollo   | Portal completo para clientes (`Inicio`, `Planes`, `Ver mi perfil`, `/register/client` con OTP 6 dígitos, 4 estados y cinta condicional `programCompleted`), catálogo comercial de 5 planes con Stripe Checkout y acumulación de créditos al renovar/cambiar, control de cupos por plan (`plan_quotas`, `409 QUOTA_FULL`, filtro por plan en listado de clientes), agenda LiveKit con bloqueo temporal de 15 min (`403 SESSION_NOT_YET_STARTED`), diferenciación IA por plan (`weeklyPhases` 3 semanas en Reto 3S NEL vs. 4 semanas en planes mensuales), visor de solo lectura + PDF para clientes, análisis de imagen de recetas, selección de documentos por sesión actual + OCR fallback centro de ayuda `/ayuda` en 6 idiomas con JSON-LD `FAQPage`, sitemap actualizado, unificación de `support@nelhealthcoach.com`, enlace discreto en dashboard y suite TDD ampliada (`client-plans-flow` 105 checks, `security-gate` 29 checks, `plan-quotas` 21 checks, `document-selection`, `free-sessions`, `waitlist`). |
 | 1.4.0   | 2026-10-20  | Equipo Desarrollo   | Consolidación de extracción local (OCR/pdf-parse/mammoth) con DeepSeek V4 Flash primario y Gemini 2.5 Flash fallback, mejoras de accesibilidad WCAG 2.1 AA, skeletons Anti-AI y sincronización multi-idioma en 6 idiomas. |
 | 1.3.0   | 2026-10-08  | Equipo Desarrollo   | Blindaje legal completo (RGPD Art. 9, CCPA, cookies CMP, FTC Click to Cancel, California AB 5 y arbitraje JAMS), incorporación formal de apps/blog (76 tests), calificador inteligente de leads con score de compromiso (1-10) en landing, Navbar adaptativo contextual para páginas legales, integración formal de DeepSeek V4 Flash (primario), Google Gemini (fallback) y Deepgram en toda la documentación técnica. |
 | 1.2.0   | 2026-08-12  | Equipo Desarrollo   | Traducción dinámica del contenido IA (FASE 4, 6 idiomas + PDF), cola propia de trabajos sobre MongoDB (worker-on-poll, 202 queued, lease/reintentos), regeneración encolada, suite de tests TDD con perfiles desechables (259 checks + security gate OWASP), despliegue en producción (Vercel Hobby, maxDuration 300), extracción de documentos con dependencias propias (pdf-parse/mammoth/OCR) + Gemini secundario (sin AWS Textract), stacks de dashboard/landing/form corregidos contra la implementación real |

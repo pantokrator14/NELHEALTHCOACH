@@ -2160,7 +2160,7 @@ export default function AIRecommendationsModal({
                 </div>
               </div>
 
-              {/* Enfoque progresivo por semana (ej. Reto Tres NEL de 3 semanas) */}
+              {/* Enfoque progresivo por semana (ej. Reto 3S NEL de 3 semanas) */}
               {activeSession.weeklyPhases && activeSession.weeklyPhases.length > 0 && (
                 <div className="bg-white rounded-xl p-4 md:p-6 border border-emerald-200 shadow-sm">
                   <div className="mb-4">
