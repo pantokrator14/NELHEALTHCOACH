@@ -42,8 +42,8 @@ interface PlanDisplayMeta {
 const PLAN_DISPLAY_ORDER: PlanDisplayMeta[] = [
   {
     id: 'reto_tres_nel',
-    shortLabel: 'Reto Tres NEL',
-    fullLabel: 'Reto Tres NEL: Reinicio Ancestral y Circadiano',
+    shortLabel: 'Reto 3S NEL',
+    fullLabel: 'Reto 3S NEL: Reinicio Ancestral y Circadiano',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
   },
   {

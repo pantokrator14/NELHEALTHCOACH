@@ -102,7 +102,7 @@ const ES_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Reto Tres NEL',
+      name: 'Reto 3S NEL',
       duration: '3 semanas',
       regularPrice: 130,
       launchPrice: 97,
@@ -239,7 +239,7 @@ const EN_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Three NEL Challenge',
+      name: '3S NEL Challenge',
       duration: '3 weeks',
       regularPrice: 130,
       launchPrice: 97,
@@ -376,7 +376,7 @@ const FR_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Défi Trois NEL',
+      name: 'Défi 3S NEL',
       duration: '3 semaines',
       regularPrice: 130,
       launchPrice: 97,
@@ -513,7 +513,7 @@ const IT_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Sfida Tre NEL',
+      name: 'Sfida 3S NEL',
       duration: '3 settimane',
       regularPrice: 130,
       launchPrice: 97,
@@ -650,7 +650,7 @@ const PT_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Desafio Três NEL',
+      name: 'Desafio 3S NEL',
       duration: '3 semanas',
       regularPrice: 130,
       launchPrice: 97,
@@ -787,7 +787,7 @@ const DE_COPY: LandingPlansCopy = {
     {
       id: 'reto_tres_nel',
       tier: 'top',
-      name: 'Drei-NEL-Challenge',
+      name: '3S-NEL-Challenge',
       duration: '3 Wochen',
       regularPrice: 130,
       launchPrice: 97,

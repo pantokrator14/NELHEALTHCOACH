@@ -325,6 +325,24 @@ async function main() {
       /transfer_data/.test(clientCheckoutRoute) &&
       /coach\.sessionPrice/.test(clientCheckoutRoute),
   );
+  const landingPlansData = fs.readFileSync(path.join(landingSrcDir, 'lib/plans-data.ts'), 'utf-8');
+  const landingHelpContent = fs.readFileSync(path.join(landingSrcDir, 'lib/helpContent.ts'), 'utf-8');
+  const dashI18n = fs.readFileSync(path.join(dashboardSrcDir, 'lib/i18n.ts'), 'utf-8');
+  const legacyChallengeRe = /\b(tres|three|trois|tre|três|drei)[- ]nel\b/i;
+  check(
+    'nombre comercial unificado a Reto 3S NEL en API, landing y dashboard (sin variantes legacy)',
+    /Reto 3S NEL/.test(plansLib) &&
+      /Reto 3S NEL/.test(landingPlansData) &&
+      /3S NEL Challenge/.test(landingPlansData) &&
+      /Reto 3S NEL/.test(landingHelpContent) &&
+      /Reto 3S NEL/.test(dashI18n) &&
+      /Reto 3S NEL/.test(dashClientsPage) &&
+      !legacyChallengeRe.test(plansLib) &&
+      !legacyChallengeRe.test(landingPlansData) &&
+      !legacyChallengeRe.test(landingHelpContent) &&
+      !legacyChallengeRe.test(dashI18n) &&
+      !legacyChallengeRe.test(dashClientsPage),
+  );
 }
 
 main()

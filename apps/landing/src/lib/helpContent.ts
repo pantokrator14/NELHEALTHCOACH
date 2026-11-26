@@ -96,7 +96,7 @@ const es: HelpPageCopy = {
         'Contamos con 5 opciones comerciales diseñadas para distintas etapas de acompañamiento junto a Manuel Martínez:',
       bullets: [
         'Consulta Privada 1 a 1 ($60 USD · 45 min): sesión diagnóstica puntual por videollamada sin necesidad de crear cuenta completa.',
-        'Reto Tres NEL ($97 USD · 3 semanas): programa intensivo en portal web, guía PDF, fases semanales progresivas, WhatsApp de seguimiento y 1 videollamada de cierre.',
+        'Reto 3S NEL ($97 USD · 3 semanas): programa intensivo en portal web, guía PDF, fases semanales progresivas, WhatsApp de seguimiento y 1 videollamada de cierre.',
         'Plan 1 — Reinicio Metabólico ($150 USD · 1 mes): protocolo base en portal web, WhatsApp semanal asincrónico y 2 videollamadas 1 a 1 (inicial y cierre).',
         'Plan 2 — Transformación Celular ($340 USD · 3 meses): portal completo, WhatsApp directo, 4 videollamadas 1 a 1 (1 inicial + 1 mensual), 15 recetas y 15 ejercicios en solo lectura, y hasta 5 análisis mensuales en el Escáner Nutricional con IA.',
         'Plan 3 — Maestría y Longevidad ($590 USD · 6 meses): canal prioritario en WhatsApp, 7 videollamadas 1 a 1 (1 inicial + 1 mensual), acceso completo en solo lectura a todas las recetas y ejercicios, y hasta 30 análisis mensuales en el Escáner Nutricional.',
@@ -109,7 +109,7 @@ const es: HelpPageCopy = {
       answer:
         'Tu historial clínico, tus evaluaciones médicas previas y todas las recomendaciones de salud que ya hayan sido aprobadas para ti se conservan siempre en tu portal. Sin embargo, las herramientas adicionales dependen estrictamente del plan que tengas activo en ese momento:',
       bullets: [
-        'Si pasas del Plan 2 o Plan 3 hacia el Plan 1 o el Reto Tres NEL, mantienes tu historial y recomendaciones previas, pero el acceso a las bibliotecas de Recetas, Ejercicios y Escáner Nutricional deja de estar disponible hasta volver a activar un plan compatible.',
+        'Si pasas del Plan 2 o Plan 3 hacia el Plan 1 o el Reto 3S NEL, mantienes tu historial y recomendaciones previas, pero el acceso a las bibliotecas de Recetas, Ejercicios y Escáner Nutricional deja de estar disponible hasta volver a activar un plan compatible.',
         'Si subes de Plan 1 a Plan 2 o Plan 3, se desbloquean de inmediato las bibliotecas y el escáner nutricional según las cuotas de tu nuevo plan.',
       ],
     },
@@ -125,7 +125,7 @@ const es: HelpPageCopy = {
       category: 'onboarding',
       question: '¿Cómo funciona el registro con código OTP de 6 dígitos?',
       answer:
-        'Al elegir el Reto Tres NEL o cualquiera de los Planes 1, 2 o 3, creas tu cuenta en el Portal con una contraseña segura (mínimo 12 caracteres, combinando mayúsculas, minúsculas, números y símbolos) y recibes un código de verificación de 6 dígitos en tu correo con 15 minutos de vigencia. La Consulta 1 a 1 no requiere registro de cuenta.',
+        'Al elegir el Reto 3S NEL o cualquiera de los Planes 1, 2 o 3, creas tu cuenta en el Portal con una contraseña segura (mínimo 12 caracteres, combinando mayúsculas, minúsculas, números y símbolos) y recibes un código de verificación de 6 dígitos en tu correo con 15 minutos de vigencia. La Consulta 1 a 1 no requiere registro de cuenta.',
     },
     {
       id: 'onboarding-health-form',
@@ -171,7 +171,7 @@ const es: HelpPageCopy = {
       bullets: [
         'Plan 2 (Transformación Celular): acceso de lectura a 15 recetas y 15 ejercicios publicados + hasta 5 escaneos nutricionales por foto al mes.',
         'Plan 3 (Maestría y Longevidad): acceso de lectura al catálogo completo de recetas y ejercicios publicados + hasta 30 escaneos nutricionales por foto al mes.',
-        'Consulta 1 a 1, Reto Tres NEL y Plan 1 no incluyen acceso a bibliotecas ni al escáner para mantener el foco en su protocolo base.',
+        'Consulta 1 a 1, Reto 3S NEL y Plan 1 no incluyen acceso a bibliotecas ni al escáner para mantener el foco en su protocolo base.',
       ],
     },
     {
@@ -264,7 +264,7 @@ const en: HelpPageCopy = {
         'We offer 5 structured options tailored to different stages of coaching with Manuel Martínez:',
       bullets: [
         '1-on-1 Private Consultation ($60 USD · 45 min): standalone diagnostic video session with instant booking and no full account required.',
-        'Three NEL Challenge ($97 USD · 3 weeks): web portal, PDF guide, 3 progressive weekly phases, WhatsApp support, and 1 closing video call.',
+        '3S NEL Challenge ($97 USD · 3 weeks): web portal, PDF guide, 3 progressive weekly phases, WhatsApp support, and 1 closing video call.',
         'Plan 1 — Metabolic Reset ($150 USD · 1 month): foundational protocol in the portal, weekly asynchronous WhatsApp support, and 2 1-on-1 video calls (initial + closing).',
         'Plan 2 — Cellular Transformation ($340 USD · 3 months): full portal, direct WhatsApp, 4 1-on-1 video calls (1 initial + 1 monthly), 15 recipes & 15 exercises (read-only), plus up to 5 AI Nutrition Scanner analyses/month.',
         'Plan 3 — Mastery & Longevity ($590 USD · 6 months): priority WhatsApp channel, 7 1-on-1 video calls (1 initial + 1 monthly), full read-only Recipes & Exercises libraries, plus up to 30 AI Nutrition Scanner analyses/month.',
@@ -277,7 +277,7 @@ const en: HelpPageCopy = {
       answer:
         'Your clinical history, prior health assessments, and already-approved health recommendations are always preserved in your portal. However, extra tools depend strictly on your currently active plan:',
       bullets: [
-        'If you downgrade from Plan 2 or Plan 3 to Plan 1 or Three NEL Challenge, you keep your history and past recommendations, while access to Recipes, Exercises, and the Nutrition Scanner turns off unless a compatible plan is active.',
+        'If you downgrade from Plan 2 or Plan 3 to Plan 1 or 3S NEL Challenge, you keep your history and past recommendations, while access to Recipes, Exercises, and the Nutrition Scanner turns off unless a compatible plan is active.',
         'If you upgrade from Plan 1 to Plan 2 or Plan 3, read-only libraries and your monthly Nutrition Scanner quota unlock immediately.',
       ],
     },
@@ -293,7 +293,7 @@ const en: HelpPageCopy = {
       category: 'onboarding',
       question: 'How do account registration and the 6-digit OTP code work?',
       answer:
-        'When selecting Three NEL Challenge or Plans 1, 2, or 3, you register in the Portal with a strong password (12+ characters including uppercase, lowercase, numbers, and symbols) and verify your email using a 6-digit OTP code valid for 15 minutes. The 1-on-1 Consultation does not require creating an account.',
+        'When selecting 3S NEL Challenge or Plans 1, 2, or 3, you register in the Portal with a strong password (12+ characters including uppercase, lowercase, numbers, and symbols) and verify your email using a 6-digit OTP code valid for 15 minutes. The 1-on-1 Consultation does not require creating an account.',
     },
     {
       id: 'onboarding-health-form',
@@ -339,7 +339,7 @@ const en: HelpPageCopy = {
       bullets: [
         'Plan 2 (Cellular Transformation): read-only access to 15 published recipes and 15 published exercises + up to 5 photo nutrition scans per month.',
         'Plan 3 (Mastery & Longevity): read-only access to the entire published Recipes and Exercises catalog + up to 30 photo nutrition scans per month.',
-        '1-on-1 Consultation, Three NEL Challenge, and Plan 1 focus strictly on their personalized core protocol without library or scanner access.',
+        '1-on-1 Consultation, 3S NEL Challenge, and Plan 1 focus strictly on their personalized core protocol without library or scanner access.',
       ],
     },
     {
@@ -432,7 +432,7 @@ const fr: HelpPageCopy = {
         'Nous proposons 5 formules structurées selon votre besoin d’accompagnement avec Manuel Martínez :',
       bullets: [
         'Consultation Privée 1 à 1 (60 $ USD · 45 min) : séance diagnostique ponctuelle par appel vidéo avec réservation directe sans compte complet.',
-        'Défi Trois NEL (97 $ USD · 3 semaines) : portail web, guide PDF, 3 phases hebdomadaires progressives, suivi WhatsApp et 1 appel vidéo de clôture.',
+        'Défi 3S NEL (97 $ USD · 3 semaines) : portail web, guide PDF, 3 phases hebdomadaires progressives, suivi WhatsApp et 1 appel vidéo de clôture.',
         'Formule 1 — Réinitialisation Métabolique (150 $ USD · 1 mois) : protocole de base en ligne, suivi WhatsApp hebdomadaire et 2 appels vidéo 1 à 1 (initial + clôture).',
         'Formule 2 — Transformation Cellulaire (340 $ USD · 3 mois) : portail complet, WhatsApp direct, 4 appels vidéo 1 à 1 (1 initial + 1/mois), 15 recettes et 15 exercices en lecture seule, et jusqu’à 5 analyses/mois via le Scanner Nutritionnel IA.',
         'Formule 3 — Maîtrise & Longévité (590 $ USD · 6 mois) : canal WhatsApp prioritaire, 7 appels vidéo 1 à 1 (1 initial + 1/mois), accès complet en lecture seule aux recettes et exercices, et jusqu’à 30 analyses/mois via le Scanner Nutritionnel.',
@@ -445,7 +445,7 @@ const fr: HelpPageCopy = {
       answer:
         'Votre dossier médical, votre historique et toutes les recommandations déjà approuvées restent toujours conservés dans votre espace. En revanche, les modules additionnels reflètent strictement la formule actuellement active :',
       bullets: [
-        'En passant de la Formule 2 ou 3 vers la Formule 1 ou le Défi Trois NEL, vous conservez vos recommandations passées, mais les bibliothèques Recettes, Exercices et le Scanner Nutritionnel ne sont plus accessibles.',
+        'En passant de la Formule 2 ou 3 vers la Formule 1 ou le Défi 3S NEL, vous conservez vos recommandations passées, mais les bibliothèques Recettes, Exercices et le Scanner Nutritionnel ne sont plus accessibles.',
         'En passant vers une formule supérieure (Formule 2 ou 3), ces modules se débloquent instantanément selon votre nouveau quota.',
       ],
     },
@@ -461,7 +461,7 @@ const fr: HelpPageCopy = {
       category: 'onboarding',
       question: 'Comment fonctionne l’inscription avec le code OTP à 6 chiffres ?',
       answer:
-        'Pour le Défi Trois NEL et les Formules 1, 2 et 3, vous créez votre compte sur le Portail avec un mot de passe robuste (12 caractères min. avec majuscules, minuscules, chiffres et symboles) et validez votre e-mail grâce à un code OTP à 6 chiffres valable 15 minutes. La Consultation 1 à 1 ne requiert pas de compte.',
+        'Pour le Défi 3S NEL et les Formules 1, 2 et 3, vous créez votre compte sur le Portail avec un mot de passe robuste (12 caractères min. avec majuscules, minuscules, chiffres et symboles) et validez votre e-mail grâce à un code OTP à 6 chiffres valable 15 minutes. La Consultation 1 à 1 ne requiert pas de compte.',
     },
     {
       id: 'onboarding-health-form',
@@ -507,7 +507,7 @@ const fr: HelpPageCopy = {
       bullets: [
         'Formule 2 : lecture de 15 recettes et 15 exercices publiés + jusqu’à 5 analyses photo par mois.',
         'Formule 3 : accès complet en lecture seule à tout le catalogue publié + jusqu’à 30 analyses photo par mois.',
-        'La Consultation 1 à 1, le Défi Trois NEL et la Formule 1 n’incluent pas ces bibliothèques ni le scanner.',
+        'La Consultation 1 à 1, le Défi 3S NEL et la Formule 1 n’incluent pas ces bibliothèques ni le scanner.',
       ],
     },
     {
@@ -600,7 +600,7 @@ const it: HelpPageCopy = {
         'Offriamo 5 soluzioni commerciali studiate per diverse fasi di percorso con Manuel Martínez:',
       bullets: [
         'Consulenza Privata 1 a 1 ($60 USD · 45 min): sessione diagnostica singola in videochiamata con prenotazione diretta senza account completo.',
-        'Sfida Tre NEL ($97 USD · 3 settimane): portale web, guida PDF, 3 fasi settimanali progressive, supporto WhatsApp e 1 videochiamata finale.',
+        'Sfida 3S NEL ($97 USD · 3 settimane): portale web, guida PDF, 3 fasi settimanali progressive, supporto WhatsApp e 1 videochiamata finale.',
         'Piano 1 — Reset Metabolico ($150 USD · 1 mese): protocollo base su portale web, WhatsApp settimanale asincrono e 2 videochiamate 1 a 1 (iniziale + finale).',
         'Piano 2 — Trasformazione Cellulare ($340 USD · 3 mesi): portale completo, WhatsApp diretto, 4 videochiamate 1 a 1 (1 iniziale + 1 al mese), 15 ricette e 15 esercizi in sola lettura e fino a 5 analisi/mese con Scanner Nutrizionale IA.',
         'Piano 3 — Maestria e Longevità ($590 USD · 6 mesi): canale WhatsApp prioritario, 7 videochiamate 1 a 1 (1 iniziale + 1 al mese), accesso completo in sola lettura a tutte le ricette ed esercizi e fino a 30 analisi/mese con Scanner Nutrizionale.',
@@ -613,7 +613,7 @@ const it: HelpPageCopy = {
       answer:
         'La tua scheda clinica, lo storico delle valutazioni e tutte le raccomandazioni già approvate restano sempre salvate nel portale. Le funzionalità aggiuntive dipendono però esclusivamente dal piano attivo:',
       bullets: [
-        'Se passi dal Piano 2 o 3 al Piano 1 o alla Sfida Tre NEL, mantieni lo storico e le raccomandazioni precedenti, ma l’accesso a Ricette, Esercizi e Scanner Nutrizionale si disattiva.',
+        'Se passi dal Piano 2 o 3 al Piano 1 o alla Sfida 3S NEL, mantieni lo storico e le raccomandazioni precedenti, ma l’accesso a Ricette, Esercizi e Scanner Nutrizionale si disattiva.',
         'Se effettui un upgrade verso Piano 2 o Piano 3, librerie e scanner si sbloccano subito secondo i limiti del nuovo piano.',
       ],
     },
@@ -629,7 +629,7 @@ const it: HelpPageCopy = {
       category: 'onboarding',
       question: 'Come funziona la registrazione con codice OTP a 6 cifre?',
       answer:
-        'Per la Sfida Tre NEL e i Piani 1, 2 o 3 crei il tuo account nel Portale con una password sicura (min. 12 caratteri con maiuscole, minuscole, numeri e simboli) e confermi l’email tramite un codice OTP a 6 cifre valido 15 minuti. La Consulenza 1 a 1 non richiede registrazione.',
+        'Per la Sfida 3S NEL e i Piani 1, 2 o 3 crei il tuo account nel Portale con una password sicura (min. 12 caratteri con maiuscole, minuscole, numeri e simboli) e confermi l’email tramite un codice OTP a 6 cifre valido 15 minuti. La Consulenza 1 a 1 non richiede registrazione.',
     },
     {
       id: 'onboarding-health-form',
@@ -675,7 +675,7 @@ const it: HelpPageCopy = {
       bullets: [
         'Piano 2: lettura di 15 ricette e 15 esercizi pubblicati + fino a 5 scansioni foto/mese.',
         'Piano 3: accesso completo in sola lettura a tutto il catalogo pubblicato + fino a 30 scansioni foto/mese.',
-        'Consulenza 1 a 1, Sfida Tre NEL e Piano 1 non includono librerie né scanner.',
+        'Consulenza 1 a 1, Sfida 3S NEL e Piano 1 non includono librerie né scanner.',
       ],
     },
     {
@@ -768,7 +768,7 @@ const pt: HelpPageCopy = {
         'Oferecemos 5 opções estruturadas para diferentes momentos de acompanhamento com Manuel Martínez:',
       bullets: [
         'Consulta Privada 1 a 1 (US$ 60 · 45 min): sessão diagnóstica pontual por videochamada com agendamento imediato, sem exigir conta completa.',
-        'Desafio Três NEL (US$ 97 · 3 semanas): portal web, guia em PDF, 3 fases semanais progressivas, acompanhamento no WhatsApp e 1 videochamada de encerramento.',
+        'Desafio 3S NEL (US$ 97 · 3 semanas): portal web, guia em PDF, 3 fases semanais progressivas, acompanhamento no WhatsApp e 1 videochamada de encerramento.',
         'Plano 1 — Reinício Metabólico (US$ 150 · 1 mês): protocolo base no portal, suporte semanal assíncrono no WhatsApp e 2 videochamadas 1 a 1 (inicial e encerramento).',
         'Plano 2 — Transformação Celular (US$ 340 · 3 meses): portal completo, WhatsApp direto, 4 videochamadas 1 a 1 (1 inicial + 1/mês), 15 receitas e 15 exercícios em modo leitura e até 5 análises/mês no Scanner Nutricional com IA.',
         'Plano 3 — Maestria e Longevidade (US$ 590 · 6 meses): canal prioritário no WhatsApp, 7 videochamadas 1 a 1 (1 inicial + 1/mês), acesso completo em leitura a todas as receitas e exercícios e até 30 análises/mês no Scanner Nutricional.',
@@ -781,7 +781,7 @@ const pt: HelpPageCopy = {
       answer:
         'Seu histórico clínico, avaliações anteriores e todas as recomendações já aprovadas permanecem sempre preservados no portal. Já os recursos extras seguem estritamente o plano ativo no momento:',
       bullets: [
-        'Ao migrar do Plano 2 ou 3 para o Plano 1 ou Desafio Três NEL, seu histórico e recomendações anteriores ficam salvos, mas o acesso a Receitas, Exercícios e Scanner Nutricional é desativado.',
+        'Ao migrar do Plano 2 ou 3 para o Plano 1 ou Desafio 3S NEL, seu histórico e recomendações anteriores ficam salvos, mas o acesso a Receitas, Exercícios e Scanner Nutricional é desativado.',
         'Ao fazer upgrade para o Plano 2 ou Plano 3, as bibliotecas e o scanner são liberados imediatamente conforme o limite do novo plano.',
       ],
     },
@@ -797,7 +797,7 @@ const pt: HelpPageCopy = {
       category: 'onboarding',
       question: 'Como funciona o cadastro com código OTP de 6 dígitos?',
       answer:
-        'No Desafio Três NEL e nos Planos 1, 2 ou 3, você cria sua conta no Portal com uma senha forte (mínimo 12 caracteres com maiúsculas, minúsculas, números e símbolos) e confirma seu e-mail com um código OTP de 6 dígitos válido por 15 minutos. A Consulta 1 a 1 não exige conta.',
+        'No Desafio 3S NEL e nos Planos 1, 2 ou 3, você cria sua conta no Portal com uma senha forte (mínimo 12 caracteres com maiúsculas, minúsculas, números e símbolos) e confirma seu e-mail com um código OTP de 6 dígitos válido por 15 minutos. A Consulta 1 a 1 não exige conta.',
     },
     {
       id: 'onboarding-health-form',
@@ -843,7 +843,7 @@ const pt: HelpPageCopy = {
       bullets: [
         'Plano 2: leitura de 15 receitas e 15 exercícios publicados + até 5 análises por foto/mês.',
         'Plano 3: acesso completo em leitura a todo o catálogo publicado + até 30 análises por foto/mês.',
-        'Consulta 1 a 1, Desafio Três NEL e Plano 1 não incluem bibliotecas nem scanner.',
+        'Consulta 1 a 1, Desafio 3S NEL e Plano 1 não incluem bibliotecas nem scanner.',
       ],
     },
     {
@@ -936,7 +936,7 @@ const de: HelpPageCopy = {
         'Wir bieten 5 strukturierte Programme für unterschiedliche Phasen der Begleitung durch Manuel Martínez:',
       bullets: [
         '1-zu-1 Privatberatung (60 $ USD · 45 Min.): einzelne Diagnose-Videositzung mit direkter Terminbuchung ohne vollständiges Konto.',
-        'Drei-NEL-Challenge (97 $ USD · 3 Wochen): Webportal, PDF-Guide, 3 aufbauende Wochenphasen, WhatsApp-Begleitung und 1 Abschluss-Video-Call.',
+        '3S-NEL-Challenge (97 $ USD · 3 Wochen): Webportal, PDF-Guide, 3 aufbauende Wochenphasen, WhatsApp-Begleitung und 1 Abschluss-Video-Call.',
         'Plan 1 — Stoffwechsel-Reset (150 $ USD · 1 Monat): Basisprotokoll im Portal, wöchentlicher asynchroner WhatsApp-Support und 2 1-zu-1 Video-Calls (Start + Abschluss).',
         'Plan 2 — Zelluläre Transformation (340 $ USD · 3 Monate): komplettes Portal, direkter WhatsApp-Kontakt, 4 1-zu-1 Video-Calls (1 Start + 1/Monat), Lesezugriff auf 15 Rezepte & 15 Übungen sowie bis zu 5 KI-Ernährungs-Scans/Monat.',
         'Plan 3 — Meisterschaft & Langlebigkeit (590 $ USD · 6 Monate): priorisierter WhatsApp-Kanal, 7 1-zu-1 Video-Calls (1 Start + 1/Monat), voller Lesezugriff auf alle Rezepte & Übungen sowie bis zu 30 KI-Ernährungs-Scans/Monat.',
@@ -949,7 +949,7 @@ const de: HelpPageCopy = {
       answer:
         'Deine Gesundheitsakte, frühere Auswertungen und bereits freigegebene Empfehlungen bleiben dauerhaft im Portal gespeichert. Zusätzliche Funktionen richten sich jedoch strikt nach dem aktuell aktiven Plan:',
       bullets: [
-        'Bei einem Wechsel von Plan 2 oder 3 auf Plan 1 oder die Challenge bleiben Historie und Empfehlungen erhalten, während der Zugriff auf Rezepte, Übungen und den Scanner deaktiviert wird.',
+        'Bei einem Wechsel von Plan 2 oder 3 auf Plan 1 oder die 3S-NEL-Challenge bleiben Historie und Empfehlungen erhalten, während der Zugriff auf Rezepte, Übungen und den Scanner deaktiviert wird.',
         'Bei einem Upgrade auf Plan 2 oder Plan 3 werden die Bibliotheken und dein monatliches Scanner-Kontingent sofort freigeschaltet.',
       ],
     },
@@ -965,7 +965,7 @@ const de: HelpPageCopy = {
       category: 'onboarding',
       question: 'Wie funktionieren Registrierung und 6-stelliger OTP-Code?',
       answer:
-        'Für die Challenge oder Plan 1, 2 bzw. 3 erstellst du im Portal ein Konto mit starkem Passwort (mind. 12 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Symbolen) und bestätigst deine E-Mail per 6-stelligem OTP-Code (15 Min. gültig). Die 1-zu-1 Privatberatung benötigt kein Konto.',
+        'Für die 3S-NEL-Challenge oder Plan 1, 2 bzw. 3 erstellst du im Portal ein Konto mit starkem Passwort (mind. 12 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Symbolen) und bestätigst deine E-Mail per 6-stelligem OTP-Code (15 Min. gültig). Die 1-zu-1 Privatberatung benötigt kein Konto.',
     },
     {
       id: 'onboarding-health-form',
@@ -1011,7 +1011,7 @@ const de: HelpPageCopy = {
       bullets: [
         'Plan 2: Lesezugriff auf 15 veröffentlichte Rezepte & 15 Übungen + bis zu 5 Foto-Scans pro Monat.',
         'Plan 3: voller Lesezugriff auf alle veröffentlichten Rezepte & Übungen + bis zu 30 Foto-Scans pro Monat.',
-        '1-zu-1 Beratung, Challenge und Plan 1 enthalten keinen Bibliotheks- oder Scanner-Zugriff.',
+        '1-zu-1 Beratung, 3S-NEL-Challenge und Plan 1 enthalten keinen Bibliotheks- oder Scanner-Zugriff.',
       ],
     },
     {

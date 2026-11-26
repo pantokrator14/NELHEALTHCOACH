@@ -329,7 +329,7 @@ function buildLifestylePrompt(
   const durationLabelText = isRetoTresWeeks ? "3 semanas (21 días)" : `${planTotalWeeks} semanas (1 mes)`;
   const programContext = input.planName || isRetoTresWeeks
     ? `## CONTEXTO DEL PROGRAMA CONTRATADO
-- Programa: ${input.planName || (isRetoTresWeeks ? "Reto Tres NEL: Reinicio Ancestral y Circadiano" : "Plan Mensual")} (${durationLabelText})
+- Programa: ${input.planName || (isRetoTresWeeks ? "Reto 3S NEL: Reinicio Ancestral y Circadiano" : "Plan Mensual")} (${durationLabelText})
 ${input.planRoadmap?.length ? `- Ruta del programa: ${input.planRoadmap.join(" → ")}` : ""}
 ${isRetoTresWeeks ? `- ARQUITECTURA DE 3 SEMANAS CON ENFOQUE PROGRESIVO DIFERENCIADO:
   * Semana 1 — Limpieza y Desinflamación: hidratación estratégica, priorizar proteína real y fibra en cada comida, eliminar ultraprocesados, azúcares añadidos y aceites refinados, e iniciar movilidad/fuerza suave.

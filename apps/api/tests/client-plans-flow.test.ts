@@ -137,7 +137,9 @@ async function main() {
         byId.reto_tres_nel?.totalWeeks === 3 &&
         byId.reto_tres_nel?.maxMonths === 1 &&
         byId.reto_tres_nel?.whatsappTier === 'reto_3w' &&
-        byId.reto_tres_nel?.requiresHealthForm === true
+        byId.reto_tres_nel?.requiresHealthForm === true &&
+        typeof byId.reto_tres_nel?.name === 'string' &&
+        byId.reto_tres_nel.name.includes('Reto 3S NEL')
     );
     check(
       'plan_1_reinicio: $150 launch / $200 reg / video=2 / totalWeeks=4 / maxMonths=1',
@@ -1234,7 +1236,7 @@ async function main() {
       weeks: [],
     });
     check(
-      'encryptSessionFields cifra y conserva las 3 fases semanales del Reto Tres NEL',
+      'encryptSessionFields cifra y conserva las 3 fases semanales del Reto 3S NEL',
       Array.isArray(encReto.weeklyPhases) &&
         encReto.weeklyPhases.length === 3 &&
         decrypt(encReto.weeklyPhases[0].title) === 'Semana 1: Depuración' &&
