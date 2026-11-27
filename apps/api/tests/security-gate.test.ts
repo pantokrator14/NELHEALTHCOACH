@@ -343,6 +343,13 @@ async function main() {
       !legacyChallengeRe.test(dashI18n) &&
       !legacyChallengeRe.test(dashClientsPage),
   );
+  const databaseLib = fs.readFileSync(path.join(LIB_DIR, 'database.ts'), 'utf-8');
+  const getBlogPostsFn = databaseLib.match(/export async function getBlogPostsCollection\([\s\S]*?\n\}/)?.[0] || '';
+  check(
+    'getBlogPostsCollection apunta a la colección canónica "entries" (no a "blog_posts")',
+    /db\.collection\('entries'\)/.test(getBlogPostsFn) &&
+      !/db\.collection\('blog_posts'\)/.test(getBlogPostsFn),
+  );
 }
 
 main()

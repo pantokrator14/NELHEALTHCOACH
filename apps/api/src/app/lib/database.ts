@@ -223,11 +223,11 @@ export async function getLeadsCollection() {
 // =====================================================
 export async function getBlogPostsCollection() {
   const { db } = await connectToDatabase();
-  const collection = db.collection('blog_posts');
+  // Colección canónica de entradas del blog (pedida por el coach: "entries")
+  const collection = db.collection('entries');
   try {
     await collection.createIndex({ slug: 1 }, { unique: true });
-    await collection.createIndex({ status: 1, publishedAt: -1 });
-    await collection.createIndex({ category: 1, status: 1, publishedAt: -1 });
+    await collection.createIndex({ isPublished: 1, publishedAt: -1 });
   } catch {
     // Los índices ya existen — ignorar
   }
@@ -254,9 +254,7 @@ export async function getBlogViewsCollection() {
   const { db } = await connectToDatabase();
   const collection = db.collection('blog_views');
   try {
-    await collection.createIndex({ slug: 1, day: 1, visitorHash: 1 }, { unique: true });
-    await collection.createIndex({ slug: 1, day: 1 });
-    await collection.createIndex({ createdAt: -1 });
+    await collection.createIndex({ slug: 1, day: 1 }, { unique: true });
   } catch {
     // Los índices ya existen — ignorar
   }

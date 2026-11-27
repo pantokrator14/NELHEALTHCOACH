@@ -27,9 +27,14 @@ async function main() {
   results['ejercicios de test'] = testExercises;
 
   // Las entradas del blog guardan los textos CIFRADOS; el slug sí va en plano
-  // y lleva el marcador del test → se audita por slug.
-  const testBlogPosts = await db.collection('entries').countDocuments({ slug: /test|prueba|duplicado/i });
-  results['entradas de blog de test'] = testBlogPosts;
+  // y lleva el marcador del test → se audita por slug (tanto en `entries` como en `blog_posts`).
+  const testSlugFilter = {
+    slug: /test|prueba|duplicado|entrada-de-prueba|base-relacionadas|misma-categoria|mismas-etiquetas|otra-categoria|borrador-relacionadas|post-comentarios/i,
+  };
+  const testBlogEntries = await db.collection('entries').countDocuments(testSlugFilter);
+  const testBlogLegacy = await db.collection('blog_posts').countDocuments(testSlugFilter);
+  results['entradas de blog de test (entries)'] = testBlogEntries;
+  results['entradas de blog de test (blog_posts)'] = testBlogLegacy;
 
   const orphanJobs = await db.collection('ai_jobs').countDocuments({});
   results['jobs en ai_jobs (todos)'] = orphanJobs;
