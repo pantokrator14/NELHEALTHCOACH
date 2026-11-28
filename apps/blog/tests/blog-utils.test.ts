@@ -3,7 +3,7 @@
  *
  * Cubre:
  *  1. normalizeLang: normalización y fallback a 'es'.
- *  2. langFromAcceptLanguage: negociación de idioma en SSR.
+ *  2. langFromAcceptLanguage / langFromCookie: negociación de idioma en SSR.
  *  3. formatDate: fechas localizadas + entradas inválidas.
  *  4. Paridad i18n: los 6 idiomas tienen exactamente las mismas claves
  *     (una clave faltante en un idioma mostraría texto roto al usuario).
@@ -14,8 +14,15 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { normalizeLang, langFromAcceptLanguage, formatDate, langFromQuery } from '../src/lib/utils';
-import { en, es, fr, it, pt, de } from '../src/lib/translations';
+import {
+  normalizeLang,
+  langFromAcceptLanguage,
+  langFromCookie,
+  formatDate,
+  langFromQuery,
+  LANG_OPTIONS,
+} from '../src/lib/utils';
+import { en, es, fr, it, pt, de, SUPPORTED_LANGS } from '../src/lib/translations';
 import {
   absoluteUrl,
   buildAlternates,
@@ -28,7 +35,7 @@ import {
 import { readingMinutes, wordCount } from '../src/lib/readingTime';
 import { buildRssFeed } from '../src/lib/feed';
 import { buildSitemapXml } from '../src/lib/sitemap';
-import { landingContactUrl, LANDING_URL } from '../src/lib/links';
+import { landingContactUrl, landingHomeUrl, LANDING_URL } from '../src/lib/links';
 
 let failures = 0, passes = 0;
 function check(name: string, cond: boolean, detail?: string) {
@@ -45,15 +52,27 @@ check('de-DE → de', normalizeLang('de-DE') === 'de');
 check('idioma no soportado → es', normalizeLang('ja') === 'es');
 check('undefined → es', normalizeLang(undefined) === 'es');
 check('no-string → es', normalizeLang(42) === 'es');
+check(
+  'LANG_OPTIONS cubre los 6 idiomas soportados',
+  LANG_OPTIONS.length === SUPPORTED_LANGS.length &&
+    SUPPORTED_LANGS.every((code) => LANG_OPTIONS.some((opt) => opt.code === code)),
+);
 
-// ── 2. langFromAcceptLanguage ──────────────────────────────────────────────
-section('2. langFromAcceptLanguage');
+// ── 2. langFromAcceptLanguage & langFromCookie ─────────────────────────────
+section('2. langFromAcceptLanguage y langFromCookie');
 check('fr-FR,fr;q=0.9,en;q=0.8 → fr', langFromAcceptLanguage('fr-FR,fr;q=0.9,en;q=0.8') === 'fr');
 check('pt-BR → pt', langFromAcceptLanguage('pt-BR,pt;q=0.9') === 'pt');
 check('it-IT → it', langFromAcceptLanguage('it-IT') === 'it');
 check('header ausente → es', langFromAcceptLanguage(undefined) === 'es');
 check('header vacío → es', langFromAcceptLanguage('') === 'es');
 check('solo idioma no soportado → es', langFromAcceptLanguage('ja-JP') === 'es');
+
+check('cookie nhc_blog_lang=en → en', langFromCookie('foo=bar; nhc_blog_lang=en') === 'en');
+check('cookie prioriza nhc_blog_lang sobre i18next', langFromCookie('i18next=pt; nhc_blog_lang=fr') === 'fr');
+check('cookie fallback a i18next cuando falta nhc_blog_lang', langFromCookie('i18next=de') === 'de');
+check('cookie explícita es se respeta (permite volver a español)', langFromCookie('nhc_blog_lang=es') === 'es');
+check('cookie con idioma no soportado → null', langFromCookie('nhc_blog_lang=ja') === null);
+check('cookie ausente → null', langFromCookie(undefined) === null);
 
 // ── 3. formatDate ──────────────────────────────────────────────────────────
 section('3. formatDate');
@@ -181,6 +200,7 @@ const jsonLd = buildPostJsonLd({
   authorName: 'Manuel Martínez',
   authorRole: 'Coach',
   category: 'nutricion',
+  tags: ['agua', 'salud', 'nutricion'],
   coverImageUrl: 'https://s3.example.com/cover.jpg',
   publishedAt: '2026-01-15T10:00:00.000Z',
   updatedAt: '2026-01-16T10:00:00.000Z',
@@ -194,14 +214,28 @@ check('post JSON-LD fecha modificación', jsonLd.dateModified === '2026-01-16T10
 check('post JSON-LD imagen', Array.isArray(jsonLd.image) && (jsonLd.image as string[])[0] === 'https://s3.example.com/cover.jpg');
 check('post JSON-LD publisher', (jsonLd.publisher as Record<string, unknown>).name === 'NelHealthCoach');
 check('post JSON-LD idioma', jsonLd.inLanguage === 'es');
-check('post JSON-LD con categoría keyword', Array.isArray(jsonLd.keywords) && (jsonLd.keywords as string[]).includes('nutricion'));
+check(
+  'post JSON-LD keywords incluye categoría + tags sin duplicados',
+  Array.isArray(jsonLd.keywords) &&
+    (jsonLd.keywords as string[]).length === 3 &&
+    (jsonLd.keywords as string[]).includes('nutricion') &&
+    (jsonLd.keywords as string[]).includes('agua'),
+  JSON.stringify(jsonLd.keywords),
+);
 
-const jsonLdNoCover = buildPostJsonLd({ title: 'T', excerpt: '', slug: 't', lang: 'en' });
-check('post JSON-LD sin imagen no incluye image', jsonLdNoCover.image === undefined);
+const jsonLdLocalized = buildPostJsonLd({ title: 'T', excerpt: '', slug: 't', lang: 'en' });
+check('post JSON-LD sin imagen no incluye image', jsonLdLocalized.image === undefined);
+check(
+  'post JSON-LD localizado incluye ?lang=en en url y mainEntityOfPage',
+  jsonLdLocalized.url === 'https://blog.nelhealthcoach.com/post/t?lang=en' &&
+    jsonLdLocalized.mainEntityOfPage === 'https://blog.nelhealthcoach.com/post/t?lang=en',
+  String(jsonLdLocalized.url),
+);
 
-const blogLd = buildBlogJsonLd({ lang: 'es', authorName: 'Manuel Martínez', authorRole: 'Coach' });
+const blogLd = buildBlogJsonLd({ lang: 'fr', authorName: 'Manuel Martínez', authorRole: 'Coach' });
 check('blog JSON-LD @type Blog', blogLd['@type'] === 'Blog');
 check('blog JSON-LD autor', (blogLd.author as Record<string, unknown>).name === 'Manuel Martínez');
+check('blog JSON-LD url localizada', blogLd.url === 'https://blog.nelhealthcoach.com/?lang=fr', String(blogLd.url));
 
 // Seguridad: el JSON-LD nunca debe poder cerrar el <script> (XSS por contenido)
 const malicious = serializeJsonLd({ x: '</script><script>alert(1)</script>' });
@@ -281,9 +315,24 @@ section('8. Enlaces a la landing');
 check('LANDING_URL sin slash final', !LANDING_URL.endsWith('/'));
 check('landing URL por defecto es la landing de producción', LANDING_URL === 'https://nelhealthcoach.com', LANDING_URL);
 check(
+  'home landing: en es no agrega ?lang',
+  landingHomeUrl('https://nelhealthcoach.com/', 'es') === 'https://nelhealthcoach.com',
+  landingHomeUrl('https://nelhealthcoach.com/', 'es'),
+);
+check(
+  'home landing: en fr agrega ?lang=fr',
+  landingHomeUrl('https://nelhealthcoach.com/', 'fr') === 'https://nelhealthcoach.com/?lang=fr',
+  landingHomeUrl('https://nelhealthcoach.com/', 'fr'),
+);
+check(
   'contacto: abre el formulario (?sesion=1) y ancla #contacto',
   landingContactUrl('https://nelhealthcoach.com') === 'https://nelhealthcoach.com/?sesion=1#contacto',
   landingContactUrl('https://nelhealthcoach.com'),
+);
+check(
+  'contacto: preserva ?lang=en antes de ?sesion=1',
+  landingContactUrl('https://nelhealthcoach.com', 'en') === 'https://nelhealthcoach.com/?lang=en&sesion=1#contacto',
+  landingContactUrl('https://nelhealthcoach.com', 'en'),
 );
 check(
   'contacto: tolera base con slash final',

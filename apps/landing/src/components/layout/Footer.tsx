@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import '../../lib/i18n';
 
 // URL del blog (app independiente del monorepo)
-const BLOG_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'http://localhost:3003';
+const BLOG_URL = (process.env.NEXT_PUBLIC_BLOG_URL || 'http://localhost:3003').replace(/\/+$/, '');
 
 const SOCIAL_LINKS = [
   { name: 'instagram', label: 'Instagram', href: 'https://www.instagram.com/nelhealthcoach', initial: 'I' },
@@ -22,7 +22,9 @@ const SOCIAL_LINKS = [
  * - Descargo médico legal indeleble
  */
 const Footer: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const activeLang = i18n.language?.split('-')[0]?.toLowerCase() || 'es';
+  const blogHref = activeLang !== 'es' ? `${BLOG_URL}/?lang=${encodeURIComponent(activeLang)}` : BLOG_URL;
   return (
     <footer className="bg-gray-900 text-white pt-12 pb-8">
       <div className="container mx-auto px-4">
@@ -42,7 +44,7 @@ const Footer: React.FC = () => {
             <ul className="space-y-2 text-sm">
               <li>
                 <a
-                  href={BLOG_URL}
+                  href={blogHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-white transition-colors"

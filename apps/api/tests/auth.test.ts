@@ -7,7 +7,8 @@
  * de enumeración de cuentas (respuesta uniforme para email inexistente).
  *
  * PERFILES DESECHABLES: cada test registra un coach nuevo y se borra en
- * `finally` vía runCleanup(). NUNCA quedan perfiles de prueba en la DB.
+ * `finally` vía runCleanup(). NUNCA quedan perfiles de prueba en la DB
+ * ni se tocan coaches previos existentes.
  *
  * Correr: cd apps/api && npx tsx tests/auth.test.ts
  */
@@ -31,10 +32,14 @@ function check(name: string, cond: boolean, detail?: string) {
 function section(title: string) { console.log(`\n═══ ${title} ═══`); }
 
 const base = 'http://localhost:3001/api/auth';
-let createdEmails: string[] = [];
+const createdEmails: string[] = [];
+let preExistingCoachIds: string[] = [];
 
 async function main() {
   const { db } = await connectDB();
+  preExistingCoachIds = (await db.collection('coaches').find({}, { projection: { _id: 1 } }).toArray()).map((d) =>
+    d._id.toString(),
+  );
   const email = `tda_${Date.now()}_${Math.random().toString(36).slice(2, 8)}@test.local`;
   createdEmails.push(email);
   const strongPass = 'Str0ng!Pass2026';
@@ -68,7 +73,7 @@ async function main() {
   body = await res.json();
   console.log(`→ register: ${res.status} ${JSON.stringify(body).slice(0, 200)}`);
   check('register exitoso (200/201)', res.status === 200 || res.status === 201, `status=${res.status}`);
-  const { hashEmail, emailHashVariants } = await import('../src/app/models/Coach');
+  const { emailHashVariants } = await import('../src/app/models/Coach');
   const coachDoc = await db.collection('coaches').findOne({
     emailHash: { $in: emailHashVariants(email.toLowerCase().trim()) }
   });
@@ -133,11 +138,27 @@ main()
   .catch((e) => { console.error('💥 Auth suite falló:', e); failures++; })
   .finally(async () => {
     await runCleanup();
-    // Limpieza extra: emails creados (por si el cleanup por _id no aplicó)
+    // Limpieza extra por emailHash (el campo email va cifrado en DB) + verificación de coaches previos
+    const { mongo, db } = await connectDB();
     try {
-      const { db } = await connectDB();
-      await db.collection('coaches').deleteMany({ email: { $in: createdEmails } });
-    } catch { /* noop */ }
+      const { emailHashVariants } = await import('../src/app/models/Coach');
+      const hashes = createdEmails.flatMap((mail) => emailHashVariants(mail.toLowerCase().trim()));
+      if (hashes.length > 0) {
+        await db.collection('coaches').deleteMany({ emailHash: { $in: hashes } });
+      }
+      if (preExistingCoachIds.length > 0) {
+        const remainingPre = await db.collection('coaches').countDocuments({
+          _id: { $in: preExistingCoachIds.map((id) => new ObjectId(id)) },
+        });
+        check(
+          'coaches previos intactos tras la suite',
+          remainingPre === preExistingCoachIds.length,
+          `${remainingPre}/${preExistingCoachIds.length}`,
+        );
+      }
+    } finally {
+      await mongo.close();
+    }
     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`🎉 AUTH: ${passes} checks pasaron, ${failures} fallaron`);
     console.log(`══════════════════════════════════════════════════════════`);

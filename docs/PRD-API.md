@@ -58,7 +58,7 @@ apps/api/
 │   │   ├── api/
 │   │   │   ├── auth/
 │   │   │   │   └── client/       # Registro OTP, verificación 6 dígitos y login de clientes
-│   │   │   ├── blog/             # Artículos, moderación de comentarios y traducción
+│   │   │   ├── blog/             # Artículos, categorías/tags, comentarios y traducción dinámica (6 idiomas)
 │   │   │   ├── client-portal/me/ # Estado consolidado del portal del cliente, plan, cupos y citas
 │   │   │   ├── clients/          # Expedientes cifrados, upload S3, IA y descarga PDF
 │   │   │   ├── coaches/          # Gestión y perfiles de coaches
@@ -73,6 +73,7 @@ apps/api/
 │   │   │   └── waitlist/         # Lista de espera unificada (libro y sesiones)
 │   │   └── lib/
 │   │       ├── agents/           # Nodos de referencia LangGraph y utils/llm.ts (DeepSeek + Gemini fallback)
+│   │       ├── blog-translation.ts          # Traducción dinámica y caché de entradas, categorías/tags y autor (6 idiomas)
 │   │       ├── composite-recommendation.ts  # Pipeline secuencial 3 fases + weeklyPhases (Reto 3 semanas)
 │   │       ├── document-selection.ts        # Selección de documentos por evaluación actual
 │   │       ├── plans.ts                     # Source of truth de 5 planes, slots LiveKit y finalización
@@ -108,6 +109,7 @@ apps/api/
 4. **Escáner Nutricional con IA (`POST /api/recipes/analyze-image`)**: Estima macronutrientes, ingredientes y perfil energético metabólico desde fotografías reales (validación de *magic bytes*, bloqueo IDOR para clientes, cuota atómica de **5/mes** en Plan 2 y **30/mes** en Plan 3 con rollback en caso de error 5xx).
 5. **Catálogos RBAC (`GET /api/recipes`, `GET /api/recipes/[id]`, `GET /api/exercises`)**: Autenticación obligatoria (`requireAnyAuth`, `401` anónimo), `403` para planes sin biblioteca, límite de 15 ítems publicados para Plan 2 y catálogo completo publicado para Plan 3, con `Cache-Control: private, no-store`.
 6. **Recordatorios Dual-Timezone (`timezone.ts`, `/api/video/rooms`, `session-reminders.ts`)**: Horario de California (`America/Los_Angeles` por defecto) para Manuel Martínez y zona IANA del navegador o inferida desde dirección para cada cliente en correos de invitación y cron de recordatorios (previo e inminente).
+7. **Traducción Dinámica del Blog (`blog-translation.ts`, `/api/blog/posts*`, `/api/blog/categories`)**: Traducción bajo demanda con caché cifrada por documento en `entries` (`title`, `excerpt`, `content`, `category` y `tags`), backfill automático para cachés previas sin metadatos, caché en memoria con TTL para categorías (`/api/blog/categories?lang=`) y soporte de filtrado por `categoryKey` canónica o categoría traducida.
 
 ### 4.4 Generación de Documentos PDF (`recommendation-pdf.ts`)
 - Generación de reportes clínicos en PDF mediante streams binarios (`Uint8Array`) compatibles con Next.js 16, incluyendo las fases semanales del Reto 3S NEL cuando aplican y disclaimers médicos localizados.
@@ -117,4 +119,4 @@ apps/api/
 ## 5. Medidas de Seguridad, Privacidad y Testing
 - **Garantía Contractual de No Entrenamiento**: Llamadas a DeepSeek y Google Gemini vía APIs corporativas sin reentrenamiento público y con sanitización previa de PII.
 - **Sin Secretos Hardcodeados**: Toda credencial y clave de prueba en tests automatizados se genera dinámicamente en runtime.
-- **Suite TDD Automatizada (`apps/api/tests/`)**: Cobertura integral incluyendo `security-gate.test.ts` (21 checks OWASP), `client-plans-flow.test.ts` (81 checks de flujo completo de 5 planes, OTP, aislamiento, ventanas de video y `weeklyPhases`), `plan-quotas.test.ts` (21 checks), `document-selection.test.ts`, `blog.test.ts`, `waitlist.test.ts`, `free-sessions.test.ts` y `db-clean.test.ts`.
+- **Suite TDD Automatizada (`apps/api/tests/`)**: Cobertura integral incluyendo `security-gate.test.ts` (36 checks OWASP), `client-plans-flow.test.ts` (81 checks de flujo completo de 5 planes, OTP, aislamiento, ventanas de video y `weeklyPhases`), `plan-quotas.test.ts` (21 checks), `document-selection.test.ts`, `blog.test.ts` (152 checks), `waitlist.test.ts`, `free-sessions.test.ts` y `db-clean.test.ts`.

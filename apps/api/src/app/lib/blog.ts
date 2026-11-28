@@ -102,6 +102,10 @@ export function decryptTranslations(
       title: safeDecrypt((e.title as string) ?? ''),
       excerpt: safeDecrypt((e.excerpt as string) ?? ''),
       content: safeDecrypt((e.content as string) ?? ''),
+      ...(e.category !== undefined ? { category: safeDecrypt(e.category as string) } : {}),
+      ...(Array.isArray(e.tags)
+        ? { tags: (e.tags as string[]).map((tag) => safeDecrypt(tag)) }
+        : {}),
       translatedAt: (e.translatedAt as string) ?? '',
       sourceUpdatedAt: (e.sourceUpdatedAt as string) ?? '',
     };
@@ -119,6 +123,10 @@ export function encryptTranslations(
       title: encrypt(entry.title),
       excerpt: encrypt(entry.excerpt ?? ''),
       content: encrypt(entry.content),
+      ...(entry.category !== undefined ? { category: encrypt(entry.category) } : {}),
+      ...(entry.tags !== undefined
+        ? { tags: entry.tags.map((tag) => encrypt(tag)) }
+        : {}),
       translatedAt: entry.translatedAt,
       sourceUpdatedAt: entry.sourceUpdatedAt,
     };
@@ -137,6 +145,7 @@ export function toBlogPostDTO(doc: Document): Record<string, unknown> {
     excerpt: plain.excerpt,
     content: plain.content,
     category: plain.category,
+    categoryKey: plain.category,
     tags: plain.tags,
     coverImage: plain.coverImage,
     author: plain.author || BLOG_AUTHOR,

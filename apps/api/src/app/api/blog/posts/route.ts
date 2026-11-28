@@ -84,6 +84,8 @@ async function getHandler(request: NextRequest) {
             title: plain.title,
             excerpt: plain.excerpt,
             content: plain.content,
+            category: plain.category,
+            tags: plain.tags,
             sourceLang: doc.sourceLang as string | undefined,
             updatedAt: doc.updatedAt as Date,
             translations: decryptTranslations(
@@ -107,14 +109,21 @@ async function getHandler(request: NextRequest) {
           title: localized.post.title,
           excerpt: localized.post.excerpt,
           content: localized.post.content,
+          category: localized.post.category,
+          categoryKey: plain.category,
+          tags: localized.post.tags,
           lang: localized.post.lang,
         });
       }
 
-      // Filtro de categoría en memoria (el campo va cifrado en la DB)
+      // Filtro de categoría en memoria (acepta clave original o categoría traducida)
       let results = data;
       if (category) {
-        results = data.filter((post) => post.category === category);
+        const norm = (val: unknown) => (typeof val === 'string' ? val.trim().toLowerCase() : '');
+        const needle = norm(category);
+        results = data.filter(
+          (post) => norm(post.categoryKey) === needle || norm(post.category) === needle,
+        );
       }
       results = results.slice(0, limit);
 
@@ -251,4 +260,3 @@ async function postHandler(request: NextRequest) {
 }
 
 export const POST = apiHandler(postHandler);
-

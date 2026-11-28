@@ -27,6 +27,8 @@ export interface BlogTranslationEntry {
   title: string;
   excerpt: string;
   content: string;
+  category?: string;
+  tags?: string[];
   /** ISO timestamp de cuándo se tradujo. */
   translatedAt: string;
   /** ISO del updatedAt de origen con el que se generó (para invalidar). */
@@ -37,6 +39,8 @@ export interface BlogPostForLocalization {
   title: string;
   excerpt?: string;
   content: string;
+  category?: string;
+  tags?: string[];
   sourceLang?: string;
   updatedAt: Date | string;
   translations?: Record<string, BlogTranslationEntry>;
@@ -71,8 +75,10 @@ export interface AuthorLocalizationResult<T extends BlogAuthorForLocalization> {
 }
 
 export interface LocalizationResult<T extends BlogPostForLocalization> {
-  /** Post con title/excerpt/content resueltos al idioma objetivo. */
+  /** Post con title/excerpt/content/category/tags resueltos al idioma objetivo. */
   post: T & {
+    category: string;
+    tags: string[];
     lang: SupportedLang;
     translations: Record<string, BlogTranslationEntry>;
   };
@@ -90,11 +96,13 @@ export interface CachedBlogTranslation {
   title: string;
   excerpt: string;
   content: string;
+  category?: string;
+  tags?: string[];
   lang: SupportedLang;
 }
 
 /**
- * Devuelve la traducción CACHEADAS de una entrada si es válida, o null.
+ * Devuelve la traducción CACHEADA de una entrada si es válida, o null.
  * No llama al LLM: se usa en listados (relacionadas) donde no conviene
  * disparar traducciones por cada entrada mostrada.
  */
@@ -114,13 +122,21 @@ export function getCachedBlogTranslation<T extends BlogPostForLocalization>(
   if (!entry) return null;
   if (entry.sourceUpdatedAt !== toIso(post.updatedAt)) return null;
 
-  return { title: entry.title, excerpt: entry.excerpt, content: entry.content, lang: target };
+  return {
+    title: entry.title,
+    excerpt: entry.excerpt,
+    content: entry.content,
+    ...(entry.category !== undefined ? { category: entry.category } : {}),
+    ...(Array.isArray(entry.tags) ? { tags: entry.tags } : {}),
+    lang: target,
+  };
 }
 
 /**
  * Devuelve la entrada con los campos de texto en `targetLang`.
  * - targetLang undefined o igual al idioma origen → original (sin LLM).
- * - caché válida → directo.
+ * - caché válida → directo (y si una caché antigua no incluía category/tags,
+ *   completa solo esos metadatos sin retraducir el artículo).
  * - sin caché → traduce (LLM inyectable para tests) y marca needsPersist.
  */
 export async function localizeBlogPost<T extends BlogPostForLocalization>(
@@ -134,11 +150,13 @@ export async function localizeBlogPost<T extends BlogPostForLocalization>(
     : undefined;
 
   const translations = post.translations ?? {};
+  const rawCategory = post.category ?? '';
+  const rawTags = Array.isArray(post.tags) ? post.tags : [];
 
   // Sin idioma pedido, o igual al origen → contenido original.
   if (!target || target === source) {
     return {
-      post: { ...post, translations, lang: source },
+      post: { ...post, category: rawCategory, tags: rawTags, translations, lang: source },
       needsPersist: false,
     };
   }
@@ -147,41 +165,113 @@ export async function localizeBlogPost<T extends BlogPostForLocalization>(
   const cached = translations[target];
 
   if (cached && cached.sourceUpdatedAt === updatedAtIso) {
+    const missingCategory = rawCategory !== '' && cached.category === undefined;
+    const missingTags = rawTags.length > 0 && cached.tags === undefined;
+
+    if (!missingCategory && !missingTags) {
+      return {
+        post: {
+          ...post,
+          title: cached.title,
+          excerpt: cached.excerpt,
+          content: cached.content,
+          category: cached.category ?? rawCategory,
+          tags: cached.tags ?? rawTags,
+          translations,
+          lang: target,
+        },
+        needsPersist: false,
+      };
+    }
+
+    // Backfill ligero solo de categoría/etiquetas para cachés previas
+    const patchPayload: { category?: string; tags?: string[] } = {};
+    if (missingCategory) patchPayload.category = rawCategory;
+    if (missingTags) patchPayload.tags = rawTags;
+
+    const patchTranslated = await translateJsonBatch(patchPayload, target, source, llm);
+    const llmSucceeded = patchTranslated !== patchPayload;
+    const nextCategory = missingCategory
+      ? (typeof patchTranslated?.category === 'string' ? patchTranslated.category : rawCategory)
+      : (cached.category ?? rawCategory);
+    const nextTags = missingTags
+      ? (Array.isArray(patchTranslated?.tags) ? patchTranslated.tags : rawTags)
+      : (cached.tags ?? rawTags);
+
+    if (!llmSucceeded) {
+      return {
+        post: {
+          ...post,
+          title: cached.title,
+          excerpt: cached.excerpt,
+          content: cached.content,
+          category: nextCategory,
+          tags: nextTags,
+          translations,
+          lang: target,
+        },
+        needsPersist: false,
+      };
+    }
+
+    const updatedEntry: BlogTranslationEntry = {
+      ...cached,
+      category: nextCategory,
+      tags: nextTags,
+    };
+    const nextTranslations = { ...translations, [target]: updatedEntry };
+
     return {
       post: {
         ...post,
-        title: cached.title,
-        excerpt: cached.excerpt,
-        content: cached.content,
-        translations,
+        title: updatedEntry.title,
+        excerpt: updatedEntry.excerpt,
+        content: updatedEntry.content,
+        category: nextCategory,
+        tags: nextTags,
+        translations: nextTranslations,
         lang: target,
       },
-      needsPersist: false,
+      needsPersist: true,
     };
   }
 
-  // Traducción (translateJsonBatch ya reintenta y cae al original si falla).
+  // Traducción completa (translateJsonBatch ya reintenta y cae al original si falla).
   const translated = await translateJsonBatch(
     {
       title: post.title,
       excerpt: post.excerpt ?? '',
       content: post.content,
+      ...(rawCategory !== '' ? { category: rawCategory } : {}),
+      ...(rawTags.length > 0 ? { tags: rawTags } : {}),
     },
     target,
     source,
     llm,
   );
 
+  const nextCategory =
+    rawCategory !== ''
+      ? (typeof translated.category === 'string' ? translated.category : rawCategory)
+      : '';
+  const nextTags =
+    rawTags.length > 0
+      ? (Array.isArray(translated.tags) ? translated.tags : rawTags)
+      : [];
+
   // Si el resultado es idéntico al original, el LLM falló (fallback):
   // no cacheamos para que la próxima lectura reintente.
+  const sameTags = JSON.stringify(nextTags) === JSON.stringify(rawTags);
   if (
     translated.title === post.title &&
     translated.excerpt === (post.excerpt ?? '') &&
-    translated.content === post.content
+    translated.content === post.content &&
+    nextCategory === rawCategory &&
+    sameTags
   ) {
     logger.warn('BLOG_TRANSLATE', 'Traducción devolvió el original — no se cachea', { target });
     return {
-      post: { ...post, translations, lang: source },
+      post: { ...post, category: rawCategory, tags: rawTags, translations, lang: source },
       needsPersist: false,
     };
   }
@@ -190,6 +280,8 @@ export async function localizeBlogPost<T extends BlogPostForLocalization>(
     title: translated.title,
     excerpt: translated.excerpt ?? '',
     content: translated.content,
+    ...(rawCategory !== '' ? { category: nextCategory } : {}),
+    ...(rawTags.length > 0 ? { tags: nextTags } : {}),
     translatedAt: new Date().toISOString(),
     sourceUpdatedAt: updatedAtIso,
   };
@@ -202,11 +294,97 @@ export async function localizeBlogPost<T extends BlogPostForLocalization>(
       title: entry.title,
       excerpt: entry.excerpt,
       content: entry.content,
+      category: nextCategory,
+      tags: nextTags,
       translations: nextTranslations,
       lang: target,
     },
     needsPersist: true,
   };
+}
+
+// ── Traducción de categorías del blog (para filtros y chips) ────────────────
+
+export interface CategoryForLocalization {
+  key: string;
+  sourceLang: SupportedLang;
+  cachedLabel?: string;
+}
+
+const CATEGORY_CACHE_TTL_MS = 30 * 60 * 1000;
+const CATEGORY_CACHE_MAX = 500;
+const categoryMemCache = new Map<string, { label: string; cachedAt: number }>();
+
+/**
+ * Traduce un conjunto de categorías únicas al idioma objetivo.
+ * Prioriza:
+ * 1) `item.sourceLang === target` → devuelve la clave original.
+ * 2) `item.cachedLabel` (extraída de `entries.translations[target].category`).
+ * 3) Caché en memoria con TTL.
+ * 4) Un único batch JSON ligero al LLM para las categorías faltantes.
+ */
+export async function localizeBlogCategories(
+  categories: CategoryForLocalization[],
+  targetLang: SupportedLang | string | undefined,
+  llm: LLMFn = defaultLLM,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const target =
+    targetLang && (SUPPORTED_LANGS as readonly string[]).includes(targetLang)
+      ? (targetLang as SupportedLang)
+      : undefined;
+
+  if (!target || categories.length === 0) {
+    for (const c of categories) result.set(c.key, c.key);
+    return result;
+  }
+
+  const now = Date.now();
+  const missingBatch: Record<string, string> = {};
+
+  for (const item of categories) {
+    if (item.sourceLang === target) {
+      result.set(item.key, item.key);
+      continue;
+    }
+    if (item.cachedLabel && item.cachedLabel.trim() !== '') {
+      result.set(item.key, item.cachedLabel);
+      continue;
+    }
+    const cacheKey = `${target}:${item.sourceLang}:${item.key}`;
+    const mem = categoryMemCache.get(cacheKey);
+    if (mem && now - mem.cachedAt < CATEGORY_CACHE_TTL_MS) {
+      result.set(item.key, mem.label);
+      continue;
+    }
+    missingBatch[item.key] = item.key;
+  }
+
+  const missingKeys = Object.keys(missingBatch);
+  if (missingKeys.length > 0) {
+    const translated = await translateJsonBatch(missingBatch, target, 'el idioma original', llm);
+    const llmSucceeded = translated !== missingBatch;
+    for (const item of categories) {
+      if (!(item.key in missingBatch)) continue;
+      const candidate =
+        translated && typeof translated[item.key] === 'string' && translated[item.key].trim() !== ''
+          ? translated[item.key]
+          : item.key;
+      result.set(item.key, candidate);
+      if (llmSucceeded) {
+        if (categoryMemCache.size >= CATEGORY_CACHE_MAX) {
+          const oldest = categoryMemCache.keys().next().value;
+          if (oldest) categoryMemCache.delete(oldest);
+        }
+        categoryMemCache.set(`${target}:${item.sourceLang}:${item.key}`, {
+          label: candidate,
+          cachedAt: now,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 // ── Traducción del perfil del autor (rol y biografía) ───────────────────────

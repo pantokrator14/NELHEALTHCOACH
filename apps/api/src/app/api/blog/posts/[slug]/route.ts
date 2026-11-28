@@ -15,6 +15,7 @@ import { blogPostUpdateSchema } from '@/app/lib/schemas/index';
 import { apiHandler } from '@/app/lib/apiHandler';
 import { requireRateLimit, secureRoute, securityBlockResponse } from '@/app/lib/security/routeGuard';
 import { logAuditEvent } from '@/app/lib/auditLogger';
+import { detectLanguage } from '@/app/lib/recommendation-translator';
 import { localizeBlogPost } from '@/app/lib/blog-translation';
 import {
   toBlogPostDTO,
@@ -82,6 +83,8 @@ async function getHandler(
           title: plain.title,
           excerpt: plain.excerpt,
           content: plain.content,
+          category: plain.category,
+          tags: plain.tags,
           sourceLang: doc.sourceLang as string | undefined,
           updatedAt: doc.updatedAt as Date,
           translations: decryptTranslations(
@@ -105,6 +108,9 @@ async function getHandler(
           title: localized.post.title,
           excerpt: localized.post.excerpt,
           content: localized.post.content,
+          category: localized.post.category,
+          categoryKey: plain.category,
+          tags: localized.post.tags,
           lang: localized.post.lang,
         },
       });
@@ -177,7 +183,7 @@ async function putHandler(
       // Descifrar el documento actual, mezclar con los cambios recibidos
       // y volver a CIFRAR todo (mismo método que las recetas).
       const existingPlain = decryptBlogContent(existing as unknown as Record<string, unknown>);
-      const merged = encryptBlogContent({
+      const nextPlain = {
         title: parsed.data.title ?? existingPlain.title,
         excerpt: parsed.data.excerpt ?? existingPlain.excerpt,
         content: parsed.data.content ?? existingPlain.content,
@@ -186,9 +192,11 @@ async function putHandler(
         coverImage:
           parsed.data.coverImage !== undefined ? parsed.data.coverImage : existingPlain.coverImage,
         author: existingPlain.author || 'Manuel Martínez',
-      });
+      };
+      const merged = encryptBlogContent(nextPlain);
 
-      const $set: Record<string, unknown> = { updatedAt: now, ...merged };
+      const sourceLang = detectLanguage([nextPlain.title, nextPlain.excerpt, nextPlain.content]);
+      const $set: Record<string, unknown> = { updatedAt: now, sourceLang, ...merged };
 
       // Publicación: de borrador → publicada setea publishedAt;
       // despublicar lo deja en null; si ya estaba publicada se conserva.
@@ -303,4 +311,3 @@ async function deleteHandler(
 }
 
 export const DELETE = apiHandler(deleteHandler);
-

@@ -72,6 +72,7 @@ export interface PostSeoInput {
   authorName?: string;
   authorRole?: string;
   category?: string;
+  tags?: string[];
   coverImageUrl?: string | null;
   publishedAt?: string | null;
   updatedAt?: string | null;
@@ -79,7 +80,7 @@ export interface PostSeoInput {
 
 /** JSON-LD de una entrada (schema.org BlogPosting) para rich results. */
 export function buildPostJsonLd(post: PostSeoInput): Record<string, unknown> {
-  const url = absoluteUrl(`/post/${post.slug}`);
+  const url = absoluteUrl(localizedPath(`/post/${post.slug}`, post.lang ?? 'es'));
 
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -107,7 +108,14 @@ export function buildPostJsonLd(post: PostSeoInput): Record<string, unknown> {
   if (post.coverImageUrl) ld.image = [post.coverImageUrl];
   if (post.publishedAt) ld.datePublished = post.publishedAt;
   if (post.updatedAt) ld.dateModified = post.updatedAt;
-  if (post.category) ld.keywords = [post.category];
+  const keywords = Array.from(
+    new Set(
+      [post.category, ...(post.tags ?? [])]
+        .map((k) => (typeof k === 'string' ? k.trim() : ''))
+        .filter(Boolean),
+    ),
+  );
+  if (keywords.length > 0) ld.keywords = keywords;
 
   return ld;
 }
@@ -122,7 +130,7 @@ export function buildBlogJsonLd(input: {
     '@context': 'https://schema.org',
     '@type': 'Blog',
     name: 'Blog NelHealthCoach',
-    url: absoluteUrl('/'),
+    url: absoluteUrl(localizedPath('/', input.lang ?? 'es')),
     inLanguage: input.lang ?? 'es',
     publisher: {
       '@type': 'Organization',

@@ -32,6 +32,7 @@ export const en = {
     menu: 'Menu',
     closeMenu: 'Close menu',
     backToLanding: 'Main Website',
+    language: 'Language',
   },
 
   hero: {
@@ -217,6 +218,7 @@ export const es: typeof en = {
     menu: 'Menú',
     closeMenu: 'Cerrar menú',
     backToLanding: 'Web Principal',
+    language: 'Idioma',
   },
 
   hero: {
@@ -402,6 +404,7 @@ export const fr: typeof en = {
     menu: 'Menu',
     closeMenu: 'Fermer le menu',
     backToLanding: 'Site Principal',
+    language: 'Langue',
   },
 
   hero: {
@@ -587,6 +590,7 @@ export const it: typeof en = {
     menu: 'Menu',
     closeMenu: 'Chiudi il menu',
     backToLanding: 'Sito Principale',
+    language: 'Lingua',
   },
 
   hero: {
@@ -772,6 +776,7 @@ export const pt: typeof en = {
     menu: 'Menu',
     closeMenu: 'Fechar menu',
     backToLanding: 'Site Principal',
+    language: 'Idioma',
   },
 
   hero: {
@@ -957,6 +962,7 @@ export const de: typeof en = {
     menu: 'Menü',
     closeMenu: 'Menü schließen',
     backToLanding: 'Hauptseite',
+    language: 'Sprache',
   },
 
   hero: {
