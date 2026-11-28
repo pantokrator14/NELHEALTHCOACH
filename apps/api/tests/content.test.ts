@@ -5,7 +5,8 @@
  * (validación zod, cifrado en DB), GET by id, PUT actualizar (ownership 403),
  * DELETE (ownership), y casos de entrada inválida (400).
  *
- * PERFILES DESECHABLES: recetas/ejercicios creados se registran y se borran en finally.
+ * PERFILES DESECHABLES: recetas/ejercicios creados se registran y se borran en
+ * finally, verificando además que las recetas y ejercicios previos quedan intactos.
  */
 import 'dotenv/config';
 import { NextRequest } from 'next/server';
@@ -61,8 +62,18 @@ function validExerciseBody() {
   };
 }
 
+let preExistingRecipeIds: string[] = [];
+let preExistingExerciseIds: string[] = [];
+
 async function main() {
   const { db } = await connectDB();
+  preExistingRecipeIds = (await db.collection('recipes').find({}, { projection: { _id: 1 } }).toArray()).map((d) =>
+    d._id.toString(),
+  );
+  preExistingExerciseIds = (await db.collection('exercises').find({}, { projection: { _id: 1 } }).toArray()).map((d) =>
+    d._id.toString(),
+  );
+
   const coachId = new ObjectId().toString();
   const token = coachToken(coachId);
 
@@ -219,6 +230,31 @@ main()
   .catch((e) => { console.error('💥 Content suite falló:', e); failures++; })
   .finally(async () => {
     await runCleanup();
+    const { mongo, db } = await connectDB();
+    try {
+      if (preExistingRecipeIds.length > 0) {
+        const remainingRecipes = await db.collection('recipes').countDocuments({
+          _id: { $in: preExistingRecipeIds.map((id) => new ObjectId(id)) },
+        });
+        check(
+          'recetas previas intactas tras la suite',
+          remainingRecipes === preExistingRecipeIds.length,
+          `${remainingRecipes}/${preExistingRecipeIds.length}`,
+        );
+      }
+      if (preExistingExerciseIds.length > 0) {
+        const remainingExercises = await db.collection('exercises').countDocuments({
+          _id: { $in: preExistingExerciseIds.map((id) => new ObjectId(id)) },
+        });
+        check(
+          'ejercicios previos intactos tras la suite',
+          remainingExercises === preExistingExerciseIds.length,
+          `${remainingExercises}/${preExistingExerciseIds.length}`,
+        );
+      }
+    } finally {
+      await mongo.close();
+    }
     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`🎉 CONTENT (recipes+exercises): ${passes} checks pasaron, ${failures} fallaron`);
     console.log(`══════════════════════════════════════════════════════════`);
