@@ -8,10 +8,18 @@ export const LANDING_URL = (
   process.env.NEXT_PUBLIC_LANDING_URL || 'https://nelhealthcoach.com'
 ).replace(/\/+$/, '');
 
+/** URL principal de la landing preservando el idioma activo si difiere de 'es'. */
+export function landingHomeUrl(base: string = LANDING_URL, lang: string = 'es'): string {
+  const clean = base.replace(/\/+$/, '');
+  return lang && lang !== 'es' ? `${clean}/?lang=${encodeURIComponent(lang)}` : clean;
+}
+
 /**
  * URL de la sesión gratuita: sección de contacto de la landing con el
  * formulario abierto automáticamente (?sesion=1) y scroll al ancla.
  */
-export function landingContactUrl(base: string = LANDING_URL): string {
-  return `${base.replace(/\/+$/, '')}/?sesion=1#contacto`;
+export function landingContactUrl(base: string = LANDING_URL, lang: string = 'es'): string {
+  const clean = base.replace(/\/+$/, '');
+  const langParam = lang && lang !== 'es' ? `lang=${encodeURIComponent(lang)}&` : '';
+  return `${clean}/?${langParam}sesion=1#contacto`;
 }

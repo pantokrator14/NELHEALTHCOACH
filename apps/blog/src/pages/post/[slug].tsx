@@ -16,7 +16,7 @@ import PostCta from '@/components/blog/PostCta';
 import PageViewTracker from '@/components/blog/PageViewTracker';
 import CommentsSection from '@/components/blog/CommentsSection';
 import { apiClient, type BlogPost, type BlogAuthor, type BlogComment } from '@/lib/api';
-import { langFromAcceptLanguage, langFromQuery, formatDate } from '@/lib/utils';
+import { langFromAcceptLanguage, langFromCookie, langFromQuery, formatDate } from '@/lib/utils';
 import {
   absoluteUrl,
   buildAlternates,
@@ -37,8 +37,11 @@ interface Props {
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async ({ params, req, query }) => {
-  // Idioma: primero ?lang=XX (URL localizada para SEO), si no Accept-Language
-  const lang = langFromQuery(query.lang) ?? langFromAcceptLanguage(req.headers['accept-language']);
+  // Idioma: ?lang=XX (SEO/URL) → cookie de preferencia → Accept-Language
+  const lang =
+    langFromQuery(query.lang) ??
+    langFromCookie(req.headers.cookie) ??
+    langFromAcceptLanguage(req.headers['accept-language']);
   const slug = typeof params?.slug === 'string' ? params.slug : '';
 
   if (!slug) return { notFound: true };
@@ -108,9 +111,7 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
   const date = post.publishedAt ?? post.createdAt;
   const description = post.excerpt || post.title;
   const postPath = `/post/${post.slug}`;
-  const SITE_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.nelhealthcoach.com';
-  const cleanPath = router.asPath ? router.asPath.split('?')[0] : '';
-  const canonical = `${SITE_URL}${cleanPath || localizedPath(postPath, lang)}`;
+  const canonical = absoluteUrl(localizedPath(postPath, lang));
   const coverUrl = post.coverImage?.url ?? null;
   const alternates = buildAlternates(postPath);
   const minutes = readingMinutes(post.content);
@@ -124,6 +125,7 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
     authorName: author?.name || 'Manuel Martínez',
     authorRole: author?.role || undefined,
     category: post.category || undefined,
+    tags: post.tags,
     coverImageUrl: coverUrl,
     publishedAt: post.publishedAt,
     updatedAt: post.updatedAt,
@@ -160,7 +162,7 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
         <meta name="twitter:card" content={coverUrl ? 'summary_large_image' : 'summary'} />
         <meta name="twitter:title" content={post.title} />
         <meta name="twitter:description" content={description} />
-        {coverUrl && <meta property="og:image" content={coverUrl} />}
+        {coverUrl && <meta name="twitter:image" content={coverUrl} />}
 
         {/* Artículo */}
         {post.publishedAt && <meta property="article:published_time" content={post.publishedAt} />}
@@ -175,7 +177,7 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
       </Head>
 
       <div className="min-h-screen flex flex-col">
-        <Navbar />
+        <Navbar lang={lang} />
 
         {/* Analytics sin cookies: cuenta la visita solo en producción */}
         <PageViewTracker slug={post.slug} />
@@ -205,9 +207,12 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
 
               {/* Ficha de categoría DEBAJO de la línea de autor/fecha */}
               {post.category && (
-                <span className="inline-block text-xs font-semibold text-blue-700 bg-blue-100 rounded-full px-3 py-1 mb-8">
+                <Link
+                  href={localizedPath(`/?categoria=${encodeURIComponent(post.categoryKey ?? post.category)}`, lang)}
+                  className="inline-block text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors rounded-full px-3 py-1 mb-8"
+                >
                   {post.category}
-                </span>
+                </Link>
               )}
 
               {post.coverImage?.url && (
@@ -228,6 +233,19 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
                 <Markdown remarkPlugins={[remarkGfm]}>{post.content}</Markdown>
               </div>
 
+              {post.tags && post.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-8">
+                  {post.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-block text-xs font-medium text-gray-600 bg-gray-100 rounded-full px-3 py-1"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {/* Ficha del autor, siempre al final de cada entrada */}
               <AuthorCard author={author} />
 
@@ -241,12 +259,12 @@ const PostPage: React.FC<Props> = ({ post, lang, author, related, comments }) =>
               <RelatedPosts posts={related} lang={lang} />
 
               {/* CTA de contacto al final */}
-              <PostCta />
+              <PostCta lang={lang} />
             </article>
           )}
         </main>
 
-        <Footer />
+        <Footer lang={lang} />
       </div>
     </>
   );

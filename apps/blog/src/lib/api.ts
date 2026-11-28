@@ -24,6 +24,8 @@ export interface BlogPost {
   excerpt: string;
   content: string;
   category: string;
+  /** Categoría original sin traducir (clave estable para filtros entre idiomas). */
+  categoryKey?: string;
   tags: string[];
   coverImage: BlogCoverImage | null;
   author: string;
@@ -38,6 +40,8 @@ export interface BlogPost {
 
 export interface BlogCategory {
   name: string;
+  /** Clave canónica para filtrar en GET /api/blog/posts?category=... */
+  key?: string;
   count: number;
 }
 
@@ -237,10 +241,13 @@ export const apiClient = {
     );
   },
 
-  /** Categorías derivadas de las entradas publicadas. */
-  getCategories(): Promise<BlogCategory[]> {
-    return dedupedRequest('catalog:categories', () =>
-      request<BlogCategory[]>('/api/blog/categories', {}, false)
+  /** Categorías derivadas de las entradas publicadas (localizadas según lang). */
+  getCategories(lang?: string): Promise<BlogCategory[]> {
+    const params = new URLSearchParams();
+    if (lang) params.set('lang', lang);
+    const qs = params.toString();
+    return dedupedRequest(`catalog:categories:${lang || 'default'}`, () =>
+      request<BlogCategory[]>(`/api/blog/categories${qs ? `?${qs}` : ''}`, {}, false)
     );
   },
 

@@ -8,7 +8,7 @@
  *  4. Borradores: ocultos en lecturas públicas, visibles para admin.
  *  5. Categorías derivadas de entradas publicadas.
  *  6. Traducción dinámica con LLM MOCKEADO (sin gastar tokens reales):
- *     caché por idioma, passthrough del idioma origen y fallback resiliente.
+ *     caché por idioma, backfill de categoría/tags, passthrough y fallback.
  *
  * PERFILES DESECHABLES: cada entrada creada se registra y se borra SIEMPRE
  * en `finally` vía runCleanup(). NUNCA quedan entradas de prueba en la DB.
@@ -33,6 +33,7 @@ import { PUT as moderateComment, DELETE as deleteComment } from '../src/app/api/
 import { rankRelatedPosts } from '../src/app/lib/blog-related';
 import {
   localizeBlogPost,
+  localizeBlogCategories,
   localizeAuthorProfile,
   type BlogPostForLocalization,
   type BlogAuthorForLocalization,
@@ -186,14 +187,19 @@ async function main() {
   if (catBody?.data?.id) registerCleanup('entries', catBody.data.id);
   res = await getPosts(testRequest(`${base}/posts?category=nutricion`), { params: Promise.resolve({}) });
   body = await res.json();
-  check('GET ?category= filtra', (body?.data || []).length >= 1 && body.data.every((p: { category: string }) => p.category === 'nutricion'));
+  check(
+    'GET ?category= filtra y expone categoryKey',
+    (body?.data || []).length >= 1 &&
+      body.data.every((p: { category: string; categoryKey?: string }) => p.category === 'nutricion' && p.categoryKey === 'nutricion'),
+  );
   check('GET ?category= excluye otras categorías', (body?.data || []).every((p: { category: string }) => p.category !== 'entrenamiento'));
 
   res = await getCategories(testRequest(`${base}/categories`), { params: Promise.resolve({}) });
   body = await res.json();
   check('GET categories → 200', res.status === 200, `status=${res.status}`);
   const names = (body?.data || []).map((c: { name: string }) => c.name);
-  check('categoría "nutricion" derivada', names.includes('nutricion'), JSON.stringify(names));
+  const nutricionCat = (body?.data || []).find((c: { key?: string; name: string }) => c.key === 'nutricion');
+  check('categoría "nutricion" derivada con key canónica', names.includes('nutricion') && nutricionCat?.name === 'nutricion', JSON.stringify(names));
   check('categoría con count numérico', (body?.data || []).every((c: { count: number }) => typeof c.count === 'number'));
 
   // ═══ 6. UPDATE ═══
@@ -265,6 +271,8 @@ async function main() {
     title: 'Título original en español',
     excerpt: 'Extracto original',
     content: 'Contenido original del post',
+    category: 'nutricion',
+    tags: ['hidratacion', 'salud'],
     sourceLang: 'es',
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     translations: {},
@@ -273,13 +281,30 @@ async function main() {
   // 9a. Passthrough del idioma origen (sin LLM)
   let localized = await localizeBlogPost(rawPost, 'es', mockLLM);
   check('lang=sourceLang → sin llamada LLM', llmCalls === 0, `calls=${llmCalls}`);
-  check('lang=sourceLang → texto original', localized.post.title === 'Título original en español');
+  check(
+    'lang=sourceLang → texto, categoría y tags originales',
+    localized.post.title === 'Título original en español' &&
+      localized.post.category === 'nutricion' &&
+      localized.post.tags[0] === 'hidratacion',
+  );
 
-  // 9b. Primera traducción → llama al LLM y cachea
+  // 9b. Primera traducción → llama al LLM y cachea (incluye category y tags)
   localized = await localizeBlogPost(rawPost, 'en', mockLLM);
   check('primera traducción → 1 llamada LLM', llmCalls === 1, `calls=${llmCalls}`);
   check('título traducido', localized.post.title === '[TR]Título original en español', localized.post.title);
-  check('cache guardada para en', !!localized.post.translations?.en, JSON.stringify(localized.post.translations));
+  check('categoría traducida', localized.post.category === '[TR]nutricion', localized.post.category);
+  check(
+    'tags traducidas',
+    localized.post.tags[0] === '[TR]hidratacion' && localized.post.tags[1] === '[TR]salud',
+    JSON.stringify(localized.post.tags),
+  );
+  check(
+    'cache guardada para en con category y tags',
+    !!localized.post.translations?.en &&
+      localized.post.translations.en.category === '[TR]nutricion' &&
+      localized.post.translations.en.tags?.[0] === '[TR]hidratacion',
+    JSON.stringify(localized.post.translations),
+  );
   check('lang devuelto = en', localized.post.lang === 'en');
   check('needsPersist=true al traducir', localized.needsPersist === true);
 
@@ -290,7 +315,12 @@ async function main() {
   };
   localized = await localizeBlogPost(cachedPost, 'en', mockLLM);
   check('segunda lectura usa caché (0 llamadas extra)', llmCalls === 1, `calls=${llmCalls}`);
-  check('segunda lectura devuelve lo cacheado', localized.post.title === '[TR]Título original en español');
+  check(
+    'segunda lectura devuelve título, categoría y tags cacheados',
+    localized.post.title === '[TR]Título original en español' &&
+      localized.post.category === '[TR]nutricion' &&
+      localized.post.tags[0] === '[TR]hidratacion',
+  );
 
   // 9d. Caché inválida (updatedAt cambió) → retraduce
   const stalePost: BlogPostForLocalization = {
@@ -315,6 +345,54 @@ async function main() {
   localized = await localizeBlogPost(failingPost, 'fr', failingLLM);
   check('LLM falla → devuelve original', localized.post.title === 'Título original en español', localized.post.title);
   check('LLM falla → no cachea', !localized.post.translations?.fr, JSON.stringify(localized.post.translations));
+
+  // 9f. Backfill de caché previa sin category/tags (no retraduce title/content)
+  const legacyCachedPost: BlogPostForLocalization = {
+    ...rawPost,
+    translations: {
+      pt: {
+        title: '[CACHE_PREVIA]Título preservado',
+        excerpt: '[CACHE_PREVIA]Extracto preservado',
+        content: '[CACHE_PREVIA]Contenido preservado',
+        translatedAt: '2026-01-01T00:00:00.000Z',
+        sourceUpdatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    },
+  };
+  const callsBeforeBackfill = llmCalls;
+  const backfilled = await localizeBlogPost(legacyCachedPost, 'pt', mockLLM);
+  check('backfill llama al LLM solo 1 vez para metadatos faltantes', llmCalls === callsBeforeBackfill + 1, `calls=${llmCalls}`);
+  check('backfill conserva título cacheado previo', backfilled.post.title === '[CACHE_PREVIA]Título preservado', backfilled.post.title);
+  check('backfill traduce categoría y tags faltantes', backfilled.post.category === '[TR]nutricion' && backfilled.post.tags[0] === '[TR]hidratacion');
+  check('backfill marca needsPersist=true', backfilled.needsPersist === true);
+
+  const afterBackfill = await localizeBlogPost({ ...rawPost, translations: backfilled.post.translations }, 'pt', mockLLM);
+  check('tras backfill → 0 llamadas LLM en lectura siguiente', llmCalls === callsBeforeBackfill + 1, `calls=${llmCalls}`);
+  check('tras backfill conserva categoría y tags persistidos', afterBackfill.post.category === '[TR]nutricion' && afterBackfill.post.tags[1] === '[TR]salud');
+
+  // 9g. Traducción de categorías únicas con caché y reutilización
+  const catTestSuffix = `${Date.now()}`;
+  const catKeySameSource = `cat-same-${catTestSuffix}`;
+  const catKeyCached = `cat-cached-${catTestSuffix}`;
+  const catKeyUncached = `cat-uncached-${catTestSuffix}`;
+  const catInput = [
+    { key: catKeySameSource, sourceLang: 'en' as const },
+    { key: catKeyCached, sourceLang: 'es' as const, cachedLabel: 'Cached Category' },
+    { key: catKeyUncached, sourceLang: 'es' as const },
+  ];
+  const callsBeforeCat = llmCalls;
+  const catMap = await localizeBlogCategories(catInput, 'en', mockLLM);
+  check('categorías: 1 llamada LLM solo para las faltantes', llmCalls === callsBeforeCat + 1, `calls=${llmCalls}`);
+  check('categorías: sourceLang===target mantiene original', catMap.get(catKeySameSource) === catKeySameSource);
+  check('categorías: cachedLabel se reutiliza sin LLM', catMap.get(catKeyCached) === 'Cached Category');
+  check('categorías: faltante traducida vía LLM', catMap.get(catKeyUncached) === `[TR]${catKeyUncached}`);
+
+  const catMapCachedMem = await localizeBlogCategories([{ key: catKeyUncached, sourceLang: 'es' }], 'en', mockLLM);
+  check('categorías: segunda lectura usa caché en memoria (0 LLM)', llmCalls === callsBeforeCat + 1 && catMapCachedMem.get(catKeyUncached) === `[TR]${catKeyUncached}`);
+
+  const catFailKey = `cat-fail-${catTestSuffix}`;
+  const catFailMap = await localizeBlogCategories([{ key: catFailKey, sourceLang: 'es' }], 'de', failingLLM);
+  check('categorías: si LLM falla → fallback al original sin error', catFailMap.get(catFailKey) === catFailKey);
 
   // ═══ 10. PERFIL DEL AUTOR (singleton editable por el admin) ═══
   section('10. Perfil del autor');
@@ -494,6 +572,8 @@ async function main() {
             title: '[TR]Titulo cacheado relacionadas',
             excerpt: '[TR]Extracto cacheado',
             content: '[TR]Contenido cacheado',
+            category: '[TR]Categoria cacheada',
+            tags: ['[TR]tag-cacheado'],
             translatedAt: new Date().toISOString(),
             sourceUpdatedAt: (sameCatDoc?.updatedAt as Date).toISOString(),
           },
@@ -506,7 +586,29 @@ async function main() {
   const cachedRelated = (body?.data ?? []).find((p: { slug: string }) => p.slug === sameCat.body?.data?.slug);
   const uncachedRelated = (body?.data ?? []).find((p: { slug: string }) => p.slug === sharedTags.body?.data?.slug);
   check('related usa la traducción cacheada', cachedRelated?.title === '[TR]Titulo cacheado relacionadas', cachedRelated?.title);
+  check(
+    'related incluye category/tags cacheados y categoryKey canónica',
+    cachedRelated?.category === '[TR]Categoria cacheada' &&
+      cachedRelated?.categoryKey === uniqueCat &&
+      cachedRelated?.tags?.[0] === '[TR]tag-cacheado',
+    JSON.stringify(cachedRelated),
+  );
   check('related sin caché mantiene el original (sin LLM)', uncachedRelated?.title === sharedTags.body?.data?.title, uncachedRelated?.title);
+
+  // Detalle ?lang=en sobre entrada temporal con caché completa (sin LLM ni tocar existentes)
+  const sameCatSlug = sameCat.body?.data?.slug as string;
+  res = await getPostBySlug(testRequest(`${base}/posts/${sameCatSlug}?lang=en`), { params: Promise.resolve({ slug: sameCatSlug }) });
+  body = await res.json();
+  check(
+    'GET detalle ?lang=en devuelve título, categoría, categoryKey y tags localizados',
+    res.status === 200 &&
+      body?.data?.lang === 'en' &&
+      body?.data?.title === '[TR]Titulo cacheado relacionadas' &&
+      body?.data?.category === '[TR]Categoria cacheada' &&
+      body?.data?.categoryKey === uniqueCat &&
+      body?.data?.tags?.[0] === '[TR]tag-cacheado',
+    JSON.stringify(body?.data),
+  );
 
   // ═══ 13. VISITAS (analytics sin cookies) ═══
   section('13. Contador de visitas');

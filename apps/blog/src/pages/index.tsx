@@ -8,7 +8,7 @@ import Navbar from '@/components/blog/Navbar';
 import Footer from '@/components/blog/Footer';
 import PostCard from '@/components/blog/PostCard';
 import { apiClient, type BlogPost, type BlogCategory } from '@/lib/api';
-import { langFromAcceptLanguage, langFromQuery } from '@/lib/utils';
+import { langFromAcceptLanguage, langFromCookie, langFromQuery } from '@/lib/utils';
 import {
   absoluteUrl,
   buildAlternates,
@@ -27,13 +27,16 @@ interface Props {
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async ({ req, query }) => {
-  // Idioma: primero ?lang=XX (URL localizada para SEO), si no Accept-Language
-  const lang = langFromQuery(query.lang) ?? langFromAcceptLanguage(req.headers['accept-language']);
+  // Idioma: ?lang=XX (SEO/URL) → cookie de preferencia → Accept-Language
+  const lang =
+    langFromQuery(query.lang) ??
+    langFromCookie(req.headers.cookie) ??
+    langFromAcceptLanguage(req.headers['accept-language']);
   const category = typeof query.categoria === 'string' && query.categoria !== '' ? query.categoria : null;
 
   const [posts, categories] = await Promise.all([
     apiClient.getPosts(lang, category ?? undefined).catch(() => [] as BlogPost[]),
-    apiClient.getCategories().catch(() => [] as BlogCategory[]),
+    apiClient.getCategories(lang).catch(() => [] as BlogCategory[]),
   ]);
 
   return { props: { posts, categories, lang, activeCategory: category } };
@@ -79,9 +82,11 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
     };
   }, [router]);
 
-  const SITE_URL = process.env.NEXT_PUBLIC_BLOG_URL || 'https://blog.nelhealthcoach.com';
-  const cleanPath = router.asPath ? router.asPath.split('?')[0] : '';
-  const canonical = `${SITE_URL}${cleanPath === '/' ? '' : cleanPath}`;
+  const canonicalPath = localizedPath(
+    activeCategory ? `/?categoria=${encodeURIComponent(activeCategory)}` : '/',
+    lang,
+  );
+  const canonical = absoluteUrl(canonicalPath);
   const description = t('hero.subtitle');
   const alternates = buildAlternates('/');
 
@@ -90,6 +95,8 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
     // Nombre constante en los 6 idiomas → sin desajuste de hidratación
     authorName: 'Manuel Martínez',
   });
+
+  const activeNormalized = activeCategory?.trim().toLowerCase() ?? null;
 
   return (
     <>
@@ -136,7 +143,7 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
       </Head>
 
       <div className="min-h-screen flex flex-col">
-        <Navbar />
+        <Navbar lang={lang} />
 
         {/* Hero con logo blanco (navbar lo detecta por id) */}
         <section id="blog-hero" className="bg-gradient-to-br from-blue-900 via-blue-800 to-blue-600 text-white pt-28 sm:pt-32 md:pt-40 pb-16 px-4">
@@ -160,19 +167,26 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
               >
                 {t('categories.all')}
               </Link>
-              {categories.map((cat) => (
-                <Link
-                  key={cat.name}
-                  href={localizedPath(`/?categoria=${encodeURIComponent(cat.name)}`, lang)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                    activeCategory === cat.name
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
-                >
-                  {cat.name} ({cat.count})
-                </Link>
-              ))}
+              {categories.map((cat) => {
+                const catKey = cat.key ?? cat.name;
+                const isSelected =
+                  activeNormalized !== null &&
+                  (catKey.trim().toLowerCase() === activeNormalized ||
+                    cat.name.trim().toLowerCase() === activeNormalized);
+                return (
+                  <Link
+                    key={catKey}
+                    href={localizedPath(`/?categoria=${encodeURIComponent(catKey)}`, lang)}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                      isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    {cat.name} ({cat.count})
+                  </Link>
+                );
+              })}
             </div>
           )}
 
@@ -195,7 +209,7 @@ const HomePage: React.FC<Props> = ({ posts, categories, lang, activeCategory }) 
           )}
         </main>
 
-        <Footer />
+        <Footer lang={lang} />
       </div>
     </>
   );

@@ -19,12 +19,14 @@ export const BlogPreviewSection: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [post, setPost] = useState<BlogPostPreview | null>(null);
   const [loading, setLoading] = useState(true);
+  const activeLang = i18n.language?.split('-')[0]?.toLowerCase() || 'es';
+  const langQuery = activeLang !== 'es' ? `?lang=${encodeURIComponent(activeLang)}` : '';
+  const blogHomeUrl = `${BLOG_URL}${langQuery ? `/${langQuery}` : ''}`;
 
   useEffect(() => {
-    const lang = i18n.language?.split('-')[0] || 'es';
     const controller = new AbortController();
 
-    fetch(`${API_BASE_URL}/api/blog/posts?limit=1&lang=${encodeURIComponent(lang)}`, {
+    fetch(`${API_BASE_URL}/api/blog/posts?limit=1&lang=${encodeURIComponent(activeLang)}`, {
       signal: controller.signal,
     })
       .then((res) => res.json())
@@ -35,9 +37,11 @@ export const BlogPreviewSection: React.FC = () => {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [i18n.language]);
+  }, [activeLang]);
 
-  const postUrl = post ? `${BLOG_URL}/post/${encodeURIComponent(post.slug)}` : BLOG_URL;
+  const postUrl = post
+    ? `${BLOG_URL}/post/${encodeURIComponent(post.slug)}${langQuery}`
+    : blogHomeUrl;
 
   return (
     <section id="blog" className="relative min-h-screen py-16 md:py-24 px-4 sm:px-6 overflow-hidden bg-white flex items-center">
@@ -113,7 +117,7 @@ export const BlogPreviewSection: React.FC = () => {
             {/* Botón CTA al Blog principal */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               <a
-                href={BLOG_URL}
+                href={blogHomeUrl}
                 className="inline-flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-700 to-sky-600 hover:from-blue-800 hover:to-sky-700 text-white font-bold text-base rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
               >
                 <span>{t('landing.blogPreview.button')}</span>
@@ -142,7 +146,7 @@ export const BlogPreviewSection: React.FC = () => {
                   {t('landing.blogPreview.liveBadge')}
                 </span>
               </div>
-              <a href={BLOG_URL} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+              <a href={blogHomeUrl} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
                 {t('landing.blogPreview.viewAll')} →
               </a>
             </div>
@@ -222,7 +226,7 @@ export const BlogPreviewSection: React.FC = () => {
                   {t('landing.blogPreview.fallbackText')}
                 </p>
                 <a
-                  href={BLOG_URL}
+                  href={blogHomeUrl}
                   className="inline-flex items-center gap-2 font-bold text-sky-400 hover:text-sky-300 text-sm"
                 >
                   <span>{t('landing.blogPreview.fallbackCta')}</span>

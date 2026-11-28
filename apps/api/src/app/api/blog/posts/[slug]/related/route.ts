@@ -70,6 +70,8 @@ async function getHandler(
             title: plain.title,
             excerpt: plain.excerpt,
             content: plain.content,
+            category: plain.category,
+            tags: plain.tags,
             sourceLang: doc.sourceLang as string | undefined,
             updatedAt: doc.updatedAt as Date,
             translations: decryptTranslations(
@@ -83,6 +85,9 @@ async function getHandler(
           title: cached?.title ?? plain.title,
           excerpt: cached?.excerpt ?? plain.excerpt,
           content: cached?.content ?? plain.content,
+          category: cached?.category ?? plain.category,
+          categoryKey: plain.category,
+          tags: cached?.tags ?? plain.tags,
           lang: cached?.lang ?? (doc.sourceLang ?? 'es'),
         };
       });
